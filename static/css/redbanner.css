@@ -1,0 +1,21 @@
+/* redbanner.css */
+.banner {
+    width: 100%;
+    background-color: red; /* Solid red background */
+    color: white; /* White text color */
+    text-align: center;
+    padding: 10px 0; /* Vertical padding */
+    position: fixed; /* Fixed position at the top */
+    top: 0;
+    left: 0;
+    z-index: 1000; /* Ensure it stays on top */
+    font-weight: bold; /* Bold text */
+    font-size: 1.5em; /* Font size */
+    text-transform: uppercase; /* Capital letters */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Optional shadow for depth */
+}
+
+/* Ensure the rest of the content is below the banner */
+body {
+    padding-top: 60px; /* Adjust based on the banner height */
+}
