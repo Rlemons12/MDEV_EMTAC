@@ -3,194 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <title>Efficient Maintenance and Technical Assistance Chatbot</title>
-    <style>
-    /* Common CSS styles for both half and full-screen views */
-    body {
-        background-image: url("/static/background images/abstractfractal.jpg");
-        background-repeat: no-repeat;
-        background-size: cover;
-        color: white;
-        font-size: 120%;
-        text-align: center;
-        display: flex;
-        align-items: center; /* Center vertically */
-        justify-content: center; /* Center horizontally */
-        height: 100vh;
-        margin: 0; /* Remove default margin */
-    }
-
-    .main-container {
-        display: flex;
-        flex-direction: row;
-        align-items: center; /* Center vertically */
-        justify-content: center; /* Center horizontally */
-        height: 100%;
-    }
-
-    .left-side, .right-side {
-        flex: 1;
-        padding: 20px;
-    }
-
-    .right-side {
-        border-left: 1px solid white;
-    }
-
-    .answer-section {
-        background-color: black;
-        padding: 15px;
-        margin-top: 20px;
-        border-radius: 10px;
-    }
-
-    .answer-section p {
-        color: white;
-        font-weight: bold;
-    }
-
-    /* Additional CSS for the user-input-container */
-    .user-input-container {
-        display: flex;
-        flex-direction: column;
-        align-items: center; /* Center horizontally */
-    }
-
-    .input-and-button {
-        display: flex;
-        align-items: center; /* Align items vertically */
-        margin-top: 10px; /* Space above the input and button */
-    }
-
-    #submit-question {
-        margin-left: 10px; /* Space between the textarea and the button */
-    }
-
-    #voice-selection {
-        margin-top: 10px; /* Space above the dropdown */
-    }
-
-    /* Style for the voice recognition toggle button */
-    #toggle-voice {
-        margin-top: 10px; /* Space above the button */
-        padding: 10px 20px; /* Padding for the button */
-        background-color: #4CAF50; /* Green background */
-        color: white; /* White text */
-        border: none; /* No border */
-        border-radius: 5px; /* Rounded corners */
-        cursor: pointer; /* Pointer cursor on hover */
-    }
-
-    #toggle-voice:hover {
-        background-color: #45a049; /* Darker green on hover */
-    }
-
-    /* Style for the text-to-speech toggle button */
-    #toggle-text-to-speech {
-        margin-top: 10px; /* Space above the button */
-        padding: 10px 20px; /* Padding for the button */
-        background-color: #3498db; /* Blue background */
-        color: white; /* White text */
-        border: none; /* No border */
-        border-radius: 5px; /* Rounded corners */
-        cursor: pointer; /* Pointer cursor on hover */
-    }
-
-    #toggle-text-to-speech:hover {
-        background-color: #2980b9; /* Darker blue on hover */
-    }
-    
-    /* Additional CSS for the thumbnails */
-    .thumbnails-section {
-        margin-top: 20px; /* Space above the thumbnails */
-        display: flex;
-        flex-wrap: wrap; /* Allow thumbnails to wrap to the next line */
-        justify-content: center; /* Center thumbnails horizontally */
-    }
-
-    .thumbnail {
-        width: 125px; /* Set the width of the thumbnails */
-        height: auto; /* Maintain aspect ratio */
-        margin: 5px; /* Add some spacing between thumbnails */
-    }
-    .upload-button {
-    color: yellow; /* Change text color to yellow */
-}
-
-    .logout-button {
-        position: fixed;
-        top: 10px;
-        left: 10px;
-        color: white;
-        text-decoration: none;
-    }
-	/* Style for the rating selection and submit button */
-	.rating-section {
-		margin-top: 10px; /* Add space above the rating selection */
-		display: flex;
-		align-items: center; /* Center horizontally */
-	}
-
-	.rating-section label,
-	.rating-section select,
-	.rating-section button {
-		margin-right: 10px; /* Add space between elements */
-	}
-	/* Style for the comment box */
-	.comment-box textarea {
-		width: 300px; /* Set the width */
-		height: 100px; /* Set the height */
-		padding: 10px; /* Add padding for better appearance */
-		resize: vertical; /* Allow vertical resizing */
-	}
-
-    /* Additional CSS for the model display section */
-    .model-display-section {
-        background-color: rgba(0, 0, 0, 0);
-        padding: 10px;
-        margin-top: 20px;
-        border-radius: 10px;
-    }
-
-    .model-display-section p {
-        color: white;
-        font-weight: bold;
-        margin: 0; /* Remove default margin */
-    }
-
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/index_styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/redbanner.css') }}">
 </head>
 <body>
-    <a href="/logout" class="logout-button">Logout</a>
+    <div class="banner">
+        THIS IS FOR REFERENCE ONLY. ALL INFORMATION SHOULD BE VERIFIED WITH CURRENT SOP'S
+    </div>
+
+    </div>
+    <span id="sidebarCollapse">&#9776; Menu</span>
     <div class="main-container">
-        <!-- Left side content -->
-        <div class="left-side">
+        <!-- Left side content (Sidebar) -->
+        <div class="sidebar">
+            <a href="javascript:void(0)" class="close-btn" id="closeSidebar">&times;</a>
             <h1>EMTAC</h1>
             <h2>Welcome {{ name }} how can I assist you?</h2>
-
-            <!-- Form for asking questions -->
-            <div class="user-input-container">
-                <input type="text" id="user_id" placeholder="User ID" value="{{ employee_id }}" readonly style="display: none;">
-
-                <!-- Add the user ID input field here or render it wherever you want -->
-                <select id="area" style="display: none;" >
-                    <!-- Options will be populated here -->
-                </select>
-                <div class="input-and-button">
-                    <textarea id="user_input" placeholder="Your Question" rows="2" cols="50"></textarea>
-                    <button id="submit-question">Ask</button>
-                </div>
-                <select id="voice-selection"></select>
-                <!-- Voice recognition toggle button -->
-                <button id="toggle-voice">Toggle Voice Recognition</button>
-                <!-- Text to Speech toggle button -->
-                <button id="toggle-text-to-speech">Toggle Text-to-Speech</button>
-				<a href="/troubleshooting_guide"> Update Troubleshooting Guide</a>
-				<a href="/tsg_search_problems"> Search Troubleshooting<a>
-            </div>
+            <button id="toggle-voice" class="toggle-button">Toggle Voice Recognition</button>
+            <button id="toggle-text-to-speech" class="toggle-button">Toggle Text-to-Speech</button>
+            <select id="voice-selection"></select>
+            <a href="/troubleshooting_guide">Update Troubleshooting Guide</a>
+            <a href="/tsg_search_problems">Search Troubleshooting</a>
             <a href="/upload_image" class="upload-button">Upload Images</a>
-			<!-- Link to the Troubleshooting Guide page -->
-			
-            <!-- Model display section -->
+            <a href="/logout" class="logout-button">Logout</a>
             <div class="model-display-section">
                 <p>Current AI Model: {{ current_ai_model }}</p>
                 <p>Current Embedding Model: {{ current_embedding_model }}</p>
@@ -198,53 +33,73 @@
         </div>
         
         <!-- Right side content -->
-        <div class="right-side">
+        <div class="content">
             <div class="answer-section" id="answer-section">
                 <p id="answer"></p>
             </div>
             
-            <!-- Thumbnails section -->
-			<div class="thumbnails-section" id="thumbnails-section">
-				<!-- Thumbnails will be displayed here -->
-			</div>
+            <div class="thumbnails-section" id="thumbnails-section">
+                <!-- Thumbnails will be displayed here -->
+            </div>
+            
+            <div class="doc-links-section" id="doc-links-section">
+                <!-- Hoverable links for relevant documents will be displayed here -->
+            </div>
 
-			<!-- Hoverable links for relevant documents section -->
-			<div class="doc-links-section" id="doc-links-section">
-				<!-- Hoverable links for relevant documents will be displayed here -->
-			</div>
-			  <!-- Comment box -->
-			<div class="comment-box">
-				<textarea id="comment" placeholder="Comment, suggestions or corrections"></textarea>
-			<!-- Rating selection and submit button -->
-			<div class="rating-section">
-				<label for="rating">Rating:</label>
-				<select id="rating">
-					<option value="1">1</option>
-					<option value="2">2</option>
-					<option value="3">3</option>
-					<option value="4">4</option>
-					<option value="5">5</option>
-					<option value="6">6</option>
-					<option value="7">7</option>
-					<option value="8">8</option>
-					<option value="9">9</option>
-					<option value="10">10</option>
-				</select>
-				<button id="submit_comment_rating">Submit</button>
-			</div>
-		</div>
+            <div class="user-input-container">
+                <input type="text" id="user_id" placeholder="User ID" value="{{ employee_id }}" readonly style="display: none;">
+                <select id="area" style="display: none;">
+                    <!-- Options will be populated here -->
+                </select>
+                <div class="input-and-button">
+                    <textarea id="user_input" placeholder="Your Question" rows="2" cols="50"></textarea>
+                    <button id="submit-question">Ask</button>
+                </div>
+            </div>
 
-
+            <div class="comment-box">
+                <textarea id="comment" placeholder="Comment, suggestions or corrections"></textarea>
+                <div class="rating-section">
+                    <label for="rating">Rating:</label>
+                    <select id="rating">
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                        <option value="6">6</option>
+                        <option value="7">7</option>
+                        <option value="8">8</option>
+                        <option value="9">9</option>
+                        <option value="10">10</option>
+                    </select>
+                    <button id="submit_comment_rating">Submit</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Link to the external JavaScript file -->
     <script src="{{ url_for('static', filename='chatbot.js') }}"></script>
-	<script src="{{ url_for('static', filename='chatbot_display_thumbnails.js') }}"></script>
-	<script src="{{ url_for('static', filename='update_qanda_table.js') }}"></script>
-	<script type="text/javascript">
-    window.addEventListener("beforeunload", function (event) {
-        navigator.sendBeacon('/logout_bp');
-    });
-</script>
+    <script src="{{ url_for('static', filename='chatbot_display_thumbnails.js') }}"></script>
+    <script src="{{ url_for('static', filename='update_qanda_table.js') }}"></script>
+    <script>
+        document.getElementById("sidebarCollapse").onclick = function() {
+            document.querySelector(".main-container").classList.toggle("collapsed");
+        };
 
+        document.getElementById("closeSidebar").onclick = function() {
+            document.querySelector(".main-container").classList.toggle("collapsed");
+        };
+
+        // Add functionality to toggle buttons to highlight when active
+        document.getElementById("toggle-voice").onclick = function() {
+            this.classList.toggle("active");
+        };
+
+        document.getElementById("toggle-text-to-speech").onclick = function() {
+            this.classList.toggle("active");
+        };
+    </script>
 </body>
 </html>
