@@ -1,6 +1,6 @@
+# image_models.py 
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import numpy as np
 from transformers import CLIPProcessor, CLIPModel
 from sqlalchemy.orm import sessionmaker
@@ -8,10 +8,10 @@ from sqlalchemy import create_engine
 import logging
 from PIL import Image as PILImage, ImageFile
 from abc import ABC, abstractmethod
-import torch  # Add this import
+import torch
 
-# Import config variables from __init__.py
-from plugins.image_models import DATABASE_URL, ALLOWED_EXTENSIONS
+# Import config variables from config.py
+from config import DATABASE_URL, ALLOWED_EXTENSIONS
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
@@ -20,6 +20,20 @@ logger = logging.getLogger(__name__)
 # SQLAlchemy setup
 engine = create_engine(DATABASE_URL)
 Session = sessionmaker(bind=engine)
+
+# Function to dynamically import and instantiate the correct model handler
+def get_image_model_handler(model_name):
+    module = sys.modules[__name__]
+    try:
+        model_class = getattr(module, model_name)
+        if issubclass(model_class, BaseImageModelHandler):
+            return model_class()
+        else:
+            raise ValueError(f"{model_name} is not a subclass of BaseImageModelHandler")
+    except AttributeError:
+        logger.error(f"{model_name} not found in {__name__}")
+        return NoImageModel()
+
 
 # Define the BaseImageModelHandler interface
 class BaseImageModelHandler(ABC):
@@ -98,8 +112,27 @@ class CLIPModelHandler(BaseImageModelHandler):
     def is_valid_image(self, image):
         width, height = image.size
         logger.info(f"Image dimensions: width={width}, height={height}")
-        if width < 100 or height < 100:
+
+        # Define minimum and maximum dimensions
+        min_dimension = 100  # Minimum acceptable dimension
+        max_dimension = 5000  # Maximum acceptable dimension
+
+        if width < min_dimension or height < min_dimension:
+            logger.info(f"Image is too small: width={width}, height={height}")
             return False
-        shortest_side = min(width, height)
-        longest_side = max(width, height)
-        return longest_side <= 5 * shortest_side
+        if width > max_dimension or height > max_dimension:
+            logger.info(f"Image is too large: width={width}, height={height}")
+            return False
+
+        # Define acceptable aspect ratio range
+        min_aspect_ratio = 1 / 5  # Minimum aspect ratio (height/width)
+        max_aspect_ratio = 5  # Maximum aspect ratio (width/height)
+
+        aspect_ratio = width / height
+        if not (min_aspect_ratio <= aspect_ratio <= max_aspect_ratio):
+            logger.info(f"Image aspect ratio {aspect_ratio} is outside the acceptable range. "
+                        f"Min aspect ratio: {min_aspect_ratio}, Max aspect ratio: {max_aspect_ratio}")
+            return False
+
+        return True
+

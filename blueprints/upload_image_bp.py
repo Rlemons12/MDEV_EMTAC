@@ -1,6 +1,7 @@
 from flask import current_app, request, redirect, url_for, render_template, Blueprint
 from werkzeug.utils import secure_filename
-from emtacdb_fts import Session, Image, ImagePositionAssociation, create_position, add_image_to_db
+from emtacdb_fts import (Session, Image, ImagePositionAssociation, create_position, add_image_to_db, load_config_from_db,load_image_model_config_from_db)
+from plugins.image_models import CLIPModelHandler, NoImageModel
 import os
 import base64
 import requests
@@ -103,9 +104,14 @@ def upload_image():
             if not description:
                 description = generate_description(file_path)
 
-            # Add the image metadata to the database
-            add_image_to_db(title, position_id, relative_path, None, description)
+            # Load current image model from the database
+            current_image_model = load_image_model_config_from_db()
+            model_handler = CLIPModelHandler() if current_image_model == "CLIPModelHandler" else NoImageModel()
+
+            # Add the image metadata to the database with embeddings
+            add_image_to_db(title, file_path, model_handler, position_id, None, None, description)
 
             return redirect(url_for('upload_image_bp.upload_image'))
     return render_template('upload.html')
+
 

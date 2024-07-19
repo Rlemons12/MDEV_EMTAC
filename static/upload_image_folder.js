@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', function () {
     var dropZone = document.getElementById('drop-zone');
     var fileInput = document.getElementById('file-input');
-    var uploadForm = document.getElementById('upload-form');
+    var uploadForm = document.getElementById('upload-compare-form');
 
     if (dropZone && fileInput) {
         dropZone.addEventListener('click', function () {

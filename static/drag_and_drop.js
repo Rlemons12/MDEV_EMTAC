@@ -20,14 +20,14 @@ document.addEventListener('DOMContentLoaded', function() {
         const files = e.dataTransfer.files;
         fileInput.files = files;
         // Trigger form submission if required
-        document.getElementById('upload-form').submit();
+        document.getElementById('upload-compare-form').submit();
     });
 
     fileInput.addEventListener('change', () => {
         if (fileInput.files.length > 0) {
             // Show file name or trigger form submission
             dropZone.textContent = fileInput.files[0].name;
-            document.getElementById('upload-form').submit();
+            document.getElementById('upload-compare-form').submit();
         }
     });
 });

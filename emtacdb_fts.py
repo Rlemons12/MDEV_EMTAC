@@ -1,4 +1,5 @@
 from plugins.ai_models import generate_embedding, store_embedding
+from plugins.image_models import  NoImageModel, BaseImageModelHandler, CLIPModelHandler, get_image_model_handler
 import base64
 import json
 import os
@@ -933,7 +934,6 @@ def get_total_images_count(description=''):
 # Example usage:
 # total_images = get_total_images_count(description="example")
 
-# Function to add an image to the database
 def add_image_to_db(title, file_path, position_id=None, completed_document_position_association_id=None, complete_document_id=None, description=""):
     try:
         logger.debug("Debugging add_image_to_db:")
@@ -944,52 +944,99 @@ def add_image_to_db(title, file_path, position_id=None, completed_document_posit
         logger.debug(f"Complete Document ID: {complete_document_id}")
         logger.debug(f"Description: {description}")
 
+        # Check for the current image embedding model
+        current_image_model = load_image_model_config_from_db()
+        logger.info(f"Current image model configuration from DB: {current_image_model}")
+        
+        # Dynamically set the model handler
+        model_handler = get_image_model_handler(current_image_model)
+        logger.info(f"Using model handler: {model_handler.__class__.__name__}")
+
         with Session() as session:
             logger.info(f'Processing image: {title}')
 
             # Check if an image with the same title and description exists
             existing_image = session.query(Image).filter(and_(Image.title == title, Image.description == description)).first()
             if existing_image is not None and existing_image.file_path == file_path:
-                # If an image with the same title, description, and file path exists, do not add the new image
                 logger.info(f"Image with same title, description, and file path already exists: {title}")
                 new_image = existing_image
+                
+                error_file_path = os.path.join(DATABASE_PATH_IMAGES_FOLDER, 'failed_uploads.txt')
+                with open(error_file_path, 'a') as error_file:
+                    error_file.write(f"Image with title '{title}', description '{description}', and file path '{file_path}' already exists.\n")
             else:
-                # Create a new Image object with the provided parameters
                 new_image = Image(
                     title=title,
                     description=description,
                     file_path=file_path
                 )
 
-                # Add the new image to the session
                 session.add(new_image)
-                session.commit()  # Commit to get the new image ID
+                session.commit()
 
                 logger.info(f"Added image: {title}")
 
-            if position_id:
-                # Create an entry in the ImagePositionAssociation table
-                image_position_association = ImagePositionAssociation(
-                    image_id=new_image.id,
-                    position_id=position_id
-                )
-                session.add(image_position_association)
-                logger.info(f"Created ImagePositionAssociation with image ID {new_image.id} and position ID {position_id}")
+            # Process the image and generate the embedding
+            try:
+                logger.info(f"Opening image: {file_path}")
+                image = PILImage.open(file_path).convert("RGB")
+                logger.info("Calling model_handler.is_valid_image()")
+                if not model_handler.is_valid_image(image):
+                    logger.info(f"Skipping {file_path}: Image does not meet the required dimensions or aspect ratio.")
+                else:
+                    logger.info("Image passed validation.")
+                    model_embedding = model_handler.get_image_embedding(image)
+                    model_name = model_handler.__class__.__name__
 
-            if complete_document_id:
-                # Create an entry in the ImageCompletedDocumentAssociation table
-                image_completed_document_association = ImageCompletedDocumentAssociation(
-                    image_id=new_image.id,
-                    complete_document_id=complete_document_id
-                )
-                session.add(image_completed_document_association)
-                logger.info(f"Created ImageCompletedDocumentAssociation with image ID {new_image.id} and completed document ID {complete_document_id}")
+                    if model_name and model_embedding is not None:
+                        # Check if the embedding already exists
+                        existing_embedding = session.query(ImageEmbedding).filter(
+                            and_(ImageEmbedding.image_id == new_image.id, ImageEmbedding.model_name == model_name)).first()
+                        if existing_embedding is None:
+                            # Create an entry in the ImageEmbedding table
+                            image_embedding = ImageEmbedding(
+                                image_id=new_image.id,
+                                model_name=model_name,
+                                model_embedding=model_embedding.tobytes()
+                            )
+                            session.add(image_embedding)
+                            logger.info(f"Created ImageEmbedding with image ID {new_image.id}, model name {model_name}")
 
-            session.commit()
+                    if position_id:
+                        existing_association = session.query(ImagePositionAssociation).filter(
+                            and_(ImagePositionAssociation.image_id == new_image.id, ImagePositionAssociation.position_id == position_id)).first()
+                        if existing_association is None:
+                            image_position_association = ImagePositionAssociation(
+                                image_id=new_image.id,
+                                position_id=position_id
+                            )
+                            session.add(image_position_association)
+                            logger.info(f"Created ImagePositionAssociation with image ID {new_image.id} and position ID {position_id}")
+
+                    if complete_document_id:
+                        existing_document_association = session.query(CompletedDocumentPositionAssociation).filter(
+                            and_(CompletedDocumentPositionAssociation.image_id == new_image.id, CompletedDocumentPositionAssociation.complete_document_id == complete_document_id)).first()
+                        if existing_document_association is None:
+                            image_completed_document_association = CompletedDocumentPositionAssociation(
+                                image_id=new_image.id,
+                                complete_document_id=complete_document_id
+                            )
+                            session.add(image_completed_document_association)
+                            logger.info(f"Created CompletedDocumentPositionAssociation with image ID {new_image.id} and completed document ID {complete_document_id}")
+
+                    session.commit()
+            except Exception as e:
+                logger.error(f"An error occurred while processing the image: {e}")
+                error_file_path = os.path.join(DATABASE_PATH_IMAGES_FOLDER, 'failed_uploads.txt')
+                with open(error_file_path, 'a') as error_file:
+                    error_file.write(f"Error processing image with title '{title}': {e}\n")
 
     except Exception as e:
         logger.error(f"An error occurred in add_image_to_db: {e}")
         logger.error(f"Attempted to process image: {title}")
+        error_file_path = os.path.join(DATABASE_PATH_IMAGES_FOLDER, 'failed_uploads.txt')
+        with open(error_file_path, 'a') as error_file:
+            error_file.write(f"Error processing image with title '{title}': {e}\n")
 
 def split_text_into_chunks(text, max_words=300, pad_token=""):
     logger.info("Starting split_text_into_chunks")

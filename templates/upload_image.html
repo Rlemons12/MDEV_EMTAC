@@ -5,7 +5,6 @@
     <title>Database Entry</title>
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/upload_styles.css') }}">
     <style>
-        /* Add basic styles for the drop zone */
         .drop-zone {
             border: 2px dashed #ccc;
             border-radius: 10px;
@@ -17,6 +16,16 @@
         .drop-zone.dragover {
             border-color: white;
             color: yellow;
+        }
+        .image-details {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .thumbnail {
+            max-width: 100px;
+            max-height: 100px;
+            margin-right: 20px;
         }
     </style>
 </head>
@@ -30,25 +39,15 @@
         <a href="#batch-upload" onclick="showForm('batch-upload')">Batch Upload Documents</a>
         <a href="#search-powerpoints" onclick="showForm('search-powerpoints')">Search PowerPoints</a>
         <a href="#search-images" onclick="showForm('search-images')">Search Images</a>
+        <a href="#compare-images" onclick="showForm('compare-images')">Compare Images</a>
         <a href="#search-documents" onclick="showForm('search-documents')">Search Documents</a>
         <a href="/">Return to Main Page</a>
     </div>
 
     <div class="content" id="content">
-        <!-- Add this block to render flash messages -->
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }}">
-                        {{ message }}
-                    </div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-        
         <div id="upload-image" class="form-container">
             <h2>Upload Image</h2>
-            <form action="/image/upload_image" method="post" enctype="multipart/form-data">
+            <form id="upload-image-form" action="/image/upload_image" method="post" enctype="multipart/form-data">
                 <input type="text" name="title" placeholder="Image Title"><br>
                 <textarea name="description" placeholder="Image Description"></textarea><br>
                 <select name="area" id="image_areaDropdown"></select><br>
@@ -154,7 +153,7 @@
         </div>
 
         <div id="search-images" class="form-container">
-            <h2>Search and Compare Images</h2>
+            <h2>Search Images</h2>
             <form id="search-images-form">
                 <label for="description" style="color: black;">Description:</label><br>
                 <input type="text" name="description" id="search_images_description" placeholder="Search by Description"><br>
@@ -172,16 +171,20 @@
                 <select name="searchimage_location" id="searchimage_locationDropdown"></select><br>
                 <input type="submit" value="Search">
             </form>
-            <h2>Upload and Compare Image</h2>
-            <form id="upload-form" action="{{ url_for('image_compare_bp.upload_and_compare') }}" method="post" enctype="multipart/form-data">
-                <div id="drop-zone" class="drop-zone">
-                    Drag & Drop your image here or click to upload
-                </div>
-                <input type="file" id="file-input" name="query_image" accept="image/*" style="display: none;">
-                <input type="hidden" name="model_name" value="clip"> <!-- Add the model_name here -->
-                <button type="submit" style="display: none;">Upload and Compare</button>
-            </form>
         </div>
+
+        <div class="content" id="content">
+            <div id="compare-images" class="form-container">
+                <h2>Upload and Compare Image</h2>
+                <form id="upload-compare-form" action="/upload_and_compare" method="post" enctype="multipart/form-data">
+                    <div id="drop-zone" class="drop-zone">
+                        Drag & Drop your image here or click to upload
+                    </div>
+                    <input type="file" id="file-input" name="query_image" accept="image/*" style="display: none;">
+                    <input type="hidden" name="model_name" value="clip">
+                    <button type="submit" style="display: none;">Upload and Compare</button>
+                </form>
+            </div>
 
         <div id="search-documents" class="form-container">
             <h2>Search Documents</h2>
@@ -205,10 +208,10 @@
         <div id="results" class="results-container">
             <h2>Search Results</h2>
             <ul id="documents-list"></ul>
-            <ul id="image-results" class="image-container"></ul>
+            <ul id="image-results" class="image-results-container"></ul>
+            <ul id="image-compare-results" class="image-compare-results-container"></ul>
         </div>
-    </div>
-    
+           
     <!-- Include jQuery using a CDN -->
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
 
@@ -217,22 +220,26 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
 
     <!-- Include your custom JavaScript file -->
-    <script src="{{ url_for('static', filename='batch_upload.js') }}"></script>
-    <script src="{{ url_for('static', filename='upload_image.js') }}"></script>
-    <script src="{{ url_for('static', filename='image_upload.js') }}"></script>
-    <script src="{{ url_for('static', filename='upload_powerpoint.js') }}"></script>
-    <script src="{{ url_for('static', filename='document_search.js') }}"></script>
-    <script src="{{ url_for('static', filename='image_search.js') }}"></script>
-    <script src="{{ url_for('static', filename='powerpoint_search.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/drag_and_drop.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/upload_image_folder.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/batch_upload.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/upload_image.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/image_upload.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/upload_powerpoint.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/document_search.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/image_search.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/powerpoint_search.js') }}"></script>
+    <!--<script src="{{ url_for('static', filename='drag_and_drop.js') }}"></script>-->
+    <!--<script src="{{ url_for('static', filename='upload_image_folder.js') }}"></script>-->
+    <script src="{{ url_for('static', filename='js/image_compare.js') }}"></script> 
+
     <script>
         function toggleSidebar() {
             var sidebar = document.getElementById('sidebar');
+            console.log('Toggling sidebar. Current state:', sidebar.classList.contains('collapsed') ? 'collapsed' : 'expanded');
             sidebar.classList.toggle('collapsed');
         }
-
+    
         function showForm(formId) {
+            console.log('Showing form:', formId);
             var forms = document.getElementsByClassName('form-container');
             for (var i = 0; i < forms.length; i++) {
                 forms[i].style.display = 'none';
@@ -240,65 +247,75 @@
             document.getElementById(formId).style.display = 'block';
             document.getElementById('results').style.display = 'none'; // Hide results container when showing a form
         }
-
+    
         function showResults(content) {
+            console.log('Showing results.');
             document.getElementById('results').style.display = 'block';
             document.getElementById('documents-list').innerHTML = content;
             document.getElementById('image-results').innerHTML = ''; // Clear image results
+            document.getElementById('image-compare-results').innerHTML = ''; // Clear image compare results
         }
-
+    
         // Initially hide all forms and results
         document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM fully loaded and parsed.');
             var forms = document.getElementsByClassName('form-container');
             for (var i = 0; i < forms.length; i++) {
                 forms[i].style.display = 'none';
             }
             document.getElementById('results').style.display = 'none'; // Hide results container on page load
         });
-
+    
         // Handle search form submissions
         document.getElementById('search-documents-form').addEventListener('submit', function(event) {
             event.preventDefault();
+            console.log('Submitting search documents form.');
             var formData = new FormData(this);
             var params = new URLSearchParams(formData);
             fetch('/search_documents?' + params.toString())
                 .then(response => response.json())
                 .then(data => {
                     if (data.error) {
+                        console.log('Error from server:', data.error);
                         showResults(`<p>${data.error}</p>`);
                     } else {
+                        console.log('Rendering document results.');
                         renderDocumentResults(data);
                     }
                 });
         });
-
+    
         function renderDocumentResults(data) {
             var documentsList = '';
             data.documents.forEach(document => {
                 documentsList += `<li><a href="search_documents/view_document/${document.id}" target="_blank">${document.title}</a></li>`;
             });
+            console.log('Document results prepared.');
             showResults(documentsList);
         }
-
+    
         document.getElementById('search-images-form').addEventListener('submit', function(event) {
             event.preventDefault();
+            console.log('Submitting search images form.');
             var formData = new FormData(this);
             var params = new URLSearchParams(formData);
             fetch('/search_images?' + params.toString())
                 .then(response => response.json())
                 .then(data => {
                     if (data.error) {
+                        console.log('Error from server:', data.error);
                         document.getElementById('results').style.display = 'block';
                         document.getElementById('documents-list').innerHTML = `<p>${data.error}</p>`;
                         document.getElementById('image-results').innerHTML = ''; // Clear document results
                     } else {
+                        console.log('Rendering image results.');
                         renderImageResults(data);
                     }
                 });
         });
-
+    
         function renderImageResults(data) {
-            var imagesList = '';
+            let imagesList = '';
             data.images.forEach(image => {
                 imagesList += `<div class="image-details">
                                 <a href="/serve_image/${image.id}" target="_blank">
@@ -308,9 +325,9 @@
                                     <h2>${image.title}</h2>
                                     <p>${image.description}</p>
                                 </div>
-                                <div style="clear: both;"></div>
-                              </div>`;
+                                <div style="clear: both;"></div>`;
             });
+            console.log('Image results prepared.');
             document.getElementById('results').style.display = 'block';
             document.getElementById('image-results').innerHTML = imagesList;
             document.getElementById('documents-list').innerHTML = ''; // Clear document results
