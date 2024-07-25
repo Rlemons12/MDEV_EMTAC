@@ -11,6 +11,7 @@ body {
     justify-content: center; /* Center horizontally */
     height: 100vh;
     margin: 0; /* Remove default margin */
+    padding-top: 60px; /* Adjust based on the banner height */
 }
 
 .main-container {
@@ -28,9 +29,9 @@ body {
     overflow-x: hidden;
     transition: 0.5s;
     position: fixed;
-    top: 0;
+    top: 60px; /* Adjusted to be below the banner */
     left: 0;
-    padding-top: 60px;
+    padding-top: 60px; /* Ensure the content starts below the banner */
     width: 250px; /* Set the width of the sidebar */
     font-size: inherit; /* Ensure consistent font size */
 }
@@ -69,8 +70,9 @@ body {
     cursor: pointer;
     color: white;
     position: fixed;
-    top: 10px;
+    top: 70px; /* Adjusted to be below the banner */
     left: 10px;
+    z-index: 1001; /* Ensure it stays above other content but below the banner */
 }
 
 .content {
@@ -201,4 +203,21 @@ body {
     color: white;
     font-weight: bold;
     margin: 0; /* Remove default margin */
+}
+
+/* Red banner CSS */
+.banner {
+    width: 100%;
+    background-color: red; /* Solid red background */
+    color: white; /* White text color */
+    text-align: center;
+    padding: 10px 0; /* Vertical padding */
+    position: fixed; /* Fixed position at the top */
+    top: 0;
+    left: 0;
+    z-index: 1002; /* Ensure it stays on top */
+    font-weight: bold; /* Bold text */
+    font-size: 1.5em; /* Font size */
+    text-transform: uppercase; /* Capital letters */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Optional shadow for depth */
 }
