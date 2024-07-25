@@ -12,6 +12,7 @@ import webbrowser
 from threading import Timer
 from blueprints import register_blueprints
 from emtacdb_fts import load_config_from_db
+from config import DATABASE_DIR,DATABASE_URL
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
