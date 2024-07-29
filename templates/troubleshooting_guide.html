@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Trouble Shooting Guide</title>
+    <!-- Add any required styles or links to stylesheets -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/dropzone/5.9.3/min/dropzone.min.css" rel="stylesheet">
+    <style>
+        /* Add CSS styles here */
+        body {
+            background-image: url("/static/background images/abstractfractal.jpg");
+            background-size: cover;
+            background-repeat: no-repeat;
+            color: black;
+            font-family: Arial, sans-serif;
+        }
+
+        .form-container {
+            width: 15%; /* Adjust the width to fit both forms on the same row */
+            margin-right: 2%; /* Add some margin between the forms */
+            display: inline-block; /* Display the form containers inline */
+            vertical-align: top; /* Align the forms to the top */
+            /* Other styling properties */
+        }
+
+        #thumbnails-section {
+            width: 50%; /* Adjust the width to fit the content and desired layout */
+            /* Other styling properties */
+            display: inline-block; /* Display thumbnails inline */
+            vertical-align: top; /* Align thumbnails to the top */
+        }
+        .thumbnail {
+            /* Your existing styles for thumbnails */
+
+            /* Add margin-right to create spacing between thumbnails */
+            margin-right: 10px; /* Adjust the right margin to add spacing between thumbnails */
+        }
+
+        label {
+            margin-top: 10px;
+        }
+
+        input[type="text"],
+        textarea,
+        select {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            border-radius: 5px;
+            border: none;
+        }
+
+        button {
+            padding: 10px 20px;
+            margin-top: 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+		  #drawingList {
+            color: white; /* Set the font color to white */
+        }
+    </style>
+</head>
+<body>
+<a href="/tsg_search_problems"> Search Troubleshooting</a>    
+<!-- Button to Return to Main Page -->
+<a href="/">Return to Main Page</a>
+<div class="row"> <!-- Start of third row -->
+    <!-- Troubleshooting Guide Form -->
+    <div class="form-container">
+        <div style="color: white;">
+            <h2>Troubleshooting Guide</h2>
+            <form action="/update_problem_solution" method="post" enctype="multipart/form-data">
+                <label for="title" style="color: white;">Problem Title:</label>
+                <input type="text" name="problem_name" id="problem_name" placeholder="Problem"><br>
+                
+                <label for="areaDropdown" style="color: white;">Area:</label>
+                <select name="tsg_area" id="tsg_areaDropdown" style="width: 100%;">
+                    <!-- Options will be populated dynamically -->
+                </select><br>
+
+                <label for="equipmentGroupDropdown" style="color: white;">Equipment Group:</label>
+                <select name="tsg_equipment_group" id="tsg_equipmentGroupDropdown" style="width: 100%;">
+                    <!-- Options will be populated dynamically -->
+                </select><br>
+
+                <label for="modelDropdown" style="color: white;">Model:</label>
+                <select name="tsg_model" id="tsg_modelDropdown" style="width: 100%;">
+                    <!-- Options will be populated dynamically -->
+                </select><br>
+
+                <label for="assetNumberDropdown" style="color: white;">Asset Number:</label>
+                <select name="tsg_asset_number" id="tsg_assetNumberDropdown" style="width: 100%;">
+                    <!-- Options will be populated dynamically -->
+                </select><br>
+
+                <label for="locationDropdown" style="color: white;">Location:</label>
+                <select name="tsg_location" id="tsg_locationDropdown" style="width: 100%;">
+                    <!-- Options will be populated dynamically -->
+                </select><br>
+
+                <!-- Problem Description -->
+                <label for="problemDescription" style="color: white;">Problem Description:</label><br>
+                <textarea name="problem_description" id="problemDescription" rows="4" cols="50"></textarea><br>
+                
+                <!-- Problem Image Selection -->
+                <label for="problemImageSearch" style="color: white;">Attach Problem Images:</label><br>
+                <select name="tsg_problem_image_search" id="tsg_problemImageSearchDropdown" multiple style="width: 100%;">
+                    <!-- Options will be populated dynamically -->
+                </select><br>
+
+                <!-- Solution Description -->
+                <label for="solutionDescription" style="color: white;">Solution Description:</label><br>
+                <textarea name="solution_description" id="solutionDescription" rows="4" cols="50"></textarea><br>
+                
+                <!-- Solution Image Selection -->
+                <label for="solutionImageSearch" style="color: white;">Attach Solution Images:</label><br>
+                <select name="tsg_solution_image_search" id="tsg_solutionImageSearchDropdown" multiple style="width: 100%;">
+                    <!-- Options will be populated dynamically -->
+                </select><br>
+                
+                <!-- Document Search -->
+                <label for="documentSearch" style="color: white;">Search Document:</label><br>
+                <select name="tsg_document_search" id="tsg_documentSearchDropdown" style="width: 100%;"></select><br>
+                                        
+                <!-- Drawing Number -->
+				<label for="drawingnumberSearch" style="color:white;">Search Drawing Number:</label><br>
+				<select name="tsg_selected_drawing_search" id="tsg_drawingSearchDropdown" multiple style="width: 100%;"></select><br>
+				
+                <!-- Part Number -->
+                <label for="partnumberSearch" style="color:white;">Search Part Number:</label><br>
+                <select name="tsg_selected_part_search" id="tsg_partSearchDropdown" multiple style="width: 100%;"></select><br>
+
+                <button type="submit">Submit</button>
+            </form>
+        </div>
+    </div> <!-- End of Troubleshooting Guide Form -->
+
+    <!-- Drawing Search Form -->
+    <div class="form-container">
+        <div style="color: white;">
+            <h2>Search Drawings</h2>
+            <form id="searchForm">
+                <label for="drw_equipment_name" style="color: white;">Equipment Name:</label><br>
+                <input type="text" name="drw_equipment_name" id="drw_equipment_name" placeholder="Search by Equipment Name"><br>
+                
+                <label for="drw_number" style="color: white;">Drawing Number:</label><br> 
+                <input type="text" name="drw_number" id="drw_number" placeholder="Search by Drawing Number"><br>
+                
+                <label for="drw_name" style="color: white;">Drawing Name:</label><br>
+                <input type="text" name="drw_name" id="drw_name" placeholder="Search by Drawing Name"><br>
+                
+                <label for="drw_revision" style="color: white;">Revision:</label><br>
+                <input type="text" name="drw_revision" id="drw_revision" placeholder="Search by Revision"><br>
+                
+                <label for="drw_spare_part_number" style="color: white;">Spare Part Number:</label><br>
+                <input type="text" name="drw_spare_part_number" id="drw_spare_part_number" placeholder="Search by Spare Part Number"><br>
+                
+                <button type="submit">Search</button>
+            </form>
+        </div>
+    </div> <!-- End of Drawing Search Form -->
+
+    <!-- Image Search Form -->
+    <div class="form-container">
+        <div style="color: white;">
+            <h2>Search Images</h2>
+            <form action="/tsg_search_images" method="get">
+                <label for="description" style="color: white;">Description:</label><br>
+                <input type="text" name="description" id="description" placeholder="Search by Description"><br>
+                
+                <label for="title" style="color: white;">Title:</label><br>
+                <input type="text" name="title" id="title" placeholder="Search by Title"><br>
+                
+                <label for="area" style="color: white;">Area:</label><br>
+                <select name="tsg_searchimage_area" id="tsg_searchimage_areaDropdown" style="width: 100%;">
+                    <!-- Options will be populated dynamically -->
+                </select><br>
+                
+                <label for="equipment_group" style="color: white;">Equipment Group:</label><br>
+                <select name="tsg_searchimage_equipment_group" id="tsg_searchimage_equipmentGroupDropdown" style="width: 100%;">
+                    <!-- Options will be populated dynamically -->
+                </select><br>
+                
+                <label for="model" style="color: white;">Model:</label><br>
+                <select name="tsg_searchimage_model" id="tsg_searchimage_modelDropdown" style="width: 100%;">
+                    <!-- Options will be populated dynamically -->
+                </select><br>
+                
+                <label for="asset_number" style="color: white;">Asset Number:</label><br>
+                <select name="tsg_searchimage_asset_number" id="tsg_searchimage_assetNumberDropdown" style="width: 100%;">
+                    <!-- Options will be populated dynamically -->
+                </select><br>
+                
+                <label for="location" style="color: white;">Location:</label><br>
+                <select name="tsg_searchimage_location" id="tsg_searchimage_locationDropdown" style="width: 100%;">
+                    <!-- Options will be populated dynamically -->
+                </select><br>
+                <input type="submit" value="Search">
+            </form>
+        </div>
+    </div> <!-- End of Image Search Form with Dropdowns -->
+
+    <div id="thumbnails-section">
+        <!-- Thumbnails will be dynamically added here -->
+    </div>
+	
+	<div id="drawingList">
+        <!-- Drawing search results will be dynamically added here -->
+    </div>
+
+    <!-- Include jQuery using a CDN -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+	<link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" rel="stylesheet" />
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
+    
+    <!-- Include your custom JavaScript file -->
+    <script src="{{ url_for('static', filename='tsg_document_search.js') }}"></script>
+    <script src="{{ url_for('static', filename='tsg_image_search.js') }}"></script>    
+    <script src="{{ url_for('static', filename='tsg_upload1.js') }}"></script>    
+    <script src="{{ url_for('static', filename='tsg_image_thumbnail.js') }}"></script>
+	<script src="{{ url_for('static', filename='tsg_drawing_search.js')}}"></script>
+	<script src="{{ url_for('static', filename='tsg_drawing_form.js') }}"></script>
+	<script src="{{ url_for('static', filename='tsg_part_form.js')}}"></script>
+	
+    <script>
+        // Call the function to populate dropdowns when the page loads
+        $(document).ready(function() {
+            populateTroubleshootingGuideDropdowns(); 
+        });
+    </script>
+    <script>
+        // Call the function to populate dropdowns when the page loads
+        $(document).ready(function() {
+            populateTroubleshootingGuideDropdowns(); 
+            
+            // Initialize Dropzone for uploading multiple images
+            Dropzone.autoDiscover = false;
+            $("#imageDropzone").dropzone({
+                url: "/upload_images",
+                paramName: "file", // The name that will be used to transfer the file
+                maxFilesize: 5, // MB
+                maxFiles: 20,
+                acceptedFiles: 'image/*',
+                addRemoveLinks: true,
+                dictDefaultMessage: "Drop images here or click to upload",
+                dictRemoveFile: "Remove",
+                dictFileTooBig: "File is too big ({{filesize}}MB). Max filesize: {{maxFilesize}}MB.",
+                dictMaxFilesExceeded: "You can only upload {{maxFiles}} images.",
+                success: function(file, response) {
+                    // Handle the success callback if needed
+                },
+                error: function(file, errorMessage) {
+                    // Handle the error callback if needed
+                }
+            });
+        });
+    </script>
+    <script type="text/javascript">
+        window.addEventListener("beforeunload", function (event) {
+            navigator.sendBeacon('/logout_bp');
+        });
+    </script>
+
+</body>
+</html>
