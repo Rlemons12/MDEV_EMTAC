@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, redirect, url_for
+from flask import Blueprint, request, jsonify, redirect, url_for, current_app
 from emtacdb_fts import (FileLog, extract_images_from_pdf, add_docx_to_db,
                          generate_embedding, extract_text_from_pdf, extract_text_from_txt, add_document_to_db,
                          add_text_file_to_db, add_csv_data_to_db, create_position)
@@ -11,6 +11,7 @@ import requests
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
 import logging
+from concurrent.futures import ThreadPoolExecutor
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -21,18 +22,16 @@ engine = create_engine(DATABASE_URL)
 Session = scoped_session(sessionmaker(bind=engine))
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # Get the absolute path of the directory containing this script
-LOG_FILE = 'process_log.csv'  # Change the log file extension to .csv
+LOG_FOLDER = os.path.join(BASE_DIR, 'logs')
+if not os.path.exists(LOG_FOLDER):
+    os.makedirs(LOG_FOLDER)
+LOG_FILE = 'script_sql_speed_test.csv'  # Change the log file extension to .csv
+log_file_path = os.path.join(LOG_FOLDER, LOG_FILE)
 
-# Create the absolute path for the log file
-log_file_path = os.path.join(BASE_DIR, LOG_FILE)
-
-# Check if the log file exists
+# Create the log file if it doesn't exist
 if not os.path.exists(log_file_path):
-    # If the log file doesn't exist, create it
-    with open(log_file_path, 'w'):
-        pass  # This will create an empty file
-
-
+    with open(log_file_path, 'w') as file:
+        file.write('file_path,total_time\n')  # Header for the CSV file
 
 batch_processing_bp = Blueprint("batch_processing_bp", __name__)
 
@@ -47,14 +46,14 @@ def batch_processing():
     if not folder_path:
         return jsonify({"message": "No folder path provided"}), 400
 
-    process_folder(folder_path)
-
     batch_title = request.form.get("title")
     batch_area = request.form.get("batchArea")
     batch_equipment_group = request.form.get("batchEquipmentGroup")
     batch_model = request.form.get("batchModel")
     batch_asset_number = request.form.get("batchAssetNumber")
     batch_location = request.form.get("batchLocation")
+
+    process_folder(folder_path, batch_title, batch_area, batch_equipment_group, batch_model, batch_asset_number, batch_location)
 
     logger.info(f"Batch Title: {batch_title}")
     logger.info(f"Batch Area: {batch_area}")
@@ -64,9 +63,6 @@ def batch_processing():
     logger.info(f"Batch Location: {batch_location}")
 
     return jsonify({"message": "Batch processing completed successfully"})
-
-
-
 
 @batch_processing_bp.route("/add_batch_folder", methods=["POST"])
 def add_batch_folder():
@@ -103,18 +99,11 @@ def add_batch_folder():
 
     return redirect(url_for('upload_success'))
 
-def process_single_file(file_path, session_id, session_datetime):
+def process_single_file(file_path, session_id, session_datetime, title, area, equipment_group, model, asset_number, location):
     logger.info(f"file_path: {file_path}")
     start_time = datetime.now()
 
     try:
-        title = request.form.get("title")
-        area = request.form.get("batchArea")
-        equipment_group = request.form.get("batchEquipmentGroup")
-        model = request.form.get("batchModel")
-        asset_number = request.form.get("batchAssetNumber")
-        location = request.form.get("batchLocation")
-
         if file_path.endswith(('.ppt', '.pptx')):
             with open(file_path, 'rb') as ppt_file:
                 files = {'powerpoint': ppt_file}
@@ -182,49 +171,37 @@ def process_single_file(file_path, session_id, session_datetime):
         with Session() as session:
             session.add(file_log_entry)
             session.commit()
+        
+        # Write the processing time to the log file
+        with open(log_file_path, 'a') as log_file:
+            log_file.write(f'{file_path},{total_time_str}\n')
 
     except Exception as e:
         logger.error(f"Error processing file: {file_path}. Error: {str(e)}")
 
-def process_folder(folder_path):
+def process_folder(folder_path, batch_title, batch_area, batch_equipment_group, batch_model, batch_asset_number, batch_location):
     folder_path = os.path.abspath(folder_path)
     current_time = datetime.now()
     session_id = current_time.strftime("%Y%m%d%H%M%S")
     logger.info(f"Batch processing started at {current_time}")
 
     try:
-        for root, dirs, files in os.walk(folder_path):
-            for file_name in files:
-                file_path = os.path.join(root, file_name)
-                logger.info(f"Processing file: {file_path}")
+        num_workers = os.cpu_count()  # Dynamically set the number of workers
+        logger.info(f"Number of CPU cores available: {num_workers}")
 
-                start_time = datetime.now()
-
-                try:
-                    process_single_file(file_path, session_id, start_time)
-                    end_time = datetime.now()
-                    total_time = end_time - start_time
-                    logger.info(f"Total processing time for {file_path}: {total_time}")
-
-                except Exception as e:
-                    logger.error(f"Error processing file: {file_path}. Error: {str(e)}")
+        with ThreadPoolExecutor(max_workers=num_workers) as executor:
+            futures = []
+            for root, dirs, files in os.walk(folder_path):
+                for file_name in files:
+                    file_path = os.path.join(root, file_name)
+                    logger.info(f"Scheduling file for processing: {file_path}")
+                    future = executor.submit(process_single_file, file_path, session_id, current_time, batch_title, batch_area, batch_equipment_group, batch_model, batch_asset_number, batch_location)
+                    futures.append(future)
+            
+            for future in futures:
+                future.result()  # wait for all the futures to complete
 
     except Exception as e:
         logger.error(f"Error processing folder: {folder_path}. Error: {str(e)}")
 
     logger.info(f"Batch processing completed at {datetime.now()}")
-
-
-
-
-
-
-
-
-
-
-
-
-
-            
-

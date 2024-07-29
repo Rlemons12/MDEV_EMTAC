@@ -1,0 +1,208 @@
+2024-07-26 04:04:45,647 - MainThread - INFO - BEGIN (implicit)
+2024-07-26 04:04:45,650 - MainThread - INFO - SELECT image_model_config.id AS image_model_config_id, image_model_config."key" AS image_model_config_key, image_model_config.value AS image_model_config_value 
+FROM image_model_config 
+WHERE image_model_config."key" = ?
+ LIMIT ? OFFSET ?
+2024-07-26 04:04:45,651 - MainThread - INFO - [generated in 0.00122s] ('CURRENT_IMAGE_MODEL', 1, 0)
+2024-07-26 04:04:45,652 - MainThread - INFO - ROLLBACK
+2024-07-26 04:04:46,752 - MainThread - INFO - BEGIN (implicit)
+2024-07-26 04:04:46,753 - MainThread - INFO - SELECT image_model_config.id AS image_model_config_id, image_model_config."key" AS image_model_config_key, image_model_config.value AS image_model_config_value 
+FROM image_model_config 
+WHERE image_model_config."key" = ?
+ LIMIT ? OFFSET ?
+2024-07-26 04:04:46,755 - MainThread - INFO - [cached since 1.105s ago] ('CURRENT_IMAGE_MODEL', 1, 0)
+2024-07-26 04:04:46,756 - MainThread - INFO - ROLLBACK
+2024-07-26 04:04:47,779 - MainThread - INFO - BEGIN (implicit)
+2024-07-26 04:04:47,781 - MainThread - INFO - SELECT ai_model_config.id AS ai_model_config_id, ai_model_config."key" AS ai_model_config_key, ai_model_config.value AS ai_model_config_value 
+FROM ai_model_config 
+WHERE ai_model_config."key" = ?
+ LIMIT ? OFFSET ?
+2024-07-26 04:04:47,782 - MainThread - INFO - [generated in 0.00126s] ('CURRENT_AI_MODEL', 1, 0)
+2024-07-26 04:04:47,784 - MainThread - INFO - SELECT ai_model_config.id AS ai_model_config_id, ai_model_config."key" AS ai_model_config_key, ai_model_config.value AS ai_model_config_value 
+FROM ai_model_config 
+WHERE ai_model_config."key" = ?
+ LIMIT ? OFFSET ?
+2024-07-26 04:04:47,786 - MainThread - INFO - [cached since 0.00467s ago] ('CURRENT_EMBEDDING_MODEL', 1, 0)
+2024-07-26 04:04:47,787 - MainThread - INFO - ROLLBACK
+2024-07-26 04:04:47,830 - MainThread - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2024-07-26 04:04:47,831 - MainThread - INFO - [33mPress CTRL+C to quit[0m
+2024-07-26 04:04:49,354 - Thread-2 (process_request_thread) - INFO - BEGIN (implicit)
+2024-07-26 04:04:49,357 - Thread-2 (process_request_thread) - INFO - SELECT ai_model_config.id AS ai_model_config_id, ai_model_config."key" AS ai_model_config_key, ai_model_config.value AS ai_model_config_value 
+FROM ai_model_config 
+WHERE ai_model_config."key" = ?
+ LIMIT ? OFFSET ?
+2024-07-26 04:04:49,359 - Thread-2 (process_request_thread) - INFO - [generated in 0.00209s] ('CURRENT_AI_MODEL', 1, 0)
+2024-07-26 04:04:49,362 - Thread-2 (process_request_thread) - INFO - SELECT ai_model_config.id AS ai_model_config_id, ai_model_config."key" AS ai_model_config_key, ai_model_config.value AS ai_model_config_value 
+FROM ai_model_config 
+WHERE ai_model_config."key" = ?
+ LIMIT ? OFFSET ?
+2024-07-26 04:04:49,364 - Thread-2 (process_request_thread) - INFO - [cached since 0.006924s ago] ('CURRENT_EMBEDDING_MODEL', 1, 0)
+2024-07-26 04:04:49,365 - Thread-2 (process_request_thread) - INFO - ROLLBACK
+2024-07-26 04:04:49,377 - Thread-2 (process_request_thread) - INFO - 127.0.0.1 - - [26/Jul/2024 04:04:49] "GET / HTTP/1.1" 200 -
+2024-07-26 04:04:49,546 - Thread-3 (process_request_thread) - INFO - 127.0.0.1 - - [26/Jul/2024 04:04:49] "[36mGET /static/css/index_styles.css HTTP/1.1[0m" 304 -
+2024-07-26 04:04:49,557 - Thread-7 (process_request_thread) - INFO - 127.0.0.1 - - [26/Jul/2024 04:04:49] "[36mGET /static/background%20images/abstractfractal.jpg HTTP/1.1[0m" 304 -
+2024-07-26 04:04:49,557 - Thread-4 (process_request_thread) - INFO - 127.0.0.1 - - [26/Jul/2024 04:04:49] "[36mGET /static/chatbot.js HTTP/1.1[0m" 304 -
+2024-07-26 04:04:49,560 - Thread-5 (process_request_thread) - INFO - 127.0.0.1 - - [26/Jul/2024 04:04:49] "[36mGET /static/chatbot_display_thumbnails.js HTTP/1.1[0m" 304 -
+2024-07-26 04:04:49,565 - Thread-6 (process_request_thread) - INFO - 127.0.0.1 - - [26/Jul/2024 04:04:49] "[36mGET /static/update_qanda_table.js HTTP/1.1[0m" 304 -
+2024-07-26 04:04:53,027 - Thread-8 (process_request_thread) - INFO - 127.0.0.1 - - [26/Jul/2024 04:04:53] "GET /upload_image HTTP/1.1" 200 -
+2024-07-26 04:04:53,067 - Thread-9 (process_request_thread) - INFO - 127.0.0.1 - - [26/Jul/2024 04:04:53] "[36mGET /static/css/redbanner.css HTTP/1.1[0m" 304 -
+2024-07-26 04:04:53,083 - Thread-11 (process_request_thread) - INFO - 127.0.0.1 - - [26/Jul/2024 04:04:53] "[36mGET /static/js/batch_upload.js HTTP/1.1[0m" 304 -
+2024-07-26 04:04:53,085 - Thread-12 (process_request_thread) - INFO - 127.0.0.1 - - [26/Jul/2024 04:04:53] "[36mGET /static/js/upload_image.js HTTP/1.1[0m" 304 -
+2024-07-26 04:04:53,086 - Thread-10 (process_request_thread) - INFO - 127.0.0.1 - - [26/Jul/2024 04:04:53] "[36mGET /static/css/upload_styles.css HTTP/1.1[0m" 304 -
+2024-07-26 04:04:53,087 - Thread-13 (process_request_thread) - INFO - 127.0.0.1 - - [26/Jul/2024 04:04:53] "[36mGET /static/js/image_upload.js HTTP/1.1[0m" 304 -
+2024-07-26 04:04:53,088 - Thread-14 (process_request_thread) - INFO - 127.0.0.1 - - [26/Jul/2024 04:04:53] "[36mGET /static/js/upload_powerpoint.js HTTP/1.1[0m" 304 -
+2024-07-26 04:04:53,089 - Thread-15 (process_request_thread) - INFO - 127.0.0.1 - - [26/Jul/2024 04:04:53] "[36mGET /static/js/document_search.js HTTP/1.1[0m" 304 -
+2024-07-26 04:04:53,100 - Thread-16 (process_request_thread) - INFO - 127.0.0.1 - - [26/Jul/2024 04:04:53] "[36mGET /static/js/image_search.js HTTP/1.1[0m" 304 -
+2024-07-26 04:04:53,103 - Thread-17 (process_request_thread) - INFO - 127.0.0.1 - - [26/Jul/2024 04:04:53] "[36mGET /static/js/powerpoint_search.js HTTP/1.1[0m" 304 -
+2024-07-26 04:04:53,108 - Thread-18 (process_request_thread) - INFO - 127.0.0.1 - - [26/Jul/2024 04:04:53] "[36mGET /static/js/image_compare.js HTTP/1.1[0m" 304 -
+2024-07-26 04:04:53,120 - Thread-19 (process_request_thread) - INFO - 127.0.0.1 - - [26/Jul/2024 04:04:53] "[36mGET /static/background%20images/abstractfractal.jpg HTTP/1.1[0m" 304 -
+2024-07-26 04:04:53,445 - Thread-20 (process_request_thread) - INFO - BEGIN (implicit)
+2024-07-26 04:04:53,446 - Thread-21 (process_request_thread) - INFO - BEGIN (implicit)
+2024-07-26 04:04:53,448 - Thread-22 (process_request_thread) - INFO - Fetching image list data.
+2024-07-26 04:04:53,449 - Thread-20 (process_request_thread) - INFO - SELECT area.id AS area_id, area.name AS area_name, area.description AS area_description 
+FROM area
+2024-07-26 04:04:53,453 - Thread-21 (process_request_thread) - INFO - SELECT area.id AS area_id, area.name AS area_name, area.description AS area_description 
+FROM area
+2024-07-26 04:04:53,453 - Thread-23 (process_request_thread) - INFO - BEGIN (implicit)
+2024-07-26 04:04:53,457 - Thread-24 (process_request_thread) - INFO - BEGIN (implicit)
+2024-07-26 04:04:53,459 - Thread-22 (process_request_thread) - INFO - BEGIN (implicit)
+2024-07-26 04:04:53,460 - Thread-25 (process_request_thread) - INFO - BEGIN (implicit)
+2024-07-26 04:04:53,460 - Thread-20 (process_request_thread) - INFO - [generated in 0.01053s] ()
+2024-07-26 04:04:53,461 - Thread-21 (process_request_thread) - INFO - [generated in 0.00817s] ()
+2024-07-26 04:04:53,463 - Thread-23 (process_request_thread) - INFO - SELECT area.id AS area_id, area.name AS area_name, area.description AS area_description 
+FROM area
+2024-07-26 04:04:53,465 - Thread-24 (process_request_thread) - INFO - SELECT area.id AS area_id, area.name AS area_name, area.description AS area_description 
+FROM area
+2024-07-26 04:04:53,466 - Thread-22 (process_request_thread) - INFO - SELECT area.id AS area_id, area.name AS area_name, area.description AS area_description 
+FROM area
+2024-07-26 04:04:53,468 - Thread-25 (process_request_thread) - INFO - SELECT area.id AS area_id, area.name AS area_name, area.description AS area_description 
+FROM area
+2024-07-26 04:04:53,470 - Thread-23 (process_request_thread) - INFO - [generated in 0.00718s] ()
+2024-07-26 04:04:53,472 - Thread-21 (process_request_thread) - INFO - SELECT equipment_group.id AS equipment_group_id, equipment_group.name AS equipment_group_name, equipment_group.area_id AS equipment_group_area_id 
+FROM equipment_group
+2024-07-26 04:04:53,474 - Thread-20 (process_request_thread) - INFO - SELECT equipment_group.id AS equipment_group_id, equipment_group.name AS equipment_group_name, equipment_group.area_id AS equipment_group_area_id 
+FROM equipment_group
+2024-07-26 04:04:53,474 - Thread-24 (process_request_thread) - INFO - [generated in 0.00926s] ()
+2024-07-26 04:04:53,475 - Thread-22 (process_request_thread) - INFO - [generated in 0.00862s] ()
+2024-07-26 04:04:53,476 - Thread-25 (process_request_thread) - INFO - [generated in 0.00814s] ()
+2024-07-26 04:04:53,477 - Thread-21 (process_request_thread) - INFO - [generated in 0.00528s] ()
+2024-07-26 04:04:53,479 - Thread-23 (process_request_thread) - INFO - SELECT equipment_group.id AS equipment_group_id, equipment_group.name AS equipment_group_name, equipment_group.area_id AS equipment_group_area_id 
+FROM equipment_group
+2024-07-26 04:04:53,479 - Thread-20 (process_request_thread) - INFO - [generated in 0.00563s] ()
+2024-07-26 04:04:53,482 - Thread-24 (process_request_thread) - INFO - SELECT equipment_group.id AS equipment_group_id, equipment_group.name AS equipment_group_name, equipment_group.area_id AS equipment_group_area_id 
+FROM equipment_group
+2024-07-26 04:04:53,482 - Thread-22 (process_request_thread) - INFO - SELECT equipment_group.id AS equipment_group_id, equipment_group.name AS equipment_group_name, equipment_group.area_id AS equipment_group_area_id 
+FROM equipment_group
+2024-07-26 04:04:53,484 - Thread-25 (process_request_thread) - INFO - SELECT equipment_group.id AS equipment_group_id, equipment_group.name AS equipment_group_name, equipment_group.area_id AS equipment_group_area_id 
+FROM equipment_group
+2024-07-26 04:04:53,485 - Thread-21 (process_request_thread) - INFO - SELECT model.id AS model_id, model.name AS model_name, model.description AS model_description, model.equipment_group_id AS model_equipment_group_id 
+FROM model
+2024-07-26 04:04:53,485 - Thread-23 (process_request_thread) - INFO - [generated in 0.00672s] ()
+2024-07-26 04:04:53,487 - Thread-20 (process_request_thread) - INFO - SELECT model.id AS model_id, model.name AS model_name, model.description AS model_description, model.equipment_group_id AS model_equipment_group_id 
+FROM model
+2024-07-26 04:04:53,488 - Thread-24 (process_request_thread) - INFO - [generated in 0.00705s] ()
+2024-07-26 04:04:53,488 - Thread-22 (process_request_thread) - INFO - [generated in 0.00635s] ()
+2024-07-26 04:04:53,489 - Thread-25 (process_request_thread) - INFO - [generated in 0.00546s] ()
+2024-07-26 04:04:53,490 - Thread-21 (process_request_thread) - INFO - [generated in 0.00510s] ()
+2024-07-26 04:04:53,491 - Thread-20 (process_request_thread) - INFO - [generated in 0.00429s] ()
+2024-07-26 04:04:53,493 - Thread-23 (process_request_thread) - INFO - SELECT model.id AS model_id, model.name AS model_name, model.description AS model_description, model.equipment_group_id AS model_equipment_group_id 
+FROM model
+2024-07-26 04:04:53,496 - Thread-24 (process_request_thread) - INFO - SELECT model.id AS model_id, model.name AS model_name, model.description AS model_description, model.equipment_group_id AS model_equipment_group_id 
+FROM model
+2024-07-26 04:04:53,498 - Thread-22 (process_request_thread) - INFO - SELECT model.id AS model_id, model.name AS model_name, model.description AS model_description, model.equipment_group_id AS model_equipment_group_id 
+FROM model
+2024-07-26 04:04:53,500 - Thread-25 (process_request_thread) - INFO - SELECT model.id AS model_id, model.name AS model_name, model.description AS model_description, model.equipment_group_id AS model_equipment_group_id 
+FROM model
+2024-07-26 04:04:53,501 - Thread-21 (process_request_thread) - INFO - SELECT asset_number.id AS asset_number_id, asset_number.number AS asset_number_number, asset_number.description AS asset_number_description, asset_number.model_id AS asset_number_model_id 
+FROM asset_number
+2024-07-26 04:04:53,503 - Thread-20 (process_request_thread) - INFO - SELECT asset_number.id AS asset_number_id, asset_number.number AS asset_number_number, asset_number.description AS asset_number_description, asset_number.model_id AS asset_number_model_id 
+FROM asset_number
+2024-07-26 04:04:53,504 - Thread-23 (process_request_thread) - INFO - [generated in 0.01040s] ()
+2024-07-26 04:04:53,505 - Thread-24 (process_request_thread) - INFO - [generated in 0.00891s] ()
+2024-07-26 04:04:53,506 - Thread-22 (process_request_thread) - INFO - [generated in 0.00782s] ()
+2024-07-26 04:04:53,507 - Thread-25 (process_request_thread) - INFO - [generated in 0.00724s] ()
+2024-07-26 04:04:53,508 - Thread-21 (process_request_thread) - INFO - [generated in 0.00685s] ()
+2024-07-26 04:04:53,509 - Thread-20 (process_request_thread) - INFO - [generated in 0.00556s] ()
+2024-07-26 04:04:53,514 - Thread-23 (process_request_thread) - INFO - SELECT asset_number.id AS asset_number_id, asset_number.number AS asset_number_number, asset_number.description AS asset_number_description, asset_number.model_id AS asset_number_model_id 
+FROM asset_number
+2024-07-26 04:04:53,726 - Thread-24 (process_request_thread) - INFO - SELECT asset_number.id AS asset_number_id, asset_number.number AS asset_number_number, asset_number.description AS asset_number_description, asset_number.model_id AS asset_number_model_id 
+FROM asset_number
+2024-07-26 04:04:53,728 - Thread-22 (process_request_thread) - INFO - SELECT asset_number.id AS asset_number_id, asset_number.number AS asset_number_number, asset_number.description AS asset_number_description, asset_number.model_id AS asset_number_model_id 
+FROM asset_number
+2024-07-26 04:04:53,729 - Thread-25 (process_request_thread) - INFO - SELECT asset_number.id AS asset_number_id, asset_number.number AS asset_number_number, asset_number.description AS asset_number_description, asset_number.model_id AS asset_number_model_id 
+FROM asset_number
+2024-07-26 04:04:53,732 - Thread-21 (process_request_thread) - INFO - SELECT location.id AS location_id, location.name AS location_name, location.model_id AS location_model_id 
+FROM location
+2024-07-26 04:04:53,734 - Thread-20 (process_request_thread) - INFO - SELECT location.id AS location_id, location.name AS location_name, location.model_id AS location_model_id 
+FROM location
+2024-07-26 04:04:53,734 - Thread-23 (process_request_thread) - INFO - [generated in 0.22066s] ()
+2024-07-26 04:04:53,735 - Thread-24 (process_request_thread) - INFO - [generated in 0.00886s] ()
+2024-07-26 04:04:53,736 - Thread-22 (process_request_thread) - INFO - [generated in 0.00815s] ()
+2024-07-26 04:04:53,737 - Thread-25 (process_request_thread) - INFO - [generated in 0.00797s] ()
+2024-07-26 04:04:53,737 - Thread-21 (process_request_thread) - INFO - [generated in 0.00589s] ()
+2024-07-26 04:04:53,738 - Thread-20 (process_request_thread) - INFO - [generated in 0.00403s] ()
+2024-07-26 04:04:53,751 - Thread-21 (process_request_thread) - INFO - ROLLBACK
+2024-07-26 04:04:53,753 - Thread-20 (process_request_thread) - INFO - ROLLBACK
+2024-07-26 04:04:53,756 - Thread-23 (process_request_thread) - INFO - SELECT location.id AS location_id, location.name AS location_name, location.model_id AS location_model_id 
+FROM location
+2024-07-26 04:04:53,758 - Thread-21 (process_request_thread) - INFO - 127.0.0.1 - - [26/Jul/2024 04:04:53] "GET /get_list_data HTTP/1.1" 200 -
+2024-07-26 04:04:53,761 - Thread-20 (process_request_thread) - INFO - 127.0.0.1 - - [26/Jul/2024 04:04:53] "GET /batch/get_batch_list_data HTTP/1.1" 200 -
+2024-07-26 04:04:53,762 - Thread-23 (process_request_thread) - INFO - [generated in 0.00658s] ()
+2024-07-26 04:04:53,765 - Thread-24 (process_request_thread) - INFO - SELECT location.id AS location_id, location.name AS location_name, location.model_id AS location_model_id 
+FROM location
+2024-07-26 04:04:53,768 - Thread-22 (process_request_thread) - INFO - SELECT location.id AS location_id, location.name AS location_name, location.model_id AS location_model_id 
+FROM location
+2024-07-26 04:04:53,771 - Thread-25 (process_request_thread) - INFO - SELECT location.id AS location_id, location.name AS location_name, location.model_id AS location_model_id 
+FROM location
+2024-07-26 04:04:53,776 - Thread-26 (process_request_thread) - INFO - 127.0.0.1 - - [26/Jul/2024 04:04:53] "[33mGET /get_search_powerpoint_list_data_bp HTTP/1.1[0m" 404 -
+2024-07-26 04:04:53,779 - Thread-23 (process_request_thread) - INFO - ROLLBACK
+2024-07-26 04:04:53,779 - Thread-24 (process_request_thread) - INFO - [generated in 0.01447s] ()
+2024-07-26 04:04:53,780 - Thread-22 (process_request_thread) - INFO - [generated in 0.01247s] ()
+2024-07-26 04:04:53,781 - Thread-25 (process_request_thread) - INFO - [generated in 0.01023s] ()
+2024-07-26 04:04:53,784 - Thread-23 (process_request_thread) - INFO - 127.0.0.1 - - [26/Jul/2024 04:04:53] "GET /get_powerpoint_list_data_bp HTTP/1.1" 200 -
+2024-07-26 04:04:53,790 - Thread-24 (process_request_thread) - INFO - ROLLBACK
+2024-07-26 04:04:53,793 - Thread-22 (process_request_thread) - INFO - Successfully fetched data from the database.
+2024-07-26 04:04:53,796 - Thread-25 (process_request_thread) - INFO - ROLLBACK
+2024-07-26 04:04:53,800 - Thread-24 (process_request_thread) - INFO - 127.0.0.1 - - [26/Jul/2024 04:04:53] "GET /get_completedocument_list_data_bp HTTP/1.1" 200 -
+2024-07-26 04:04:53,802 - Thread-22 (process_request_thread) - INFO - ROLLBACK
+2024-07-26 04:04:53,808 - Thread-25 (process_request_thread) - INFO - 127.0.0.1 - - [26/Jul/2024 04:04:53] "GET /get_search_image_list_data_bp HTTP/1.1" 200 -
+2024-07-26 04:04:53,810 - Thread-22 (process_request_thread) - INFO - Session closed.
+2024-07-26 04:04:53,811 - Thread-22 (process_request_thread) - INFO - Returning JSON response with image list data.
+2024-07-26 04:04:53,815 - Thread-22 (process_request_thread) - INFO - 127.0.0.1 - - [26/Jul/2024 04:04:53] "GET /get_image_list_data HTTP/1.1" 200 -
+2024-07-26 04:05:17,142 - Thread-27 (process_request_thread) - INFO - Received a request to add documents
+2024-07-26 04:05:17,154 - Thread-27 (process_request_thread) - INFO - Number of files received: 1
+2024-07-26 04:05:17,155 - Thread-27 (process_request_thread) - INFO - BEGIN (implicit)
+2024-07-26 04:05:17,158 - Thread-27 (process_request_thread) - INFO - SELECT area.id AS area_id, area.name AS area_name, area.description AS area_description 
+FROM area 
+WHERE area.id = ?
+ LIMIT ? OFFSET ?
+2024-07-26 04:05:17,159 - Thread-27 (process_request_thread) - INFO - [generated in 0.00174s] ('11', 1, 0)
+2024-07-26 04:05:17,164 - Thread-27 (process_request_thread) - INFO - SELECT equipment_group.id AS equipment_group_id, equipment_group.name AS equipment_group_name, equipment_group.area_id AS equipment_group_area_id 
+FROM equipment_group 
+WHERE equipment_group.id = ?
+ LIMIT ? OFFSET ?
+2024-07-26 04:05:17,166 - Thread-27 (process_request_thread) - INFO - [generated in 0.00256s] ('14', 1, 0)
+2024-07-26 04:05:17,174 - Thread-27 (process_request_thread) - INFO - SELECT position.id AS position_id, position.area_id AS position_area_id, position.equipment_group_id AS position_equipment_group_id, position.model_id AS position_model_id, position.asset_number_id AS position_asset_number_id, position.location_id AS position_location_id, position.site_location_id AS position_site_location_id 
+FROM position 
+WHERE ? = position.area_id AND ? = position.equipment_group_id AND position.model_id IS NULL AND position.asset_number_id IS NULL AND position.location_id IS NULL AND position.site_location_id IS NULL
+ LIMIT ? OFFSET ?
+2024-07-26 04:05:17,176 - Thread-27 (process_request_thread) - INFO - [generated in 0.00245s] (11, 14, 1, 0)
+2024-07-26 04:05:17,178 - Thread-27 (process_request_thread) - INFO - Found existing Position with ID: 70
+2024-07-26 04:05:17,179 - Thread-27 (process_request_thread) - INFO - ROLLBACK
+2024-07-26 04:05:17,180 - Thread-27 (process_request_thread) - INFO - Processed position ID: 70
+2024-07-26 04:05:17,181 - Thread-27 (process_request_thread) - INFO - Number of CPU cores available: 16
+2024-07-26 04:05:17,182 - Thread-27 (process_request_thread) - INFO - Using 16 workers based on CPU count.
+2024-07-26 04:05:17,205 - Thread-27 (process_request_thread) - INFO - Saved file: c:\Users\10169062\Desktop\AuMaintdb\Database\DB_DOC\ThermalPak__TP-4000__Manual_1.13_9-03.pdf
+2024-07-26 04:05:17,206 - ThreadPoolExecutor-0_0 - INFO - [Thread 21024] Started processing file: c:\Users\10169062\Desktop\AuMaintdb\Database\DB_DOC\ThermalPak__TP-4000__Manual_1.13_9-03.pdf
+2024-07-26 04:05:17,207 - ThreadPoolExecutor-0_0 - INFO - [Thread 21024] Session started for file: c:\Users\10169062\Desktop\AuMaintdb\Database\DB_DOC\ThermalPak__TP-4000__Manual_1.13_9-03.pdf
+2024-07-26 04:05:17,208 - ThreadPoolExecutor-1_0 - INFO - [Thread 20596] Extracting text from PDF...
+2024-07-26 04:05:17,209 - ThreadPoolExecutor-1_1 - INFO - [Thread 12972] Extracting images from PDF...
+2024-07-26 04:05:17,209 - ThreadPoolExecutor-1_0 - INFO - Starting extract_text_from_pdf
+2024-07-26 04:05:41,153 - ThreadPoolExecutor-1_0 - INFO - Successfully extracted text from PDF
+2024-07-26 04:05:41,154 - ThreadPoolExecutor-1_0 - INFO - [Thread 20596] Text extracted from PDF.
+2024-07-26 04:05:41,155 - ThreadPoolExecutor-0_0 - ERROR - [Thread 21024] An error occurred in add_document_to_db_multithread: extract_images_from_pdf() takes 4 positional arguments but 5 were given
+2024-07-26 04:05:41,155 - ThreadPoolExecutor-0_0 - ERROR - [Thread 21024] Attempted Processed file: c:\Users\10169062\Desktop\AuMaintdb\Database\DB_DOC\ThermalPak__TP-4000__Manual_1.13_9-03.pdf
+2024-07-26 04:05:41,156 - Thread-27 (process_request_thread) - INFO - Successfully processed all files
+2024-07-26 04:05:41,165 - Thread-27 (process_request_thread) - INFO - 127.0.0.1 - - [26/Jul/2024 04:05:41] "[32mPOST /documents/add_document HTTP/1.1[0m" 302 -
+2024-07-26 04:05:41,173 - Thread-28 (process_request_thread) - INFO - 127.0.0.1 - - [26/Jul/2024 04:05:41] "GET /success HTTP/1.1" 200 -

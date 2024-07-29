@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify, redirect, url_for
 from emtacdb_fts import (create_position, SiteLocation, extract_text_from_pdf, extract_text_from_txt, 
                          extract_images_from_pdf, CompleteDocument, CompletedDocumentPositionAssociation,
                          split_text_into_chunks, Document, generate_embedding, store_embedding, CURRENT_EMBEDDING_MODEL)
-from config import DATABASE_URL, DATABASE_DOC, DATABASE_DIR
+from config import DATABASE_URL, DATABASE_DOC, DATABASE_DIR, TEMPORARY_UPLOAD_FILES
 import os
 from werkzeug.utils import secure_filename
 import pandas as pd
@@ -12,6 +12,9 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 import threading
 from datetime import datetime
+import fitz
+import time
+import requests
 
 # Create logs directory if it doesn't exist
 if not os.path.exists('logs'):
@@ -78,8 +81,19 @@ def add_document():
             position_id = create_position(area, equipment_group, model, asset_number, location, site_location.id if site_location else None)
             logger.info(f"Processed position ID: {position_id}")
 
+        # Determine the number of CPU cores available
+        cpu_count = os.cpu_count()
+        max_workers = cpu_count
+        logger.info(f"Number of CPU cores available: {cpu_count}")
+        logger.info(f"Using {max_workers} workers based on CPU count.")
+
+        # Calculate how many workers are needed for file processing
+        num_files = len(files)
+        file_processing_workers = min(num_files, max_workers)
+        remaining_workers = max_workers - file_processing_workers
+
         # Use ThreadPoolExecutor to process files concurrently
-        with ThreadPoolExecutor(max_workers=5) as executor:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = []
             for file in files:
                 # Check if the file is empty
@@ -102,7 +116,7 @@ def add_document():
                 logger.info(f"Saved file: {file_path}")
 
                 # Submit the file processing task to the executor
-                futures.append(executor.submit(add_document_to_db_multithread, title, file_path, position_id))
+                futures.append(executor.submit(add_document_to_db_multithread, title, file_path, position_id, remaining_workers))
 
             # Wait for all futures to complete
             for future in futures:
@@ -119,7 +133,7 @@ def add_document():
     logger.info("Successfully processed all files")
     return redirect(url_for('upload_success'))
 
-def add_document_to_db_multithread(title, file_path, position_id):
+def add_document_to_db_multithread(title, file_path, position_id, remaining_workers):
     thread_id = threading.get_ident()
     logger.info(f"[Thread {thread_id}] Started processing file: {file_path}")
 
@@ -155,7 +169,7 @@ def add_document_to_db_multithread(title, file_path, position_id):
                     logger.info(f"[Thread {thread_id}] Images extracted from PDF.")
 
             # Use ThreadPoolExecutor to run extract_text and extract_images concurrently
-            with ThreadPoolExecutor(max_workers=2) as executor:
+            with ThreadPoolExecutor(max_workers=2 + remaining_workers) as executor:
                 futures = []
                 futures.append(executor.submit(extract_text))
                 futures.append(executor.submit(extract_images))
@@ -219,6 +233,67 @@ def add_document_to_db_multithread(title, file_path, position_id):
         logger.error(f"[Thread {thread_id}] An error occurred in add_document_to_db_multithread: {e}")
         logger.error(f"[Thread {thread_id}] Attempted Processed file: {file_path}")
         return None, False
+
+def extract_images_from_pdf(file_path, session, complete_document_id, completed_document_position_association_id):
+    logger.info(f"Opening PDF file from: {file_path}")
+    doc = fitz.open(file_path)
+    total_pages = len(doc)
+    logger.info(f"Total pages in the PDF: {total_pages}")
+    logger.info(f"Inside extract_images_from_pdf, complete_document_id: {complete_document_id}")
+    logger.info(f"CompletedDocumentPositionAssociation ID: {completed_document_position_association_id}")
+    extracted_images = []
+
+    # Extract file name without extension and remove underscores
+    file_name = os.path.splitext(os.path.basename(file_path))[0].replace("_", " ")
+
+    # Ensure the directory exists for temporary upload files
+    if not os.path.exists(TEMPORARY_UPLOAD_FILES):
+        os.makedirs(TEMPORARY_UPLOAD_FILES)
+
+    def process_image(page_num, img_index, image_bytes):
+        temp_path = os.path.join(TEMPORARY_UPLOAD_FILES, f"{file_name}_page{page_num + 1}_image{img_index + 1}.jpg")  # Adjust the extension if needed
+        with open(temp_path, 'wb') as temp_file:
+            temp_file.write(image_bytes)
+        # Log debug information
+        logger.info("Sending POST request to http://localhost:5000/image/add_image'")
+        logger.info(f"File path: {temp_path}")
+        logger.info(f"complete_document_id: {complete_document_id}")
+        logger.info(f"completed_document_position_association_id: {completed_document_position_association_id}")
+        # Make a POST request to the Flask route to add the image
+        response = requests.post('http://localhost:5000/image/add_image', 
+                     files={'image': open(temp_path, 'rb')}, 
+                     data={'complete_document_id': complete_document_id,
+                           'completed_document_position_association_id': completed_document_position_association_id})
+
+        # Check if the request was successful
+        if response.status_code == 200:
+            logger.info("Image processed successfully")
+            # Optionally, you can handle the response if needed
+        else:
+            logger.error(f"Failed to process image: {response.text}")
+
+        # Optionally, you can store the extracted image paths for further processing
+        extracted_images.append(temp_path)
+
+    with ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
+        futures = []
+        for page_num in range(total_pages):
+            page = doc[page_num]
+            img_list = page.get_images(full=True)
+
+            logger.info(f"Processing page {page_num + 1}/{total_pages} with {len(img_list)} images.")
+
+            for img_index, img in enumerate(img_list):
+                xref = img[0]
+                base_image = doc.extract_image(xref)
+                image_bytes = base_image["image"]
+                futures.append(executor.submit(process_image, page_num, img_index, image_bytes))
+
+        # Wait for all futures to complete
+        for future in futures:
+            future.result()
+
+    return extracted_images
 
 def excel_to_csv(excel_file_path, csv_file_path):
     try:
