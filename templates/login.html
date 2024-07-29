@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-image: url("/static/background images/blue-black-atmosphere-light-darkness-atmosphere-of-earth-904369-wallhere.com.jpg");
+            background-size: cover;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .login-container {
+            background: rgba(255, 255, 255, 0.8); /* Slightly transparent white */
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        /* Rest of your CSS */
+        .container {
+            text-align: center;
+        }
+        /* Style for the "Create User" link */
+        .create-user-link {
+            color: yellow;
+        }
+        .error-message {
+            color: red;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<ul class="flashes">
+    {% for category, message in messages %}
+    <li class="{{ category }}">{{ message }}</li>
+    {% endfor %}
+</ul>
+{% endif %}
+{% endwith %}
+
+<!-- Audio element -->
+<audio id="background-audio" src="/static/audio/login_sound.mp3" ></audio>
+
+<div class="container">
+    <div class="login-container">
+        {% if 'error' in messages %}
+        <div class="error-message">{{ messages['error'] }}</div>
+        {% endif %}
+        <h2>Login</h2>
+        <form action="/login" method="post">
+			<label for="employee_id">Employee ID:</label>
+			<input type="text" id="employee_id" name="employee_id" required>
+
+			<label for="password">Password:</label>
+			<input type="password" id="password" name="password" required>
+
+			<button type="submit">Log In</button>
+		</form>
+
+    </div>
+
+    <!-- Add this below your login form -->
+    <div style="margin-top: 10px;"> <!-- Adjust margin as needed -->
+        <a href="/create_user" class="create-user-link">Create User</a>
+    </div>
+</div>
+
+<script>
+    // Function to play the audio
+    function playAudio() {
+        var audio = document.getElementById("background-audio");
+        audio.play();
+    }
+</script>
+
+</body>
+</html>
