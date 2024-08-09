@@ -2,7 +2,7 @@ import os
 # API key for OpenAI
 OPENAI_API_KEY = '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' #was API_KEY 
 HUGGINGFACE_API_KEY="..."
-
+#Visual Code api = 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
 
 # Get the current directory path
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -11,6 +11,7 @@ TEMPLATE_FOLDER_PATH = os.path.join(BASE_DIR, 'templates')
 KEYWORDS_FILE_PATH = os.path.join(BASE_DIR,"static", 'keywords_file.xlsx')  # Update with the actual filename or path
 DATABASE_DIR = os.path.join(BASE_DIR, 'Database')
 DATABASE_PATH = os.path.join(DATABASE_DIR, 'emtac_db.db')
+REVISION_CONTROL_DB_PATH = os.path.join(DATABASE_DIR, 'emtac_revision_control_db.db')
 CSV_DIR = DATABASE_DIR
 UPLOAD_FOLDER = os.path.join(BASE_DIR,"static", "uploads")
 IMAGES_FOLDER = os.path.join(BASE_DIR,"static", "images")

@@ -1,9 +1,16 @@
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
+from emtacdb_fts import  (QandA,
+    ChatSession, Area, EquipmentGroup, Model, AssetNumber, Location, SiteLocation, Position,
+    Document, Image, Drawing, Problem, Solution, CompleteDocument, Part, ImageEmbedding, PowerPoint, 
+    PartsPositionAssociation, ImagePositionAssociation, DrawingPositionAssociation,
+    CompletedDocumentPositionAssociation, ImageCompletedDocumentAssociation,
+    ProblemPositionAssociation, ImageProblemAssociation, CompleteDocumentProblemAssociation,
+    ImageSolutionAssociation)
+from emtac_revision_control_db import AreaSnapshot
 from flask import Flask, render_template, redirect, url_for, session, flash, request
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from config import UPLOAD_FOLDER, DATABASE_URL
 from emtacdb_fts import serve_image, Image, UserLevel
@@ -12,15 +19,27 @@ import webbrowser
 from threading import Timer
 from blueprints import register_blueprints
 from emtacdb_fts import load_config_from_db
-from config import DATABASE_DIR,DATABASE_URL
+from config import DATABASE_DIR,DATABASE_URL,REVISION_CONTROL_DB_PATH
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.ext.mutable import MutableList
+from sqlalchemy.orm import declarative_base, configure_mappers, relationship, scoped_session, sessionmaker
 
-# Configure logging
+# Define the declarative base
+Base = declarative_base()
+RevisionControlBase = declarative_base()
+
+# Initialize database engines
+engine = create_engine(DATABASE_URL)
+revision_control_engine = create_engine(f'sqlite:///{REVISION_CONTROL_DB_PATH}')
+
+# Create sessions
+SessionFactory = sessionmaker(bind=engine)
+RevisionControlSessionFactory = sessionmaker(bind=revision_control_engine)
+
+# Logging configuration
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-
-# Ensure SessionFactory is defined if it's used
-engine = create_engine(DATABASE_URL)
-SessionFactory = sessionmaker(bind=engine)
 
 def create_app():
     app = Flask(__name__)
