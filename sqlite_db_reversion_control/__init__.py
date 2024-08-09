@@ -4,7 +4,7 @@
 from .auditlog import AuditLog, log_insert, log_update, log_delete
 
 # Importing from emtac_revision_control_db.py
-from .emtac_revision_control_db import (
+from .emtac_revision_control_db import ( SiteLocationSnapshot,
     VersionInfo, SiteLocationSnapshot, PositionSnapshot, AreaSnapshot, EquipmentGroupSnapshot, 
     ModelSnapshot, AssetNumberSnapshot, LocationSnapshot, PartSnapshot, ImageSnapshot, 
     ImageEmbeddingSnapshot, DrawingSnapshot, DocumentSnapshot, CompleteDocumentSnapshot, 
@@ -38,3 +38,9 @@ from .version_tracking_initializer import (
     initialize_snapshots, insert_initial_version, create_all_snapshots, 
     set_sqlite_pragmas, list_tables, create_missing_tables, create_snapshots_concurrently
 )
+
+# Importing DatabaseConfig from config_env.py
+from config_env import DatabaseConfig  # Import DatabaseConfig class
+
+# Optionally, you can instantiate the DatabaseConfig and make it available
+db_config = DatabaseConfig()

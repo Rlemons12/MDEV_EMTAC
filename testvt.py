@@ -1,11 +1,8 @@
-# version_tracking_initializer.py
 import os
 import logging
-from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
-from sqlalchemy import create_engine, inspect, event
-from sqlalchemy.orm import sessionmaker, scoped_session
-from auditlog import RevisionControlBase, revision_control_engine, AuditLog
+from sqlalchemy import inspect
+from auditlog import AuditLog
 from emtacdb_fts import (
     SiteLocation, SiteLocationSnapshot, Position, PositionSnapshot, Area, AreaSnapshot, 
     EquipmentGroup, EquipmentGroupSnapshot, Model, ModelSnapshot, AssetNumber, AssetNumberSnapshot, 
@@ -21,58 +18,33 @@ from emtacdb_fts import (
     CompletedDocumentPositionAssociation, CompletedDocumentPositionAssociationSnapshot, ImageCompletedDocumentAssociation, 
     ImageCompletedDocumentAssociationSnapshot, PartsPositionAssociation
 )
-
 from emtac_revision_control_db import (
-    VersionInfo, RevisionControlBase, revision_control_engine, 
-    SiteLocationSnapshot, PositionSnapshot, AreaSnapshot, EquipmentGroupSnapshot, ModelSnapshot, 
-    AssetNumberSnapshot, PartSnapshot, ImageSnapshot, ImageEmbeddingSnapshot, DrawingSnapshot, 
-    DocumentSnapshot, CompleteDocumentSnapshot, ProblemSnapshot, SolutionSnapshot, 
-    DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot, PartSolutionAssociationSnapshot, 
-    PartsPositionAssociationSnapshot, DrawingProblemAssociationSnapshot, DrawingSolutionAssociationSnapshot, 
-    ProblemPositionAssociationSnapshot, CompleteDocumentProblemAssociationSnapshot, 
-    CompleteDocumentSolutionAssociationSnapshot, ImageProblemAssociationSnapshot, 
-    ImageSolutionAssociationSnapshot, ImagePositionAssociationSnapshot, DrawingPositionAssociationSnapshot, 
-    CompletedDocumentPositionAssociationSnapshot, ImageCompletedDocumentAssociationSnapshot
+    VersionInfo, RevisionControlBase
 )
-from snapshot_utils import (
-    create_sitlocation_snapshot, create_position_snapshot,
-    create_area_snapshot, create_equipment_group_snapshot, create_model_snapshot, create_asset_number_snapshot,
-    create_part_snapshot, create_image_snapshot, create_image_embedding_snapshot, create_drawing_snapshot,
-    create_document_snapshot, create_complete_document_snapshot, create_problem_snapshot, create_solution_snapshot,
-    create_drawing_part_association_snapshot, create_part_problem_association_snapshot, create_part_solution_association_snapshot,
-    create_drawing_problem_association_snapshot, create_drawing_solution_association_snapshot, create_problem_position_association_snapshot,
-    create_complete_document_problem_association_snapshot, create_complete_document_solution_association_snapshot,
-    create_image_problem_association_snapshot, create_image_solution_association_snapshot, create_image_position_association_snapshot,
-    create_drawing_position_association_snapshot, create_completed_document_position_association_snapshot, create_image_completed_document_association_snapshot,
-    create_parts_position_association_snapshot
-)
-
-from config import DATABASE_PATH, REVISION_CONTROL_DB_PATH, DATABASE_DIR
-from config_env import DatabaseConfig
+from config_env import DatabaseConfig  # Import DatabaseConfig
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Create engines and sessions
-main_engine = create_engine(f'sqlite:///{DATABASE_PATH}')
-revision_control_engine = create_engine(f'sqlite:///{REVISION_CONTROL_DB_PATH}')
-MainSession = scoped_session(sessionmaker(bind=main_engine))
-RevisionControlSession = scoped_session(sessionmaker(bind=revision_control_engine))
+# Initialize database configuration
+db_config = DatabaseConfig()
 
-# Log database connection info
-logger.info(f"Attempting to connect to main database at '{DATABASE_PATH}'")
-logger.info(f"Attempting to connect to revision control database at '{REVISION_CONTROL_DB_PATH}'")
+# Correct session and base initialization
+main_session = db_config.get_main_session()
+revision_session = db_config.get_revision_control_session()
 
-# Correct the session initialization
-main_session = MainSession()
-revision_session = RevisionControlSession()  # Correct session creation
+def create_all_tables():
+    """Ensure that all tables are created before proceeding."""
+    logger.info(f"Ensuring all tables exist in '{db_config.revision_control_db_path}'")
+    RevisionControlBase.metadata.create_all(db_config.revision_control_engine)
+    logger.info("All tables have been created or verified as existing.")
 
 def initialize_snapshots(main_session, revision_control_session):
     try:
-        inspector = inspect(main_engine)
+        inspector = inspect(db_config.main_engine)
         tables = inspector.get_table_names()
-        logger.info(f"Tables in the main database '{DATABASE_PATH}': {tables}")
+        logger.info(f"Tables in the main database '{db_config.main_database_url}': {tables}")
 
         expected_tables = [
             'site_location', 'position', 'area', 'equipment_group', 'model', 'asset_number', 'part',
@@ -261,39 +233,6 @@ def create_all_snapshots(main_session, revision_control_session):
     except Exception as e:
         logger.error(f"An error occurred during snapshot creation: {e}")
 
-# Function to set SQLite PRAGMA settings
-def set_sqlite_pragmas(dbapi_connection, connection_record):
-    cursor = dbapi_connection.cursor()
-    cursor.execute('PRAGMA synchronous = OFF;')
-    cursor.execute('PRAGMA journal_mode = MEMORY;')
-    cursor.execute('PRAGMA temp_store = MEMORY;')
-    cursor.execute('PRAGMA cache_size = -64000;')
-    cursor.close()
-
-# Apply PRAGMA settings for both engines
-event.listen(main_engine, 'connect', set_sqlite_pragmas)
-event.listen(revision_control_engine, 'connect', set_sqlite_pragmas)
-
-# Function to list all tables for debugging purposes
-def list_tables(engine):
-    inspector = inspect(engine)
-    tables = inspector.get_table_names()
-    logger.info(f"Tables in the current database: {tables}")
-
-# Function to create missing tables
-def create_missing_tables(engine, base):
-    inspector = inspect(engine)
-    existing_tables = inspector.get_table_names()
-    all_tables = base.metadata.tables.keys()
-    missing_tables = set(all_tables) - set(existing_tables)
-    
-    if missing_tables:
-        logger.info(f"Missing tables found: {missing_tables}. Creating them.")
-        base.metadata.create_all(engine, tables=[base.metadata.tables[table] for table in missing_tables])
-        logger.info("Missing tables created successfully.")
-    else:
-        logger.info("No missing tables found. All tables are up-to-date.")
-
 # Function to create snapshots concurrently
 def create_snapshots_concurrently(main_session, revision_control_session):
     logger.info("Starting concurrent snapshot creation process.")
@@ -317,38 +256,15 @@ def create_snapshots_concurrently(main_session, revision_control_session):
     logger.info("Concurrent snapshot creation process finished.")
 
 if __name__ == "__main__":
-    # Initialize the database if it doesn't exist
-    if not os.path.exists(REVISION_CONTROL_DB_PATH):
-        logger.info(f"Database '{REVISION_CONTROL_DB_PATH}' does not exist. Creating new database.")
-        logger.debug("Creating audit_log table first...")
-        AuditLog.__table__.create(bind=revision_control_engine, checkfirst=True)
-        logger.debug("audit_log table created.")
-        logger.debug("Creating all other tables...")
-        RevisionControlBase.metadata.create_all(revision_control_engine)
-        logger.debug("All other tables created.")
-    else:
-        logger.info(f"Database '{REVISION_CONTROL_DB_PATH}' already exists.")
-        # Ensure all tables are created or updated
-        create_missing_tables(revision_control_engine, RevisionControlBase)
-        # Ensure audit_log table exists
-        AuditLog.__table__.create(bind=revision_control_engine, checkfirst=True)
-        logger.info("audit_log table creation checked/completed.")
-
-    # Correct the session initialization
-    main_session = MainSession()
-    revision_session = RevisionControlSession()  # Correct session creation
+    # Create all tables to ensure the database is initialized properly
+    create_all_tables()
 
     try:
-        # Prompt for initial version data and insert
         insert_initial_version(revision_session)
-
-        # Create initial snapshots (this includes user confirmation within the function)
         create_snapshots_concurrently(main_session, revision_session)
     except Exception as e:
-        # Ensure that the logger is defined before usage
         logger.error(f"An unexpected error occurred: {e}")
     finally:
-        # Close the sessions
         main_session.close()
         revision_session.close()
 

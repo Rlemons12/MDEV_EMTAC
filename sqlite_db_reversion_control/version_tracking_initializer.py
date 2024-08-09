@@ -2,10 +2,11 @@ import os
 import logging
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
-from sqlalchemy import create_engine, inspect, event
-from sqlalchemy.orm import sessionmaker, scoped_session
-from auditlog import RevisionControlBase, revision_control_engine, AuditLog
-from emtacdb_fts import (
+from sqlalchemy import inspect, event
+from config_env import DatabaseConfig  # Import the DatabaseConfig class
+
+# Import everything from sqlite_db_reversion_control
+from sqlite_db_reversion_control import (
     SiteLocation, SiteLocationSnapshot, Position, PositionSnapshot, Area, AreaSnapshot, 
     EquipmentGroup, EquipmentGroupSnapshot, Model, ModelSnapshot, AssetNumber, AssetNumberSnapshot, 
     Part, PartSnapshot, Image, ImageSnapshot, ImageEmbedding, ImageEmbeddingSnapshot, Drawing, DrawingSnapshot, 
@@ -18,53 +19,36 @@ from emtacdb_fts import (
     ImageProblemAssociation, ImageProblemAssociationSnapshot, ImageSolutionAssociation, ImageSolutionAssociationSnapshot, 
     ImagePositionAssociation, ImagePositionAssociationSnapshot, DrawingPositionAssociation, DrawingPositionAssociationSnapshot, 
     CompletedDocumentPositionAssociation, CompletedDocumentPositionAssociationSnapshot, ImageCompletedDocumentAssociation, 
-    ImageCompletedDocumentAssociationSnapshot, PartsPositionAssociation
-)
-
-from emtac_revision_control_db import (
-    VersionInfo, RevisionControlBase, revision_control_engine, 
-    SiteLocationSnapshot, PositionSnapshot, AreaSnapshot, EquipmentGroupSnapshot, ModelSnapshot, 
-    AssetNumberSnapshot, PartSnapshot, ImageSnapshot, ImageEmbeddingSnapshot, DrawingSnapshot, 
-    DocumentSnapshot, CompleteDocumentSnapshot, ProblemSnapshot, SolutionSnapshot, 
-    DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot, PartSolutionAssociationSnapshot, 
-    PartsPositionAssociationSnapshot, DrawingProblemAssociationSnapshot, DrawingSolutionAssociationSnapshot, 
-    ProblemPositionAssociationSnapshot, CompleteDocumentProblemAssociationSnapshot, 
-    CompleteDocumentSolutionAssociationSnapshot, ImageProblemAssociationSnapshot, 
-    ImageSolutionAssociationSnapshot, ImagePositionAssociationSnapshot, DrawingPositionAssociationSnapshot, 
-    CompletedDocumentPositionAssociationSnapshot, ImageCompletedDocumentAssociationSnapshot
-)
-from snapshot_utils import (
-    create_sitlocation_snapshot, create_position_snapshot,
-    create_area_snapshot, create_equipment_group_snapshot, create_model_snapshot, create_asset_number_snapshot,
-    create_part_snapshot, create_image_snapshot, create_image_embedding_snapshot, create_drawing_snapshot,
-    create_document_snapshot, create_complete_document_snapshot, create_problem_snapshot, create_solution_snapshot,
-    create_drawing_part_association_snapshot, create_part_problem_association_snapshot, create_part_solution_association_snapshot,
-    create_drawing_problem_association_snapshot, create_drawing_solution_association_snapshot, create_problem_position_association_snapshot,
-    create_complete_document_problem_association_snapshot, create_complete_document_solution_association_snapshot,
-    create_image_problem_association_snapshot, create_image_solution_association_snapshot, create_image_position_association_snapshot,
-    create_drawing_position_association_snapshot, create_completed_document_position_association_snapshot, create_image_completed_document_association_snapshot,
+    ImageCompletedDocumentAssociationSnapshot, PartsPositionAssociation,
+    
+    create_snapshot, create_sitlocation_snapshot, create_position_snapshot, create_area_snapshot, 
+    create_equipment_group_snapshot, create_model_snapshot, create_asset_number_snapshot, 
+    create_part_snapshot, create_image_snapshot, create_image_embedding_snapshot, create_drawing_snapshot, 
+    create_document_snapshot, create_complete_document_snapshot, create_problem_snapshot, 
+    create_solution_snapshot, create_drawing_part_association_snapshot, create_part_problem_association_snapshot, 
+    create_part_solution_association_snapshot, create_drawing_problem_association_snapshot, 
+    create_drawing_solution_association_snapshot, create_problem_position_association_snapshot, 
+    create_complete_document_problem_association_snapshot, create_complete_document_solution_association_snapshot, 
+    create_image_problem_association_snapshot, create_image_solution_association_snapshot, 
+    create_image_position_association_snapshot, create_drawing_position_association_snapshot, 
+    create_completed_document_position_association_snapshot, create_image_completed_document_association_snapshot, 
     create_parts_position_association_snapshot
 )
-
-from config import DATABASE_PATH, REVISION_CONTROL_DB_PATH, DATABASE_DIR
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Create engines and sessions
-main_engine = create_engine(f'sqlite:///{DATABASE_PATH}')
-revision_control_engine = create_engine(f'sqlite:///{REVISION_CONTROL_DB_PATH}')
-MainSession = scoped_session(sessionmaker(bind=main_engine))
-RevisionControlSession = scoped_session(sessionmaker(bind=revision_control_engine))
+# Instantiate the DatabaseConfig class to handle configuration and sessions
+db_config = DatabaseConfig()
 
 # Log database connection info
-logger.info(f"Attempting to connect to main database at '{DATABASE_PATH}'")
-logger.info(f"Attempting to connect to revision control database at '{REVISION_CONTROL_DB_PATH}'")
+logger.info(f"Attempting to connect to main database at '{db_config.main_database_url}'")
+logger.info(f"Attempting to connect to revision control database at '{db_config.revision_control_db_path}'")
 
 # Correct the session initialization
-main_session = MainSession()
-revision_session = RevisionControlSession()  # Correct session creation
+main_session = db_config.get_main_session()
+revision_session = db_config.get_revision_control_session()
 
 def initialize_snapshots(main_session, revision_control_session):
     try:
