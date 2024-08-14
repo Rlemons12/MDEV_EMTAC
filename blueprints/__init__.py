@@ -23,7 +23,7 @@ from emtacdb_fts import (split_text_into_chunks, AIModelConfig, ImageEmbedding, 
     ImageSolutionAssociation, UserLevel, User, AIModelConfig, load_config_from_db, load_image_model_config_from_db)
 
 from snapshot_utils import(
-    create_sitlocation_snapshot, create_position_snapshot,
+    create_sitlocation_snapshot, create_position_snapshot,create_snapshot,
     create_area_snapshot, create_equipment_group_snapshot, create_model_snapshot, create_asset_number_snapshot,
     create_part_snapshot, create_image_snapshot, create_image_embedding_snapshot, create_drawing_snapshot,
     create_document_snapshot, create_complete_document_snapshot, create_problem_snapshot, create_solution_snapshot,
@@ -32,9 +32,9 @@ from snapshot_utils import(
     create_complete_document_problem_association_snapshot, create_complete_document_solution_association_snapshot,
     create_image_problem_association_snapshot, create_image_solution_association_snapshot, create_image_position_association_snapshot,
     create_drawing_position_association_snapshot, create_completed_document_position_association_snapshot, create_image_completed_document_association_snapshot,
-    create_parts_position_association_snapshot)
+    create_parts_position_association_snapshot) 
 
-from auditlog import log_insert, log_update, log_delete  # Ensure this is the correct module for these functions
+from auditlog import AuditLog, log_insert, log_update, log_delete  # Ensure this is the correct module for these functions
 
 from config import (TEMPORARY_FILES, OPENAI_API_KEY, DATABASE_PATH_IMAGES_FOLDER,
                     DATABASE_DOC, DATABASE_URL, DATABASE_DIR, PPT2PDF_PPT_FILES_PROCESS, 

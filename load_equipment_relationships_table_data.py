@@ -30,7 +30,7 @@ from snapshot_utils import (
     create_image_problem_association_snapshot, create_image_solution_association_snapshot,
     create_image_position_association_snapshot, create_drawing_position_association_snapshot,
     create_completed_document_position_association_snapshot, create_image_completed_document_association_snapshot,
-    create_parts_position_association_snapshot
+    create_parts_position_association_snapshot, create_snapshot
 )
 
 # Initialize logging

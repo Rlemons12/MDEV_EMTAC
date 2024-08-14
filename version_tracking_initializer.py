@@ -35,7 +35,7 @@ from emtac_revision_control_db import (
     CompletedDocumentPositionAssociationSnapshot, ImageCompletedDocumentAssociationSnapshot
 )
 from snapshot_utils import (
-    create_sitlocation_snapshot, create_position_snapshot,
+    create_sitlocation_snapshot, create_position_snapshot,create_snapshot,
     create_area_snapshot, create_equipment_group_snapshot, create_model_snapshot, create_asset_number_snapshot,
     create_part_snapshot, create_image_snapshot, create_image_embedding_snapshot, create_drawing_snapshot,
     create_document_snapshot, create_complete_document_snapshot, create_problem_snapshot, create_solution_snapshot,

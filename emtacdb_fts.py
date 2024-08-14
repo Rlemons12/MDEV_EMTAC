@@ -52,7 +52,7 @@ from emtac_revision_control_db import (
     ImageSolutionAssociationSnapshot, ImagePositionAssociationSnapshot, DrawingPositionAssociationSnapshot, 
     CompletedDocumentPositionAssociationSnapshot, ImageCompletedDocumentAssociationSnapshot 
 )
-from auditlog import log_insert, log_update, log_delete  # Ensure this is the correct module for these functions
+from auditlog import AuditLog, log_event_listeners, log_insert, log_update, log_delete  # Ensure this is the correct module for these functions
 from snapshot_utils import (
     create_sitlocation_snapshot, create_position_snapshot,
     create_area_snapshot, create_equipment_group_snapshot, create_model_snapshot, create_asset_number_snapshot,
@@ -103,6 +103,14 @@ revision_control_engine = create_engine(f'sqlite:///{REVISION_CONTROL_DB_PATH}')
 RevisionControlBase = declarative_base()
 RevisionControlSession = scoped_session(sessionmaker(bind=revision_control_engine))  # Use distinct name
 revision_control_session = RevisionControlSession()
+
+class VersionInfo(Base):
+    __tablename__ = 'version_info'
+    __table_args__ = {'extend_existing': True}
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    version_number = Column(Integer, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    description = Column(String, nullable=True)
 
 # Main Tables
 class SiteLocation(Base):
@@ -264,7 +272,8 @@ class Document(Base):
     content = Column(String)
     complete_document_id = Column(Integer, ForeignKey('complete_document.id'))
     embedding = Column(LargeBinary)
-    rev = Column(String)
+    rev = Column(String, nullable=False, default="R0")
+
     
     embeddings = relationship("DocumentEmbedding", back_populates="document")
     complete_document = relationship("CompleteDocument", back_populates="document")
@@ -286,7 +295,8 @@ class CompleteDocument(Base):
     title = Column(String)
     file_path = Column(String)
     content = Column(Text)
-    rev = Column(String)
+    rev = Column(String, nullable=False, default="R0")
+
 
     document = relationship("Document", back_populates="complete_document")
     completed_document_position_association = relationship("CompletedDocumentPositionAssociation", back_populates="complete_document")
@@ -657,166 +667,6 @@ class User(Base):
     def check_password_hash(self, password):
         return check_password_hash(self.hashed_password, password)        
 
-# SiteLocation events
-event.listen(SiteLocation, 'after_insert', lambda m, c, t: log_insert(m, c, t, SiteLocationSnapshot))
-event.listen(SiteLocation, 'after_update', lambda m, c, t: log_update(m, c, t, SiteLocationSnapshot))
-event.listen(SiteLocation, 'after_delete', lambda m, c, t: log_delete(m, c, t, SiteLocationSnapshot))
-
-# Position events
-event.listen(Position, 'after_insert', lambda m, c, t: log_insert(m, c, t, PositionSnapshot))
-event.listen(Position, 'after_update', lambda m, c, t: log_update(m, c, t, PositionSnapshot))
-event.listen(Position, 'after_delete', lambda m, c, t: log_delete(m, c, t, PositionSnapshot))
-
-# Area events
-event.listen(Area, 'after_insert', lambda m, c, t: log_insert(m, c, t, AreaSnapshot))
-event.listen(Area, 'after_update', lambda m, c, t: log_update(m, c, t, AreaSnapshot))
-event.listen(Area, 'after_delete', lambda m, c, t: log_delete(m, c, t, AreaSnapshot))
-
-# EquipmentGroup events
-event.listen(EquipmentGroup, 'after_insert', lambda m, c, t: log_insert(m, c, t, EquipmentGroupSnapshot))
-event.listen(EquipmentGroup, 'after_update', lambda m, c, t: log_update(m, c, t, EquipmentGroupSnapshot))
-event.listen(EquipmentGroup, 'after_delete', lambda m, c, t: log_delete(m, c, t, EquipmentGroupSnapshot))
-
-# Model events
-event.listen(Model, 'after_insert', lambda m, c, t: log_insert(m, c, t, ModelSnapshot))
-event.listen(Model, 'after_update', lambda m, c, t: log_update(m, c, t, ModelSnapshot))
-event.listen(Model, 'after_delete', lambda m, c, t: log_delete(m, c, t, ModelSnapshot))
-
-# AssetNumber events
-event.listen(AssetNumber, 'after_insert', lambda m, c, t: log_insert(m, c, t, AssetNumberSnapshot))
-event.listen(AssetNumber, 'after_update', lambda m, c, t: log_update(m, c, t, AssetNumberSnapshot))
-event.listen(AssetNumber, 'after_delete', lambda m, c, t: log_delete(m, c, t, AssetNumberSnapshot))
-
-# Location events
-event.listen(Location, 'after_insert', lambda m, c, t: log_insert(m, c, t, LocationSnapshot))
-event.listen(Location, 'after_update', lambda m, c, t: log_update(m, c, t, LocationSnapshot))
-event.listen(Location, 'after_delete', lambda m, c, t: log_delete(m, c, t, LocationSnapshot))
-
-# Part events
-event.listen(Part, 'after_insert', lambda m, c, t: log_insert(m, c, t, PartSnapshot))
-event.listen(Part, 'after_update', lambda m, c, t: log_update(m, c, t, PartSnapshot))
-event.listen(Part, 'after_delete', lambda m, c, t: log_delete(m, c, t, PartSnapshot))
-
-# Image events
-event.listen(Image, 'after_insert', lambda m, c, t: log_insert(m, c, t, ImageSnapshot))
-event.listen(Image, 'after_update', lambda m, c, t: log_update(m, c, t, ImageSnapshot))
-event.listen(Image, 'after_delete', lambda m, c, t: log_delete(m, c, t, ImageSnapshot))
-
-# ImageEmbedding events
-event.listen(ImageEmbedding, 'after_insert', lambda m, c, t: log_insert(m, c, t, ImageEmbeddingSnapshot))
-event.listen(ImageEmbedding, 'after_update', lambda m, c, t: log_update(m, c, t, ImageEmbeddingSnapshot))
-event.listen(ImageEmbedding, 'after_delete', lambda m, c, t: log_delete(m, c, t, ImageEmbeddingSnapshot))
-
-# Drawing events
-event.listen(Drawing, 'after_insert', lambda m, c, t: log_insert(m, c, t, DrawingSnapshot))
-event.listen(Drawing, 'after_update', lambda m, c, t: log_update(m, c, t, DrawingSnapshot))
-event.listen(Drawing, 'after_delete', lambda m, c, t: log_delete(m, c, t, DrawingSnapshot))
-
-# Document events
-event.listen(Document, 'after_insert', lambda m, c, t: log_insert(m, c, t, DocumentSnapshot))
-event.listen(Document, 'after_update', lambda m, c, t: log_update(m, c, t, DocumentSnapshot))
-event.listen(Document, 'after_delete', lambda m, c, t: log_delete(m, c, t, DocumentSnapshot))
-
-# CompleteDocument events
-event.listen(CompleteDocument, 'after_insert', lambda m, c, t: log_insert(m, c, t, CompleteDocumentSnapshot))
-event.listen(CompleteDocument, 'after_update', lambda m, c, t: log_update(m, c, t, CompleteDocumentSnapshot))
-event.listen(CompleteDocument, 'after_delete', lambda m, c, t: log_delete(m, c, t, CompleteDocumentSnapshot))
-
-# Problem events
-event.listen(Problem, 'after_insert', lambda m, c, t: log_insert(m, c, t, ProblemSnapshot))
-event.listen(Problem, 'after_update', lambda m, c, t: log_update(m, c, t, ProblemSnapshot))
-event.listen(Problem, 'after_delete', lambda m, c, t: log_delete(m, c, t, ProblemSnapshot))
-
-# Solution events
-event.listen(Solution, 'after_insert', lambda m, c, t: log_insert(m, c, t, SolutionSnapshot))
-event.listen(Solution, 'after_update', lambda m, c, t: log_update(m, c, t, SolutionSnapshot))
-event.listen(Solution, 'after_delete', lambda m, c, t: log_delete(m, c, t, SolutionSnapshot))
-
-# PowerPoint events
-event.listen(PowerPoint, 'after_insert', lambda m, c, t: log_insert(m, c, t, PowerPointSnapshot))
-event.listen(PowerPoint, 'after_update', lambda m, c, t: log_update(m, c, t, PowerPointSnapshot))
-event.listen(PowerPoint, 'after_delete', lambda m, c, t: log_delete(m, c, t, PowerPointSnapshot))
-
-# Junction Table Snapshots
-# DrawingPartAssociation events
-event.listen(DrawingPartAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, DrawingPartAssociationSnapshot))
-event.listen(DrawingPartAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, DrawingPartAssociationSnapshot))
-event.listen(DrawingPartAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, DrawingPartAssociationSnapshot))
-
-# PartProblemAssociation events
-event.listen(PartProblemAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, PartProblemAssociationSnapshot))
-event.listen(PartProblemAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, PartProblemAssociationSnapshot))
-event.listen(PartProblemAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, PartProblemAssociationSnapshot))
-
-# PartSolutionAssociation events
-event.listen(PartSolutionAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, PartSolutionAssociationSnapshot))
-event.listen(PartSolutionAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, PartSolutionAssociationSnapshot))
-event.listen(PartSolutionAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, PartSolutionAssociationSnapshot))
-
-# DrawingProblemAssociation events
-event.listen(DrawingProblemAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, DrawingProblemAssociationSnapshot))
-event.listen(DrawingProblemAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, DrawingProblemAssociationSnapshot))
-event.listen(DrawingProblemAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, DrawingProblemAssociationSnapshot))
-
-# DrawingSolutionAssociation events
-event.listen(DrawingSolutionAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, DrawingSolutionAssociationSnapshot))
-event.listen(DrawingSolutionAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, DrawingSolutionAssociationSnapshot))
-event.listen(DrawingSolutionAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, DrawingSolutionAssociationSnapshot))
-
-# BillOfMaterial events
-event.listen(BillOfMaterial, 'after_insert', lambda m, c, t: log_insert(m, c, t, BillOfMaterialSnapshot))
-event.listen(BillOfMaterial, 'after_update', lambda m, c, t: log_update(m, c, t, BillOfMaterialSnapshot))
-event.listen(BillOfMaterial, 'after_delete', lambda m, c, t: log_delete(m, c, t, BillOfMaterialSnapshot))
-
-# ProblemPositionAssociation events
-event.listen(ProblemPositionAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, ProblemPositionAssociationSnapshot))
-event.listen(ProblemPositionAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, ProblemPositionAssociationSnapshot))
-event.listen(ProblemPositionAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, ProblemPositionAssociationSnapshot))
-
-# CompleteDocumentProblemAssociation events
-event.listen(CompleteDocumentProblemAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, CompleteDocumentProblemAssociationSnapshot))
-event.listen(CompleteDocumentProblemAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, CompleteDocumentProblemAssociationSnapshot))
-event.listen(CompleteDocumentProblemAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, CompleteDocumentProblemAssociationSnapshot))
-
-# CompleteDocumentSolutionAssociation events
-event.listen(CompleteDocumentSolutionAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, CompleteDocumentSolutionAssociationSnapshot))
-event.listen(CompleteDocumentSolutionAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, CompleteDocumentSolutionAssociationSnapshot))
-event.listen(CompleteDocumentSolutionAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, CompleteDocumentSolutionAssociationSnapshot))
-
-# ImageProblemAssociation events
-event.listen(ImageProblemAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, ImageProblemAssociationSnapshot))
-event.listen(ImageProblemAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, ImageProblemAssociationSnapshot))
-event.listen(ImageProblemAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, ImageProblemAssociationSnapshot))
-
-# ImageSolutionAssociation events
-event.listen(ImageSolutionAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, ImageSolutionAssociationSnapshot))
-event.listen(ImageSolutionAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, ImageSolutionAssociationSnapshot))
-event.listen(ImageSolutionAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, ImageSolutionAssociationSnapshot))
-
-# PartsPositionAssociation events
-event.listen(PartsPositionAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, PartsPositionAssociationSnapshot))
-event.listen(PartsPositionAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, PartsPositionAssociationSnapshot))
-event.listen(PartsPositionAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, PartsPositionAssociationSnapshot))
-
-# ImagePositionAssociation events
-event.listen(ImagePositionAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, ImagePositionAssociationSnapshot))
-event.listen(ImagePositionAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, ImagePositionAssociationSnapshot))
-event.listen(ImagePositionAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, ImagePositionAssociationSnapshot))
-
-# DrawingPositionAssociation events
-event.listen(DrawingPositionAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, DrawingPositionAssociationSnapshot))
-event.listen(DrawingPositionAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, DrawingPositionAssociationSnapshot))
-event.listen(DrawingPositionAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, DrawingPositionAssociationSnapshot))
-
-# CompletedDocumentPositionAssociation events
-event.listen(CompletedDocumentPositionAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, CompletedDocumentPositionAssociationSnapshot))
-event.listen(CompletedDocumentPositionAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, CompletedDocumentPositionAssociationSnapshot))
-event.listen(CompletedDocumentPositionAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, CompletedDocumentPositionAssociationSnapshot))
-
-# ImageCompletedDocumentAssociation events
-event.listen(ImageCompletedDocumentAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, ImageCompletedDocumentAssociationSnapshot))
-event.listen(ImageCompletedDocumentAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, ImageCompletedDocumentAssociationSnapshot))
-event.listen(ImageCompletedDocumentAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, ImageCompletedDocumentAssociationSnapshot))
 
 # Bind the engine to the Base class
 Base.metadata.bind = engine
@@ -1126,8 +976,12 @@ def get_total_images_count(description=''):
 # total_images = get_total_images_count(description="example")
 
 def add_image_to_db(title, file_path, position_id=None, completed_document_position_association_id=None, complete_document_id=None, description=""):
+    new_image_id = None  # Initialize the new_image_id outside the session scope
+    
     try:
-        logger.debug("Debugging add_image_to_db:")
+        logger.debug('Inside add_image_to_db')
+
+        # Log the inputs for debugging
         logger.debug(f"Title: {title}")
         logger.debug(f"File Path: {file_path}")
         logger.debug(f"Position ID: {position_id}")
@@ -1135,42 +989,49 @@ def add_image_to_db(title, file_path, position_id=None, completed_document_posit
         logger.debug(f"Complete Document ID: {complete_document_id}")
         logger.debug(f"Description: {description}")
 
-        # Check for the current image embedding model
+        # Step 1: Retrieve the current image embedding model configuration
         current_image_model = load_image_model_config_from_db()
         logger.info(f"Current image model configuration from DB: {current_image_model}")
         
-        # Dynamically set the model handler
+        # Step 2: Dynamically set the model handler based on the configuration
         model_handler = get_image_model_handler(current_image_model)
         logger.info(f"Using model handler: {model_handler.__class__.__name__}")
 
         with Session() as session:
             logger.info(f'Processing image: {title}')
 
-            # Check if an image with the same title and description exists
-            existing_image = session.query(Image).filter(and_(Image.title == title, Image.description == description)).first()
+            # Step 3: Check if an image with the same title and description already exists
+            logger.debug("Checking if an image with the same title and description already exists")
+            existing_image = session.query(Image).filter(
+                and_(Image.title == title, Image.description == description)
+            ).first()
+
             if existing_image is not None and existing_image.file_path == file_path:
-                logger.info(f"Image with same title, description, and file path already exists: {title}")
+                logger.info(f"Image with the same title, description, and file path already exists: {title}")
                 new_image = existing_image
                 
+                # Log the duplication in the failed_uploads.txt file
                 error_file_path = os.path.join(DATABASE_PATH_IMAGES_FOLDER, 'failed_uploads.txt')
                 with open(error_file_path, 'a') as error_file:
                     error_file.write(f"Image with title '{title}', description '{description}', and file path '{file_path}' already exists.\n")
             else:
+                # Step 4: Add the new image to the database
+                logger.info("Adding a new image to the database")
                 new_image = Image(
                     title=title,
                     description=description,
                     file_path=file_path
                 )
-
                 session.add(new_image)
                 session.commit()
+                new_image_id = new_image.id  # Assign the ID to new_image_id
+                logger.info(f"Added image: {title}, ID: {new_image_id}")
 
-                logger.info(f"Added image: {title}")
-
-            # Process the image and generate the embedding
+            # Step 5: Process the image and generate the embedding
             try:
                 logger.info(f"Opening image: {file_path}")
                 image = PILImage.open(file_path).convert("RGB")
+
                 logger.info("Calling model_handler.is_valid_image()")
                 if not model_handler.is_valid_image(image):
                     logger.info(f"Skipping {file_path}: Image does not meet the required dimensions or aspect ratio.")
@@ -1179,12 +1040,15 @@ def add_image_to_db(title, file_path, position_id=None, completed_document_posit
                     model_embedding = model_handler.get_image_embedding(image)
                     model_name = model_handler.__class__.__name__
 
+                    # Step 6: Check if the embedding already exists and add it if not
                     if model_name and model_embedding is not None:
-                        # Check if the embedding already exists
+                        logger.debug("Checking if the image embedding already exists")
                         existing_embedding = session.query(ImageEmbedding).filter(
-                            and_(ImageEmbedding.image_id == new_image.id, ImageEmbedding.model_name == model_name)).first()
+                            and_(ImageEmbedding.image_id == new_image.id, ImageEmbedding.model_name == model_name)
+                        ).first()
+
                         if existing_embedding is None:
-                            # Create an entry in the ImageEmbedding table
+                            logger.info("Creating a new ImageEmbedding entry")
                             image_embedding = ImageEmbedding(
                                 image_id=new_image.id,
                                 model_name=model_name,
@@ -1193,10 +1057,15 @@ def add_image_to_db(title, file_path, position_id=None, completed_document_posit
                             session.add(image_embedding)
                             logger.info(f"Created ImageEmbedding with image ID {new_image.id}, model name {model_name}")
 
+                    # Step 7: Handle position associations if applicable
                     if position_id:
+                        logger.debug("Checking if ImagePositionAssociation already exists")
                         existing_association = session.query(ImagePositionAssociation).filter(
-                            and_(ImagePositionAssociation.image_id == new_image.id, ImagePositionAssociation.position_id == position_id)).first()
+                            and_(ImagePositionAssociation.image_id == new_image.id, ImagePositionAssociation.position_id == position_id)
+                        ).first()
+
                         if existing_association is None:
+                            logger.info("Creating a new ImagePositionAssociation entry")
                             image_position_association = ImagePositionAssociation(
                                 image_id=new_image.id,
                                 position_id=position_id
@@ -1204,30 +1073,46 @@ def add_image_to_db(title, file_path, position_id=None, completed_document_posit
                             session.add(image_position_association)
                             logger.info(f"Created ImagePositionAssociation with image ID {new_image.id} and position ID {position_id}")
 
-                    if complete_document_id:
+                    # Step 8: Handle completed document associations if applicable
+                    if completed_document_position_association_id:
+                        logger.debug("Checking if CompletedDocumentPositionAssociation already exists")
                         existing_document_association = session.query(CompletedDocumentPositionAssociation).filter(
-                            and_(CompletedDocumentPositionAssociation.image_id == new_image.id, CompletedDocumentPositionAssociation.complete_document_id == complete_document_id)).first()
+                            and_(CompletedDocumentPositionAssociation.image_id == new_image.id, CompletedDocumentPositionAssociation.complete_document_id == complete_document_id)
+                        ).first()
+
                         if existing_document_association is None:
+                            logger.info("Creating a new CompletedDocumentPositionAssociation entry")
                             image_completed_document_association = CompletedDocumentPositionAssociation(
                                 image_id=new_image.id,
                                 complete_document_id=complete_document_id
                             )
                             session.add(image_completed_document_association)
-                            logger.info(f"Created CompletedDocumentPositionAssociation with image ID {new_image.id} and completed document ID {complete_document_id}")
+                            logger.info(f"Created CompletedDocumentPositionAssociation with image ID {new_image.id} and complete document ID {complete_document_id}")
 
+                    # Step 9: Commit all the changes to the database
                     session.commit()
+
             except Exception as e:
+                # Log the error in the failed_uploads.txt file and handle exceptions
                 logger.error(f"An error occurred while processing the image: {e}")
                 error_file_path = os.path.join(DATABASE_PATH_IMAGES_FOLDER, 'failed_uploads.txt')
                 with open(error_file_path, 'a') as error_file:
                     error_file.write(f"Error processing image with title '{title}': {e}\n")
 
+            # Log completion and return the ID before closing the session
+            logger.info(f"Completed processing for image: {title}, ID: {new_image_id}")
+            return new_image_id
+
     except Exception as e:
+        # Handle exceptions and log them appropriately
         logger.error(f"An error occurred in add_image_to_db: {e}")
         logger.error(f"Attempted to process image: {title}")
         error_file_path = os.path.join(DATABASE_PATH_IMAGES_FOLDER, 'failed_uploads.txt')
         with open(error_file_path, 'a') as error_file:
             error_file.write(f"Error processing image with title '{title}': {e}\n")
+        
+        return None  # Return None or an appropriate error code if an exception occurs
+
 
 def split_text_into_chunks(text, max_words=300, pad_token=""):
     logger.info("Starting split_text_into_chunks")
@@ -1343,11 +1228,11 @@ def add_docx_to_db(title, docx_path, position_id):
         logger.error(f"An error occurred in add_docx_to_db: {e}")
         return False
   
-def add_document_to_db(title, file_path, position_id):
+def add_document_to_db(title, file_path, position_id, rev=None):
+    complete_document_id = None
+    completed_document_position_association_id = None
     try:
         extracted_text = None
-        complete_document_id = None
-        completed_document_position_association_id = None
         with Session() as session:
             logger.info(f"Processing file: {file_path}")
             if file_path.endswith(".pdf"):
@@ -1363,16 +1248,32 @@ def add_document_to_db(title, file_path, position_id):
                 return None, False
 
             if extracted_text:
+                # Determine the latest revision number if not provided
+                if rev is None:
+                    current_rev = session.query(func.max(CompleteDocument.rev)).filter_by(title=title).scalar()
+                    if current_rev:
+                        rev = f"R{int(current_rev[1:]) + 1}"
+                    else:
+                        rev = "R0"
+                logger.debug(f"New revision number for document: {rev}")
+
+                # Add the complete document with the given or new revision number
                 complete_document = CompleteDocument(
                     title=title,
                     file_path=os.path.relpath(file_path, DATABASE_DIR),
-                    content=extracted_text
+                    content=extracted_text,
+                    rev=rev  # Use the provided or calculated revision number
                 )
                 session.add(complete_document)
                 session.commit()
                 complete_document_id = complete_document.id
-                logger.info(f"Added complete document: {title}, ID: {complete_document_id}")
+                logger.info(f"Added complete document: {title}, ID: {complete_document_id}, Rev: {rev}")
 
+                # Verifying that the rev was saved
+                saved_complete_document = session.query(CompleteDocument).filter_by(id=complete_document_id).first()
+                logger.debug(f"Saved CompleteDocument revision: {saved_complete_document.rev}")
+
+                # Add association with position
                 completed_document_position_association = CompletedDocumentPositionAssociation(
                     complete_document_id=complete_document_id,
                     position_id=position_id
@@ -1382,11 +1283,13 @@ def add_document_to_db(title, file_path, position_id):
                 completed_document_position_association_id = completed_document_position_association.id
                 logger.info(f"Added CompletedDocumentPositionAssociation for complete document ID: {complete_document_id}, position ID: {position_id}")
 
+                # Add document to FTS table
                 insert_query_fts = "INSERT INTO documents_fts (title, content) VALUES (:title, :content)"
                 session.execute(text(insert_query_fts), {"title": title, "content": extracted_text})
                 session.commit()
                 logger.info("Added document to the FTS table.")
 
+                # Split document into chunks and process
                 text_chunks = split_text_into_chunks(extracted_text)
                 for i, chunk in enumerate(text_chunks):
                     padded_chunk = ' '.join(split_text_into_chunks(chunk, pad_token="", max_words=150))
@@ -1395,11 +1298,17 @@ def add_document_to_db(title, file_path, position_id):
                         file_path=os.path.relpath(file_path, DATABASE_DIR),
                         content=padded_chunk,
                         complete_document_id=complete_document_id,
+                        rev=rev  # Same revision number for document chunk
                     )
                     session.add(document)
                     session.commit()
-                    logger.info(f"Added chunk {i+1} of document: {title}")
+                    logger.info(f"Added chunk {i+1} of document: {title}, Rev: {document.rev}")
 
+                    # Verifying that the rev was saved
+                    saved_document_chunk = session.query(Document).filter_by(id=document.id).first()
+                    logger.debug(f"Saved Document chunk revision: {saved_document_chunk.rev}")
+
+                    # Generate and store embeddings if applicable
                     if CURRENT_EMBEDDING_MODEL != "NoEmbeddingModel":
                         embeddings = generate_embedding(padded_chunk, CURRENT_EMBEDDING_MODEL)
                         if embeddings is None:
@@ -1409,6 +1318,47 @@ def add_document_to_db(title, file_path, position_id):
                             logger.info(f"Generated and stored embedding for chunk {i+1} of document: {title}")
                     else:
                         logger.info(f"No embedding generated for chunk {i+1} of document: {title} because no model is selected.")
+                '''
+                Commentted out for debugging version_log error
+                # Add version info and create snapshots
+                try:
+                    with RevisionControlSession() as rev_session:
+                        new_version = VersionInfo(version_number=int(rev[1:]), description="Document addition version")
+                        rev_session.add(new_version)
+                        rev_session.commit()
+
+                        # Create snapshots for related entities
+                        create_snapshot(saved_complete_document, rev_session, CompleteDocumentSnapshot)
+
+                        for area in session.query(Area).all():
+                            create_snapshot(area, rev_session, AreaSnapshot)
+                        for equipment_group in session.query(EquipmentGroup).all():
+                            create_snapshot(equipment_group, rev_session, EquipmentGroupSnapshot)
+                        for model in session.query(Model).all():
+                            create_snapshot(model, rev_session, ModelSnapshot)
+                        for asset_number in session.query(AssetNumber).all():
+                            create_snapshot(asset_number, rev_session, AssetNumberSnapshot)
+                        for location in session.query(Location).all():
+                            create_snapshot(location, rev_session, LocationSnapshot)
+
+                        rev_session.commit()
+                        logger.info("Version info added and snapshots created.")
+                except Exception as e:
+                    logger.error(f"An error occurred while adding version info and creating snapshots: {e}")
+                    rev_session.rollback()
+
+                # Querying the version_info table
+                try:
+                    with RevisionControlSession() as revision_session:
+                        logger.info("Querying version_info table in revision control database.")
+                        version_info = revision_session.query(VersionInfo).order_by(VersionInfo.id.desc()).first()
+                        if version_info:
+                            logger.info(f"Latest version_info: {version_info.version_number}")
+                        else:
+                            logger.warning("No version_info found.")
+                except Exception as e:
+                    logger.error(f"Error querying version_info table: {e}")
+                '''
             else:
                 logger.error("No text extracted from the document.")
                 return None, False
@@ -1424,7 +1374,10 @@ def add_document_to_db(title, file_path, position_id):
         logger.error(f"An error occurred in add_document_to_db: {e}")
         logger.error(f"Attempted Processed file: {file_path}")
         return None, False
-  
+    finally:
+        if 'session' in locals() and session is not None:
+            session.close()
+
 def add_text_file_to_db(title, txt_file_path, position_id):
     try:
         with open(txt_file_path, 'r', encoding='utf-8') as txt_file:

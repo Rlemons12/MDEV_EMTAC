@@ -21,7 +21,7 @@ import sqlalchemy
 from sqlalchemy import create_engine
 from sqlalchemy.orm import scoped_session, sessionmaker
 from config import DATABASE_URL
-from plugins import load_ai_model, generate_embedding  # Importing from plugins package
+from plugins import load_ai_model, generate_embedding, load_embedding_model  # Importing from plugins package
 from utilities.auth_utils import logout
 from blueprints.logout_bp import logout_bp
 from sqlalchemy.orm import Session as LocalSession  # Import LocalSession
