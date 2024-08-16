@@ -42,7 +42,7 @@ revision_control_session = RevisionControlSession()
 # Register event listeners for all entities
 def register_event_listeners():
     # SiteLocation events
-    """log_event_listeners('SiteLocation')
+    log_event_listeners('SiteLocation')
     event.listen(SiteLocation, 'after_insert', lambda m, c, t: log_insert(m, c, t, SiteLocationSnapshot  , RevisionControlSession()))
     logger.info("Event listener for 'after_insert' on SiteLocation has been set up.")
     event.listen(SiteLocation, 'after_update', lambda m, c, t: log_update(m, c, t, SiteLocationSnapshot  , RevisionControlSession()))
@@ -329,4 +329,4 @@ def register_event_listeners():
     event.listen(ImageCompletedDocumentAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, ImageCompletedDocumentAssociationSnapshot  , RevisionControlSession()))
     logger.info("Event listener for 'after_update' on ImageCompletedDocumentAssociation has been set up.")
     event.listen(ImageCompletedDocumentAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, ImageCompletedDocumentAssociationSnapshot  , RevisionControlSession()))
-    logger.info("Event listener for 'after_delete' on ImageCompletedDocumentAssociation has been set up.")"""
+    logger.info("Event listener for 'after_delete' on ImageCompletedDocumentAssociation has been set up.")

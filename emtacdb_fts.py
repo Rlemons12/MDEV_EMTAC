@@ -90,17 +90,29 @@ DATABASE_PATH = os.path.join(DATABASE_DIR, 'emtac_db.db')
 if not os.path.exists(DATABASE_PATH):
     open(DATABASE_PATH, 'w').close()
 
-# Create SQLAlchemy engine form main database
-engine = create_engine(DATABASE_URL)
-Base = declarative_base()
-Session = scoped_session(sessionmaker(bind=engine))  # Use scoped_session here
-session = Session()
-Base = declarative_base()
+# Database setup
+engine = create_engine(
+    DATABASE_URL, 
+    pool_size=10, 
+    max_overflow=20, 
+    connect_args={"check_same_thread": False}
+)
+
+Session = scoped_session(sessionmaker(bind=engine))
+Base = declarative_base()  # This should be called as a function
+session = Session 
+
 
 # Revision control database configuration
 REVISION_CONTROL_DB_PATH = os.path.join(DATABASE_DIR, 'emtac_revision_control_db.db')
-revision_control_engine = create_engine(f'sqlite:///{REVISION_CONTROL_DB_PATH}')
-RevisionControlBase = declarative_base()
+revision_control_engine = create_engine(
+    f'sqlite:///{REVISION_CONTROL_DB_PATH}',
+    pool_size=10,            # Set a small pool size
+    max_overflow=20,         # Allow up to 10 additional connections
+    connect_args={"check_same_thread": False}  # Needed for SQLite when using threading
+)
+
+RevisionControlBase = declarative_base()  # This is correctly defined
 RevisionControlSession = scoped_session(sessionmaker(bind=revision_control_engine))  # Use distinct name
 revision_control_session = RevisionControlSession()
 
@@ -689,49 +701,65 @@ if not OPENAI_API_KEY:
         config_file.write(f'copy_files = {COPY_FILES}\n')
         config_file.write(f'OPENAI_API_KEY = "{OPENAI_API_KEY}"\n')
 
-def create_position(area_id, equipment_group_id, model_id, asset_number_id, location_id, site_location_id):
-    with Session() as session:
-        try:
-            # Retrieve the related entities by their IDs
-            area_entity = session.query(Area).filter_by(id=area_id).first() if area_id else None
-            equipment_group_entity = session.query(EquipmentGroup).filter_by(id=equipment_group_id).first() if equipment_group_id else None
-            model_entity = session.query(Model).filter_by(id=model_id).first() if model_id else None
-            asset_number_entity = session.query(AssetNumber).filter_by(id=asset_number_id).first() if asset_number_id else None
-            location_entity = session.query(Location).filter_by(id=location_id).first() if location_id else None
-            site_location_entity = session.query(SiteLocation).filter_by(id=site_location_id).first() if site_location_id else None
+def create_position(area_id, equipment_group_id, model_id, asset_number_id, location_id, site_location_id,session):
+    session = Session()  # Obtain the session object from scoped_session
+    try:
+        logger.debug('Starting create_position function')
+        
+        # Log the input parameters
+        logger.debug(f"area_id: {area_id}, equipment_group_id: {equipment_group_id}, model_id: {model_id}, "
+                     f"asset_number_id: {asset_number_id}, location_id: {location_id}, site_location_id: {site_location_id}")
 
-            # Check for an existing Position with the same attributes
-            existing_position = session.query(Position).filter_by(
+        # Retrieve the related entities by their IDs
+        area_entity = session.query(Area).filter_by(id=area_id).first() if area_id else None
+        equipment_group_entity = session.query(EquipmentGroup).filter_by(id=equipment_group_id).first() if equipment_group_id else None
+        model_entity = session.query(Model).filter_by(id=model_id).first() if model_id else None
+        asset_number_entity = session.query(AssetNumber).filter_by(id=asset_number_id).first() if asset_number_id else None
+        location_entity = session.query(Location).filter_by(id=location_id).first() if location_id else None
+        site_location_entity = session.query(SiteLocation).filter_by(id=site_location_id).first() if site_location_id else None
+
+        # Log the retrieved entities
+        logger.debug(f"Retrieved area_entity: {area_entity}")
+        logger.debug(f"Retrieved equipment_group_entity: {equipment_group_entity}")
+        logger.debug(f"Retrieved model_entity: {model_entity}")
+        logger.debug(f"Retrieved asset_number_entity: {asset_number_entity}")
+        logger.debug(f"Retrieved location_entity: {location_entity}")
+        logger.debug(f"Retrieved site_location_entity: {site_location_entity}")
+
+        # Check for an existing Position with the same attributes
+        existing_position = session.query(Position).filter_by(
+            area=area_entity,
+            equipment_group=equipment_group_entity,
+            model=model_entity,
+            asset_number=asset_number_entity,
+            location=location_entity,
+            site_location=site_location_entity
+        ).first()
+
+        if existing_position:
+            logger.info(f"Found existing Position with ID: {existing_position.id}")
+            return existing_position.id
+        else:
+            # Create and add the Position entry
+            position = Position(
                 area=area_entity,
                 equipment_group=equipment_group_entity,
                 model=model_entity,
                 asset_number=asset_number_entity,
                 location=location_entity,
                 site_location=site_location_entity
-            ).first()
+            )
+            session.add(position)
+            session.commit()  # Commit changes to get the position ID
+            logger.info(f"Created new Position with ID: {position.id}")
+            return position.id
 
-            if existing_position:
-                logger.info(f"Found existing Position with ID: {existing_position.id}")
-                return existing_position.id
-            else:
-                # Create and add the Position entry
-                position = Position(
-                    area=area_entity,
-                    equipment_group=equipment_group_entity,
-                    model=model_entity,
-                    asset_number=asset_number_entity,
-                    location=location_entity,
-                    site_location=site_location_entity
-                )
-                session.add(position)
-                session.commit()  # Commit changes to get the position ID
-                logger.info(f"Created new Position with ID: {position.id}")
-                return position.id
-
-        except Exception as e:
-            logger.error(f"An error occurred in create_position: {e}")
-            session.rollback()
-            return None
+    except Exception as e:
+        logger.error(f"An error occurred in create_position: {e}")
+        session.rollback()
+        return None
+    finally:
+        session.close()  # Ensure the session is closed
 
 # Function to update keywords in the database from an Excel file
 def load_keywords_to_db(session: Session):
@@ -979,25 +1007,26 @@ def add_image_to_db(title, file_path, position_id=None, completed_document_posit
     new_image_id = None  # Initialize the new_image_id outside the session scope
     
     try:
-        logger.debug('Inside add_image_to_db')
-
-        # Log the inputs for debugging
-        logger.debug(f"Title: {title}")
-        logger.debug(f"File Path: {file_path}")
-        logger.debug(f"Position ID: {position_id}")
-        logger.debug(f"Completed Document Position Association ID: {completed_document_position_association_id}")
-        logger.debug(f"Complete Document ID: {complete_document_id}")
-        logger.debug(f"Description: {description}")
-
-        # Step 1: Retrieve the current image embedding model configuration
-        current_image_model = load_image_model_config_from_db()
-        logger.info(f"Current image model configuration from DB: {current_image_model}")
-        
-        # Step 2: Dynamically set the model handler based on the configuration
-        model_handler = get_image_model_handler(current_image_model)
-        logger.info(f"Using model handler: {model_handler.__class__.__name__}")
-
         with Session() as session:
+            logger.debug('Inside add_image_to_db')
+
+            # Log the inputs for debugging
+            logger.debug(f"Title: {title}")
+            logger.debug(f"File Path: {file_path}")
+            logger.debug(f"Position ID: {position_id}")
+            logger.debug(f"Completed Document Position Association ID: {completed_document_position_association_id}")
+            logger.debug(f"Complete Document ID: {complete_document_id}")
+            logger.debug(f"Description: {description}")
+
+            # Step 1: Retrieve the current image embedding model configuration
+            current_image_model = load_image_model_config_from_db()
+            logger.info(f"Current image model configuration from DB: {current_image_model}")
+            
+            # Step 2: Dynamically set the model handler based on the configuration
+            model_handler = get_image_model_handler(current_image_model)
+            logger.info(f"Using model handler: {model_handler.__class__.__name__}")
+
+        
             logger.info(f'Processing image: {title}')
 
             # Step 3: Check if an image with the same title and description already exists
@@ -1318,8 +1347,8 @@ def add_document_to_db(title, file_path, position_id, rev=None):
                             logger.info(f"Generated and stored embedding for chunk {i+1} of document: {title}")
                     else:
                         logger.info(f"No embedding generated for chunk {i+1} of document: {title} because no model is selected.")
-                '''
-                Commentted out for debugging version_log error
+                
+                
                 # Add version info and create snapshots
                 try:
                     with RevisionControlSession() as rev_session:
@@ -1358,7 +1387,7 @@ def add_document_to_db(title, file_path, position_id, rev=None):
                             logger.warning("No version_info found.")
                 except Exception as e:
                     logger.error(f"Error querying version_info table: {e}")
-                '''
+                
             else:
                 logger.error("No text extracted from the document.")
                 return None, False

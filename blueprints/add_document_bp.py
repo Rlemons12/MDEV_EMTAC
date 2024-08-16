@@ -10,7 +10,6 @@ from emtacdb_fts import (
     ProblemPositionAssociation, ImageProblemAssociation, 
     CompleteDocumentProblemAssociation, ImageSolutionAssociation
 )
-
 from config import DATABASE_URL, DATABASE_DOC, DATABASE_DIR, TEMPORARY_UPLOAD_FILES, REVISION_CONTROL_DB_PATH
 import os
 from werkzeug.utils import secure_filename
@@ -58,7 +57,8 @@ from snapshot_utils import (
     create_image_completed_document_association_snapshot, 
     create_parts_position_association_snapshot
 )
-from auditlog import AuditLog
+from auditlog import AuditLog, commit_audit_logs, add_audit_log_entry, audit_log_lock
+
 
 # Create logs directory if it doesn't exist
 if not os.path.exists('logs'):
@@ -82,12 +82,24 @@ stream_handler.setFormatter(logging.Formatter('%(asctime)s - %(threadName)s - %(
 logger.addHandler(stream_handler)
 
 # Database setup
-engine = create_engine(DATABASE_URL, pool_size=10, max_overflow=20)
+engine = create_engine(
+    DATABASE_URL, 
+    pool_size=10, 
+    max_overflow=20, 
+    connect_args={"check_same_thread": False}
+)
+
 Session = scoped_session(sessionmaker(bind=engine))
 
 # Revision control database configuration
 REVISION_CONTROL_DB_PATH = os.path.join(DATABASE_DIR, 'emtac_revision_control_db.db')
-revision_control_engine = create_engine(f'sqlite:///{REVISION_CONTROL_DB_PATH}')
+revision_control_engine = create_engine(
+    f'sqlite:///{REVISION_CONTROL_DB_PATH}',
+    pool_size=10,            # Set a small pool size
+    max_overflow=20,         # Allow up to 10 additional connections
+    connect_args={"check_same_thread": False}  # Needed for SQLite when using threading
+)
+
 RevisionControlBase = declarative_base()
 RevisionControlSession = scoped_session(sessionmaker(bind=revision_control_engine))  # Use distinct name
 revision_control_session = RevisionControlSession()
@@ -102,63 +114,6 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
     cursor.execute("PRAGMA temp_store = MEMORY")
     cursor.close()
 
-# Temporary list to store audit log entries
-audit_log_entries = []
-audit_log_lock = Lock()
-
-def add_audit_log_entry(table_name, operation, record_id, old_data=None, new_data=None, commit_to_db=False):
-    entry = {
-        'table_name': table_name,
-        'operation': operation,
-        'record_id': record_id,
-        'old_data': old_data,
-        'new_data': new_data,
-        'changed_at': datetime.utcnow()
-    }
-
-    with audit_log_lock:
-        # Append to the temporary in-memory list
-        audit_log_entries.append(entry)
-        logger.info(f"Audit log entry added to memory: {entry}")
-
-        if commit_to_db:
-            try:
-                # Optionally commit this entry to the database immediately
-                with RevisionControlSession() as session:
-                    audit_log = AuditLog(
-                        table_name=entry['table_name'],
-                        operation=entry['operation'],
-                        record_id=entry['record_id'],
-                        old_data=entry['old_data'],
-                        new_data=entry['new_data'],
-                        changed_at=entry['changed_at']
-                    )
-                    session.add(audit_log)
-                    session.commit()
-                    logger.info(f"Audit log entry committed to database: {entry}")
-            except Exception as e:
-                logger.error(f"Failed to commit audit log entry to database: {e}")
-
-def commit_audit_logs():
-    with audit_log_lock:
-        try:
-            with RevisionControlSession() as session:
-                for entry in audit_log_entries:
-                    audit_log = AuditLog(
-                        table_name=entry['table_name'],
-                        operation=entry['operation'],
-                        record_id=entry['record_id'],
-                        old_data=entry['old_data'],
-                        new_data=entry['new_data'],
-                        changed_at=entry['changed_at']
-                    )
-                    session.add(audit_log)
-                session.commit()
-                logger.info(f"All audit log entries committed to database: {len(audit_log_entries)} entries.")
-            audit_log_entries.clear()  # Clear the list after committing
-            logger.info("Cleared in-memory audit log entries after committing to database.")
-        except Exception as e:
-            logger.error(f"Failed to commit audit log entries to database: {e}")
 
 # Create a blueprint for the add_document route
 add_document_bp = Blueprint("add_document_bp", __name__)
@@ -166,6 +121,7 @@ add_document_bp = Blueprint("add_document_bp", __name__)
 # Define the route for adding documents
 @add_document_bp.route("/add_document", methods=["POST"])
 def add_document():
+    session = Session()  # Create a session at the beginning of the route
     logger.info("Received a request to add documents")
 
     if "files" not in request.files:
@@ -194,7 +150,7 @@ def add_document():
                     session.commit()
                 logger.info(f"Processed site location: {site_location_title}")
 
-            position_id = create_position(area, equipment_group, model, asset_number, location, site_location.id if site_location else None)
+            position_id = create_position(area, equipment_group, model, asset_number, location, site_location.id if site_location else None,session)
             logger.info(f"Processed position ID: {position_id}")
 
         cpu_count = os.cpu_count()
@@ -291,64 +247,40 @@ def add_document():
 
 def add_document_to_db_multithread(title, file_path, position_id, revision, remaining_workers, complete_document_id, completed_document_position_association_id):
     thread_id = threading.get_ident()
-    logger.info(f"[Thread {thread_id}] Started processing file: {file_path}")
-    
+    logger.info(f"[Thread {thread_id}] Started processing file: {file_path} with revision: {revision}")
+
     try:
         extracted_text = None
+
         with Session() as session:
             logger.info(f"[Thread {thread_id}] Session started for file: {file_path}")
 
-            # Thread function to extract text
-            def extract_text():
-                nonlocal extracted_text
-                if file_path.endswith(".pdf"):
-                    logger.info(f"[Thread {thread_id}] Extracting text from PDF...")
-                    extracted_text = extract_text_from_pdf(file_path)
-                    logger.info(f"[Thread {thread_id}] Text extracted from PDF.")
-                elif file_path.endswith(".txt"):
-                    logger.info(f"[Thread {thread_id}] Extracting text from TXT...")
-                    extracted_text = extract_text_from_txt(file_path)
-                    logger.info(f"[Thread {thread_id}] Text extracted from TXT.")
-                else:
-                    logger.error(f"[Thread {thread_id}] Unsupported file format: {file_path}")
-                    return None
+            # First, extract the text from the document
+            if file_path.endswith(".pdf"):
+                logger.info(f"[Thread {thread_id}] Extracting text from PDF...")
+                extracted_text = extract_text_from_pdf(file_path)
+                logger.info(f"[Thread {thread_id}] Text extracted from PDF.")
+            elif file_path.endswith(".txt"):
+                logger.info(f"[Thread {thread_id}] Extracting text from TXT...")
+                extracted_text = extract_text_from_txt(file_path)
+                logger.info(f"[Thread {thread_id}] Text extracted from TXT.")
+            else:
+                logger.error(f"[Thread {thread_id}] Unsupported file format: {file_path}")
+                return None, False
 
-            # Thread function to extract images
-            def extract_images():
-                if file_path.endswith(".pdf"):
-                    logger.info(f"[Thread {thread_id}] Extracting images from PDF...")
-                    extract_images_from_pdf(file_path, session, complete_document_id, completed_document_position_association_id)
-                    logger.info(f"[Thread {thread_id}] Images extracted from PDF.")
-
-            # Use ThreadPoolExecutor to run extract_text and extract_images concurrently
-            with ThreadPoolExecutor(max_workers=max(1, remaining_workers)) as executor:
-                futures = []
-                futures.append(executor.submit(extract_text))
-                futures.append(executor.submit(extract_images))
-                for future in futures:
-                    future.result()  # Wait for all threads to complete
-
+            # If text was successfully extracted, create the CompleteDocument and association
             if extracted_text:
-                # Insert the CompleteDocument and get the ID
                 complete_document = CompleteDocument(
                     title=title,
                     file_path=os.path.relpath(file_path, DATABASE_DIR),
                     content=extracted_text,
-                    rev=revision
+                    rev=revision  # Use the passed revision number
                 )
                 session.add(complete_document)
                 session.commit()
-                complete_document_id = complete_document.id  # Retrieve the newly created document ID
-                
-                # Log the INSERT operation
-                add_audit_log_entry(
-                    table_name="complete_document",
-                    operation="INSERT",
-                    record_id=complete_document_id,  # Use the correct record_id
-                    new_data={"title": title, "file_path": file_path}
-                )
+                complete_document_id = complete_document.id
+                logger.info(f"[Thread {thread_id}] Added complete document: {title}, ID: {complete_document_id}, Rev: {revision}")
 
-                # Insert the CompletedDocumentPositionAssociation and get the ID
                 completed_document_position_association = CompletedDocumentPositionAssociation(
                     complete_document_id=complete_document_id,
                     position_id=position_id
@@ -356,40 +288,67 @@ def add_document_to_db_multithread(title, file_path, position_id, revision, rema
                 session.add(completed_document_position_association)
                 session.commit()
                 completed_document_position_association_id = completed_document_position_association.id
+                logger.info(f"[Thread {thread_id}] Added CompletedDocumentPositionAssociation for complete document ID: {complete_document_id}, position ID: {position_id}")
 
-                # Log the INSERT operation for the association
-                add_audit_log_entry(
-                    table_name="completed_document_position_association",
-                    operation="INSERT",
-                    record_id=completed_document_position_association_id,  # Use the correct record_id
-                    new_data={"complete_document_id": complete_document_id, "position_id": position_id}
-                )
-
-                # Insert the document into the FTS table
+                # Add the document to the FTS table
                 insert_query_fts = "INSERT INTO documents_fts (title, content) VALUES (:title, :content)"
                 session.execute(text(insert_query_fts), {"title": title, "content": extracted_text})
                 session.commit()
+                logger.info(f"[Thread {thread_id}] Added document to the FTS table.")
 
-                # Log the INSERT operation for the FTS entry
-                add_audit_log_entry(
-                    table_name="documents_fts",
-                    operation="INSERT",
-                    record_id=complete_document_id,  # Assuming this uses the same document ID
-                    new_data={"title": title, "content": extracted_text}
-                )
-
+                # Now that the IDs are created, extract images
+                if file_path.endswith(".pdf"):
+                    logger.info(f"[Thread {thread_id}] Extracting images from PDF...")
+                    extract_images_from_pdf(file_path, session, complete_document_id, completed_document_position_association_id, position_id)
+                    logger.info(f"[Thread {thread_id}] Images extracted from PDF.")
             else:
                 logger.error(f"[Thread {thread_id}] No text extracted from the document.")
                 return None, False
 
+            text_chunks = split_text_into_chunks(extracted_text)
+            for i, chunk in enumerate(text_chunks):
+                padded_chunk = ' '.join(split_text_into_chunks(chunk, pad_token="", max_words=150))
+                document = Document(
+                    name=f"{title} - Chunk {i+1}",
+                    file_path=os.path.relpath(file_path, DATABASE_DIR),
+                    content=padded_chunk,
+                    complete_document_id=complete_document_id,
+                    rev=revision  # Same revision number for document chunk
+                )
+                session.add(document)
+                session.commit()
+                logger.info(f"[Thread {thread_id}] Added chunk {i+1} of document: {title}, Rev: {document.rev}")
+
+                if CURRENT_EMBEDDING_MODEL != "NoEmbeddingModel":
+                    embeddings = generate_embedding(padded_chunk, CURRENT_EMBEDDING_MODEL)
+                    if embeddings is None:
+                        logger.warning(f"[Thread {thread_id}] Failed to generate embedding for chunk {i+1} of document: {title}")
+                    else:
+                        store_embedding(document.id, embeddings, CURRENT_EMBEDDING_MODEL)
+                        logger.info(f"[Thread {thread_id}] Generated and stored embedding for chunk {i+1} of document: {title}")
+                else:
+                    logger.info(f"[Thread {thread_id}] No embedding generated for chunk {i+1} of document: {title} because no model is selected.")
+
+            # Querying the version_info table
+            try:
+                with RevisionControlSession() as revision_session:
+                    logger.info(f"[Thread {thread_id}] Querying version_info table in revision control database.")
+                    version_info = revision_session.query(VersionInfo).order_by(VersionInfo.id.desc()).first()
+                    if version_info:
+                        logger.info(f"[Thread {thread_id}] Latest version_info: {version_info.version_number}")
+                    else:
+                        logger.warning(f"[Thread {thread_id}] No version_info found.")
+            except Exception as e:
+                logger.error(f"[Thread {thread_id}] Error querying version_info table: {e}")
+
             logger.info(f"[Thread {thread_id}] Successfully processed file: {file_path}")
             return complete_document_id, True
-
     except Exception as e:
         logger.error(f"[Thread {thread_id}] An error occurred in add_document_to_db_multithread: {e}")
+        logger.error(f"[Thread {thread_id}] Attempted Processed file: {file_path}")
         return None, False
 
-def extract_images_from_pdf(file_path, session, complete_document_id, completed_document_position_association_id):
+def extract_images_from_pdf(file_path, session, complete_document_id, completed_document_position_association_id, position_id=None):
     # Log the received arguments to ensure they are being passed correctly
     logger.info(f"extract_images_from_pdf called with arguments:")
     logger.info(f"file_path: {file_path}")
@@ -420,12 +379,14 @@ def extract_images_from_pdf(file_path, session, complete_document_id, completed_
         logger.info(f"File path: {temp_path}")
         logger.info(f"complete_document_id: {complete_document_id}")
         logger.info(f"completed_document_position_association_id: {completed_document_position_association_id}")
+        logger.info(f"position_id: {position_id}")
         
         try:
             response = requests.post('http://localhost:5000/image/add_image', 
                                     files={'image': open(temp_path, 'rb')}, 
                                     data={'complete_document_id': complete_document_id,
-                                          'completed_document_position_association_id': completed_document_position_association_id})
+                                        'completed_document_position_association_id': completed_document_position_association_id,
+                                        'position_id': position_id})
 
             if response.status_code == 200:
                 logger.info("Image processed successfully")
@@ -437,6 +398,7 @@ def extract_images_from_pdf(file_path, session, complete_document_id, completed_
             logger.error(f"Exception occurred while processing image: {e}")
 
         extracted_images.append(temp_path)
+
 
     with ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
         futures = []

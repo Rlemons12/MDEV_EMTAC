@@ -1,46 +1,169 @@
-# sqlite_db_reversion_control/__init__.py
+# __init__.py for sqlite_db_reversion_control
 
-# Importing from auditlog.py
-from .auditlog import AuditLog, log_insert, log_update, log_delete
-
-# Importing from emtac_revision_control_db.py
-from .emtac_revision_control_db import ( SiteLocationSnapshot,
-    VersionInfo, SiteLocationSnapshot, PositionSnapshot, AreaSnapshot, EquipmentGroupSnapshot, 
-    ModelSnapshot, AssetNumberSnapshot, LocationSnapshot, PartSnapshot, ImageSnapshot, 
-    ImageEmbeddingSnapshot, DrawingSnapshot, DocumentSnapshot, CompleteDocumentSnapshot, 
-    ProblemSnapshot, SolutionSnapshot, PowerPointSnapshot, DrawingPartAssociationSnapshot, 
-    PartProblemAssociationSnapshot, PartSolutionAssociationSnapshot, DrawingProblemAssociationSnapshot, 
-    DrawingSolutionAssociationSnapshot, BillOfMaterialSnapshot, ProblemPositionAssociationSnapshot, 
-    CompleteDocumentProblemAssociationSnapshot, CompleteDocumentSolutionAssociationSnapshot, 
-    ImageProblemAssociationSnapshot, ImageSolutionAssociationSnapshot, PartsPositionAssociationSnapshot, 
-    ImagePositionAssociationSnapshot, DrawingPositionAssociationSnapshot, CompletedDocumentPositionAssociationSnapshot, 
+import logging
+from .auditlog import (
+    commit_audit_logs,
+    add_audit_log_entry,
+    get_serializable_data,
+    log_insert,
+    log_update,
+    log_delete,
+    AuditLog
+)
+from .snapshot_utils import (
+    get_latest_version_info,
+    add_version_info,
+    create_sitlocation_snapshot,
+    create_position_snapshot,
+    create_area_snapshot,
+    create_equipment_group_snapshot,
+    create_model_snapshot,
+    create_asset_number_snapshot,
+    create_part_snapshot,
+    create_image_snapshot,
+    create_image_embedding_snapshot,
+    create_drawing_snapshot,
+    create_document_snapshot,
+    create_complete_document_snapshot,
+    create_problem_snapshot,
+    create_solution_snapshot,
+    create_drawing_part_association_snapshot,
+    create_part_problem_association_snapshot,
+    create_part_solution_association_snapshot,
+    create_drawing_problem_association_snapshot,
+    create_drawing_solution_association_snapshot,
+    create_problem_position_association_snapshot,
+    create_complete_document_problem_association_snapshot,
+    create_complete_document_solution_association_snapshot,
+    create_image_problem_association_snapshot,
+    create_image_solution_association_snapshot,
+    create_image_position_association_snapshot,
+    create_drawing_position_association_snapshot,
+    create_completed_document_position_association_snapshot,
+    create_image_completed_document_association_snapshot,
+    create_snapshot,
+    rev_control_Session
+)
+from .emtac_revision_control_db import (
+    VersionInfo,
+    RevisionControlBase,
+    revision_control_engine,
+    revision_control_session,
+    SiteLocationSnapshot,
+    PositionSnapshot,
+    AreaSnapshot,
+    EquipmentGroupSnapshot,
+    ModelSnapshot,
+    AssetNumberSnapshot,
+    LocationSnapshot,
+    PartSnapshot,
+    ImageSnapshot,
+    ImageEmbeddingSnapshot,
+    DrawingSnapshot,
+    DocumentSnapshot,
+    CompleteDocumentSnapshot,
+    ProblemSnapshot,
+    SolutionSnapshot,
+    DrawingPartAssociationSnapshot,
+    PartProblemAssociationSnapshot,
+    PartSolutionAssociationSnapshot,
+    PartsPositionAssociationSnapshot,
+    DrawingProblemAssociationSnapshot,
+    DrawingSolutionAssociationSnapshot,
+    BillOfMaterialSnapshot,
+    ProblemPositionAssociationSnapshot,
+    CompleteDocumentProblemAssociationSnapshot,
+    CompleteDocumentSolutionAssociationSnapshot,
+    ImageProblemAssociationSnapshot,
+    ImageSolutionAssociationSnapshot,
+    ImagePositionAssociationSnapshot,
+    DrawingPositionAssociationSnapshot,
+    CompletedDocumentPositionAssociationSnapshot,
     ImageCompletedDocumentAssociationSnapshot
 )
+from .event_listeners import register_event_listeners
 
-# Importing from snapshot_utils.py
-from .snapshot_utils import (
-    create_snapshot, create_sitlocation_snapshot, create_position_snapshot, create_area_snapshot, 
-    create_equipment_group_snapshot, create_model_snapshot, create_asset_number_snapshot, 
-    create_part_snapshot, create_image_snapshot, create_image_embedding_snapshot, create_drawing_snapshot, 
-    create_document_snapshot, create_complete_document_snapshot, create_problem_snapshot, 
-    create_solution_snapshot, create_drawing_part_association_snapshot, create_part_problem_association_snapshot, 
-    create_part_solution_association_snapshot, create_drawing_problem_association_snapshot, 
-    create_drawing_solution_association_snapshot, create_problem_position_association_snapshot, 
-    create_complete_document_problem_association_snapshot, create_complete_document_solution_association_snapshot, 
-    create_image_problem_association_snapshot, create_image_solution_association_snapshot, 
-    create_image_position_association_snapshot, create_drawing_position_association_snapshot, 
-    create_completed_document_position_association_snapshot, create_image_completed_document_association_snapshot, 
-    create_parts_position_association_snapshot
-)
+# Initialize logging for the package
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# Importing from version_tracking_initializer.py
-from .version_tracking_initializer import (
-    initialize_snapshots, insert_initial_version, create_all_snapshots, 
-    set_sqlite_pragmas, list_tables, create_missing_tables, create_snapshots_concurrently
-)
+# Ensure that event listeners are registered when the package is initialized
+register_event_listeners()
 
-# Importing DatabaseConfig from config_env.py
-from config_env import DatabaseConfig  # Import DatabaseConfig class
-
-# Optionally, you can instantiate the DatabaseConfig and make it available
-db_config = DatabaseConfig()
+__all__ = [
+    "commit_audit_logs",
+    "add_audit_log_entry",
+    "get_serializable_data",
+    "log_insert",
+    "log_update",
+    "log_delete",
+    "AuditLog",
+    "get_latest_version_info",
+    "add_version_info",
+    "create_sitlocation_snapshot",
+    "create_position_snapshot",
+    "create_area_snapshot",
+    "create_equipment_group_snapshot",
+    "create_model_snapshot",
+    "create_asset_number_snapshot",
+    "create_part_snapshot",
+    "create_image_snapshot",
+    "create_image_embedding_snapshot",
+    "create_drawing_snapshot",
+    "create_document_snapshot",
+    "create_complete_document_snapshot",
+    "create_problem_snapshot",
+    "create_solution_snapshot",
+    "create_drawing_part_association_snapshot",
+    "create_part_problem_association_snapshot",
+    "create_part_solution_association_snapshot",
+    "create_drawing_problem_association_snapshot",
+    "create_drawing_solution_association_snapshot",
+    "create_problem_position_association_snapshot",
+    "create_complete_document_problem_association_snapshot",
+    "create_complete_document_solution_association_snapshot",
+    "create_image_problem_association_snapshot",
+    "create_image_solution_association_snapshot",
+    "create_image_position_association_snapshot",
+    "create_drawing_position_association_snapshot",
+    "create_completed_document_position_association_snapshot",
+    "create_image_completed_document_association_snapshot",
+    "create_snapshot",
+    "rev_control_Session",
+    "VersionInfo",
+    "RevisionControlBase",
+    "revision_control_engine",
+    "revision_control_session",
+    "SiteLocationSnapshot",
+    "PositionSnapshot",
+    "AreaSnapshot",
+    "EquipmentGroupSnapshot",
+    "ModelSnapshot",
+    "AssetNumberSnapshot",
+    "LocationSnapshot",
+    "PartSnapshot",
+    "ImageSnapshot",
+    "ImageEmbeddingSnapshot",
+    "DrawingSnapshot",
+    "DocumentSnapshot",
+    "CompleteDocumentSnapshot",
+    "ProblemSnapshot",
+    "SolutionSnapshot",
+    "DrawingPartAssociationSnapshot",
+    "PartProblemAssociationSnapshot",
+    "PartSolutionAssociationSnapshot",
+    "PartsPositionAssociationSnapshot",
+    "DrawingProblemAssociationSnapshot",
+    "DrawingSolutionAssociationSnapshot",
+    "BillOfMaterialSnapshot",
+    "ProblemPositionAssociationSnapshot",
+    "CompleteDocumentProblemAssociationSnapshot",
+    "CompleteDocumentSolutionAssociationSnapshot",
+    "ImageProblemAssociationSnapshot",
+    "ImageSolutionAssociationSnapshot",
+    "ImagePositionAssociationSnapshot",
+    "DrawingPositionAssociationSnapshot",
+    "CompletedDocumentPositionAssociationSnapshot",
+    "ImageCompletedDocumentAssociationSnapshot",
+    "register_event_listeners"
+]
