@@ -1,9 +1,10 @@
 from flask import Blueprint, jsonify, request, send_file, flash
-from sqlalchemy.orm import sessionmaker, scoped_session
+from sqlalchemy.orm import sessionmaker, scoped_session, joinedload
 from sqlalchemy import create_engine
 import os
 from blueprints import DATABASE_URL, DATABASE_DIR
-from emtacdb_fts import Image  # Ensure this is the correct import path for your Image model
+from emtacdb_fts import Image, Position, \
+    ImagePositionAssociation  # Ensure this is the correct import path for your Image model
 import logging
 
 # Create a SQLAlchemy engine using the DATABASE_URL from your config
@@ -17,6 +18,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 logger = logging.getLogger(__name__)
 
 search_images_bp = Blueprint('search_images_bp', __name__)
+
 
 # Function to serve an image from the database based on its ID
 def serve_image(session, image_id):
@@ -39,6 +41,7 @@ def serve_image(session, image_id):
         logger.error(f"An error occurred while serving the image: {e}")
         return "Internal Server Error", 500
 
+
 @search_images_bp.route('/serve_image/<int:image_id>')
 def serve_image_route(image_id):
     logger.debug(f"Request to serve image with ID: {image_id}")
@@ -49,6 +52,7 @@ def serve_image_route(image_id):
             logger.error(f"Error serving image {image_id}: {e}")
             flash(f"Error serving image {image_id}", "error")
             return "Image not found", 404
+
 
 # Define the search_images route within the blueprint
 @search_images_bp.route('/', methods=['GET'])
@@ -63,23 +67,33 @@ def search_images():
         asset_number = request.args.get('searchimage_asset_number', '')
         location = request.args.get('searchimage_location', '')
 
-        logger.debug(f"Search parameters - Description: {description}, Title: {title}, Area: {area}, Equipment Group: {equipment_group}, Model: {model}, Asset Number: {asset_number}, Location: {location}")
-        
+        logger.debug(
+            f"Search parameters - Description: {description}, Title: {title}, Area: {area}, Equipment Group: {equipment_group}, Model: {model}, Asset Number: {asset_number}, Location: {location}")
+
         # Perform search using the updated function
-        result = search_images_db(session, description=description, title=title, area=area, equipment_group=equipment_group, model=model, asset_number=asset_number, location=location)
-        
+        result = search_images_db(session, description=description, title=title, area=area,
+                                  equipment_group=equipment_group, model=model, asset_number=asset_number,
+                                  location=location)
+
         if 'images' in result:
             return jsonify(result)
         else:
             return jsonify({'error': 'No images found'}), 404
 
+
 def search_images_db(session, description='', title='', area='', equipment_group='', model='', asset_number='', location=''):
     logger.info("Starting search_images_db")
-    logger.debug(f"Search parameters - Description: {description}, Title: {title}, Area: {area}, Equipment Group: {equipment_group}, Model: {model}, Asset Number: {asset_number}, Location: {location}")
+    logger.debug(
+        f"Search parameters - Description: {description}, Title: {title}, Area: {area}, Equipment Group: {equipment_group}, Model: {model}, Asset Number: {asset_number}, Location: {location}")
 
     try:
-        # Create the base query with explicit join using .select_from and .join
-        query = session.query(Image)
+        # Create the base query with explicit joins
+        query = (
+            session.query(Image)
+            .join(ImagePositionAssociation, Image.id == ImagePositionAssociation.image_id)
+            .join(Position, ImagePositionAssociation.position_id == Position.id)
+            .options(joinedload(Image.image_position_association).joinedload(ImagePositionAssociation.position))
+        )
 
         # Apply filters based on provided parameters
         if description:
@@ -87,15 +101,37 @@ def search_images_db(session, description='', title='', area='', equipment_group
         if title:
             query = query.filter(Image.title.ilike(f'%{title}%'))
         if area:
-            query = query.filter(Image.area_id == int(area))
+            query = query.filter(Position.area_id == int(area))
         if equipment_group:
-            query = query.filter(Image.equipment_group_id == int(equipment_group))
+            # Ensure that equipment_group is filtered only if area is also selected
+            query = query.filter(Position.equipment_group_id == int(equipment_group))
+            if area:
+                query = query.filter(Position.area_id == int(area))
         if model:
-            query = query.filter(Image.model_id == int(model))
+            # Ensure that model is filtered only if equipment_group is also selected
+            query = query.filter(Position.model_id == int(model))
+            if equipment_group:
+                query = query.filter(Position.equipment_group_id == int(equipment_group))
+            if area:
+                query = query.filter(Position.area_id == int(area))
         if asset_number:
-            query = query.filter(Image.asset_number_id == int(asset_number))
+            # Ensure that asset_number is filtered only if model is also selected
+            query = query.filter(Position.asset_number_id == int(asset_number))
+            if model:
+                query = query.filter(Position.model_id == int(model))
+            if equipment_group:
+                query = query.filter(Position.equipment_group_id == int(equipment_group))
+            if area:
+                query = query.filter(Position.area_id == int(area))
         if location:
-            query = query.filter(Image.location_id == int(location))
+            # Ensure that location is filtered only if model is also selected
+            query = query.filter(Position.location_id == int(location))
+            if model:
+                query = query.filter(Position.model_id == int(model))
+            if equipment_group:
+                query = query.filter(Position.equipment_group_id == int(equipment_group))
+            if area:
+                query = query.filter(Position.area_id == int(area))
 
         results = query.all()
 
@@ -112,5 +148,6 @@ def search_images_db(session, description='', title='', area='', equipment_group
         logger.info(f"Found {len(images)} images matching the criteria")
         return {"images": images}
     except Exception as e:
+        session.rollback()
         logger.error(f"An error occurred while searching images: {e}")
         return {"error": str(e)}

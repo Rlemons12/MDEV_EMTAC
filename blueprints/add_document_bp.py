@@ -1,10 +1,11 @@
+import psutil
 from flask import Blueprint, request, jsonify, redirect, url_for
-from emtacdb_fts import (
+from emtacdb_fts import (add_docx_to_db,
     create_position, SiteLocation, extract_text_from_pdf, extract_text_from_txt, 
     CompleteDocument, Document, split_text_into_chunks, generate_embedding, 
     store_embedding, CURRENT_EMBEDDING_MODEL, Area, EquipmentGroup, AssetNumber, 
     Model, Location, ChatSession, Position, Image, Drawing, Problem, Solution, 
-    Part, ImageEmbedding, PowerPoint, PartsPositionAssociation, 
+    Part, ImageEmbedding, PowerPoint, PartsPositionImageAssociation, 
     ImagePositionAssociation, DrawingPositionAssociation, 
     CompletedDocumentPositionAssociation, ImageCompletedDocumentAssociation, 
     ProblemPositionAssociation, ImageProblemAssociation, 
@@ -179,6 +180,14 @@ def add_document():
                 file.save(file_path)
                 logger.info(f"Saved file: {file_path}")
 
+                if file_path.endswith(".docx"):
+                    # Process DOCX files first by converting them to PDF
+                    logger.info(f"Processing DOCX file: {file_path}")
+                    success = add_docx_to_db(title, file_path, position_id)
+                    if not success:
+                        logger.error(f"Failed to process DOCX file: {file_path}")
+                        raise Exception(f"Failed to process DOCX file: {file_path}")
+
                 with Session() as session:
                     existing_document = session.query(CompleteDocument).filter_by(title=title).order_by(CompleteDocument.rev.desc()).first()
                     if existing_document:
@@ -268,27 +277,44 @@ def add_document_to_db_multithread(title, file_path, position_id, revision, rema
                 logger.error(f"[Thread {thread_id}] Unsupported file format: {file_path}")
                 return None, False
 
-            # If text was successfully extracted, create the CompleteDocument and association
+            # Only proceed if the text was successfully extracted
             if extracted_text:
-                complete_document = CompleteDocument(
-                    title=title,
-                    file_path=os.path.relpath(file_path, DATABASE_DIR),
-                    content=extracted_text,
-                    rev=revision  # Use the passed revision number
-                )
-                session.add(complete_document)
-                session.commit()
-                complete_document_id = complete_document.id
-                logger.info(f"[Thread {thread_id}] Added complete document: {title}, ID: {complete_document_id}, Rev: {revision}")
+                # Check if an existing CompleteDocument with the same title and revision exists
+                existing_document = session.query(CompleteDocument).filter_by(title=title, rev=revision).first()
 
-                completed_document_position_association = CompletedDocumentPositionAssociation(
-                    complete_document_id=complete_document_id,
-                    position_id=position_id
-                )
-                session.add(completed_document_position_association)
-                session.commit()
-                completed_document_position_association_id = completed_document_position_association.id
-                logger.info(f"[Thread {thread_id}] Added CompletedDocumentPositionAssociation for complete document ID: {complete_document_id}, position ID: {position_id}")
+                if existing_document:
+                    logger.info(f"[Thread {thread_id}] Found existing document: ID {existing_document.id} with title '{title}' and revision '{revision}'")
+                    # Update the existing document with the extracted content
+                    existing_document.content = extracted_text
+                    session.commit()
+                    complete_document_id = existing_document.id
+                    logger.info(f"[Thread {thread_id}] Updated existing document with content for ID: {complete_document_id}")
+                else:
+                    # Create a new CompleteDocument with the extracted content
+                    complete_document = CompleteDocument(
+                        title=title,
+                        file_path=os.path.relpath(file_path, DATABASE_DIR),
+                        content=extracted_text,
+                        rev=revision  # Use the passed revision number
+                    )
+                    session.add(complete_document)
+                    session.commit()
+                    complete_document_id = complete_document.id
+                    logger.info(f"[Thread {thread_id}] Added new complete document: {title}, ID: {complete_document_id}, Rev: {revision}")
+
+                # Create or update the CompletedDocumentPositionAssociation
+                completed_document_position_association = session.query(CompletedDocumentPositionAssociation).filter_by(
+                    complete_document_id=complete_document_id, position_id=position_id).first()
+
+                if not completed_document_position_association:
+                    completed_document_position_association = CompletedDocumentPositionAssociation(
+                        complete_document_id=complete_document_id,
+                        position_id=position_id
+                    )
+                    session.add(completed_document_position_association)
+                    session.commit()
+                    completed_document_position_association_id = completed_document_position_association.id
+                    logger.info(f"[Thread {thread_id}] Added CompletedDocumentPositionAssociation for complete document ID: {complete_document_id}, position ID: {position_id}")
 
                 # Add the document to the FTS table
                 insert_query_fts = "INSERT INTO documents_fts (title, content) VALUES (:title, :content)"
@@ -299,12 +325,13 @@ def add_document_to_db_multithread(title, file_path, position_id, revision, rema
                 # Now that the IDs are created, extract images
                 if file_path.endswith(".pdf"):
                     logger.info(f"[Thread {thread_id}] Extracting images from PDF...")
-                    extract_images_from_pdf(file_path, session, complete_document_id, completed_document_position_association_id, position_id)
+                    extract_images_from_pdf(file_path, complete_document_id, completed_document_position_association_id, position_id)
                     logger.info(f"[Thread {thread_id}] Images extracted from PDF.")
             else:
                 logger.error(f"[Thread {thread_id}] No text extracted from the document.")
                 return None, False
 
+            # Process document chunks and generate embeddings
             text_chunks = split_text_into_chunks(extracted_text)
             for i, chunk in enumerate(text_chunks):
                 padded_chunk = ' '.join(split_text_into_chunks(chunk, pad_token="", max_words=150))
@@ -348,60 +375,28 @@ def add_document_to_db_multithread(title, file_path, position_id, revision, rema
         logger.error(f"[Thread {thread_id}] Attempted Processed file: {file_path}")
         return None, False
 
-def extract_images_from_pdf(file_path, session, complete_document_id, completed_document_position_association_id, position_id=None):
-    # Log the received arguments to ensure they are being passed correctly
-    logger.info(f"extract_images_from_pdf called with arguments:")
-    logger.info(f"file_path: {file_path}")
-    logger.info(f"complete_document_id: {complete_document_id}")
-    logger.info(f"completed_document_position_association_id: {completed_document_position_association_id}")
-    logger.info(f"Session info: {session}")
+def extract_images_from_pdf(file_path, complete_document_id, completed_document_position_association_id, position_id=None):
+    session = Session()
 
-    logger.info(f"Opening PDF file from: {file_path}")
-    doc = fitz.open(file_path)
-    total_pages = len(doc)
-    logger.info(f"Total pages in the PDF: {total_pages}")
-    logger.info(f"Inside MT extract_images_from_pdf, complete_document_id: {complete_document_id}")
-    logger.info(f"CompletedDocumentPositionAssociation ID: {completed_document_position_association_id}")
-    extracted_images = []
-
-    file_name = os.path.splitext(os.path.basename(file_path))[0].replace("_", " ")
-
-    if not os.path.exists(TEMPORARY_UPLOAD_FILES):
-        os.makedirs(TEMPORARY_UPLOAD_FILES)
-
-    def process_image(page_num, img_index, image_bytes):
-        temp_path = os.path.join(TEMPORARY_UPLOAD_FILES, f"{file_name}_page{page_num + 1}_image{img_index + 1}.jpg")  
-        
-        with open(temp_path, 'wb') as temp_file:
-            temp_file.write(image_bytes)
-        
-        logger.info("Preparing to send POST request to http://localhost:5000/image/add_image")
-        logger.info(f"File path: {temp_path}")
+    try:
+        logger.info(f"extract_images_from_pdf called with arguments:")
+        logger.info(f"file_path: {file_path}")
         logger.info(f"complete_document_id: {complete_document_id}")
         logger.info(f"completed_document_position_association_id: {completed_document_position_association_id}")
         logger.info(f"position_id: {position_id}")
-        
-        try:
-            response = requests.post('http://localhost:5000/image/add_image', 
-                                    files={'image': open(temp_path, 'rb')}, 
-                                    data={'complete_document_id': complete_document_id,
-                                        'completed_document_position_association_id': completed_document_position_association_id,
-                                        'position_id': position_id})
+        logger.info(f"Session info: {session}")
 
-            if response.status_code == 200:
-                logger.info("Image processed successfully")
-                logger.info(f"Response from server: {response.text}")  
-            else:
-                logger.error(f"Failed to process image: {response.text}")
-                logger.error(f"HTTP Status Code: {response.status_code}")
-        except Exception as e:
-            logger.error(f"Exception occurred while processing image: {e}")
+        logger.info(f"Opening PDF file from: {file_path}")
+        doc = fitz.open(file_path)
+        total_pages = len(doc)
+        logger.info(f"Total pages in the PDF: {total_pages}")
+        extracted_images = []
 
-        extracted_images.append(temp_path)
+        file_name = os.path.splitext(os.path.basename(file_path))[0].replace("_", " ")
 
+        if not os.path.exists(TEMPORARY_UPLOAD_FILES):
+            os.makedirs(TEMPORARY_UPLOAD_FILES)
 
-    with ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
-        futures = []
         for page_num in range(total_pages):
             page = doc[page_num]
             img_list = page.get_images(full=True)
@@ -412,23 +407,55 @@ def extract_images_from_pdf(file_path, session, complete_document_id, completed_
                 xref = img[0]
                 base_image = doc.extract_image(xref)
                 image_bytes = base_image["image"]
-                futures.append(executor.submit(process_image, page_num, img_index, image_bytes))
 
-        for future in futures:
-            future.result()
+                temp_path = os.path.join(TEMPORARY_UPLOAD_FILES, f"{file_name}_page{page_num + 1}_image{img_index + 1}.jpg")
 
-    # Log the final state before returning
-    logger.info(f"extract_images_from_pdf completed. Extracted images: {extracted_images}")
+                with open(temp_path, 'wb') as temp_file:
+                    temp_file.write(image_bytes)
 
-    return extracted_images
+                logger.info(f"Saved image to {temp_path}")
 
-def excel_to_csv(excel_file_path, csv_file_path):
-    try:
-        # Read Excel file
-        df = pd.read_excel(excel_file_path)
-        # Save as CSV
-        df.to_csv(csv_file_path, index=False)
-        return True
+                try:
+                    response = requests.post('http://localhost:5000/image/add_image',
+                                             files={'image': open(temp_path, 'rb')},
+                                             data={'complete_document_id': complete_document_id,
+                                                   'completed_document_position_association_id': completed_document_position_association_id,
+                                                   'position_id': position_id})
+
+                    if response.status_code == 200:
+                        logger.info(f"Image processed successfully for page {page_num + 1}, image {img_index + 1}")
+                    else:
+                        logger.error(f"Failed to process image for page {page_num + 1}, image {img_index + 1}: {response.text}")
+                        logger.error(f"HTTP Status Code: {response.status_code}")
+                except Exception as e:
+                    logger.error(f"Exception occurred while processing image for page {page_num + 1}, image {img_index + 1}: {e}")
+
+                extracted_images.append(temp_path)
+
+        logger.info(f"extract_images_from_pdf completed. Extracted images: {extracted_images}")
+
+        return extracted_images
+
     except Exception as e:
-        logger.error(f"Failed to convert Excel to CSV: {e}")
-        return False
+        logger.error(f"An error occurred in extract_images_from_pdf: {e}")
+        session.rollback()  # Rollback the session in case of any errors
+        return []
+
+    finally:
+        session.close()  # Ensure the session is closed at the end
+
+
+def calculate_optimal_workers(memory_threshold=0.5, max_workers=None):
+    """Calculate optimal number of workers based on available memory."""
+    available_memory = psutil.virtual_memory().available
+    memory_per_thread = 100 * 1024 * 1024  # Example: assume each thread uses 100MB
+    max_memory_workers = available_memory // memory_per_thread
+
+    if max_workers is None:
+        max_workers = os.cpu_count()
+
+    # Limit workers based on memory and CPU availability
+    optimal_workers = min(max_memory_workers, max_workers)
+
+    # Apply a memory threshold to avoid using all available memory
+    return max(1, int(optimal_workers * memory_threshold))

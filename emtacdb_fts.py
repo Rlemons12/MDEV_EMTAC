@@ -46,7 +46,7 @@ from emtac_revision_control_db import (
     AssetNumberSnapshot, PartSnapshot, ImageSnapshot, ImageEmbeddingSnapshot, DrawingSnapshot, 
     DocumentSnapshot, CompleteDocumentSnapshot, ProblemSnapshot, SolutionSnapshot, 
     DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot, PartSolutionAssociationSnapshot, 
-    PartsPositionAssociationSnapshot, DrawingProblemAssociationSnapshot, DrawingSolutionAssociationSnapshot, 
+    PartsPositionImageAssociationSnapshot, DrawingProblemAssociationSnapshot, DrawingSolutionAssociationSnapshot, 
     ProblemPositionAssociationSnapshot, CompleteDocumentProblemAssociationSnapshot, 
     CompleteDocumentSolutionAssociationSnapshot, ImageProblemAssociationSnapshot, 
     ImageSolutionAssociationSnapshot, ImagePositionAssociationSnapshot, DrawingPositionAssociationSnapshot, 
@@ -148,8 +148,8 @@ class Position(Base):
     model = relationship("Model", back_populates="position")
     asset_number = relationship("AssetNumber", back_populates="position")
     location = relationship("Location", back_populates="position")
-    bill_of_material = relationship("BillOfMaterial", back_populates="position")
-    part_position = relationship("PartsPositionAssociation", back_populates="position")
+    """bill_of_material = relationship("BillOfMaterial", back_populates="position")"""
+    part_position_image = relationship("PartsPositionImageAssociation", back_populates="position")
     image_position_association = relationship("ImagePositionAssociation", back_populates="position")
     drawing_position = relationship("DrawingPositionAssociation", back_populates="position")
     problem_position = relationship("ProblemPositionAssociation", back_populates="position")
@@ -226,13 +226,14 @@ class Part(Base):
     notes = Column(String)  # Notes
     documentation = Column(String)  # Specifications
 
-    part_position = relationship("PartsPositionAssociation", back_populates="part")
-    bill_of_material = relationship("BillOfMaterial", back_populates="part")
+    part_position_image = relationship("PartsPositionImageAssociation", back_populates="part")
+    """bill_of_material = relationship("BillOfMaterial", back_populates="part")"""
     part_problem = relationship("PartProblemAssociation", back_populates="part")
     part_solution = relationship("PartSolutionAssociation", back_populates="part")
     drawing_part = relationship("DrawingPartAssociation", back_populates="part")
 
     __table_args__ = (UniqueConstraint('part_number', name='_part_number_uc'),)
+
 
 class Image(Base):
     __tablename__ = 'image'
@@ -241,13 +242,15 @@ class Image(Base):
     title = Column(String, nullable=False)
     description = Column(String, nullable=False)
     file_path = Column(String, nullable=False)
-    
-    image_position_association = relationship("ImagePositionAssociation", back_populates="image")
+
+    parts_position_image = relationship("PartsPositionImageAssociation", back_populates="image")
     image_problem = relationship("ImageProblemAssociation", back_populates="image")
     image_solution = relationship("ImageSolutionAssociation", back_populates="image")
-    bill_of_material = relationship("BillOfMaterial", back_populates="image")
+    """bill_of_material = relationship("BillOfMaterial", back_populates="image")"""
     image_completed_document_association = relationship("ImageCompletedDocumentAssociation", back_populates="image")
     image_embedding = relationship("ImageEmbedding", back_populates="image")
+    image_position_association = relationship("ImagePositionAssociation", back_populates= "image")
+
 
 class ImageEmbedding(Base):
     __tablename__ = 'image_embedding'
@@ -414,16 +417,17 @@ class DrawingSolutionAssociation(Base):
 class BillOfMaterial(Base):
     __tablename__ = 'bill_of_material'
     id = Column(Integer, primary_key=True)
-    part_id = Column(Integer, ForeignKey('part.id'))
-    position_id = Column(Integer, ForeignKey('position.id'))
-    image_id = Column(Integer, ForeignKey('image.id'))
+    part_position_image_id = Column(Integer, ForeignKey('part_position_image.id'))  # Corrected line
+    """part_id = Column(Integer, ForeignKey('part.id'))
+    position_id = Column(Integer, ForeignKey('position.id'))"""
     quantity = Column(Float, nullable=False)  # Corrected to Float
     comment = Column(String)
-    
-    part = relationship("Part", back_populates="bill_of_material")
+
+    part_position_image = relationship("PartsPositionImageAssociation", back_populates="bill_of_material")
+    """part = relationship("Part", back_populates="bill_of_material")
     position = relationship("Position", back_populates="bill_of_material")
-    image = relationship("Image", back_populates="bill_of_material")
-    
+    image = relationship("Image", back_populates="bill_of_material")"""
+
 class ProblemPositionAssociation(Base):
     __tablename__ = 'problem_position'
     id = Column(Integer, primary_key=True)
@@ -471,15 +475,19 @@ class ImageSolutionAssociation(Base):
     image = relationship("Image", back_populates="image_solution")
     solution = relationship("Solution", back_populates="image_solution")
 
-class PartsPositionAssociation(Base):
-    __tablename__ = 'part_position'
+class PartsPositionImageAssociation(Base):
+    __tablename__ = 'part_position_image'
     id = Column(Integer, primary_key=True)
     part_id = Column(Integer, ForeignKey('part.id'))
     position_id = Column(Integer, ForeignKey('position.id'))
+    image_id = Column(Integer, ForeignKey('image.id'))
 
-    part = relationship("Part", back_populates="part_position")
-    position = relationship("Position", back_populates="part_position")
-    
+    part = relationship("Part", back_populates="part_position_image")
+    position = relationship("Position", back_populates="part_position_image")
+    image = relationship("Image", back_populates="parts_position_image")
+    bill_of_material = relationship("BillOfMaterial", back_populates="part_position_image")
+
+
 class ImagePositionAssociation(Base):
     __tablename__ = 'image_position_association'
     id = Column(Integer, primary_key=True)
@@ -1003,9 +1011,10 @@ def get_total_images_count(description=''):
 # Example usage:
 # total_images = get_total_images_count(description="example")
 
-def add_image_to_db(title, file_path, position_id=None, completed_document_position_association_id=None, complete_document_id=None, description=""):
+def add_image_to_db(title, file_path, position_id=None, completed_document_position_association_id=None,
+                    complete_document_id=None, description=""):
     new_image_id = None  # Initialize the new_image_id outside the session scope
-    
+
     try:
         with Session() as session:
             logger.debug('Inside add_image_to_db')
@@ -1021,12 +1030,11 @@ def add_image_to_db(title, file_path, position_id=None, completed_document_posit
             # Step 1: Retrieve the current image embedding model configuration
             current_image_model = load_image_model_config_from_db()
             logger.info(f"Current image model configuration from DB: {current_image_model}")
-            
+
             # Step 2: Dynamically set the model handler based on the configuration
             model_handler = get_image_model_handler(current_image_model)
             logger.info(f"Using model handler: {model_handler.__class__.__name__}")
 
-        
             logger.info(f'Processing image: {title}')
 
             # Step 3: Check if an image with the same title and description already exists
@@ -1038,11 +1046,12 @@ def add_image_to_db(title, file_path, position_id=None, completed_document_posit
             if existing_image is not None and existing_image.file_path == file_path:
                 logger.info(f"Image with the same title, description, and file path already exists: {title}")
                 new_image = existing_image
-                
+
                 # Log the duplication in the failed_uploads.txt file
                 error_file_path = os.path.join(DATABASE_PATH_IMAGES_FOLDER, 'failed_uploads.txt')
                 with open(error_file_path, 'a') as error_file:
-                    error_file.write(f"Image with title '{title}', description '{description}', and file path '{file_path}' already exists.\n")
+                    error_file.write(
+                        f"Image with title '{title}', description '{description}', and file path '{file_path}' already exists.\n")
             else:
                 # Step 4: Add the new image to the database
                 logger.info("Adding a new image to the database")
@@ -1058,12 +1067,17 @@ def add_image_to_db(title, file_path, position_id=None, completed_document_posit
 
             # Step 5: Process the image and generate the embedding
             try:
-                logger.info(f"Opening image: {file_path}")
-                image = PILImage.open(file_path).convert("RGB")
+                # Convert the relative file path back to an absolute path
+                absolute_file_path = os.path.join(BASE_DIR, file_path)
+                logger.info(f"Opening image: {absolute_file_path}")
+
+                # Open the image using the absolute file path
+                image = PILImage.open(absolute_file_path).convert("RGB")
 
                 logger.info("Calling model_handler.is_valid_image()")
                 if not model_handler.is_valid_image(image):
-                    logger.info(f"Skipping {file_path}: Image does not meet the required dimensions or aspect ratio.")
+                    logger.info(
+                        f"Skipping {absolute_file_path}: Image does not meet the required dimensions or aspect ratio.")
                 else:
                     logger.info("Image passed validation.")
                     model_embedding = model_handler.get_image_embedding(image)
@@ -1090,7 +1104,8 @@ def add_image_to_db(title, file_path, position_id=None, completed_document_posit
                     if position_id:
                         logger.debug("Checking if ImagePositionAssociation already exists")
                         existing_association = session.query(ImagePositionAssociation).filter(
-                            and_(ImagePositionAssociation.image_id == new_image.id, ImagePositionAssociation.position_id == position_id)
+                            and_(ImagePositionAssociation.image_id == new_image.id,
+                                 ImagePositionAssociation.position_id == position_id)
                         ).first()
 
                         if existing_association is None:
@@ -1100,23 +1115,19 @@ def add_image_to_db(title, file_path, position_id=None, completed_document_posit
                                 position_id=position_id
                             )
                             session.add(image_position_association)
-                            logger.info(f"Created ImagePositionAssociation with image ID {new_image.id} and position ID {position_id}")
+                            logger.info(
+                                f"Created ImagePositionAssociation with image ID {new_image.id} and position ID {position_id}")
 
-                    # Step 8: Handle completed document associations if applicable
-                    if completed_document_position_association_id:
-                        logger.debug("Checking if CompletedDocumentPositionAssociation already exists")
-                        existing_document_association = session.query(CompletedDocumentPositionAssociation).filter(
-                            and_(CompletedDocumentPositionAssociation.image_id == new_image.id, CompletedDocumentPositionAssociation.complete_document_id == complete_document_id)
-                        ).first()
-
-                        if existing_document_association is None:
-                            logger.info("Creating a new CompletedDocumentPositionAssociation entry")
-                            image_completed_document_association = CompletedDocumentPositionAssociation(
-                                image_id=new_image.id,
-                                complete_document_id=complete_document_id
-                            )
-                            session.add(image_completed_document_association)
-                            logger.info(f"Created CompletedDocumentPositionAssociation with image ID {new_image.id} and complete document ID {complete_document_id}")
+                    # Step 8: Handle completed document associations
+                    if complete_document_id:
+                        logger.info("Creating a new ImageCompletedDocumentAssociation entry")
+                        image_completed_document_association = ImageCompletedDocumentAssociation(
+                            image_id=new_image.id,
+                            complete_document_id=complete_document_id
+                        )
+                        session.add(image_completed_document_association)
+                        logger.info(
+                            f"Created ImageCompletedDocumentAssociation with image ID {new_image.id} and complete document ID {complete_document_id}")
 
                     # Step 9: Commit all the changes to the database
                     session.commit()
@@ -1139,7 +1150,7 @@ def add_image_to_db(title, file_path, position_id=None, completed_document_posit
         error_file_path = os.path.join(DATABASE_PATH_IMAGES_FOLDER, 'failed_uploads.txt')
         with open(error_file_path, 'a') as error_file:
             error_file.write(f"Error processing image with title '{title}': {e}\n")
-        
+
         return None  # Return None or an appropriate error code if an exception occurs
 
 
@@ -1235,6 +1246,17 @@ def extract_text_from_txt(txt_path):
     except Exception as e:
         logger.error(f"An error occurred while extracting text from TXT file: {e}")
         return None
+
+def excel_to_csv(excel_file_path, csv_file_path):
+    try:
+        # Read Excel file
+        df = pd.read_excel(excel_file_path)
+        # Save as CSV
+        df.to_csv(csv_file_path, index=False)
+        return True
+    except Exception as e:
+        logger.error(f"Failed to convert Excel to CSV: {e}")
+        return False
 
 def add_docx_to_db(title, docx_path, position_id):
     try:
@@ -2287,4 +2309,44 @@ def create_directories(directories):
             logging.info(f"Created directory: {directory}")
         else:
             logging.info(f"Directory already exists: {directory}")
+
+
+def add_parts_position_image_association(part_id, position_id, image_id):
+    """
+    Adds a new entry to the PartsPositionImageAssociation table.
+
+    :param part_id: The ID of the Part.
+    :param position_id: The ID of the Position.
+    :param image_id: The ID of the Image.
+    :return: The created PartsPositionImageAssociation object.
+    """
+    # Initialize the database session
+    db_config = DatabaseConfig()
+    session = db_config.get_main_session()
+
+    try:
+        # Create a new PartsPositionImageAssociation entry
+        new_association = PartsPositionImageAssociation(
+            part_id=part_id,
+            position_id=position_id,
+            image_id=image_id
+        )
+
+        # Add and commit the new association to the database
+        session.add(new_association)
+        session.commit()
+
+        # Log success
+        logging.info(f"Added PartsPositionImageAssociation: Part ID: {part_id}, Position ID: {position_id}, Image ID: {image_id}")
+
+        return new_association
+
+    except Exception as e:
+        session.rollback()  # Rollback the session in case of an error
+        logging.error(f"Error adding PartsPositionImageAssociation: {e}")
+        raise
+
+    finally:
+        session.close()
+
 

@@ -4,7 +4,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from emtacdb_fts import  (QandA,
     ChatSession, Area, EquipmentGroup, Model, AssetNumber, Location, SiteLocation, Position,
     Document, Image, Drawing, Problem, Solution, CompleteDocument, Part, ImageEmbedding, PowerPoint, 
-    PartsPositionAssociation, ImagePositionAssociation, DrawingPositionAssociation,
+    PartsPositionImageAssociation, ImagePositionAssociation, DrawingPositionAssociation,
     CompletedDocumentPositionAssociation, ImageCompletedDocumentAssociation,
     ProblemPositionAssociation, ImageProblemAssociation, CompleteDocumentProblemAssociation,
     ImageSolutionAssociation)

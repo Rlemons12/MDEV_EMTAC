@@ -11,7 +11,7 @@ from emtacdb_fts import (
     find_most_relevant_document, create_session, update_session, get_session, QandA,
     ChatSession, Area, EquipmentGroup, Model, AssetNumber, Location, SiteLocation, Position,
     Document, Image, Drawing, Problem, Solution, CompleteDocument, PowerPoint, 
-    PartsPositionAssociation, ImagePositionAssociation, DrawingPositionAssociation,
+    PartsPositionImageAssociation, ImagePositionAssociation, DrawingPositionAssociation,
     CompletedDocumentPositionAssociation, ImageCompletedDocumentAssociation,
     ProblemPositionAssociation, ImageProblemAssociation, CompleteDocumentProblemAssociation,
     ImageSolutionAssociation, AIModelConfig
