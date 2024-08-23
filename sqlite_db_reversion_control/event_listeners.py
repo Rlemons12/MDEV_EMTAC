@@ -10,7 +10,7 @@ from emtacdb_fts import (
     ImageEmbedding, Drawing, Document, CompleteDocument, Problem, Solution, PowerPoint, DrawingPartAssociation,
     PartProblemAssociation, PartSolutionAssociation, DrawingProblemAssociation, DrawingSolutionAssociation,
     BillOfMaterial, ProblemPositionAssociation, CompleteDocumentProblemAssociation, CompleteDocumentSolutionAssociation, ImageProblemAssociation,
-    ImageSolutionAssociation, PartsPositionAssociation, ImagePositionAssociation, DrawingPositionAssociation,
+    ImageSolutionAssociation, PartsPositionImageAssociation, ImagePositionAssociation, DrawingPositionAssociation,
     CompletedDocumentPositionAssociation, ImageCompletedDocumentAssociation
 )
 from emtac_revision_control_db import (AssetNumberSnapshot,
@@ -20,7 +20,7 @@ from emtac_revision_control_db import (AssetNumberSnapshot,
     PowerPointSnapshot, DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot, PartSolutionAssociationSnapshot,
     DrawingProblemAssociationSnapshot, DrawingSolutionAssociationSnapshot, BillOfMaterialSnapshot,
     ProblemPositionAssociationSnapshot, CompleteDocumentProblemAssociationSnapshot, CompleteDocumentSolutionAssociationSnapshot,
-    ImageProblemAssociationSnapshot, ImageSolutionAssociationSnapshot, PartsPositionAssociationSnapshot, ImagePositionAssociationSnapshot,
+    ImageProblemAssociationSnapshot, ImageSolutionAssociationSnapshot, PartsPositionImageAssociationSnapshot, ImagePositionAssociationSnapshot,
     DrawingPositionAssociationSnapshot, CompletedDocumentPositionAssociationSnapshot, ImageCompletedDocumentAssociationSnapshot
 )
 from auditlog import log_insert, log_update, log_delete, log_event_listeners, AuditLog
@@ -286,14 +286,14 @@ def register_event_listeners():
     event.listen(ImageSolutionAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, ImageSolutionAssociationSnapshot  , RevisionControlSession()))
     logger.info("Event listener for 'after_delete' on ImageSolutionAssociation has been set up.")
 
-    # PartsPositionAssociation events
-    log_event_listeners('PartsPositionAssociation')
-    event.listen(PartsPositionAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, PartsPositionAssociationSnapshot  , RevisionControlSession()))
-    logger.info("Event listener for 'after_insert' on PartsPositionAssociation has been set up.")
-    event.listen(PartsPositionAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, PartsPositionAssociationSnapshot  , RevisionControlSession()))
-    logger.info("Event listener for 'after_update' on PartsPositionAssociation has been set up.")
-    event.listen(PartsPositionAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, PartsPositionAssociationSnapshot  , RevisionControlSession()))
-    logger.info("Event listener for 'after_delete' on PartsPositionAssociation has been set up.")
+    # PartsPositionImageAssociation events
+    log_event_listeners('PartsPositionImageAssociation')
+    event.listen(PartsPositionImageAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, PartsPositionImageAssociationSnapshot  , RevisionControlSession()))
+    logger.info("Event listener for 'after_insert' on PartsPositionImageAssociation has been set up.")
+    event.listen(PartsPositionImageAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, PartsPositionImageAssociationSnapshot  , RevisionControlSession()))
+    logger.info("Event listener for 'after_update' on PartsPositionImageAssociation has been set up.")
+    event.listen(PartsPositionImageAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, PartsPositionImageAssociationSnapshot  , RevisionControlSession()))
+    logger.info("Event listener for 'after_delete' on PartsPositionImageAssociation has been set up.")
 
     # ImagePositionAssociation events
     log_event_listeners('ImagePositionAssociation')

@@ -310,7 +310,7 @@ class ImageSolutionAssociationSnapshot(RevisionControlBase):
     version_id = Column(Integer, ForeignKey('version_info.id'), nullable=False)
     version = relationship("VersionInfo")
 
-class PartsPositionAssociationSnapshot(RevisionControlBase):
+class PartsPositionImageAssociationSnapshot(RevisionControlBase):
     __tablename__ = 'part_position_snapshot'
     snapshot_id = Column(Integer, primary_key=True, autoincrement=True)
     id = Column(Integer, nullable=False)

@@ -19,7 +19,7 @@ from emtacdb_fts import (
     ImageProblemAssociation, ImageProblemAssociationSnapshot, ImageSolutionAssociation, ImageSolutionAssociationSnapshot, 
     ImagePositionAssociation, ImagePositionAssociationSnapshot, DrawingPositionAssociation, DrawingPositionAssociationSnapshot, 
     CompletedDocumentPositionAssociation, CompletedDocumentPositionAssociationSnapshot, ImageCompletedDocumentAssociation, 
-    ImageCompletedDocumentAssociationSnapshot, PartsPositionAssociation
+    ImageCompletedDocumentAssociationSnapshot, PartsPositionImageAssociation
 )
 
 from emtac_revision_control_db import (
@@ -28,7 +28,7 @@ from emtac_revision_control_db import (
     AssetNumberSnapshot, PartSnapshot, ImageSnapshot, ImageEmbeddingSnapshot, DrawingSnapshot, 
     DocumentSnapshot, CompleteDocumentSnapshot, ProblemSnapshot, SolutionSnapshot, 
     DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot, PartSolutionAssociationSnapshot, 
-    PartsPositionAssociationSnapshot, DrawingProblemAssociationSnapshot, DrawingSolutionAssociationSnapshot, 
+    PartsPositionImageAssociationSnapshot, DrawingProblemAssociationSnapshot, DrawingSolutionAssociationSnapshot, 
     ProblemPositionAssociationSnapshot, CompleteDocumentProblemAssociationSnapshot, 
     CompleteDocumentSolutionAssociationSnapshot, ImageProblemAssociationSnapshot, 
     ImageSolutionAssociationSnapshot, ImagePositionAssociationSnapshot, DrawingPositionAssociationSnapshot, 
@@ -212,7 +212,7 @@ def create_all_snapshots(main_session, revision_control_session):
         for instance in main_session.query(DrawingPartAssociation).all():
             create_drawing_part_association_snapshot(instance, revision_control_session)
         
-        for instance in main_session.query(PartsPositionAssociation).all():
+        for instance in main_session.query(PartsPositionImageAssociation).all():
             create_parts_position_association_snapshot(instance, revision_control_session)
 
         for instance in main_session.query(PartProblemAssociation).all():
@@ -242,7 +242,7 @@ def create_all_snapshots(main_session, revision_control_session):
         for instance in main_session.query(ImageSolutionAssociation).all():
             create_image_solution_association_snapshot(instance, revision_control_session)
         
-        for instance in main_session.query(PartsPositionAssociation).all():
+        for instance in main_session.query(PartsPositionImageAssociation).all():
             create_parts_position_association_snapshot(instance, revision_control_session)
         
         for instance in main_session.query(ImagePositionAssociation).all():
