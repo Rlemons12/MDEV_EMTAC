@@ -2,46 +2,70 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bill of Materials</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles/bill_of_materials.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bill_of_materials.css') }}">
 </head>
 <body>
-    <h1>Upload Bill of Materials</h1>
-    <form method="POST" enctype="multipart/form-data">
-        <label for="bom_areaDropdown">Area:</label>
-        <select name="area" id="bom_areaDropdown"></select><br>
+    <div class="sidebar" id="sidebar">
+        <button class="toggle-btn" onclick="toggleSidebar()">Toggle Sidebar</button>
+        <h2>Menu</h2>
+        <a href="#upload-bill-of-materials" onclick="showForm('upload-bill-of-materials')">Upload Bill of Materials</a>
+        <!-- Add more links here if needed -->
+        <a href="/">Return to Main Page</a>
+    </div>
 
-        <label for="bom_equipmentGroupDropdown">Equipment Group:</label>
-        <select name="equipment_group" id="bom_equipmentGroupDropdown"></select><br>
+    <div class="content-wrapper">
+        <div id="upload-bill-of-materials" class="form-container">
+            <h2>Upload Bill of Materials</h2>
+            <form id="upload-bom-form" action="/bom/upload_bom" method="post" enctype="multipart/form-data">
+                <label for="area">Area:</label>
+                <select name="area" id="bom_areaDropdown"></select><br>
 
-        <label for="bom_modelDropdown">Model:</label>
-        <select name="model" id="bom_modelDropdown"></select><br>
+                <label for="equipment_group">Equipment Group:</label>
+                <select name="equipment_group" id="bom_equipmentGroupDropdown"></select><br>
 
-        <label for="bom_assetNumberDropdown">Asset Number:</label>
-        <select name="asset_number" id="bom_assetNumberDropdown"></select><br>
+                <label for="model">Model:</label>
+                <select name="model" id="bom_modelDropdown"></select><br>
 
-        <label for="bom_locationDropdown">Location:</label>
-        <select name="location" id="bom_locationDropdown"></select><br>
+                <label for="asset_number">Asset Number:</label>
+                <select name="asset_number" id="bom_assetNumberDropdown"></select><br>
 
-        <label for="image_path">Image Path:</label>
-        <input type="text" name="image_path" id="image_path"><br>
+                <label for="location">Location:</label>
+                <select name="location" id="bom_locationDropdown"></select><br>
 
-        <input type="file" name="file">
-        <input type="submit" value="Upload">
-    </form>
+                <label for="image_path">Image Path:</label>
+                <input type="text" name="image_path" id="image_path"><br>
 
-    {% with messages = get_flashed_messages() %}
-        {% if messages %}
-            <ul>
-            {% for message in messages %}
-                <li>{{ message }}</li>
-            {% endfor %}
-            </ul>
-        {% endif %}
-    {% endwith %}
+                <input type="file" name="file" required><br>
+                <input type="submit" value="Upload">
+            </form>
+        </div>
 
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="{{ url_for('static', filename='js/bill_of_materials.js') }}"></script>
+        <!-- Add more form containers here as needed -->
+
+    </div>
+
+    <script>
+        function toggleSidebar() {
+            var sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('collapsed');
+        }
+
+        function showForm(formId) {
+            var forms = document.getElementsByClassName('form-container');
+            for (var i = 0; i < forms.length; i++) {
+                forms[i].style.display = 'none';
+            }
+            document.getElementById(formId).style.display = 'block';
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            var forms = document.getElementsByClassName('form-container');
+            for (var i = 0; i < forms.length; i++) {
+                forms[i].style.display = 'none';
+            }
+            document.getElementById('upload-bill-of-materials').style.display = 'block'; // Show the default form
+        });
+    </script>
 </body>
 </html>

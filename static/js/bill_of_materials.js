@@ -94,6 +94,9 @@ function populateDropdownsBOM() {
     });
 }
 
+
+
+
 // Call the function to populate dropdowns when the page loads
 $(document).ready(function() {
     populateDropdownsBOM();

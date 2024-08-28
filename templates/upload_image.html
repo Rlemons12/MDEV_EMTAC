@@ -41,6 +41,7 @@
         <a href="#search-documents" onclick="showForm('search-documents')">Search Documents</a>
         <a href="#search-images" onclick="showForm('search-images')">Search Images</a>
         <a href="#compare-images" onclick="showForm('compare-images')">Compare Images</a>
+        <a href="#upload-bill-of-materials" onclick="showForm('upload-bill-of-materials')">Upload Bill of Materials</a>
         <a href="#search-powerpoints" onclick="showForm('search-powerpoints')">Search PowerPoints</a>
         <a href="#upload-image" onclick="showForm('upload-image')">Upload Image</a>
         <a href="#upload-document" onclick="showForm('upload-document')">Upload Document</a>
@@ -50,6 +51,32 @@
         
         <a href="/">Return to Main Page</a>
     </div>
+
+    <div id="upload-bill-of-materials" class="form-container">
+            <h2>Upload Bill of Materials</h2>
+            <form id="upload-bom-form" action="/bill_of_materials" method="post" enctype="multipart/form-data">
+                <label for="area">Area:</label>
+                <select name="area" id="bom_areaDropdown"></select><br>
+
+                <label for="equipment_group">Equipment Group:</label>
+                <select name="equipment_group" id="bom_equipmentGroupDropdown"></select><br>
+
+                <label for="model">Model:</label>
+                <select name="model" id="bom_modelDropdown"></select><br>
+
+                <label for="asset_number">Asset Number:</label>
+                <select name="asset_number" id="bom_assetNumberDropdown"></select><br>
+
+                <label for="location">Location:</label>
+                <select name="location" id="bom_locationDropdown"></select><br>
+
+                <label for="image_path">Image Path:</label>
+                <input type="text" name="image_path" id="image_path"><br>
+
+                <input type="file" name="file" required><br>
+                <input type="submit" value="Upload">
+            </form>
+        </div>
 
     <div class="content" id="content">
         <div id="upload-image" class="form-container">
@@ -236,7 +263,7 @@
     <script src="{{ url_for('static', filename='js/powerpoint_search.js') }}"></script>
     <!--<script src="{{ url_for('static', filename='drag_and_drop.js') }}"></script>-->
     <!--<script src="{{ url_for('static', filename='upload_image_folder.js') }}"></script>-->
-    <script src="{{ url_for('static', filename='js/image_compare.js') }}"></script> 
+    <script src="{{ url_for('static', filename='js/bill_of_materials.js') }}"></script>
 
     <script>
         function toggleSidebar() {
