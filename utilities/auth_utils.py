@@ -1,12 +1,20 @@
 # auth_utils.py
-from flask import session, redirect, url_for, render_template
+from flask import session, redirect, url_for, render_template, flash
 from functools import wraps
+import logging
 
+# Set up logging for the auth_utils module
+logger = logging.getLogger(__name__)
+
+# Define login required decorator
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
-            return redirect(url_for('login_bp.login'))  # Adjust to your actual login route
+            logger.debug("User not logged in, redirecting to login page.")
+            flash("Please log in to access this page.", "warning")
+            return redirect(url_for('login_bp.login'))
+        logger.debug(f"User {session.get('user_id')} is logged in.")
         return f(*args, **kwargs)
     return decorated_function
 

@@ -75,18 +75,31 @@ body {
     gap: 20px;
 }
 
-.form-container {
+.form-container,
+.results-container {
     flex: 1;
     padding: 20px;
-    background-color: rgba(0, 0, 0, 0.432);
+    background-color: rgba(0, 0, 0, 255);
     border-radius: 10px;
     overflow-y: auto;
 }
 
-.form-container h2 {
+.form-container h2, .results-container h2 {
     color: black;
 }
+.results-container a {
+    color: white; /* Changes the link color to white */
+    text-decoration: none; /* Optional: removes the underline */
+}
 
+.results-container a:hover {
+    color: #cccccc; /* Optional: changes the link color to a light gray on hover */
+    text-decoration: underline; /* Optional: adds an underline on hover */
+}
+
+.form-container h2, .results-container h2 {
+    color: white; /* Changes the heading color to white */
+}
 .form-container input,
 .form-container select,
 .form-container textarea {
@@ -96,7 +109,19 @@ body {
     border-radius: 5px;
     border: none;
     box-sizing: border-box;
+}
+
+.form-container input,
+.form-container textarea {
     color: black;
+}
+
+.form-container select {
+    color: black; /* Set the text color of dropdowns to black */
+}
+
+.form-container select option {
+    color: black; /* Set the text color of the options to black */
 }
 
 .form-container input[type="submit"] {
@@ -114,52 +139,61 @@ body {
     text-decoration: none;
 }
 
-/* Labels in the Upload Bill of Materials form */
-#upload-bom-form label {
-    color: yellow;
+.results-container {
+    overflow-y: auto; /* Allow vertical scrolling */
+    max-height: calc(100vh - 60px); /* Adjust height to fit within viewport */
+    display: flex;
+    flex-direction: column; /* Ensure content flows vertically */
 }
 
-/* Labels in the Upload Image form */
-#upload-image-form label {
-    color: yellow;
+.results-container h2 {
+    color: white;
 }
 
-/* Labels in the Upload Image Folder form */
-#folder-upload-form label {
-    color: yellow;
+.results-container p {
+    color: white;
 }
 
-/* Labels in the Upload Document form */
-#upload-document label {
-    color: yellow;
+.thumbnail {
+    width: 150px;
+    height: auto;
+    margin: 10px;
+    cursor: pointer;
 }
 
-/* Labels in the Upload PowerPoint form */
-#upload-powerpoint label {
-    color: yellow;
+.image-results-container,
+.document-container {
+    display: flex;
+    flex-direction: column; /* Ensure images are displayed in a column */
+    gap: 20px;
 }
 
-/* Labels in the Batch Upload Documents form */
-#batch-upload label {
-    color: yellow;
+.image-details,
+.document-details {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #cccccc;
 }
 
-/* Labels in the Search PowerPoints form */
-#search-powerpoints-form label {
-    color: yellow;
+.image-details h2,
+.document-details h2 {
+    margin-top: 0;
 }
 
-/* Labels in the Search Images form */
-#search-images-form label {
-    color: yellow;
+.pagination {
+    margin-top: 20px;
+    text-align: right;
 }
 
-/* Labels in the Compare Images form */
-#upload-compare-form label {
-    color: yellow;
+.pagination a {
+    margin: 0 5px;
+    text-decoration: none;
+    color: Yellow;
 }
 
-/* Labels in the Search Documents form */
-#search-documents-form label {
+.pagination strong {
+    margin: 0 5px;
     color: yellow;
 }

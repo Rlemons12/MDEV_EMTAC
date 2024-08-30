@@ -215,15 +215,15 @@ class Part(Base):
     __tablename__ = 'part'
 
     id = Column(Integer, primary_key=True)
-    part_number = Column(String, unique=True)  # ITEMNUM
-    name = Column(String)  # DESCRIPTION
-    oem_mfg = Column(String)  # OEMMFG
-    model = Column(String)  # MODEL
-    class_flag = Column(String)  # Class Flag
-    ud6 = Column(String)  # UD6
-    type = Column(String)  # TYPE
-    notes = Column(String)  # Notes
-    documentation = Column(String)  # Specifications
+    part_number = Column(String, unique=True)  # MP2=ITEMNUM, SPC= Item Number
+    name = Column(String)  # MP2=DESCRIPTION, SPC= Description
+    oem_mfg = Column(String)  # MP2=OEMMFG, SPC= Manufacturer
+    model = Column(String)  # MP2=MODEL, SPC= MFG Part Number
+    class_flag = Column(String) # MP2=Class Flag SPC= Category
+    ud6 = Column(String)  # MP2=UD6
+    type = Column(String)  # MP2=TYPE
+    notes = Column(String)  # MP2=Notes, SPC= Long Description
+    documentation = Column(String)  # MP2=Specifications
 
     part_position_image = relationship("PartsPositionImageAssociation", back_populates="part")
     """bill_of_material = relationship("BillOfMaterial", back_populates="part")"""

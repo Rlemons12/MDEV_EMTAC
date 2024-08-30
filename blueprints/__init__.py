@@ -90,7 +90,7 @@ from blueprints.bill_of_materials_bp import bill_of_materials_bp  # Newly added 
 from blueprints.bill_of_materials_data_bp import bill_of_materials_data_bp
 from blueprints.get_bill_of_material_query_data import get_bill_of_material_query_data_bp
 from blueprints.create_bill_of_material import create_bill_of_material_bp
-
+from blueprints.enter_new_part import enter_new_part_bp
 engine = create_engine(DATABASE_URL)
 Session = sessionmaker(bind=engine)
 
@@ -154,6 +154,7 @@ def register_blueprints(app):
     app.register_blueprint(bill_of_materials_data_bp,url_prefix='/')
     app.register_blueprint(get_bill_of_material_query_data_bp)
     app.register_blueprint(create_bill_of_material_bp)
+    app.register_blueprint(enter_new_part_bp)
 app = Flask(__name__)
 app.secret_key = '1234'
 
