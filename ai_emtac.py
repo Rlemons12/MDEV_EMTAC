@@ -25,7 +25,7 @@ from emtac_revision_control_db import AreaSnapshot
 from blueprints import register_blueprints
 from event_listeners import register_event_listeners
 from config import UPLOAD_FOLDER, DATABASE_URL, DATABASE_DIR, REVISION_CONTROL_DB_PATH
-from utilities.auth_utils import logout
+from utilities.auth_utils import requires_roles
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -125,6 +125,7 @@ def create_app():
         return render_template('success.html')
 
     @app.route('/troubleshooting_guide')
+    @requires_roles(UserLevel.ADMIN.value,UserLevel.LEVEL_III.value)
     def troubleshooting_guide():
         session.permanent = False  # Make the session non-permanent
         return render_template('troubleshooting_guide.html')
@@ -143,7 +144,12 @@ def create_app():
         logger.debug("Rendering bill_of_materials page.")
         return render_template('bill_of_materials.html')
 
+    @app.errorhandler(403)
+    def forbidden(e):
+        return render_template('403.html'), 403
+
     return app
+
 
 
 def open_browser():

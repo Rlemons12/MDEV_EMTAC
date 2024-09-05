@@ -620,10 +620,10 @@ class QandA(Base):
         self.comment = comment      
 
 class UserLevel(PyEnum):
-    ADMIN = 'admin'
-    LEVEL_III = 'level_iii'
-    LEVEL_II = 'level_ii'
-    STANDARD = 'standard'
+    ADMIN = 'ADMIN'
+    LEVEL_III = 'LEVEL_III'
+    LEVEL_II = 'LEVEL_II'
+    STANDARD = 'Standard'
 
 class AIModelConfig(Base):
     __tablename__ = 'ai_model_config'

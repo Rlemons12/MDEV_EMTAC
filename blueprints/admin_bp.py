@@ -1,26 +1,39 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
-from emtacdb_fts import Session, User, UserLevel, AIModelConfig, ImageModelConfig, load_config_from_db, load_image_model_config_from_db
-import config  # Assuming your configurations are in a config.py module
+from emtacdb_fts import Session, User, UserComments, UserLevel, AIModelConfig, ImageModelConfig, load_config_from_db, load_image_model_config_from_db
+from sqlalchemy.orm import subqueryload  # Import subqueryload for eager loading relationships
+from config import COMMENT_IMAGES_FOLDER
+
+COMMENT_IMAGES_FOLDER# Assuming your configurations are in a config.py module
 
 admin_bp = Blueprint('admin_bp', __name__)
 
-@admin_bp.route('/admin')
+@admin_bp.route('/admin_dashboard')
 def admin_dashboard():
     # Ensure only admins can access this page
     if session.get('user_level') != UserLevel.ADMIN.name:
         flash('You do not have permission to access this page.', 'error')
         return redirect(url_for('login_bp.login'))
 
-    # Fetch all users from the database
-    session_db = Session()
+    # Fetch all users and comments from the database using subqueryload for the 'user' relationship
+    session_db = Session()  # Use the SQLAlchemy session
     users = session_db.query(User).all()
-    session_db.close()
+    comments = session_db.query(UserComments).options(subqueryload(UserComments.user)).all()  # Use subqueryload for 'user'
 
     # Fetch current model configurations from the database
     current_ai_model, current_embedding_model = load_config_from_db()
     current_image_model = load_image_model_config_from_db()
 
-    return render_template('admin_dashboard.html', users=users, current_ai_model=current_ai_model, current_embedding_model=current_embedding_model, current_image_model=current_image_model)
+    session_db.close()
+
+    # Pass the users, comments, and model configurations to the template
+    return render_template(
+        'admin_dashboard.html',
+        users=users,
+        comments=comments,
+        current_ai_model=current_ai_model,
+        current_embedding_model=current_embedding_model,
+        current_image_model=current_image_model
+    )
 
 @admin_bp.route('/change_user_level', methods=['POST'])
 def change_user_level():
