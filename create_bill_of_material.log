@@ -2686,3 +2686,103 @@
 2024-08-30 10:45:31,714 - blueprints.create_bill_of_material - INFO - Found 1 matching positions.
 2024-08-30 10:45:31,721 - blueprints.create_bill_of_material - INFO - Found 380 associated parts and images.
 2024-08-30 10:45:31,721 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-02 03:24:30,606 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-02 03:24:30,606 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=, asset_number_id=, location_id=
+2024-09-02 03:24:30,613 - blueprints.create_bill_of_material - INFO - Found 3 matching positions.
+2024-09-02 03:24:30,619 - blueprints.create_bill_of_material - INFO - Found 380 associated parts and images.
+2024-09-02 03:24:30,619 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-04 04:20:41,013 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-04 04:20:41,021 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=, asset_number_id=, location_id=
+2024-09-04 04:20:41,024 - blueprints.create_bill_of_material - INFO - Found 3 matching positions.
+2024-09-04 04:20:41,030 - blueprints.create_bill_of_material - INFO - Found 380 associated parts and images.
+2024-09-04 04:20:41,031 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-04 04:47:08,001 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-04 04:47:08,003 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-09-04 04:47:08,008 - blueprints.create_bill_of_material - INFO - Found 5 matching positions.
+2024-09-04 04:47:08,018 - blueprints.create_bill_of_material - INFO - Found 380 associated parts and images.
+2024-09-04 04:47:08,019 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-04 05:15:34,653 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-04 05:15:34,653 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=21, asset_number_id=, location_id=
+2024-09-04 05:15:34,656 - blueprints.create_bill_of_material - INFO - Found 3 matching positions.
+2024-09-04 05:15:34,664 - blueprints.create_bill_of_material - INFO - Found 380 associated parts and images.
+2024-09-04 05:15:34,664 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-04 05:15:34,688 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:34,703 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:34,716 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:34,730 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:34,744 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:34,758 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:34,772 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:34,792 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:34,806 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:34,819 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:34,833 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:34,848 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:34,862 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:34,878 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:34,895 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:34,917 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:34,939 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:34,957 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:34,976 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,043 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,058 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,075 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,096 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,111 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,127 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,144 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,158 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,172 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,188 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,205 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,220 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,239 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,259 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,280 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,302 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,323 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,345 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,366 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,386 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:41,420 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:41,437 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:41,456 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:41,474 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:41,493 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:41,511 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:41,533 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:41,556 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:41,583 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:41,617 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:41,650 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:41,678 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:41,701 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:41,721 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:41,741 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:45,413 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:53,894 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-04 05:15:53,894 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=, asset_number_id=, location_id=
+2024-09-04 05:15:53,898 - blueprints.create_bill_of_material - INFO - Found 3 matching positions.
+2024-09-04 05:15:53,912 - blueprints.create_bill_of_material - INFO - Found 380 associated parts and images.
+2024-09-04 05:15:53,913 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-04 10:08:43,085 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-04 10:08:43,086 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-09-04 10:08:43,090 - blueprints.create_bill_of_material - INFO - Found 5 matching positions.
+2024-09-04 10:08:43,098 - blueprints.create_bill_of_material - INFO - Found 380 associated parts and images.
+2024-09-04 10:08:43,098 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-04 10:09:33,962 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-04 10:09:33,962 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=, asset_number_id=, location_id=
+2024-09-04 10:09:33,968 - blueprints.create_bill_of_material - INFO - Found 3 matching positions.
+2024-09-04 10:09:33,974 - blueprints.create_bill_of_material - INFO - Found 380 associated parts and images.
+2024-09-04 10:09:33,975 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-04 11:46:51,116 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-04 11:46:51,117 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-09-04 11:46:51,122 - blueprints.create_bill_of_material - INFO - Found 5 matching positions.
+2024-09-04 11:46:51,131 - blueprints.create_bill_of_material - INFO - Found 380 associated parts and images.
+2024-09-04 11:46:51,132 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-05 08:57:47,671 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-05 08:57:47,671 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-09-05 08:57:47,676 - blueprints.create_bill_of_material - INFO - Found 5 matching positions.
+2024-09-05 08:57:47,687 - blueprints.create_bill_of_material - INFO - Found 380 associated parts and images.
+2024-09-05 08:57:47,688 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.

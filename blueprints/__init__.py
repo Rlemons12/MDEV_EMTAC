@@ -91,6 +91,10 @@ from blueprints.bill_of_materials_data_bp import bill_of_materials_data_bp
 from blueprints.get_bill_of_material_query_data import get_bill_of_material_query_data_bp
 from blueprints.create_bill_of_material import create_bill_of_material_bp
 from blueprints.enter_new_part import enter_new_part_bp
+from blueprints.get_troubleshooting_guide_edit_data_bp import get_troubleshooting_guide_edit_data_bp
+from blueprints.troubleshoting_guide_edit_update_bp import troubleshooting_guide_edit_update_bp
+from blueprints.comment_pop_up_bp import comment_pop_up_bp
+
 engine = create_engine(DATABASE_URL)
 Session = sessionmaker(bind=engine)
 
@@ -155,6 +159,9 @@ def register_blueprints(app):
     app.register_blueprint(get_bill_of_material_query_data_bp)
     app.register_blueprint(create_bill_of_material_bp)
     app.register_blueprint(enter_new_part_bp)
+    app.register_blueprint(get_troubleshooting_guide_edit_data_bp)
+    app.register_blueprint(troubleshooting_guide_edit_update_bp)
+    app.register_blueprint(comment_pop_up_bp)
 app = Flask(__name__)
 app.secret_key = '1234'
 

@@ -1,25 +1,33 @@
-from datetime import datetime
 import logging
-from flask import Blueprint, request, jsonify
-from sqlalchemy.orm import sessionmaker
+from flask import Blueprint, request, jsonify, render_template
+from sqlalchemy.orm import sessionmaker, scoped_session
+from sqlalchemy import create_engine
 from emtacdb_fts import (
-    Location, Problem, Solution, CompleteDocument, Image, engine, 
-    ImageSolutionAssociation, ImageProblemAssociation, CompleteDocumentProblemAssociation, Part, Drawing, 
-    ProblemPositionAssociation, Position, CompleteDocumentSolutionAssociation, PartsPositionImageAssociation, PartProblemAssociation, PartSolutionAssociation, 
-    DrawingPositionAssociation, DrawingProblemAssociation, DrawingSolutionAssociation
+    Problem, Solution, Position, Part, Drawing,
+    ImageProblemAssociation, ImageSolutionAssociation,
+    CompleteDocumentProblemAssociation, CompleteDocumentSolutionAssociation,
+    PartProblemAssociation, PartSolutionAssociation, DrawingProblemAssociation,
+    DrawingSolutionAssociation, ProblemPositionAssociation, PartsPositionImageAssociation,
+    DrawingPositionAssociation
 )
+from blueprints import DATABASE_URL
+
+# Create the blueprint
+trouble_shooting_guide_bp = Blueprint('trouble_shooting_guide_bp', __name__)
+
+# Create SQLAlchemy engine and session
+engine = create_engine(DATABASE_URL)
+Session = scoped_session(sessionmaker(bind=engine))
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-Session = sessionmaker(bind=engine)
-session = Session()
-
-trouble_shooting_guide_bp = Blueprint('trouble_shooting_guide_bp', __name__)
-
 @trouble_shooting_guide_bp.route('/update_problem_solution', methods=['POST'])
 def update_problem_solution():
+    logger.info("Entered update_problem_solution route")
+
+    # Get form data
     problem_name = request.form.get('problem_name')
     tsg_model_id = request.form.get('tsg_model')
     tsg_asset_number_id = request.form.get('tsg_asset_number')
@@ -30,35 +38,36 @@ def update_problem_solution():
     selected_problem_image_ids = request.form.getlist('tsg_problem_image_search')
     selected_solution_image_ids = request.form.getlist('tsg_solution_image_search')
     selected_part_ids = request.form.getlist('tsg_selected_part_search')
-    selected_drawing_id = request.form.get('tsg_selected_drawing_search')
+    selected_drawing_ids = request.form.getlist('tsg_selected_drawing_search')
 
     # Debug: Log all form data
     logger.info(f"Form Data: {request.form}")
 
+    # Handle missing parts
     if not selected_part_ids:
         logger.info("No selected part IDs provided")
-        selected_parts_id = []
+        selected_part_ids = []
     else:
         logger.info(f"Selected part IDs: {selected_part_ids}")
-        selected_parts = session.query(Part).filter(Part.id.in_(selected_part_ids)).all()
-        selected_parts_id = [part.id for part in selected_parts]
+        selected_parts = Session.query(Part).filter(Part.id.in_(selected_part_ids)).all()
+        selected_part_ids = [part.id for part in selected_parts]
         logger.info(f"Matching parts from database: {[part.part_number for part in selected_parts]}")
-        logger.info(f"Selected parts ID: {selected_parts_id}")
-        if not selected_parts_id:
+        if not selected_part_ids:
             return jsonify({'error': 'No matching part found'}), 400
 
-    if not selected_drawing_id:
-        logger.info("No selected drawing ID provided")
-        selected_drawing_id = []
+    # Handle missing drawings
+    if not selected_drawing_ids:
+        logger.info("No selected drawing IDs provided")
+        selected_drawing_ids = []
     else:
-        logger.info(f"Selected drawing ID: {selected_drawing_id}")
-        selected_drawings = session.query(Drawing).filter(Drawing.id == selected_drawing_id).all()
-        selected_drawing_id = [drawing.id for drawing in selected_drawings]
+        logger.info(f"Selected drawing IDs: {selected_drawing_ids}")
+        selected_drawings = Session.query(Drawing).filter(Drawing.id.in_(selected_drawing_ids)).all()
+        selected_drawing_ids = [drawing.id for drawing in selected_drawings]
         logger.info(f"Matching drawings from database: {[drawing.drw_number for drawing in selected_drawings]}")
-        logger.info(f"Selected drawing ID: {selected_drawing_id}")
-        if not selected_drawing_id:
+        if not selected_drawing_ids:
             return jsonify({'error': 'No matching drawing found'}), 400
 
+    # Log the form data received
     logger.info(f"Problem Name: {problem_name}")
     logger.info(f"Model ID: {tsg_model_id}")
     logger.info(f"Asset Number ID: {tsg_asset_number_id}")
@@ -69,20 +78,31 @@ def update_problem_solution():
     logger.info(f"Selected Problem Image IDs: {selected_problem_image_ids}")
     logger.info(f"Selected Solution Image IDs: {selected_solution_image_ids}")
     logger.info(f"Selected Part IDs: {selected_part_ids}")
-    logger.info(f"Selected Drawing ID: {selected_drawing_id}")
+    logger.info(f"Selected Drawing IDs: {selected_drawing_ids}")
 
+    # Check required fields
     if not (problem_name and tsg_model_id and tsg_location_id and problem_description and solution_description):
         return jsonify({'error': 'All required fields are not provided'}), 400
 
-    selected_document_ids = [int(doc_id) for doc_id in selected_document_ids]
-    selected_problem_image_ids = [int(img_id) for img_id in selected_problem_image_ids]
-    selected_solution_image_ids = [int(img_id) for img_id in selected_solution_image_ids]
+    # Convert lists to integers
+    try:
+        selected_document_ids = [int(doc_id) for doc_id in selected_document_ids]
+        selected_problem_image_ids = [int(img_id) for img_id in selected_problem_image_ids]
+        selected_solution_image_ids = [int(img_id) for img_id in selected_solution_image_ids]
+        selected_drawing_ids = [int(drawing_id) for drawing_id in selected_drawing_ids]
+    except ValueError as ve:
+        logger.error(f"Value conversion error: {str(ve)}")
+        return jsonify({'error': 'Invalid ID format in the data provided'}), 400
 
     try:
+        session = Session()
+
+        # Create the Problem entity
         problem = Problem(name=problem_name, description=problem_description)
         session.add(problem)
         session.commit()
 
+        # Create the Position entity
         position = Position(
             model_id=tsg_model_id,
             asset_number_id=tsg_asset_number_id,
@@ -91,46 +111,84 @@ def update_problem_solution():
         session.add(position)
         session.commit()
 
+        # Associate Problem with Position
         problem_position_association = ProblemPositionAssociation(problem_id=problem.id, position_id=position.id)
         session.add(problem_position_association)
 
+        # Associate Documents with Problem
         for doc_id in selected_document_ids:
-            document_association = CompleteDocumentProblemAssociation(problem_id=problem.id, complete_document_id=doc_id)
+            document_association = CompleteDocumentProblemAssociation(
+                problem_id=problem.id,
+                complete_document_id=doc_id
+            )
             session.add(document_association)
 
+        # Create the Solution entity
         solution = Solution(description=solution_description, problem=problem)
         session.add(solution)
         session.commit()
 
+        # Associate Documents with Solution
         for doc_id in selected_document_ids:
-            document_association = CompleteDocumentSolutionAssociation(solution_id=solution.id, complete_document_id=doc_id)
+            document_association = CompleteDocumentSolutionAssociation(
+                solution_id=solution.id,
+                complete_document_id=doc_id
+            )
             session.add(document_association)
 
+        # Associate Problem with Images
         for img_id in selected_problem_image_ids:
-            image_problem_association = ImageProblemAssociation(image_id=img_id, problem_id=problem.id)
+            image_problem_association = ImageProblemAssociation(
+                image_id=img_id,
+                problem_id=problem.id
+            )
             session.add(image_problem_association)
 
+        # Associate Solution with Images
         for img_id in selected_solution_image_ids:
-            image_solution_association = ImageSolutionAssociation(image_id=img_id, solution_id=solution.id)
+            image_solution_association = ImageSolutionAssociation(
+                image_id=img_id,
+                solution_id=solution.id
+            )
             session.add(image_solution_association)
 
-        session.commit()
-
-        for part_id in selected_parts_id:
+        # Associate Parts with Position
+        for part_id in selected_part_ids:
             logger.info(f"Processing part_id: {part_id}")
             part = session.query(Part).filter_by(id=part_id).first()
             if part:
-                position_part_association = PartsPositionImageAssociation(part_id=part_id, position_id=position.id)
+                position_part_association = PartsPositionImageAssociation(
+                    part_id=part_id,
+                    position_id=position.id
+                )
                 session.add(position_part_association)
             else:
                 logger.error("Error: Part not found for association")
                 return jsonify({'error': 'Part not found for association'}), 400
 
-        for drawing_id in selected_drawing_id:
+        # Associate Drawings with Solution
+        for drawing_id in selected_drawing_ids:
             logger.info(f"Processing drawing_id: {drawing_id}")
             drawing = session.query(Drawing).filter_by(id=drawing_id).first()
             if drawing:
-                position_drawing_association = DrawingPositionAssociation(drawing_id=drawing_id, position_id=position.id)
+                drawing_solution_association = DrawingSolutionAssociation(
+                    drawing_id=drawing_id,
+                    solution_id=solution.id
+                )
+                session.add(drawing_solution_association)
+            else:
+                logger.error("Error: Drawing not found for association")
+                return jsonify({'error': 'Drawing not found for association'}), 400
+
+        # Associate Drawings with Position
+        for drawing_id in selected_drawing_ids:
+            logger.info(f"Processing drawing_id: {drawing_id}")
+            drawing = session.query(Drawing).filter_by(id=drawing_id).first()
+            if drawing:
+                position_drawing_association = DrawingPositionAssociation(
+                    drawing_id=drawing_id,
+                    position_id=position.id
+                )
                 session.add(position_drawing_association)
             else:
                 logger.error("Error: Drawing not found for association")
@@ -138,7 +196,7 @@ def update_problem_solution():
 
         session.commit()
 
-        return jsonify({'success': 'Problem and solution descriptions uploaded successfully'})
+        return render_template('troubleshooting_guide.html')
     except Exception as e:
         session.rollback()
         logger.error(f"Error: {str(e)}", exc_info=e)

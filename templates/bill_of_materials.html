@@ -6,17 +6,56 @@
     <title>Bill of Materials</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/search_bill_of_material.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/bill_of_materials.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/redbanner.css')}}">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 <body>
+    <div class="banner">
+        THIS IS FOR REFERENCE ONLY. ALL INFORMATION SHOULD BE VERIFIED WITH CURRENT SOP'S
+        <a href="#" id="commentPopupLink">Leave a Comment</a>
+    </div>
+    <!-- Popup Modal Structure -->
+<div id="commentPopup" style="display: none;">
+    <form id="commentForm">
+        <h2>Leave a Comment</h2>
+        <!-- Instructions for filling out the form -->
+        <p>Instructions: You can write your comment, paste an image, or upload a file.</p>
+
+        <!-- Comment box where users can paste an image or type text -->
+        <textarea name="comment" id="comment" placeholder="Write your comment here..." required></textarea><br>
+
+        <!-- Hidden field to store base64 image data -->
+        <input type="hidden" id="imageData" name="imageData">
+
+        <!-- Display an indicator or preview if an image was pasted -->
+        <div id="pastedImageFeedback" style="display: none; color: green;">
+            Image snippet successfully added!
+        </div>
+        <img id="pastedImagePreview" src="" alt="Pasted Image Preview" style="display:none; max-width: 100px; margin-top: 10px;" />
+
+        <!-- Option to upload a file -->
+        <label for="fileUpload">Or upload an image:</label><br>
+        <input type="file" id="fileUpload" name="screenshot" accept="image/*" /><br><br>
+
+        <button type="submit">Send</button>
+        <button type="button" id="closePopup">Close</button>
+    </form>
+</div>
+
+
+
     <div class="sidebar" id="sidebar">
+         <h2 style="color: Yellow;">Welcome {{ session['first_name'] }}! How can I assist you?</h2>
         <button class="toggle-btn" onclick="toggleSidebar()">Toggle Sidebar</button>
         <h2>Menu</h2>
+        <a href="/" style="color:  #FFFFFF;">Return to Main Page</a>
         <a href="#search-bill-of-materials" onclick="showForm('search-bill-of-materials')">Search Bill of Materials</a>
         <a href="#upload-bill-of-materials" onclick="showForm('upload-bill-of-materials')">Upload Bill of Materials</a>
         <a href="#enter-new-part-number" onclick="showForm('enter-new-part-number')">Enter New Part</a>
-        <!-- Add more links here if needed -->
-        <a href="/">Return to Main Page</a>
+        <a href="/upload_image" style="color: #39FF14;" class="upload-button">To Search and Upload </a>
+        <a href="/troubleshooting_guide"style="color: #39FF14;">To Update Troubleshooting Guide</a>
+        <a href="/logout" style="color:  #FF5F1F;" class="logout-button">Logout</a>
+
     </div>
 
     <div class="content-wrapper">
@@ -156,6 +195,7 @@
     </script>
     <script src="{{ url_for('static', filename='js/get_bill_of_material_query.js') }}"></script>
 <script src="{{ url_for('static', filename='js/bill_of_materials.js') }}"></script>
+<script src="{{ url_for('static', filename='js/comment_pop_up.js')}}"></script>
 <!--<script src="{{ url_for('static', filename='js/populate_part_dropdowns.js') }}"></script> -->
 </body>
 </html>

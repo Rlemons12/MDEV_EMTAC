@@ -205,16 +205,17 @@ body {
     margin: 0; /* Remove default margin */
 }
 
-/* Red banner CSS */
+/* Red banner CSS
 .banner {
     width: 100%;
     background-color: red; /* Solid red background */
-    color: white; /* White text color */
-    text-align: center;
+    /*color: white;  White text color */
+    /*text-align: center;
     padding: 10px 0; /* Vertical padding */
-    position: fixed; /* Fixed position at the top */
-    top: 0;
+   /* position: fixed; /* Fixed position at the top */
+   /* top: 0;
     left: 0;
     z-index: 1002; /* Ensure it stays on top */
-    font-weight: bold; /* Bold text */
+  /*  font-weight: bold; /* Bold text */
 
+*/

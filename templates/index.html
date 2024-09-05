@@ -4,11 +4,12 @@
     <meta charset="UTF-8">
     <title>Efficient Maintenance and Technical Assistance Chatbot</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/index_styles.css') }}">
-    
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/redbanner.css')}}">
 </head>
 <body>
     <div class="banner">
         THIS IS FOR REFERENCE ONLY. ALL INFORMATION SHOULD BE VERIFIED WITH CURRENT SOP'S
+        <a href="#" id="commentPopupLink">Leave a Comment</a>
     </div>
 
     </div>
@@ -18,15 +19,15 @@
         <div class="sidebar">
             <a href="javascript:void(0)" class="close-btn" id="closeSidebar">&times;</a>
             <h1>EMTAC</h1>
-            <h2>Welcome {{ name }} how can I assist you?</h2>
-            <a href="/tsg_search_problems">Search Troubleshooting</a>
-            <a href="/upload_image" class="upload-button">Search and Upload </a>
-            <a href="/bill_of_materials">Parts and BOMs</a>
-            <a href="/troubleshooting_guide">Update Troubleshooting Guide</a>
+            <h2 style="color: Yellow;">Welcome {{ session['first_name'] }}! How can I assist you?</h2>
+            <a href="/tsg_search_problems"style="color: #39FF14;">Search Troubleshooting</a>
+            <a href="/upload_image" style="color: #39FF14;" class="upload-button">Search and Upload </a>
+            <a href="/bill_of_materials"style="color: #39FF14;">Parts and BOMs</a>
+            <a href="/troubleshooting_guide"style="color: #39FF14;">Update Troubleshooting Guide</a>
             <button id="toggle-voice" class="toggle-button">Toggle Voice Recognition</button>
             <button id="toggle-text-to-speech" class="toggle-button">Toggle Text-to-Speech</button>
             <select id="voice-selection"></select>
-            <a href="/logout" class="logout-button">Logout</a>
+            <a href="/logout" style="color:  #FF5F1F;"class="logout-button">Logout</a>>
             <div class="model-display-section">
                 <p>Current AI Model: {{ current_ai_model }}</p>
                 <p>Current Embedding Model: {{ current_embedding_model }}</p>
@@ -34,6 +35,33 @@
         </div>
         
         <!-- Right side content -->
+        <!-- Popup Modal Structure -->
+<div id="commentPopup" style="display: none;">
+    <form id="commentForm">
+        <h2>Leave a Comment</h2>
+        <!-- Instructions for filling out the form -->
+        <p>Instructions: You can write your comment, paste an image, or upload a file.</p>
+
+        <!-- Comment box where users can paste an image or type text -->
+        <textarea name="comment" id="comment" placeholder="Write your comment here..." required></textarea><br>
+
+        <!-- Hidden field to store base64 image data -->
+        <input type="hidden" id="imageData" name="imageData">
+
+        <!-- Display an indicator or preview if an image was pasted -->
+        <div id="pastedImageFeedback" style="display: none; color: green;">
+            Image snippet successfully added!
+        </div>
+        <img id="pastedImagePreview" src="" alt="Pasted Image Preview" style="display:none; max-width: 100px; margin-top: 10px;" />
+
+        <!-- Option to upload a file -->
+        <label for="fileUpload">Or upload an image:</label><br>
+        <input type="file" id="fileUpload" name="screenshot" accept="image/*" /><br><br>
+
+        <button type="submit">Send</button>
+        <button type="button" id="closePopup">Close</button>
+    </form>
+</div>
         <div class="content">
             <div class="answer-section" id="answer-section">
                 <p id="answer"></p>
@@ -102,5 +130,6 @@
             this.classList.toggle("active");
         };
     </script>
+    <script src="{{ url_for('static', filename='js/comment_pop_up.js')}}"></script>
 </body>
 </html>

@@ -13,6 +13,7 @@ DATABASE_DIR = os.path.join(BASE_DIR, 'Database')
 DATABASE_PATH = os.path.join(DATABASE_DIR, 'emtac_db.db')
 REVISION_CONTROL_DB_PATH = os.path.join(DATABASE_DIR, 'emtac_revision_control_db.db')
 CSV_DIR = DATABASE_DIR
+COMMENT_IMAGES_FOLDER = os.path.join(BASE_DIR,'static', 'comment_images')
 UPLOAD_FOLDER = os.path.join(BASE_DIR,"static", "uploads")
 IMAGES_FOLDER = os.path.join(BASE_DIR,"static", "images")
 DATABASE_PATH_IMAGES_FOLDER = os.path.join(DATABASE_DIR, 'DB_IMAGES')
