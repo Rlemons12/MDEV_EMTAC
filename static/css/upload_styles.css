@@ -11,7 +11,7 @@ body {
 .sidebar {
     width: 250px;
     height: 100vh;
-    background-color: rgba(0, 0, 0, 0.432);
+    background-color: Black;
     padding: 20px;
     box-sizing: border-box;
     transition: width 0.3s;
@@ -23,11 +23,18 @@ body {
     width: 10px;
 }
 
-.sidebar h2 {
-    color: black;
+.sidebar h3 {
+    color: white;
     text-align: center;
 }
-
+.sidebar h2 {
+    color: Yellow;
+    text-align: center;
+}
+.sidebar h1 {
+    color: Yellow;
+    text-align: center;
+}
 .sidebar a {
     color: yellow;
     text-decoration: none;
@@ -195,5 +202,8 @@ body {
 
 .pagination strong {
     margin: 0 5px;
+    color: yellow;
+}
+h1 {
     color: yellow;
 }

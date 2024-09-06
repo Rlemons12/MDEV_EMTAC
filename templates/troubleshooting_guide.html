@@ -10,14 +10,16 @@
 <body>
     <div class="banner">
         THIS IS FOR REFERENCE ONLY. ALL INFORMATION SHOULD BE VERIFIED WITH CURRENT SOP'S
-        <a href="#" id="commentPopupLink">Leave a Comment</a>
+        <a href="#" id="commentPopupLink" style="color: #39FF14;">Leave a Comment</a>
     </div>
 
 <div class="hamburger" id="hamburger">&#9776;</div>
 
 <!-- Sidebar -->
 <div class="sidebar">
-    <h1></h1>
+    <h1>Edit TSG</h1>
+    <!-- Display the current user level -->
+            <p>User Level: {{ session['user_level'] }}</p>
     <a href="/" style="color:  #FFFFFF;">Return to Main Page</a>
     <a href="#" onclick="showForm('new-troubleshooting-guide-form')">New Troubleshooting Guide Entry</a>
     <a href="#" onclick="showForm('edit-troubleshooting-guide-form')">Edit Troubleshooting Guide Entry</a>
