@@ -1,7 +1,8 @@
+#__init__.py
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from emtacdb_fts import (AIModelConfig, ImageEmbedding, ImageModelConfig, ChatSession, User, engine, search_documents_fts, search_images_by_keyword, find_keyword_and_extract_detail,
+from emtacdb_fts import (split_text_into_chunks, AIModelConfig, ImageEmbedding, ImageModelConfig, ChatSession, User, engine, search_documents_fts, search_images_by_keyword, find_keyword_and_extract_detail,
     load_keywords_to_db, perform_action_based_on_keyword, load_keywords_and_patterns,
     find_most_relevant_document, create_session, update_session, get_session, QandA,
     ChatSession, Area, EquipmentGroup, Model, AssetNumber, Location, SiteLocation, Position,

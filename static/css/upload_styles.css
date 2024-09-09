@@ -4,6 +4,8 @@ body {
     background-repeat: no-repeat;
     display: flex;
     color: black;
+    margin: 0;
+    height: 100vh;
 }
 
 .sidebar {
@@ -14,6 +16,7 @@ body {
     box-sizing: border-box;
     transition: width 0.3s;
     overflow-x: hidden;
+    flex-shrink: 0; /* Prevent shrinking */
 }
 
 .sidebar.collapsed {
@@ -52,28 +55,42 @@ body {
     margin: 0 auto 20px;
 }
 
+.content-wrapper {
+    display: flex;
+    flex: 1;
+    height: 100vh;
+    width: calc(100% - 250px); /* Adjust to take the remaining width */
+    margin-left: 250px; /* Offset by the width of the sidebar */
+}
+
+.sidebar.collapsed + .content-wrapper {
+    margin-left: 10px; /* Adjust when the sidebar is collapsed */
+    width: calc(100% - 10px); /* Adjust width when sidebar is collapsed */
+}
+
 .content {
+    display: flex;
     flex: 1;
     padding: 20px;
-    display: flex;
     gap: 20px;
 }
 
-.form-container {
-    width: 50%;
+.form-container, .results-container {
+    flex: 1;
     padding: 20px;
     background-color: rgba(0, 0, 0, 0.432);
     border-radius: 10px;
+    overflow-y: auto;
 }
 
-.form-container h2 {
+.form-container h2, .results-container h2 {
     color: black;
 }
 
 .form-container input,
 .form-container select,
 .form-container textarea {
-    width: 75%;
+    width: 100%;
     padding: 10px;
     margin: 10px 0;
     border-radius: 5px;
@@ -110,12 +127,10 @@ body {
 }
 
 .results-container {
-    width: 100%;
-    padding: 20px;
-    background-color: rgba(0, 0, 0, 0.432);
-    border-radius: 10px;
-    overflow-y: auto;
+    overflow-y: auto; /* Allow vertical scrolling */
     max-height: calc(100vh - 60px); /* Adjust height to fit within viewport */
+    display: flex;
+    flex-direction: column; /* Ensure content flows vertically */
 }
 
 .results-container h2 {
@@ -131,18 +146,19 @@ body {
     height: auto;
     margin: 10px;
     cursor: pointer;
-    float: left;
 }
 
-.image-container,
+.image-results-container,
 .document-container {
-    margin-top: 20px;
-    overflow: hidden;
+    display: flex;
+    flex-direction: column; /* Ensure images are displayed in a column */
+    gap: 20px;
 }
 
 .image-details,
 .document-details {
-    margin-left: 180px;
+    display: flex;
+    flex-direction: column;
     margin-bottom: 20px;
     padding-bottom: 10px;
     border-bottom: 1px solid #ccc;

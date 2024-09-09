@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify, redirect, url_for
-from emtacdb_fts import (FileLog, extract_images_from_pdf, add_docx_to_db, split_text_into_chunks,
+from emtacdb_fts import (FileLog, extract_images_from_pdf, add_docx_to_db,
                          generate_embedding, extract_text_from_pdf, extract_text_from_txt, add_document_to_db,
                          add_text_file_to_db, add_csv_data_to_db, create_position)
 from blueprints import DATABASE_DOC, UPLOAD_FOLDER, DATABASE_URL

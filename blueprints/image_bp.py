@@ -1,12 +1,10 @@
-# image_bp.py
-
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from flask import Blueprint, request, jsonify, redirect, url_for, render_template
 from werkzeug.utils import secure_filename
-from emtacdb_fts import (add_image_to_db, Session, Image, FileLog, Location, Area, create_position, 
-                         CompletedDocumentPositionAssociation, load_config_from_db)
+from emtacdb_fts import (add_image_to_db, Session, Image, FileLog, Location, Area, create_position, CompletedDocumentPositionAssociation, 
+                         load_config_from_db, ImagePositionAssociation, load_image_model_config_from_db)
 import logging
 from PIL import Image as PILImage
 from plugins.ai_models import load_ai_model
@@ -21,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 # Constants
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
-MINIMUM_SIZE = (200, 200)  # Define the minimum width and height for the image
+MINIMUM_SIZE = (100, 100)  # Define the minimum width and height for the image
 
 # Helper Functions
 def allowed_file(filename):
@@ -85,7 +83,7 @@ def upload_image():
                     description = ai_model.generate_description(file_path)
 
                 # Add the image metadata to the database
-                add_image_to_db(title, relative_path, position_id=position_id, description=description)
+                add_image_to_db(title, file_path, position_id, None, None, description)
 
                 return redirect(url_for('image_bp.upload_image_page', filename=filename))
         return render_template('upload.html')
@@ -147,7 +145,7 @@ def add_image():
                     logger.info("Image meets minimum size requirement.")
 
                     # Check if image meets maximum aspect ratio requirement (4:1)
-                    if aspect_ratio <= 4:
+                    if aspect_ratio <= 5:
                         logger.info("Aspect ratio is within the allowed range. Proceeding...")
 
                         # Load the current AI model setting
@@ -160,12 +158,10 @@ def add_image():
                             description = ai_model.generate_description(file_path)
                             logger.info(f"Generated description: {description}")
 
-                        logger.info("Generating description using the AI model")
-
                         if complete_document_id and completed_document_position_association_id:
                             logger.info(f"Complete document ID: {complete_document_id}, Completed Document Position Association ID: {completed_document_position_association_id}")
 
-                            add_image_to_db(title, relative_path, position_id, completed_document_position_association_id, complete_document_id, description)
+                            add_image_to_db(title, file_path, position_id, None, None, description)
                             logger.info("Added image to database with existing position association.")
                             
                         elif complete_document_id and not completed_document_position_association_id:
@@ -200,7 +196,7 @@ def add_image():
                             finally:
                                 session.close()
 
-                            add_image_to_db(title, relative_path, position_id, completed_document_position_association_id, complete_document_id, description)
+                            add_image_to_db(title, file_path, position_id, None, None, description)
                             logger.info("Added image to database with new position association.")
                             
                         return redirect(url_for('image_bp.upload_image_page', filename=filename))

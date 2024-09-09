@@ -1,37 +1,49 @@
-import sys
 import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import logging
 from flask import Blueprint, jsonify, request, render_template
 from PIL import Image as PILImage, ImageFile
-from config import DATABASE_PATH_IMAGES_FOLDER
-from plugins.image_models import ImageHandler  # Update import to the new location
+from config import DATABASE_PATH_IMAGES_FOLDER, DATABASE_URL
+from plugins.image_models import CLIPModelHandler, NoImageModel
+from emtacdb_fts import load_image_model_config_from_db
+from sqlalchemy import (DateTime, Date,Column, ForeignKey, Integer, JSON, LargeBinary, Enum as SqlEnum,
+                        String, Table, and_, create_engine, func, or_, text, Float, Text, UniqueConstraint)
+from sqlalchemy.orm import declarative_base, configure_mappers, relationship, scoped_session, sessionmaker
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
+# Create SQLAlchemy engine
+engine = create_engine(DATABASE_URL)
+Base = declarative_base()
+Session = scoped_session(sessionmaker(bind=engine))  # Use scoped_session here
+session = Session()
+
 folder_image_embedding_bp = Blueprint('folder_image_embedding_bp', __name__)
 
-image_handler = ImageHandler()  # Initialize the ImageHandler
+# Load the current image model configuration from the database
+CURRENT_IMAGE_MODEL = load_image_model_config_from_db()
 
-def process_and_store_images(folder, model_name="no_model"):
-    session = image_handler.Session()
+# Choose the appropriate handler
+image_handler = CLIPModelHandler() if CURRENT_IMAGE_MODEL != "no_model" else NoImageModel()
+
+def process_and_store_images(folder):
+    session = Session()
     for filename in os.listdir(folder):
-        if image_handler.allowed_file(filename, model_name):
+        if image_handler.allowed_file(filename):
             source_file_path = os.path.join(folder, filename)
             dest_file_path = os.path.join(DATABASE_PATH_IMAGES_FOLDER, filename)
             
             try:
                 image = PILImage.open(source_file_path).convert("RGB")
-                if not image_handler.is_valid_image(image, model_name):
+                if not image_handler.is_valid_image(image):
                     logging.info(f"Skipping {filename}: Image does not meet the required dimensions or aspect ratio.")
                     continue
                 
-                embedding = image_handler.get_image_embedding(image, model_name)
+                embedding = image_handler.get_image_embedding(image)
                 if embedding is not None:
                     # Save the image to the destination folder
                     os.makedirs(DATABASE_PATH_IMAGES_FOLDER, exist_ok=True)
                     image.save(dest_file_path)
-                    image_handler.store_image_metadata(session, filename, "Auto-generated description", dest_file_path, embedding, model_name)
+                    image_handler.store_image_metadata(session, filename, "Auto-generated description", dest_file_path, embedding, CURRENT_IMAGE_MODEL)
             except Exception as e:
                 logging.error(f"Failed to process {filename}: {e}")
     session.close()
@@ -42,8 +54,7 @@ def process_folder():
     if not folder_path or not os.path.isdir(folder_path):
         return jsonify({'error': 'Invalid folder path.'}), 400
 
-    model_name = request.form.get('model_name', 'no_model')  # Default to 'no_model'
-    process_and_store_images(folder_path, model_name)
+    process_and_store_images(folder_path)
     return jsonify({'success': 'Images processed and stored.'}), 200
 
 @folder_image_embedding_bp.route('/compare_image', methods=['GET'])
