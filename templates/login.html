@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>Login Page</title>
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/redbanner.css') }}">
+
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -38,6 +39,35 @@
 <body>
     <div class="banner">
         THIS IS FOR REFERENCE ONLY. ALL INFORMATION SHOULD BE VERIFIED WITH CURRENT SOP'S
+        <a href="#" id="commentPopupLink">Leave a Comment</a>
+    </div>
+
+<!-- Popup Modal Structure -->
+    <div id="commentPopup" style="display: none;">
+        <form id="commentForm">
+            <h2>Leave a Comment</h2>
+            <!-- Instructions for filling out the form -->
+            <p>Instructions: You can write your comment, paste an image, or upload a file.</p>
+
+            <!-- Comment box where users can paste an image or type text -->
+            <textarea name="comment" id="comment" placeholder="Write your comment here..." required></textarea><br>
+
+            <!-- Hidden field to store base64 image data -->
+            <input type="hidden" id="imageData" name="imageData">
+
+            <!-- Display an indicator or preview if an image was pasted -->
+            <div id="pastedImageFeedback" style="display: none; color: green;">
+                Image snippet successfully added!
+            </div>
+            <img id="pastedImagePreview" src="" alt="Pasted Image Preview" style="display:none; max-width: 100px; margin-top: 10px;" />
+
+            <!-- Option to upload a file -->
+            <label for="fileUpload">Or upload an image:</label><br>
+            <input type="file" id="fileUpload" name="screenshot" accept="image/*" /><br><br>
+
+            <button type="submit">Send</button>
+            <button type="button" id="closePopup">Close</button>
+        </form>
     </div>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -51,7 +81,7 @@
     {% endwith %}
 
     <!-- Audio element -->
-    <audio id="background-audio" src="/static/audio/login_sound.mp3"></audio>
+    <audio id="background-audio" src="/static/audio/login_sound"></audio>
 
     <div class="container">
         <div class="login-container">
@@ -82,5 +112,7 @@
             audio.play();
         }
     </script>
+    <script src="{{ url_for('static', filename='js/comment_pop_up.js')}}"></script>
+
 </body>
 </html>

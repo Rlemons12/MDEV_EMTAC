@@ -86,3 +86,5 @@ def get_list_data():
 
     # Return the data as JSON
     return jsonify(data)
+
+

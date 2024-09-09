@@ -99,7 +99,7 @@ def create_bill_of_material():
         if not positions:
             logger.warning('No matching positions found.')
             flash('No matching positions found for the provided input.', 'error')
-            return redirect(url_for('search_bill_of_material'))
+            return render_template('bill_of_materials.html')
 
         logger.info(f'Found {len(positions)} matching positions.')
 
@@ -112,7 +112,7 @@ def create_bill_of_material():
         if not associated_parts_images:
             logger.warning('No parts or images found for the selected positions.')
             flash('No parts or images found for the selected positions.', 'error')
-            return redirect(url_for('search_bill_of_material'))
+            return render_template('bill_of_materials.html')
 
         logger.info(f'Found {len(associated_parts_images)} associated parts and images.')
 
@@ -131,63 +131,45 @@ def create_bill_of_material():
     except Exception as e:
         logger.error(f'An error occurred: {str(e)}')
         flash(f'An error occurred: {str(e)}', 'error')
-        return redirect(url_for('search_bill_of_material'))
+        return render_template('bill_of_materials.html')
 
-
-@create_bill_of_material_bp.route('/view_bill_of_material/<int:index>', methods=['GET'])
-def view_bill_of_material(index):
+@create_bill_of_material_bp.route('/view_bill_of_material', methods=['GET'])
+def view_bill_of_material():
     try:
-        # Get the number of items to display per page from the query parameters
-        per_page = request.args.get('per_page', 5, type=int)
-
-        logger.info(f'Displaying items {index + 1} to {index + per_page} of {len(flask_session["results"])}.')
+        # Get parameters from the request
+        index = int(request.args.get('index', 0))
+        per_page = int(request.args.get('per_page', 4))
 
         results = json.loads(flask_session['results'])
+
+        if index < 0 or index >= len(results):
+            index = 0  # Reset to start if out of range
+
         paginated_results = results[index:index + per_page]
 
-        # Get a session from db_config
         db_session = db_config.get_main_session()
+        parts_and_images = [
+            {
+                'part': db_session.query(Part).filter_by(id=item['part_id']).first(),
+                'image': db_session.query(Image).filter_by(id=item['image_id']).first()
+            }
+            for item in paginated_results
+        ]
 
-        # Fetch detailed part information using SQLAlchemy session
-        parts_and_images = []
-        for item in paginated_results:
-            part = db_session.query(Part).filter_by(id=item['part_id']).first()
-            image = db_session.query(Image).filter_by(id=item['image_id']).first()
-            parts_and_images.append({'part': part, 'image': image})
+        model_name = db_session.query(Position.model).filter_by(id=flask_session.get('model_id')).first().model if flask_session.get('model_id') else None
+        asset_number = db_session.query(Position.asset_number).filter_by(id=flask_session.get('asset_number_id')).first().asset_number if flask_session.get('asset_number_id') else None
+        location_name = db_session.query(Position.location).filter_by(id=flask_session.get('location_id')).first().location if flask_session.get('location_id') else None
 
-        if not parts_and_images:
-            flash('No parts or images found.', 'error')
-            return redirect(url_for('create_bill_of_material_bp.create_bill_of_material'))
-
-        # Get model, asset_number, and location from session
-        model_id = flask_session.get('model_id')
-        asset_number_id = flask_session.get('asset_number_id')
-        location_id = flask_session.get('location_id')
-
-        # Retrieve the names or numbers
-        model_name = None
-        asset_number = None
-        location_name = None
-
-        if model_id:
-            model = db_session.query(Position.model).filter_by(id=model_id).first()
-            model_name = model.model if model else None
-
-        if asset_number_id:
-            asset = db_session.query(Position.asset_number).filter_by(id=asset_number_id).first()
-            asset_number = asset.asset_number if asset else None
-
-        if location_id:
-            location = db_session.query(Position.location).filter_by(id=location_id).first()
-            location_name = location.location if location else None
+        next_index = index + per_page if index + per_page < len(results) else None
+        prev_index = index - per_page if index - per_page >= 0 else None
 
         return render_template('bill_of_material_creation_results.html',
                                index=index,
                                parts_and_images=parts_and_images,
                                per_page=per_page,
                                total=len(results),
-                               next_index=index + per_page if index + per_page < len(results) else None,
-                               prev_index=index - per_page if index - per_page >= 0 else None,
+                               next_index=next_index,
+                               prev_index=prev_index,
                                model_name=model_name,
                                asset_number=asset_number,
                                location_name=location_name)
@@ -195,4 +177,5 @@ def view_bill_of_material(index):
     except Exception as e:
         logger.error(f'An error occurred: {str(e)}')
         flash(f'An error occurred: {str(e)}', 'error')
-        return redirect(url_for('create_bill_of_material_bp.view_bill_of_material', index=max(0, index - 1)))
+        return redirect(url_for('create_bill_of_material_bp.view_bill_of_material', index=max(0, index - per_page)))
+

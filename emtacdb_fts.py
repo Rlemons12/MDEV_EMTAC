@@ -215,15 +215,15 @@ class Part(Base):
     __tablename__ = 'part'
 
     id = Column(Integer, primary_key=True)
-    part_number = Column(String, unique=True)  # ITEMNUM
-    name = Column(String)  # DESCRIPTION
-    oem_mfg = Column(String)  # OEMMFG
-    model = Column(String)  # MODEL
-    class_flag = Column(String)  # Class Flag
-    ud6 = Column(String)  # UD6
-    type = Column(String)  # TYPE
-    notes = Column(String)  # Notes
-    documentation = Column(String)  # Specifications
+    part_number = Column(String, unique=True)  # MP2=ITEMNUM, SPC= Item Number
+    name = Column(String)  # MP2=DESCRIPTION, SPC= Description
+    oem_mfg = Column(String)  # MP2=OEMMFG, SPC= Manufacturer
+    model = Column(String)  # MP2=MODEL, SPC= MFG Part Number
+    class_flag = Column(String) # MP2=Class Flag SPC= Category
+    ud6 = Column(String)  # MP2=UD6
+    type = Column(String)  # MP2=TYPE
+    notes = Column(String)  # MP2=Notes, SPC= Long Description
+    documentation = Column(String)  # MP2=Specifications
 
     part_position_image = relationship("PartsPositionImageAssociation", back_populates="part")
     """bill_of_material = relationship("BillOfMaterial", back_populates="part")"""
@@ -620,10 +620,10 @@ class QandA(Base):
         self.comment = comment      
 
 class UserLevel(PyEnum):
-    ADMIN = 'admin'
-    LEVEL_III = 'level_iii'
-    LEVEL_II = 'level_ii'
-    STANDARD = 'standard'
+    ADMIN = 'ADMIN'
+    LEVEL_III = 'LEVEL_III'
+    LEVEL_II = 'LEVEL_II'
+    STANDARD = 'Standard'
 
 class AIModelConfig(Base):
     __tablename__ = 'ai_model_config'
@@ -673,15 +673,36 @@ class User(Base):
     primary_area = Column(String, nullable=True)
     age = Column(Integer, nullable=True)
     education_level = Column(String, nullable=True)
-    start_date = Column(Date, nullable=True)
+    start_date = Column(DateTime, nullable=True)
     hashed_password = Column(String, nullable=False)
-    user_level = Column(SqlEnum(UserLevel), default=UserLevel.STANDARD, nullable=False)
+
+    # Store enum as string in the database
+    user_level = Column(SqlEnum(UserLevel, values_callable=lambda obj: [e.value for e in obj]),
+                        default=UserLevel.STANDARD, nullable=False)
+
+    # Relationship to comments
+    comments = relationship("UserComments", back_populates="user")
 
     def set_password(self, password):
         self.hashed_password = generate_password_hash(password)
 
     def check_password_hash(self, password):
-        return check_password_hash(self.hashed_password, password)        
+        return check_password_hash(self.hashed_password, password)
+
+
+# Define the UserComments model
+class UserComments(Base):
+    __tablename__ = 'user_comments'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    comment = Column(Text, nullable=False)
+    page_url = Column(String, nullable=False)
+    screenshot_path = Column(String, nullable=True)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
+    # Relationship to User
+    user = relationship("User", back_populates="comments")
 
 
 # Bind the engine to the Base class
@@ -1188,7 +1209,7 @@ def split_text_into_chunks(text, max_words=300, pad_token=""):
     return chunks
 
 # Function to generate an embedding for a given text this has moved to the ai_models.py
-#def generate_embedding(document_content):
+""""#def generate_embedding(document_content):
     logger.info("Starting generate_embedding")
     logger.debug(f"Document content length: {len(document_content)}")
 
@@ -1203,7 +1224,7 @@ def split_text_into_chunks(text, max_words=300, pad_token=""):
         return embeddings
     except Exception as e:
         logger.error(f"An error occurred while generating embedding: {e}")
-        return None
+        return None"""
 
 # Function to extract text from a PDF file using pdfplumber
 def extract_text_from_pdf(file_path):

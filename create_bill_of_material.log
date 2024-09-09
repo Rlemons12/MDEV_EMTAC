@@ -2001,3 +2001,788 @@
 2024-08-28 13:00:58,196 - blueprints.create_bill_of_material - INFO - Found 330 associated parts and images.
 2024-08-28 13:00:58,196 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
 2024-08-28 13:00:58,208 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 12020.
+2024-08-28 13:39:14,011 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-28 13:39:14,013 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=21, asset_number_id=, location_id=
+2024-08-28 13:39:14,019 - blueprints.create_bill_of_material - INFO - Found 1 matching positions.
+2024-08-28 13:39:14,022 - blueprints.create_bill_of_material - INFO - Found 330 associated parts and images.
+2024-08-28 13:39:14,022 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-08-28 13:39:14,029 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 12020.
+2024-08-29 04:58:27,628 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-29 04:58:27,629 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=, asset_number_id=, location_id=
+2024-08-29 04:58:27,633 - blueprints.create_bill_of_material - INFO - Found 1 matching positions.
+2024-08-29 04:58:27,637 - blueprints.create_bill_of_material - INFO - Found 330 associated parts and images.
+2024-08-29 04:58:27,638 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-08-29 04:58:27,644 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 12020.
+2024-08-29 04:59:10,354 - blueprints.create_bill_of_material - INFO - Displaying items 6 to 10 of 12020.
+2024-08-29 05:15:57,549 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-29 05:15:57,550 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=1, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-08-29 05:15:57,552 - blueprints.create_bill_of_material - WARNING - No matching positions found.
+2024-08-29 05:16:01,312 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-29 05:16:01,312 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-08-29 05:16:01,315 - blueprints.create_bill_of_material - INFO - Found 1 matching positions.
+2024-08-29 05:16:01,318 - blueprints.create_bill_of_material - INFO - Found 330 associated parts and images.
+2024-08-29 05:16:01,320 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-08-29 05:16:01,324 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 12020.
+2024-08-29 05:16:20,490 - blueprints.create_bill_of_material - INFO - Displaying items 6 to 10 of 12020.
+2024-08-29 05:16:23,853 - blueprints.create_bill_of_material - INFO - Displaying items 11 to 15 of 12020.
+2024-08-29 12:55:08,710 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-29 12:55:08,710 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-08-29 12:55:08,714 - blueprints.create_bill_of_material - INFO - Found 1 matching positions.
+2024-08-29 12:55:08,719 - blueprints.create_bill_of_material - WARNING - No parts or images found for the selected positions.
+2024-08-29 12:55:20,854 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-29 12:55:20,855 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-08-29 12:55:20,857 - blueprints.create_bill_of_material - INFO - Found 1 matching positions.
+2024-08-29 12:55:20,860 - blueprints.create_bill_of_material - WARNING - No parts or images found for the selected positions.
+2024-08-29 12:56:08,037 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-29 12:56:08,038 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-08-29 12:56:08,039 - blueprints.create_bill_of_material - INFO - Found 1 matching positions.
+2024-08-29 12:56:08,043 - blueprints.create_bill_of_material - WARNING - No parts or images found for the selected positions.
+2024-08-29 12:59:25,729 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-29 12:59:25,730 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=1, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-08-29 12:59:25,732 - blueprints.create_bill_of_material - WARNING - No matching positions found.
+2024-08-29 13:00:03,487 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-29 13:00:03,487 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=1, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-08-29 13:00:03,494 - blueprints.create_bill_of_material - WARNING - No matching positions found.
+2024-08-29 13:04:09,944 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-29 13:04:09,944 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=1, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-08-29 13:04:09,948 - blueprints.create_bill_of_material - WARNING - No matching positions found.
+2024-08-29 13:04:52,542 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-29 13:04:52,543 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-08-29 13:04:52,547 - blueprints.create_bill_of_material - INFO - Found 1 matching positions.
+2024-08-29 13:04:52,550 - blueprints.create_bill_of_material - WARNING - No parts or images found for the selected positions.
+2024-08-29 13:06:18,908 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-29 13:06:18,908 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=1, equipment_group_id=6, model_id=, asset_number_id=, location_id=
+2024-08-29 13:06:18,914 - blueprints.create_bill_of_material - WARNING - No matching positions found.
+2024-08-29 13:08:38,153 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-29 13:08:38,154 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=1, equipment_group_id=6, model_id=, asset_number_id=, location_id=
+2024-08-29 13:08:38,158 - blueprints.create_bill_of_material - WARNING - No matching positions found.
+2024-08-29 13:09:58,787 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-29 13:09:58,787 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=1, equipment_group_id=6, model_id=, asset_number_id=, location_id=
+2024-08-29 13:09:58,789 - blueprints.create_bill_of_material - WARNING - No matching positions found.
+2024-08-29 13:10:21,192 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-29 13:10:21,193 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=1, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-08-29 13:10:21,197 - blueprints.create_bill_of_material - WARNING - No matching positions found.
+2024-08-29 13:11:22,690 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-29 13:11:22,690 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=1, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-08-29 13:11:22,694 - blueprints.create_bill_of_material - WARNING - No matching positions found.
+2024-08-29 13:11:22,698 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-29 13:12:34,430 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-29 13:12:34,430 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=1, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-08-29 13:12:34,435 - blueprints.create_bill_of_material - WARNING - No matching positions found.
+2024-08-29 13:12:34,438 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-29 13:15:31,197 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-29 13:15:31,198 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=1, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-08-29 13:15:31,202 - blueprints.create_bill_of_material - WARNING - No matching positions found.
+2024-08-29 13:15:31,207 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'bill_of_materials' instead?
+2024-08-29 13:40:33,742 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-29 13:40:33,743 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=1, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-08-29 13:40:33,747 - blueprints.create_bill_of_material - WARNING - No matching positions found.
+2024-08-29 13:44:24,929 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-29 13:44:24,930 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=1, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-08-29 13:44:24,935 - blueprints.create_bill_of_material - WARNING - No matching positions found.
+2024-08-29 13:45:15,394 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-29 13:45:15,395 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=1, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-08-29 13:45:15,397 - blueprints.create_bill_of_material - WARNING - No matching positions found.
+2024-08-29 13:46:06,285 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-29 13:46:06,286 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=1, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-08-29 13:46:06,288 - blueprints.create_bill_of_material - WARNING - No matching positions found.
+2024-08-30 03:21:30,470 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-30 03:21:30,471 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=21, asset_number_id=, location_id=
+2024-08-30 03:21:30,476 - blueprints.create_bill_of_material - INFO - Found 1 matching positions.
+2024-08-30 03:21:30,477 - blueprints.create_bill_of_material - WARNING - No parts or images found for the selected positions.
+2024-08-30 03:21:41,142 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-30 03:21:41,142 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-08-30 03:21:41,144 - blueprints.create_bill_of_material - INFO - Found 1 matching positions.
+2024-08-30 03:21:41,148 - blueprints.create_bill_of_material - WARNING - No parts or images found for the selected positions.
+2024-08-30 04:15:35,710 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-30 04:15:35,710 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-08-30 04:15:35,723 - blueprints.create_bill_of_material - INFO - Found 1 matching positions.
+2024-08-30 04:15:35,728 - blueprints.create_bill_of_material - INFO - Found 380 associated parts and images.
+2024-08-30 04:15:35,729 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-08-30 04:15:35,735 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:17:12,356 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-30 04:17:12,356 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-08-30 04:17:12,357 - blueprints.create_bill_of_material - INFO - Found 1 matching positions.
+2024-08-30 04:17:12,362 - blueprints.create_bill_of_material - INFO - Found 380 associated parts and images.
+2024-08-30 04:17:12,363 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-08-30 04:17:12,370 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:02,237 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:39,581 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-30 04:22:39,582 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-08-30 04:22:39,586 - blueprints.create_bill_of_material - INFO - Found 1 matching positions.
+2024-08-30 04:22:39,771 - blueprints.create_bill_of_material - INFO - Found 380 associated parts and images.
+2024-08-30 04:22:39,772 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-08-30 04:22:39,778 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:39,806 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:22:39,813 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:39,834 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:22:39,841 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:39,860 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:22:39,869 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:39,887 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:22:39,894 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:39,909 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:22:39,914 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:39,929 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:22:39,936 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:39,952 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:22:39,958 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:39,974 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:22:39,979 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:39,995 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:22:40,001 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:40,021 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:22:40,028 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:40,048 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:22:40,055 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:40,074 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:22:40,081 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:40,098 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:22:40,107 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:40,126 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:22:40,132 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:40,147 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:22:40,154 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:40,169 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:22:40,174 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:40,191 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:22:40,196 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:40,212 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:22:40,223 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:40,243 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:22:41,309 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:41,338 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:22:41,345 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:41,364 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:22:41,371 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:41,390 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:22:41,398 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:41,419 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:22:41,425 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:41,443 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:22:41,449 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:41,469 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:22:41,477 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:41,497 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:22:41,504 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:41,523 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:22:41,531 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:41,551 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:22:41,559 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:41,582 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:22:41,590 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:41,613 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:22:41,622 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:41,641 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:22:41,648 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:41,664 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:22:41,671 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:41,687 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:22:41,692 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:41,707 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:22:41,726 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:41,746 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:22:41,753 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:41,770 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:22:41,779 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:41,798 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:22:41,805 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:41,824 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:22:41,831 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:22:41,845 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:19,283 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-30 04:24:19,283 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-08-30 04:24:19,288 - blueprints.create_bill_of_material - INFO - Found 1 matching positions.
+2024-08-30 04:24:19,466 - blueprints.create_bill_of_material - INFO - Found 380 associated parts and images.
+2024-08-30 04:24:19,467 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-08-30 04:24:19,472 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:19,497 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:19,504 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:19,522 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:19,529 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:19,549 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:19,556 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:19,573 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:19,580 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:19,597 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:19,606 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:19,622 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:19,628 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:19,644 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:19,649 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:19,667 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:19,673 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:19,690 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:19,696 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:19,715 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:19,721 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:19,740 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:19,747 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:19,765 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:19,773 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:19,790 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:19,797 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:19,815 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:19,823 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:19,842 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:19,848 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:19,863 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:19,871 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:19,885 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:19,891 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:19,907 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:19,912 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:19,930 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:20,980 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:21,005 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:21,011 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:21,030 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:21,038 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:21,057 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:21,065 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:21,086 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:21,093 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:21,108 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:21,114 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:21,128 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:21,134 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:21,150 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:21,156 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:21,171 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:21,181 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:21,200 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:21,208 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:21,231 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:21,240 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:21,259 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:21,265 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:21,287 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:21,294 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:21,313 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:21,320 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:21,337 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:21,343 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:21,359 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:21,366 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:21,381 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:21,388 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:21,404 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:21,412 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:21,429 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:21,439 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:21,455 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:21,463 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:21,480 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:26,515 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:26,538 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:26,546 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:26,564 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:26,570 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:26,588 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:26,595 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:26,611 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:26,618 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:26,634 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:26,640 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:56,360 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-30 04:24:56,361 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-08-30 04:24:56,365 - blueprints.create_bill_of_material - INFO - Found 1 matching positions.
+2024-08-30 04:24:56,368 - blueprints.create_bill_of_material - INFO - Found 380 associated parts and images.
+2024-08-30 04:24:56,546 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-08-30 04:24:56,551 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:56,582 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:56,589 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:56,608 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:56,615 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:56,634 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:56,642 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:56,662 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:56,668 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:56,685 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:56,692 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:56,707 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:56,713 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:56,728 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:56,735 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:56,750 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:56,756 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:56,771 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:56,777 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:56,796 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:56,805 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:56,829 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:56,836 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:56,852 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:56,859 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:56,877 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:56,883 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:56,899 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:56,905 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:56,921 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:56,927 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:56,942 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:56,947 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:56,963 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:56,969 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:56,991 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:56,998 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:57,016 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:58,072 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:58,092 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:58,099 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:58,116 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:58,122 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:58,145 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:58,152 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:58,168 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:58,176 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:58,192 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:58,198 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:58,215 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:58,222 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:58,236 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:58,242 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:58,258 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:58,265 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:58,284 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:58,291 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:58,307 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:58,314 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:58,336 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:58,344 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:58,364 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:58,370 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:58,388 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:58,395 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:58,414 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:58,420 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:58,437 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:58,443 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:58,467 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:58,477 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:58,494 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:58,502 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:58,522 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:58,533 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:58,558 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:24:58,567 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:24:58,589 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:25:03,625 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:25:03,643 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:25:03,650 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:25:03,666 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:25:03,672 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:25:03,692 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:25:03,699 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:25:03,716 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:25:03,722 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:25:03,737 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:25:03,743 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:25:03,758 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:25:03,766 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:25:03,780 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:25:03,785 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:26:06,912 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-30 04:26:06,913 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=1, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-08-30 04:26:06,917 - blueprints.create_bill_of_material - WARNING - No matching positions found.
+2024-08-30 04:26:14,774 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-30 04:26:14,774 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=, asset_number_id=, location_id=
+2024-08-30 04:26:14,777 - blueprints.create_bill_of_material - INFO - Found 1 matching positions.
+2024-08-30 04:26:14,780 - blueprints.create_bill_of_material - INFO - Found 380 associated parts and images.
+2024-08-30 04:26:14,781 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-08-30 04:26:14,787 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 5 of 13869.
+2024-08-30 04:31:19,439 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-30 04:31:19,439 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-08-30 04:31:19,443 - blueprints.create_bill_of_material - INFO - Found 1 matching positions.
+2024-08-30 04:31:19,622 - blueprints.create_bill_of_material - INFO - Found 380 associated parts and images.
+2024-08-30 04:31:19,623 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-08-30 04:31:19,629 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:19,656 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:19,665 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:19,687 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:19,694 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:19,717 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:19,724 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:19,746 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:19,753 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:19,772 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:19,779 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:19,797 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:19,803 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:19,822 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:19,829 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:19,843 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:19,850 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:19,869 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:19,876 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:19,895 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:19,903 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:19,920 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:19,928 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:19,948 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:19,955 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:19,974 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:19,982 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:20,001 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:20,008 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:20,029 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:20,036 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:20,054 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:20,060 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:20,077 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:20,083 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:20,101 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:20,109 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:20,128 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:21,189 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:21,209 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:21,215 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:21,231 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:21,237 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:21,254 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:21,261 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:21,279 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:21,288 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:21,306 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:21,312 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:21,328 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:21,334 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:21,350 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:21,356 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:21,369 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:21,374 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:21,388 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:21,393 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:21,412 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:21,420 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:21,435 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:21,443 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:21,462 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:21,470 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:21,489 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:21,497 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:21,516 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:21,524 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:21,543 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:21,549 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:21,565 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:21,572 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:21,586 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:21,593 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:21,606 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:21,613 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:21,630 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:21,636 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:21,654 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:26,677 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:26,695 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:26,702 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:26,721 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:26,729 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:26,747 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:26,754 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:26,771 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:26,778 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:26,795 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:26,802 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:26,821 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:26,828 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:26,845 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:26,852 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:26,869 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:26,875 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:26,893 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:26,901 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:26,922 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:26,931 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:26,950 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:26,959 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:26,976 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:26,984 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:27,000 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:27,006 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:27,023 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:27,028 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:27,042 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:27,049 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:27,062 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:27,069 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:27,091 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:27,099 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:27,117 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:27,124 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:27,140 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:31:27,148 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 13869.
+2024-08-30 04:31:27,167 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.view_bill_of_material'. Did you forget to specify values ['index']?
+2024-08-30 04:35:31,425 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-30 04:35:31,426 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-08-30 04:35:31,433 - blueprints.create_bill_of_material - INFO - Found 1 matching positions.
+2024-08-30 04:35:31,899 - blueprints.create_bill_of_material - INFO - Found 380 associated parts and images.
+2024-08-30 04:35:31,903 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-08-30 04:35:31,930 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 380.
+2024-08-30 04:35:36,516 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 10 of 380.
+2024-08-30 04:35:39,710 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 50 of 380.
+2024-08-30 04:39:21,910 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-30 04:39:21,910 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-08-30 04:39:21,914 - blueprints.create_bill_of_material - INFO - Found 1 matching positions.
+2024-08-30 04:39:22,164 - blueprints.create_bill_of_material - INFO - Found 380 associated parts and images.
+2024-08-30 04:39:22,164 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-08-30 04:39:22,174 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 380.
+2024-08-30 04:39:27,041 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 380.
+2024-08-30 04:39:30,148 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 380.
+2024-08-30 04:39:35,244 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 380.
+2024-08-30 04:39:53,156 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 4 of 380.
+2024-08-30 04:40:06,088 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 25 of 380.
+2024-08-30 04:40:12,454 - blueprints.create_bill_of_material - INFO - Displaying items 26 to 50 of 380.
+2024-08-30 04:40:20,999 - blueprints.create_bill_of_material - INFO - Displaying items 1 to 50 of 380.
+2024-08-30 04:40:28,448 - blueprints.create_bill_of_material - INFO - Displaying items 51 to 100 of 380.
+2024-08-30 04:44:04,612 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-30 04:44:04,612 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-08-30 04:44:04,617 - blueprints.create_bill_of_material - INFO - Found 1 matching positions.
+2024-08-30 04:44:04,824 - blueprints.create_bill_of_material - INFO - Found 380 associated parts and images.
+2024-08-30 04:44:04,825 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-08-30 05:01:34,651 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-30 05:01:34,652 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-08-30 05:01:34,656 - blueprints.create_bill_of_material - INFO - Found 1 matching positions.
+2024-08-30 05:01:34,662 - blueprints.create_bill_of_material - INFO - Found 380 associated parts and images.
+2024-08-30 05:01:34,868 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-08-30 05:01:34,906 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:34,931 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:34,955 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:34,982 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:35,006 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:35,029 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:35,053 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:35,077 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:35,098 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:35,124 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:35,150 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:35,172 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:35,191 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:35,210 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:35,232 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:35,253 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:35,271 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:35,291 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:35,312 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:36,388 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:36,407 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:36,429 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:36,455 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:36,482 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:36,505 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:36,525 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:36,546 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:36,569 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:36,596 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:36,621 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:36,646 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:36,670 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:36,695 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:36,719 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:36,740 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:36,763 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:36,791 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:36,809 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:36,830 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:41,878 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:41,897 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:41,917 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:41,938 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:41,958 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:41,977 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:01:41,994 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:07,276 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:13,966 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-30 05:02:13,966 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-08-30 05:02:13,968 - blueprints.create_bill_of_material - INFO - Found 1 matching positions.
+2024-08-30 05:02:13,972 - blueprints.create_bill_of_material - INFO - Found 380 associated parts and images.
+2024-08-30 05:02:13,973 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-08-30 05:02:13,991 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:14,009 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:14,027 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:14,043 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:14,060 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:14,078 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:14,096 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:14,113 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:14,131 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:14,150 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:14,169 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:14,189 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:14,212 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:14,234 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:14,259 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:14,276 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:47,570 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-30 05:02:47,570 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=1, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-08-30 05:02:47,574 - blueprints.create_bill_of_material - WARNING - No matching positions found.
+2024-08-30 05:02:52,811 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-30 05:02:52,811 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-08-30 05:02:52,813 - blueprints.create_bill_of_material - INFO - Found 1 matching positions.
+2024-08-30 05:02:52,819 - blueprints.create_bill_of_material - INFO - Found 380 associated parts and images.
+2024-08-30 05:02:52,819 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-08-30 05:02:52,849 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:52,868 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:52,887 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:52,904 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:52,924 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:52,942 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:52,962 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:52,979 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:52,997 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:53,017 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:53,038 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:53,057 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:53,078 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:53,100 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:53,120 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:53,140 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:53,159 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:53,177 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:53,197 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:54,257 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:54,281 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:54,307 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:54,327 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:54,347 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:54,371 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:54,400 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:54,422 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:54,442 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:54,469 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:54,494 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:54,519 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:54,546 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:54,572 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:54,595 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:54,618 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:54,645 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:54,670 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:54,705 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:54,730 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:59,782 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:59,801 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:59,827 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:59,847 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:59,865 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:59,885 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:59,910 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:59,932 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:59,951 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:02:59,970 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'bill_of_materials.html'. Did you mean 'search_bill_of_material' instead?
+2024-08-30 05:03:29,983 - blueprints.create_bill_of_material - ERROR - An error occurred: QueuePool limit of size 5 overflow 10 reached, connection timed out, timeout 30.00 (Background on this error at: https://sqlalche.me/e/20/3o7r)
+2024-08-30 05:04:00,000 - blueprints.create_bill_of_material - ERROR - An error occurred: QueuePool limit of size 5 overflow 10 reached, connection timed out, timeout 30.00 (Background on this error at: https://sqlalche.me/e/20/3o7r)
+2024-08-30 05:04:46,901 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-30 05:04:46,902 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=1, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-08-30 05:04:46,906 - blueprints.create_bill_of_material - WARNING - No matching positions found.
+2024-08-30 05:04:50,664 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-30 05:04:50,664 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-08-30 05:04:50,667 - blueprints.create_bill_of_material - INFO - Found 1 matching positions.
+2024-08-30 05:04:50,671 - blueprints.create_bill_of_material - INFO - Found 380 associated parts and images.
+2024-08-30 05:04:50,672 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-08-30 10:45:31,702 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-08-30 10:45:31,702 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-08-30 10:45:31,714 - blueprints.create_bill_of_material - INFO - Found 1 matching positions.
+2024-08-30 10:45:31,721 - blueprints.create_bill_of_material - INFO - Found 380 associated parts and images.
+2024-08-30 10:45:31,721 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-02 03:24:30,606 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-02 03:24:30,606 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=, asset_number_id=, location_id=
+2024-09-02 03:24:30,613 - blueprints.create_bill_of_material - INFO - Found 3 matching positions.
+2024-09-02 03:24:30,619 - blueprints.create_bill_of_material - INFO - Found 380 associated parts and images.
+2024-09-02 03:24:30,619 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-04 04:20:41,013 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-04 04:20:41,021 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=, asset_number_id=, location_id=
+2024-09-04 04:20:41,024 - blueprints.create_bill_of_material - INFO - Found 3 matching positions.
+2024-09-04 04:20:41,030 - blueprints.create_bill_of_material - INFO - Found 380 associated parts and images.
+2024-09-04 04:20:41,031 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-04 04:47:08,001 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-04 04:47:08,003 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-09-04 04:47:08,008 - blueprints.create_bill_of_material - INFO - Found 5 matching positions.
+2024-09-04 04:47:08,018 - blueprints.create_bill_of_material - INFO - Found 380 associated parts and images.
+2024-09-04 04:47:08,019 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-04 05:15:34,653 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-04 05:15:34,653 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=21, asset_number_id=, location_id=
+2024-09-04 05:15:34,656 - blueprints.create_bill_of_material - INFO - Found 3 matching positions.
+2024-09-04 05:15:34,664 - blueprints.create_bill_of_material - INFO - Found 380 associated parts and images.
+2024-09-04 05:15:34,664 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-04 05:15:34,688 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:34,703 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:34,716 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:34,730 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:34,744 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:34,758 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:34,772 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:34,792 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:34,806 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:34,819 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:34,833 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:34,848 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:34,862 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:34,878 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:34,895 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:34,917 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:34,939 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:34,957 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:34,976 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,043 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,058 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,075 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,096 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,111 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,127 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,144 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,158 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,172 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,188 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,205 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,220 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,239 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,259 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,280 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,302 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,323 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,345 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,366 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:36,386 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:41,420 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:41,437 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:41,456 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:41,474 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:41,493 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:41,511 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:41,533 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:41,556 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:41,583 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:41,617 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:41,650 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:41,678 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:41,701 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:41,721 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:41,741 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:45,413 - blueprints.create_bill_of_material - ERROR - An error occurred: model
+2024-09-04 05:15:53,894 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-04 05:15:53,894 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=, asset_number_id=, location_id=
+2024-09-04 05:15:53,898 - blueprints.create_bill_of_material - INFO - Found 3 matching positions.
+2024-09-04 05:15:53,912 - blueprints.create_bill_of_material - INFO - Found 380 associated parts and images.
+2024-09-04 05:15:53,913 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-04 10:08:43,085 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-04 10:08:43,086 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-09-04 10:08:43,090 - blueprints.create_bill_of_material - INFO - Found 5 matching positions.
+2024-09-04 10:08:43,098 - blueprints.create_bill_of_material - INFO - Found 380 associated parts and images.
+2024-09-04 10:08:43,098 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-04 10:09:33,962 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-04 10:09:33,962 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=, asset_number_id=, location_id=
+2024-09-04 10:09:33,968 - blueprints.create_bill_of_material - INFO - Found 3 matching positions.
+2024-09-04 10:09:33,974 - blueprints.create_bill_of_material - INFO - Found 380 associated parts and images.
+2024-09-04 10:09:33,975 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-04 11:46:51,116 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-04 11:46:51,117 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-09-04 11:46:51,122 - blueprints.create_bill_of_material - INFO - Found 5 matching positions.
+2024-09-04 11:46:51,131 - blueprints.create_bill_of_material - INFO - Found 380 associated parts and images.
+2024-09-04 11:46:51,132 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-05 08:57:47,671 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-05 08:57:47,671 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-09-05 08:57:47,676 - blueprints.create_bill_of_material - INFO - Found 5 matching positions.
+2024-09-05 08:57:47,687 - blueprints.create_bill_of_material - INFO - Found 380 associated parts and images.
+2024-09-05 08:57:47,688 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.

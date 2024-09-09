@@ -459,3 +459,4 @@ def calculate_optimal_workers(memory_threshold=0.5, max_workers=None):
 
     # Apply a memory threshold to avoid using all available memory
     return max(1, int(optimal_workers * memory_threshold))
+

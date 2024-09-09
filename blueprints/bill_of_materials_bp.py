@@ -8,7 +8,7 @@ from config_env import DatabaseConfig
 from emtacdb_fts import Position, add_image_to_db, Part, PartsPositionImageAssociation, create_position
 from sqlalchemy.orm.exc import NoResultFound
 import shutil  # Added to handle file copying
-
+from utilities.auth_utils import login_required
 bill_of_materials_bp = Blueprint('bill_of_materials_bp', __name__, template_folder='templates')
 
 # Setup logging
@@ -74,6 +74,7 @@ def copy_bom_sheet_to_target(source_path, target_path):
         logging.error(f"The source workbook does not contain a sheet named 'BOM'. Source: {source_path}")
 
 @bill_of_materials_bp.route('/bill_of_materials', methods=['GET', 'POST'])
+@login_required
 def bill_of_materials():
     logging.debug("Accessed bill_of_materials route.")
     if request.method == 'POST':
@@ -170,65 +171,88 @@ def process_bom_loadsheet(source_file, image_path, position_id):
 
 
 def match_items_in_part_list_image(target_path, image_path, position_id):
-    logging.info(f"Matching items with part_list_image sheet in {target_path}.")
-    wb_target = load_workbook(target_path)
-    bom_sheet_name = [sheet for sheet in wb_target.sheetnames if sheet.startswith("bom_")][0]
-    bom_sheet = wb_target[bom_sheet_name]
-    part_position_image_sheet = wb_target["part_position_image"]
+    """
+    Match items from a BOM sheet with a part list image sheet and update the target workbook with matched images.
 
-    part_list_image_path = os.path.join(DB_LOADSHEET_BOMS, "part_list_image.xlsx")
-    wb_part_list = load_workbook(part_list_image_path)
-    photo_list_sheet = wb_part_list["photo_list"]
+    Args:
+        target_path (str): Path to the target Excel workbook containing the BOM sheet.
+        image_path (str): Path where the images are stored.
+        position_id (int): ID of the position associated with the parts.
 
-    # Process all rows in the BOM sheet
-    for row_idx, row in enumerate(bom_sheet.iter_rows(min_row=2, values_only=True), start=2):
-        item_number = str(row[3]).strip()  # Assuming "Item Number" is the fourth column in BOM sheet
-        logging.debug(f"Processing item_number: '{item_number}' at BOM row {row_idx}")
+    Side Effects:
+        Updates the 'part_position_image' sheet in the target workbook with matched images and saves the workbook.
+    """
+    try:
+        logging.info(f"Matching items with part_list_image sheet in {target_path}.")
 
-        # Remove the leading "A" and get the first 6 characters
-        part_number_prefix = item_number[1:7].upper()  # Strip the leading "A" and get the next 6 characters
-        match_found = False
+        wb_target = load_workbook(target_path)
+        bom_sheet_name = [sheet for sheet in wb_target.sheetnames if sheet.startswith("bom_")][0]
+        bom_sheet = wb_target[bom_sheet_name]
+        part_position_image_sheet = wb_target["part_position_image"]
 
-        for photo_row in photo_list_sheet.iter_rows(min_row=2, values_only=True):
-            photo_part_number_prefix = str(photo_row[0])[:6].strip().upper()  # First 6 characters of Part #
-            logging.debug(f"Comparing BOM prefix '{part_number_prefix}' with Part # prefix '{photo_part_number_prefix}'")
+        part_list_image_path = os.path.join(DB_LOADSHEET_BOMS, "part_list_image.xlsx")
+        wb_part_list = load_workbook(part_list_image_path)
+        photo_list_sheet = wb_part_list["photo_list"]
 
-            if part_number_prefix == photo_part_number_prefix:
-                logging.debug(f"Match found in part_list_image for item number prefix: {part_number_prefix} at BOM row {row_idx}")
-                # Process photos from the Excel file
-                photo_a = photo_row[1]
-                desc_a = photo_row[4]  # Corresponding "Desc A"
-                photo_b = photo_row[2]
-                desc_b = photo_row[5]  # Corresponding "Desc B"
-                photo_c = photo_row[3]
-                desc_c = photo_row[6]  # Corresponding "Desc C"
-                manufacturer_description = photo_row[7]  # "Manufacturer Description"
+        # Process all rows in the BOM sheet
+        for row_idx, row in enumerate(bom_sheet.iter_rows(min_row=2, values_only=True), start=2):
+            item_number = str(row[3]).strip()  # Assuming "Item Number" is the fourth column in BOM sheet
+            logging.debug(f"Processing item_number: '{item_number}' at BOM row {row_idx}")
 
-                # Prefix photo names with the correct part number
-                prefixed_photo_a = f"{item_number[:1]}{photo_a}" if photo_a else None
-                prefixed_photo_b = f"{item_number[:1]}{photo_b}" if photo_b else None
-                prefixed_photo_c = f"{item_number[:1]}{photo_c}" if photo_c else None
+            # Remove the leading "A" and get the first 6 characters
+            part_number_prefix = item_number[1:7].upper()  # Strip the leading "A" and get the next 6 characters
+            match_found = False
 
-                # Log and process each photo
-                if prefixed_photo_a:
-                    logging.debug(f"Passing prefixed photo name to process_part_position_image: {prefixed_photo_a}")
-                    process_part_position_image(item_number, position_id, prefixed_photo_a, image_path)
-                if prefixed_photo_b:
-                    logging.debug(f"Passing prefixed photo name to process_part_position_image: {prefixed_photo_b}")
-                    process_part_position_image(item_number, position_id, prefixed_photo_b, image_path)
-                if prefixed_photo_c:
-                    logging.debug(f"Passing prefixed photo name to process_part_position_image: {prefixed_photo_c}")
-                    process_part_position_image(item_number, position_id, prefixed_photo_c, image_path)
+            for photo_row in photo_list_sheet.iter_rows(min_row=2, values_only=True):
+                photo_part_number_prefix = str(photo_row[0])[:6].strip().upper()  # First 6 characters of Part #
+                logging.debug(
+                    f"Comparing BOM prefix '{part_number_prefix}' with Part # prefix '{photo_part_number_prefix}'")
 
-                match_found = True
-                break  # Stop searching once a match is found
+                if part_number_prefix == photo_part_number_prefix:
+                    logging.debug(
+                        f"Match found in part_list_image for item number prefix: {part_number_prefix} at BOM row {row_idx}")
 
-        if not match_found:
-            logging.debug(f"No match found in part_list_image for item number: {item_number} at BOM row {row_idx}")
+                    # Process photos from the Excel file
+                    photo_a = photo_row[1]
+                    desc_a = photo_row[4]  # Corresponding "Desc A"
+                    photo_b = photo_row[2]
+                    desc_b = photo_row[5]  # Corresponding "Desc B"
+                    photo_c = photo_row[3]
+                    desc_c = photo_row[6]  # Corresponding "Desc C"
+                    manufacturer_description = photo_row[7]  # "Manufacturer Description"
 
-    # Save the final workbook after processing all rows
-    wb_target.save(target_path)
-    logging.info(f"part_position_image sheet updated with part_list_image matches in {target_path}.")
+                    # Prefix photo names with the correct part number
+                    prefixed_photo_a = f"{item_number[:1]}{photo_a}" if photo_a else None
+                    prefixed_photo_b = f"{item_number[:1]}{photo_b}" if photo_b else None
+                    prefixed_photo_c = f"{item_number[:1]}{photo_c}" if photo_c else None
+
+                    # Log and process each photo
+                    if prefixed_photo_a:
+                        logging.debug(f"Passing prefixed photo name to process_part_position_image: {prefixed_photo_a}")
+                        process_part_position_image(item_number, position_id, prefixed_photo_a, image_path)
+                    if prefixed_photo_b:
+                        logging.debug(f"Passing prefixed photo name to process_part_position_image: {prefixed_photo_b}")
+                        process_part_position_image(item_number, position_id, prefixed_photo_b, image_path)
+                    if prefixed_photo_c:
+                        logging.debug(f"Passing prefixed photo name to process_part_position_image: {prefixed_photo_c}")
+                        process_part_position_image(item_number, position_id, prefixed_photo_c, image_path)
+
+                    match_found = True
+                    break  # Stop searching once a match is found
+
+            if not match_found:
+                logging.debug(f"No match found in part_list_image for item number: {item_number} at BOM row {row_idx}")
+
+        # Save the final workbook after processing all rows
+        wb_target.save(target_path)
+        logging.info(f"part_position_image sheet updated with part_list_image matches in {target_path}.")
+
+    except FileNotFoundError as fnf_error:
+        logging.error(f"File not found: {fnf_error}")
+    except KeyError as key_error:
+        logging.error(f"Key error: {key_error}")
+    except Exception as e:
+        logging.error(f"An error occurred: {e}")
 
 
 def process_row(part_position_image_sheet, item_number, photo, description, manufacturer_description, position_id):

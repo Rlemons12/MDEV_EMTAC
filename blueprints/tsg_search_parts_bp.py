@@ -18,6 +18,7 @@ def search_parts():
     session = Session()
     query_param = request.args.get('query', '')
     try:
+        print(f'trying tsg_search_parts')
         parts = session.query(Part).filter(Part.part_number.ilike(f'%{query_param}%')).all()
         parts_list = [{'id': part.id, 'part_number': part.part_number, 'name': part.name} for part in parts]
         return jsonify(parts_list)

@@ -4,7 +4,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
 from blueprints import DATABASE_URL
-from emtacdb_fts import Area, EquipmentGroup, Model, AssetNumber, Location, Image, CompleteDocument, Part, Drawing, Position, SiteLocation
+from emtacdb_fts import (Area, EquipmentGroup, Model, AssetNumber, Location, Image, CompleteDocument, Part,
+                         Drawing, Position, SiteLocation,Problem,Solution)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -72,3 +73,42 @@ def get_list_data():
     logger.info('Data combined into a single dictionary')
     logger.info(f'Drawings List: {drawings_list}')
     return jsonify(data)
+
+@get_troubleshooting_guide_data_bp.route('/get_problem_solution_data/<int:problem_id>', methods=['GET'])
+def get_problem_solution_data(problem_id):
+    session = Session()
+    try:
+        logger.info(f'Querying the database to get problem and solution data for problem_id: {problem_id}')
+
+        # Fetch the problem and related solution
+        problem = session.query(Problem).filter_by(id=problem_id).first()
+        if not problem:
+            return jsonify({'error': 'Problem not found'}), 404
+
+        solution = session.query(Solution).filter_by(problem_id=problem_id).first()
+
+        # Convert problem and solution data to dictionary
+        problem_data = {
+            'id': problem.id,
+            'name': problem.name,
+            'description': problem.description,
+            # Add other necessary fields here
+        }
+
+        solution_data = {
+            'id': solution.id if solution else None,
+            'description': solution.description if solution else '',
+            # Add other necessary fields here
+        }
+
+        return jsonify({
+            'problem': problem_data,
+            'solution': solution_data,
+        })
+    except Exception as e:
+        logger.error("An error occurred while querying the database:", exc_info=e)
+        session.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        session.close()
+        logger.info('Database session closed')
