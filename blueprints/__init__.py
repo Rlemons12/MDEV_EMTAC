@@ -1,16 +1,44 @@
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from emtac_revision_control_db import (VersionInfo, RevisionControlBase, SiteLocationSnapshot, PositionSnapshot, AreaSnapshot,
+    EquipmentGroupSnapshot, ModelSnapshot, AssetNumberSnapshot, PartSnapshot, ImageSnapshot,
+    ImageEmbeddingSnapshot, DrawingSnapshot, DocumentSnapshot, CompleteDocumentSnapshot,
+    ProblemSnapshot, SolutionSnapshot, DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot,
+    PartSolutionAssociationSnapshot, DrawingProblemAssociationSnapshot, DrawingSolutionAssociationSnapshot,
+    ProblemPositionAssociationSnapshot, CompleteDocumentProblemAssociationSnapshot,
+    CompleteDocumentSolutionAssociationSnapshot, ImageProblemAssociationSnapshot, ImageSolutionAssociationSnapshot,
+    ImagePositionAssociationSnapshot, DrawingPositionAssociationSnapshot, CompletedDocumentPositionAssociationSnapshot,
+    ImageCompletedDocumentAssociationSnapshot
+)
+from emtacdb_fts import (split_text_into_chunks, AIModelConfig, ImageEmbedding, ImageModelConfig, ChatSession, User, engine, search_documents_fts, search_images_by_keyword, find_keyword_and_extract_detail,
     load_keywords_to_db, perform_action_based_on_keyword, load_keywords_and_patterns,
     find_most_relevant_document, create_session, update_session, get_session, QandA,
     ChatSession, Area, EquipmentGroup, Model, AssetNumber, Location, SiteLocation, Position,
-    Document, Image, Drawing, Problem, Solution, CompleteDocument, PowerPoint, 
+    Document, Image, Drawing, Problem, Solution, CompleteDocument, PowerPoint,
+    PartsPositionImageAssociation, ImagePositionAssociation, DrawingPositionAssociation,
     CompletedDocumentPositionAssociation, ImageCompletedDocumentAssociation,
     ProblemPositionAssociation, ImageProblemAssociation, CompleteDocumentProblemAssociation,
     ImageSolutionAssociation, UserLevel, User, AIModelConfig, load_config_from_db, load_image_model_config_from_db)
+
+from snapshot_utils import(
+    create_sitlocation_snapshot, create_position_snapshot,create_snapshot,
+    create_area_snapshot, create_equipment_group_snapshot, create_model_snapshot, create_asset_number_snapshot,
+    create_part_snapshot, create_image_snapshot, create_image_embedding_snapshot, create_drawing_snapshot,
+    create_document_snapshot, create_complete_document_snapshot, create_problem_snapshot, create_solution_snapshot,
+    create_drawing_part_association_snapshot, create_part_problem_association_snapshot, create_part_solution_association_snapshot,
+    create_drawing_problem_association_snapshot, create_drawing_solution_association_snapshot, create_problem_position_association_snapshot,
+    create_complete_document_problem_association_snapshot, create_complete_document_solution_association_snapshot,
+    create_image_problem_association_snapshot, create_image_solution_association_snapshot, create_image_position_association_snapshot,
+    create_drawing_position_association_snapshot, create_completed_document_position_association_snapshot, create_image_completed_document_association_snapshot,
+    create_parts_position_association_snapshot)
+
+from auditlog import AuditLog, log_insert, log_update, log_delete  # Ensure this is the correct module for these functions
+
 from config import (TEMPORARY_FILES, OPENAI_API_KEY, DATABASE_PATH_IMAGES_FOLDER,
-                    DATABASE_DOC, DATABASE_URL, DATABASE_DIR, PPT2PDF_PPT_FILES_PROCESS, 
+                    DATABASE_DOC, DATABASE_URL, DATABASE_DIR, PPT2PDF_PPT_FILES_PROCESS,
                     PPT2PDF_PDF_FILES_PROCESS,UPLOAD_FOLDER)
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import declarative_base, configure_mappers, relationship, scoped_session, sessionmaker
 import log_config
 from plugins import load_ai_model, load_embedding_model
@@ -58,6 +86,14 @@ from blueprints.batch_processing_bp import batch_processing_bp
 from blueprints.admin_bp import admin_bp
 from blueprints.image_compare_bp import image_compare_bp
 from blueprints.folder_image_embedding_bp import folder_image_embedding_bp
+from blueprints.bill_of_materials_bp import bill_of_materials_bp  # Newly added blueprint
+from blueprints.bill_of_materials_data_bp import bill_of_materials_data_bp
+from blueprints.get_bill_of_material_query_data import get_bill_of_material_query_data_bp
+from blueprints.create_bill_of_material import create_bill_of_material_bp
+from blueprints.enter_new_part import enter_new_part_bp
+from blueprints.get_troubleshooting_guide_edit_data_bp import get_troubleshooting_guide_edit_data_bp
+from blueprints.troubleshoting_guide_edit_update_bp import troubleshooting_guide_edit_update_bp
+from blueprints.comment_pop_up_bp import comment_pop_up_bp
 
 engine = create_engine(DATABASE_URL)
 Session = sessionmaker(bind=engine)
@@ -118,6 +154,14 @@ def register_blueprints(app):
     app.register_blueprint(admin_bp, url_prefix='/')
     app.register_blueprint(image_compare_bp, url_prefix='/')
     app.register_blueprint(folder_image_embedding_bp, url_prefix='/folder_image_embedding')
+    app.register_blueprint(bill_of_materials_bp,url_prefix='/')  # Registering the bill_of_materials blueprint
+    app.register_blueprint(bill_of_materials_data_bp,url_prefix='/')
+    app.register_blueprint(get_bill_of_material_query_data_bp)
+    app.register_blueprint(create_bill_of_material_bp)
+    app.register_blueprint(enter_new_part_bp)
+    app.register_blueprint(get_troubleshooting_guide_edit_data_bp)
+    app.register_blueprint(troubleshooting_guide_edit_update_bp)
+    app.register_blueprint(comment_pop_up_bp)
 app = Flask(__name__)
 app.secret_key = '1234'
 
