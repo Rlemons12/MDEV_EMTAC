@@ -156,7 +156,6 @@ class Position(Base):
     completed_document_position_association = relationship("CompletedDocumentPositionAssociation", back_populates="position")
     site_location = relationship("SiteLocation", back_populates="position")
 
-     
 class Area(Base):
     __tablename__ = 'area'
 
@@ -234,7 +233,6 @@ class Part(Base):
 
     __table_args__ = (UniqueConstraint('part_number', name='_part_number_uc'),)
 
-
 class Image(Base):
     __tablename__ = 'image'
 
@@ -250,7 +248,6 @@ class Image(Base):
     image_completed_document_association = relationship("ImageCompletedDocumentAssociation", back_populates="image")
     image_embedding = relationship("ImageEmbedding", back_populates="image")
     image_position_association = relationship("ImagePositionAssociation", back_populates= "image")
-
 
 class ImageEmbedding(Base):
     __tablename__ = 'image_embedding'
@@ -486,7 +483,6 @@ class PartsPositionImageAssociation(Base):
     position = relationship("Position", back_populates="part_position_image")
     image = relationship("Image", back_populates="parts_position_image")
     bill_of_material = relationship("BillOfMaterial", back_populates="part_position_image")
-
 
 class ImagePositionAssociation(Base):
     __tablename__ = 'image_position_association'

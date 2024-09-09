@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bill of Material Creation Results</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/create_bill_of_material_results.css') }}">
+</head>
+<body>
+    <div class="container"> <!-- Added container div for layout control -->
+        <!-- Header Info (optional, if needed) -->
+        <div class="header-info">
+            <h1>
+                {% if model_name %}
+                    Model: {{ model_name }}
+                {% endif %}
+                {% if asset_number %}
+                    | Asset Number: {{ asset_number }}
+                {% endif %}
+                {% if location_name %}
+                    | Location: {{ location_name }}
+                {% endif %}
+            </h1>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Part Number</th>
+                    <th>Description</th>
+                    <th>OEM Manufacturer</th>
+                    <th>Model</th>
+                    <th>Class Flag</th>
+                    <th>UD6</th>
+                    <th>Type</th>
+                    <th>Notes</th>
+                    <th>Documentation</th>
+                    <th>Image</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in parts_and_images %}
+                <tr>
+                    <td>{{ item.part.part_number }}</td>
+                    <td>{{ item.part.name }}</td>
+                    <td>{{ item.part.oem_mfg }}</td>
+                    <td>{{ item.part.model }}</td>
+                    <td>{{ item.part.class_flag }}</td>
+                    <td>{{ item.part.ud6 }}</td>
+                    <td>{{ item.part.type }}</td>
+                    <td>{{ item.part.notes }}</td>
+                    <td>{{ item.part.documentation }}</td>
+                    <td>
+                        <a href="{{ url_for('create_bill_of_material_bp.serve_image_route', image_id=item.image.id) }}" target="_blank">
+                            <img class="thumbnail" src="{{ url_for('create_bill_of_material_bp.serve_image_route', image_id=item.image.id) }}" alt="{{ item.image.title }}" />
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="pagination">
+            {% if prev_index is not none %}
+                <a href="{{ url_for('create_bill_of_material_bp.view_bill_of_material', index=prev_index, per_page=per_page) }}">Previous</a>
+            {% endif %}
+            {% if next_index is not none %}
+                <a class="next" href="{{ url_for('create_bill_of_material_bp.view_bill_of_material', index=next_index, per_page=per_page) }}">Next</a>
+            {% endif %}
+        </div>
+
+        <a class="back-to-form" href="{{ url_for('search_bill_of_material') }}">Back to Search</a>
+    </div>
+</body>
+</html>

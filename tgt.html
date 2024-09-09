@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conveyor Control Display</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-top: 50px;
+        }
+        .conveyor {
+            margin: 20px;
+            padding: 20px;
+            border: 2px solid #000;
+            border-radius: 10px;
+        }
+        .active {
+            background-color: #4CAF50;
+            color: white;
+        }
+    </style>
+    <script>
+        function activateConveyors() {
+            document.getElementById("status").innerText = "Box detected. Yellow chicken wants it.";
+            
+            setTimeout(function() {
+                document.getElementById("conveyor1").classList.add("active");
+                document.getElementById("conveyor1").innerText = "Conveyor 1 activated. Yellow chicken wants it.";
+            }, 1000);
+
+            setTimeout(function() {
+                document.getElementById("conveyor1").classList.remove("active");
+                document.getElementById("conveyor1").innerText = "Conveyor 1 deactivated.";
+                document.getElementById("conveyor2").classList.add("active");
+                document.getElementById("conveyor2").innerText = "Conveyor 2 activated. Yellow chicken wants it.";
+            }, 6000);
+
+            setTimeout(function() {
+                document.getElementById("conveyor2").classList.remove("active");
+                document.getElementById("conveyor2").innerText = "Conveyor 2 deactivated.";
+                document.getElementById("conveyor3").classList.add("active");
+                document.getElementById("conveyor3").innerText = "Conveyor 3 activated. Yellow chicken wants it.";
+            }, 11000);
+
+            setTimeout(function() {
+                document.getElementById("conveyor3").classList.remove("active");
+                document.getElementById("conveyor3").innerText = "Conveyor 3 deactivated. Yellow chicken wants it.";
+            }, 16000);
+        }
+    </script>
+</head>
+<body onload="activateConveyors()">
+    <h1>Conveyor Control Display</h1>
+    <div id="status" class="conveyor"></div>
+    <div id="conveyor1" class="conveyor">Conveyor 1 status.</div>
+    <div id="conveyor2" class="conveyor">Conveyor 2 status.</div>
+    <div id="conveyor3" class="conveyor">Conveyor 3 status.</div>
+</body>
+</html>

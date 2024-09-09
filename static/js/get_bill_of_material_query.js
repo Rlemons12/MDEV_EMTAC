@@ -1,21 +1,22 @@
-// Function to fetch data and populate dropdowns for the BOM form
-function populateDropdownsBOM() {
+// Function to fetch data and populate dropdowns for the Parts Position form
+function populateDropdownsForPartsPosition() {
     // Define an array of dropdown elements along with their corresponding data keys
     var dropdowns = [
-        { element: $('#bom_areaDropdown'), dataKey: 'areas' },
-        { element: $('#bom_equipmentGroupDropdown'), dataKey: 'equipment_groups' },
-        { element: $('#bom_modelDropdown'), dataKey: 'models' },
-        { element: $('#bom_assetNumberDropdown'), dataKey: 'asset_numbers' },
-        { element: $('#bom_locationDropdown'), dataKey: 'locations' }
+        { element: $('#filter_areaDropdown'), dataKey: 'areas' },
+        { element: $('#filter_equipmentGroupDropdown'), dataKey: 'equipment_groups' },
+        { element: $('#filter_modelDropdown'), dataKey: 'models' },
+        { element: $('#filter_assetNumberDropdown'), dataKey: 'asset_numbers' },
+        { element: $('#filter_locationDropdown'), dataKey: 'locations' }
     ];
 
     // AJAX request to fetch data
     $.ajax({
-        url: '/get_bom_list_data', // URL to fetch data from
+        url: '/get_parts_position_data', // URL to fetch data from
         type: 'GET',
         success: function(data) {
+            console.log(data); // Log data to inspect the structure
             // Populate areas dropdown
-            var areaDropdown = $('#bom_areaDropdown');
+            var areaDropdown = $('#filter_areaDropdown');
             areaDropdown.empty(); // Clear existing options
             $.each(data['areas'], function(index, area) {
                 areaDropdown.append('<option value="' + area.id + '">' + area.name + '</option>');
@@ -24,7 +25,7 @@ function populateDropdownsBOM() {
             // Event listener for area dropdown change
             areaDropdown.change(function() {
                 var selectedAreaId = $(this).val();
-                var equipmentGroupDropdown = $('#bom_equipmentGroupDropdown');
+                var equipmentGroupDropdown = $('#filter_equipmentGroupDropdown');
                 equipmentGroupDropdown.empty(); // Clear existing options
                 equipmentGroupDropdown.append('<option value="">Select...</option>');
 
@@ -38,9 +39,9 @@ function populateDropdownsBOM() {
             });
 
             // Event listener for equipment group dropdown change
-            $('#bom_equipmentGroupDropdown').change(function() {
+            $('#filter_equipmentGroupDropdown').change(function() {
                 var selectedGroupId = $(this).val();
-                var modelDropdown = $('#bom_modelDropdown');
+                var modelDropdown = $('#filter_modelDropdown');
                 modelDropdown.empty(); // Clear existing options
                 modelDropdown.append('<option value="">Select...</option>');
 
@@ -54,9 +55,9 @@ function populateDropdownsBOM() {
             });
 
             // Event listener for model dropdown change
-            $('#bom_modelDropdown').change(function() {
+            $('#filter_modelDropdown').change(function() {
                 var selectedModelId = $(this).val();
-                var assetNumberDropdown = $('#bom_assetNumberDropdown');
+                var assetNumberDropdown = $('#filter_assetNumberDropdown');
                 assetNumberDropdown.empty(); // Clear existing options
                 assetNumberDropdown.append('<option value="">Select...</option>');
 
@@ -69,7 +70,7 @@ function populateDropdownsBOM() {
                 assetNumberDropdown.change(); // Trigger change event for asset number dropdown
 
                 // Populate location dropdown with associated locations based on selected model
-                var locationDropdown = $('#bom_locationDropdown');
+                var locationDropdown = $('#filter_locationDropdown');
                 locationDropdown.empty(); // Clear existing options
                 locationDropdown.append('<option value="">Select...</option>');
 
@@ -94,10 +95,7 @@ function populateDropdownsBOM() {
     });
 }
 
-
-
-
 // Call the function to populate dropdowns when the page loads
 $(document).ready(function() {
-    populateDropdownsBOM();
+    populateDropdownsForPartsPosition();
 });

@@ -88,6 +88,8 @@ from blueprints.image_compare_bp import image_compare_bp
 from blueprints.folder_image_embedding_bp import folder_image_embedding_bp
 from blueprints.bill_of_materials_bp import bill_of_materials_bp  # Newly added blueprint
 from blueprints.bill_of_materials_data_bp import bill_of_materials_data_bp
+from blueprints.get_bill_of_material_query_data import get_bill_of_material_query_data_bp
+from blueprints.create_bill_of_material import create_bill_of_material_bp
 
 engine = create_engine(DATABASE_URL)
 Session = sessionmaker(bind=engine)
@@ -150,7 +152,8 @@ def register_blueprints(app):
     app.register_blueprint(folder_image_embedding_bp, url_prefix='/folder_image_embedding')
     app.register_blueprint(bill_of_materials_bp,url_prefix='/')  # Registering the bill_of_materials blueprint
     app.register_blueprint(bill_of_materials_data_bp,url_prefix='/')
-
+    app.register_blueprint(get_bill_of_material_query_data_bp)
+    app.register_blueprint(create_bill_of_material_bp)
 app = Flask(__name__)
 app.secret_key = '1234'
 

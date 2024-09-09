@@ -118,7 +118,12 @@ def create_app():
         session.permanent = False  # Make the session non-permanent
         return render_template('tsg_search_problems.html')
 
+    @app.route('/search_bill_of_material', methods=['GET'])
+    def search_bill_of_material():
+        return render_template('search_bill_of_material.html')
+
     return app
+
 
 def open_browser():
     webbrowser.open_new('http://127.0.0.1:5000/')
