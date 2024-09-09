@@ -9,7 +9,7 @@
 <body>
     <div class="banner">
         THIS IS FOR REFERENCE ONLY. ALL INFORMATION SHOULD BE VERIFIED WITH CURRENT SOP'S
-        <a href="#" id="commentPopupLink">Leave a Comment</a>
+        <a href="#" id="commentPopupLink" style="color: #39FF14;">Leave a Comment</a>
     </div>
 
     </div>
@@ -19,21 +19,26 @@
         <div class="sidebar">
             <a href="javascript:void(0)" class="close-btn" id="closeSidebar">&times;</a>
             <h1>EMTAC</h1>
+            <!-- Display the current user level -->
+            <p>User Level: {{ session['user_level'] }}</p>
             <h2 style="color: Yellow;">Welcome {{ session['first_name'] }}! How can I assist you?</h2>
             <a href="/tsg_search_problems"style="color: #39FF14;">Search Troubleshooting</a>
             <a href="/upload_image" style="color: #39FF14;" class="upload-button">Search and Upload </a>
             <a href="/bill_of_materials"style="color: #39FF14;">Parts and BOMs</a>
-            <a href="/troubleshooting_guide"style="color: #39FF14;">Update Troubleshooting Guide</a>
+            {% if session['user_level'] != 'STANDARD' %}
+                <a href="/troubleshooting_guide" style="color: #39FF14;">Update Troubleshooting Guide</a>
+            {% endif %}
             <button id="toggle-voice" class="toggle-button">Toggle Voice Recognition</button>
             <button id="toggle-text-to-speech" class="toggle-button">Toggle Text-to-Speech</button>
             <select id="voice-selection"></select>
             <a href="/logout" style="color:  #FF5F1F;"class="logout-button">Logout</a>
-            <div class="model-display-section">
+            <div class="model-display-section" {% if session['user_level'] != 'STANDARD' %} style="display: block;" {% else %} style="display: none;" {% endif %}>
                 <p>Current AI Model: {{ current_ai_model }}</p>
                 <p>Current Embedding Model: {{ current_embedding_model }}</p>
             </div>
+
         </div>
-        
+
         <!-- Right side content -->
         <!-- Popup Modal Structure -->
 <div id="commentPopup" style="display: none;">
@@ -66,11 +71,11 @@
             <div class="answer-section" id="answer-section">
                 <p id="answer"></p>
             </div>
-            
+
             <div class="thumbnails-section" id="thumbnails-section">
                 <!-- Thumbnails will be displayed here -->
             </div>
-            
+
             <div class="doc-links-section" id="doc-links-section">
                 <!-- Hoverable links for relevant documents will be displayed here -->
             </div>

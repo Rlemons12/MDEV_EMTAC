@@ -12,7 +12,7 @@
 <body>
     <div class="banner">
         THIS IS FOR REFERENCE ONLY. ALL INFORMATION SHOULD BE VERIFIED WITH CURRENT SOP'S
-        <a href="#" id="commentPopupLink">Leave a Comment</a>
+        <a href="#" id="commentPopupLink" style="color: #39FF14;">Leave a Comment</a>
     </div>
     <!-- Popup Modal Structure -->
 <div id="commentPopup" style="display: none;">
@@ -45,15 +45,18 @@
 
 
     <div class="sidebar" id="sidebar">
-         <h2 style="color: Yellow;">Welcome {{ session['first_name'] }}! How can I assist you?</h2>
         <button class="toggle-btn" onclick="toggleSidebar()">Toggle Sidebar</button>
         <h2>Menu</h2>
-        <a href="/" style="color:  #FFFFFF;">Return to Main Page</a>
+        {% if session['user_level'] == 'ADMIN' or session['user_level'] == 'LEVEL_III' %}
+            <a href="/" style="color:  #FFFFFF;">Return to Main Page</a>
+        {%  endif %}
         <a href="#search-bill-of-materials" onclick="showForm('search-bill-of-materials')">Search Bill of Materials</a>
         <a href="#upload-bill-of-materials" onclick="showForm('upload-bill-of-materials')">Upload Bill of Materials</a>
-        <a href="#enter-new-part-number" onclick="showForm('enter-new-part-number')">Enter New Part</a>
-        <a href="/upload_image" style="color: #39FF14;" class="upload-button">To Search and Upload </a>
-        <a href="/troubleshooting_guide"style="color: #39FF14;">To Update Troubleshooting Guide</a>
+        {% if session['user_level'] == 'ADMIN' or session['user_level'] == 'LEVEL_III' %}
+            <a href="#enter-new-part-number" onclick="showForm('enter-new-part-number')">Enter New Part</a>
+            <a href="/upload_image" style="color: #39FF14;" class="upload-button">To Search and Upload </a>
+            <a href="/troubleshooting_guide"style="color: #39FF14;">To Update Troubleshooting Guide</a>
+         {% endif %}
         <a href="/logout" style="color:  #FF5F1F;" class="logout-button">Logout</a>
 
     </div>

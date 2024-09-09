@@ -36,3 +36,6 @@
 !/Database/logs/.gitkeep
 !/Database/PDF_FILES/.gitkeep
 !/Database/PPT_FILES/.gitkeep
+
+__pycache__/
+*.pyc

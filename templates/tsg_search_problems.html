@@ -169,14 +169,20 @@
 <body>
     <div class="banner">
         THIS IS FOR REFERENCE ONLY. ALL INFORMATION SHOULD BE VERIFIED WITH CURRENT SOP'S
-        <a href="#" id="commentPopupLink">Leave a Comment</a>
+        <a href="#" id="commentPopupLink" style="color: #39FF14;">Leave a Comment</a>
     </div>
     <div class="sidebar">
          <h2 style="color: Yellow;">Welcome {{ session['first_name'] }}! How can I assist you?</h2>
-        <a href="/" style="color:  #FFFFFF;">Return to Main Page</a>
+        {% if session['user_level'] != 'STANDARD' %}
+            <a href="/" style="color:  #FFFFFF;">Return to Main Page</a>
+        {% endif %}
+        <!-- Display the current user level -->
+        <p>User Level: {{ session['user_level'] }}</p>
         <a href="/upload_image" style="color: #39FF14;" class="upload-button"> To Search and Upload </a>
         <a href="/bill_of_materials"style="color: #39FF14;"> To Parts and BOMs</a>
-        <a href="/troubleshooting_guide"style="color: #39FF14;"> To Update Troubleshooting Guide</a>
+        {% if session['user_level'] != 'STANDARD' %}
+            <a href="/troubleshooting_guide"style="color: #39FF14;"> To Update Troubleshooting Guide</a>
+        {% endif %}
         <a href="/logout" style="color:  #FF5F1F;" class="logout-button">Logout</a>
         <button class="toggle-btn" onclick="toggleSidebar()">Toggle</button>
     </div>

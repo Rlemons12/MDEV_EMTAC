@@ -9,6 +9,8 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from datetime import timedelta
 
+from blueprints.create_user_bp import create_user
+
 # Add current directory to the Python path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -58,23 +60,25 @@ def create_app():
     app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
     # Set the session lifetime (e.g., 1 day)
-    app.permanent_session_lifetime = timedelta(days=1)
+    #app.permanent_session_lifetime = timedelta(days=1)
 
     # Register blueprints and event listeners
     register_blueprints(app)
     register_event_listeners()
+    # Track if session has been cleared after app start
+    app.has_cleared_session = True
 
     # Global login requirement
     @app.before_request
     def global_login_check():
         # List of routes that do not require login
-        allowed_routes = ['login_bp.login', 'login_bp.logout', 'static']  # Add other public routes if needed
+        allowed_routes = ['login_bp.login', 'login_bp.logout', 'static', 'create_user_bp.create_user',
+                          'create_user_bp.submit_user_creation']
 
         # If user is not logged in and the endpoint is not in the allowed routes, redirect to login
         if 'user_id' not in session and request.endpoint not in allowed_routes:
             return redirect(url_for('login_bp.login'))
 
-        # Set the session as permanent to extend the session timeout
         session.permanent = True
 
     # Define routes
@@ -82,14 +86,20 @@ def create_app():
     def index():
         session.permanent = False  # Make the session non-permanent
         user_id = session.get('user_id', '')
+
+        # Ensure the session retrieves the correct user_level value
+        user_level = session.get('user_level', UserLevel.STANDARD.value)
+
         if not user_id:
             return redirect(url_for('login_bp.login'))  # Redirect to login page if user is not logged in
 
         # Load the current AI and embedding models from the database
         current_ai_model, current_embedding_model = load_config_from_db()
 
-        return render_template('index.html', current_ai_model=current_ai_model,
-                               current_embedding_model=current_embedding_model)
+        return render_template('index.html',
+                               current_ai_model=current_ai_model,
+                               current_embedding_model=current_embedding_model,
+                               user_level=user_level)  # Pass user_level to the template
 
     @app.route('/upload_image')
     def upload_image_page():

@@ -623,7 +623,7 @@ class UserLevel(PyEnum):
     ADMIN = 'ADMIN'
     LEVEL_III = 'LEVEL_III'
     LEVEL_II = 'LEVEL_II'
-    STANDARD = 'Standard'
+    STANDARD = 'STANDARD'
 
 class AIModelConfig(Base):
     __tablename__ = 'ai_model_config'

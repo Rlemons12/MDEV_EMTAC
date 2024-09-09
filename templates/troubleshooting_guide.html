@@ -10,19 +10,22 @@
 <body>
     <div class="banner">
         THIS IS FOR REFERENCE ONLY. ALL INFORMATION SHOULD BE VERIFIED WITH CURRENT SOP'S
-        <a href="#" id="commentPopupLink">Leave a Comment</a>
+        <a href="#" id="commentPopupLink" style="color: #39FF14;">Leave a Comment</a>
     </div>
 
 <div class="hamburger" id="hamburger">&#9776;</div>
 
 <!-- Sidebar -->
 <div class="sidebar">
-    <h1></h1>
+    <h1>Edit TSG</h1>
+    <!-- Display the current user level -->
+            <p>User Level: {{ session['user_level'] }}</p>
     <a href="/" style="color:  #FFFFFF;">Return to Main Page</a>
     <a href="#" onclick="showForm('new-troubleshooting-guide-form')">New Troubleshooting Guide Entry</a>
     <a href="#" onclick="showForm('edit-troubleshooting-guide-form')">Edit Troubleshooting Guide Entry</a>
     <a href="#" onclick="showForm('drawing-search-form')">Search Drawings</a>
     <a href="#" onclick="showForm('image-search-form')">Search Images</a>
+    <a href="#upload-image" onclick="showForm('upload-image')">Upload Image</a>
     <a href="/tsg_search_problems" style="color: #39FF14">To Search Troubleshooting Guide</a>
     <a href="/upload_image" style="color: #39FF14;" class="upload-button">To Search and Upload </a>
     <a href="/bill_of_materials"style="color: #39FF14;">To Parts and BOMs</a>
@@ -276,6 +279,8 @@
 <script src="{{ url_for('static', filename='js/get_problem_solution_edit_data.js') }}"></script>
 <script src="{{ url_for('static', filename='js/get_tsg_guide_edit.js')}}" }}"></script>
 <script src="{{ url_for('static', filename='js/comment_pop_up.js')}}"></script>
+<script src="{{ url_for('static', filename='js/upload_image.js') }}"></script>
+<script src="{{ url_for('static', filename='js/image_search.js') }}"></script>
 <script>
 function showForm(formId) {
     // Hide all forms
