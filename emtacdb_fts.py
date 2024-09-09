@@ -46,13 +46,13 @@ from emtac_revision_control_db import (
     AssetNumberSnapshot, PartSnapshot, ImageSnapshot, ImageEmbeddingSnapshot, DrawingSnapshot, 
     DocumentSnapshot, CompleteDocumentSnapshot, ProblemSnapshot, SolutionSnapshot, 
     DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot, PartSolutionAssociationSnapshot, 
-    PartsPositionAssociationSnapshot, DrawingProblemAssociationSnapshot, DrawingSolutionAssociationSnapshot, 
+    PartsPositionImageAssociationSnapshot, DrawingProblemAssociationSnapshot, DrawingSolutionAssociationSnapshot, 
     ProblemPositionAssociationSnapshot, CompleteDocumentProblemAssociationSnapshot, 
     CompleteDocumentSolutionAssociationSnapshot, ImageProblemAssociationSnapshot, 
     ImageSolutionAssociationSnapshot, ImagePositionAssociationSnapshot, DrawingPositionAssociationSnapshot, 
     CompletedDocumentPositionAssociationSnapshot, ImageCompletedDocumentAssociationSnapshot 
 )
-from auditlog import log_insert, log_update, log_delete  # Ensure this is the correct module for these functions
+from auditlog import AuditLog, log_event_listeners, log_insert, log_update, log_delete  # Ensure this is the correct module for these functions
 from snapshot_utils import (
     create_sitlocation_snapshot, create_position_snapshot,
     create_area_snapshot, create_equipment_group_snapshot, create_model_snapshot, create_asset_number_snapshot,
@@ -90,19 +90,39 @@ DATABASE_PATH = os.path.join(DATABASE_DIR, 'emtac_db.db')
 if not os.path.exists(DATABASE_PATH):
     open(DATABASE_PATH, 'w').close()
 
-# Create SQLAlchemy engine form main database
-engine = create_engine(DATABASE_URL)
-Base = declarative_base()
-Session = scoped_session(sessionmaker(bind=engine))  # Use scoped_session here
-session = Session()
-Base = declarative_base()
+# Database setup
+engine = create_engine(
+    DATABASE_URL, 
+    pool_size=10, 
+    max_overflow=20, 
+    connect_args={"check_same_thread": False}
+)
+
+Session = scoped_session(sessionmaker(bind=engine))
+Base = declarative_base()  # This should be called as a function
+session = Session 
+
 
 # Revision control database configuration
 REVISION_CONTROL_DB_PATH = os.path.join(DATABASE_DIR, 'emtac_revision_control_db.db')
-revision_control_engine = create_engine(f'sqlite:///{REVISION_CONTROL_DB_PATH}')
-RevisionControlBase = declarative_base()
+revision_control_engine = create_engine(
+    f'sqlite:///{REVISION_CONTROL_DB_PATH}',
+    pool_size=10,            # Set a small pool size
+    max_overflow=20,         # Allow up to 10 additional connections
+    connect_args={"check_same_thread": False}  # Needed for SQLite when using threading
+)
+
+RevisionControlBase = declarative_base()  # This is correctly defined
 RevisionControlSession = scoped_session(sessionmaker(bind=revision_control_engine))  # Use distinct name
 revision_control_session = RevisionControlSession()
+
+class VersionInfo(Base):
+    __tablename__ = 'version_info'
+    __table_args__ = {'extend_existing': True}
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    version_number = Column(Integer, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    description = Column(String, nullable=True)
 
 # Main Tables
 class SiteLocation(Base):
@@ -128,8 +148,8 @@ class Position(Base):
     model = relationship("Model", back_populates="position")
     asset_number = relationship("AssetNumber", back_populates="position")
     location = relationship("Location", back_populates="position")
-    bill_of_material = relationship("BillOfMaterial", back_populates="position")
-    part_position = relationship("PartsPositionAssociation", back_populates="position")
+    """bill_of_material = relationship("BillOfMaterial", back_populates="position")"""
+    part_position_image = relationship("PartsPositionImageAssociation", back_populates="position")
     image_position_association = relationship("ImagePositionAssociation", back_populates="position")
     drawing_position = relationship("DrawingPositionAssociation", back_populates="position")
     problem_position = relationship("ProblemPositionAssociation", back_populates="position")
@@ -206,13 +226,14 @@ class Part(Base):
     notes = Column(String)  # Notes
     documentation = Column(String)  # Specifications
 
-    part_position = relationship("PartsPositionAssociation", back_populates="part")
-    bill_of_material = relationship("BillOfMaterial", back_populates="part")
+    part_position_image = relationship("PartsPositionImageAssociation", back_populates="part")
+    """bill_of_material = relationship("BillOfMaterial", back_populates="part")"""
     part_problem = relationship("PartProblemAssociation", back_populates="part")
     part_solution = relationship("PartSolutionAssociation", back_populates="part")
     drawing_part = relationship("DrawingPartAssociation", back_populates="part")
 
     __table_args__ = (UniqueConstraint('part_number', name='_part_number_uc'),)
+
 
 class Image(Base):
     __tablename__ = 'image'
@@ -221,13 +242,15 @@ class Image(Base):
     title = Column(String, nullable=False)
     description = Column(String, nullable=False)
     file_path = Column(String, nullable=False)
-    
-    image_position_association = relationship("ImagePositionAssociation", back_populates="image")
+
+    parts_position_image = relationship("PartsPositionImageAssociation", back_populates="image")
     image_problem = relationship("ImageProblemAssociation", back_populates="image")
     image_solution = relationship("ImageSolutionAssociation", back_populates="image")
-    bill_of_material = relationship("BillOfMaterial", back_populates="image")
+    """bill_of_material = relationship("BillOfMaterial", back_populates="image")"""
     image_completed_document_association = relationship("ImageCompletedDocumentAssociation", back_populates="image")
     image_embedding = relationship("ImageEmbedding", back_populates="image")
+    image_position_association = relationship("ImagePositionAssociation", back_populates= "image")
+
 
 class ImageEmbedding(Base):
     __tablename__ = 'image_embedding'
@@ -264,7 +287,8 @@ class Document(Base):
     content = Column(String)
     complete_document_id = Column(Integer, ForeignKey('complete_document.id'))
     embedding = Column(LargeBinary)
-    rev = Column(String)
+    rev = Column(String, nullable=False, default="R0")
+
     
     embeddings = relationship("DocumentEmbedding", back_populates="document")
     complete_document = relationship("CompleteDocument", back_populates="document")
@@ -286,7 +310,8 @@ class CompleteDocument(Base):
     title = Column(String)
     file_path = Column(String)
     content = Column(Text)
-    rev = Column(String)
+    rev = Column(String, nullable=False, default="R0")
+
 
     document = relationship("Document", back_populates="complete_document")
     completed_document_position_association = relationship("CompletedDocumentPositionAssociation", back_populates="complete_document")
@@ -392,16 +417,17 @@ class DrawingSolutionAssociation(Base):
 class BillOfMaterial(Base):
     __tablename__ = 'bill_of_material'
     id = Column(Integer, primary_key=True)
-    part_id = Column(Integer, ForeignKey('part.id'))
-    position_id = Column(Integer, ForeignKey('position.id'))
-    image_id = Column(Integer, ForeignKey('image.id'))
+    part_position_image_id = Column(Integer, ForeignKey('part_position_image.id'))  # Corrected line
+    """part_id = Column(Integer, ForeignKey('part.id'))
+    position_id = Column(Integer, ForeignKey('position.id'))"""
     quantity = Column(Float, nullable=False)  # Corrected to Float
     comment = Column(String)
-    
-    part = relationship("Part", back_populates="bill_of_material")
+
+    part_position_image = relationship("PartsPositionImageAssociation", back_populates="bill_of_material")
+    """part = relationship("Part", back_populates="bill_of_material")
     position = relationship("Position", back_populates="bill_of_material")
-    image = relationship("Image", back_populates="bill_of_material")
-    
+    image = relationship("Image", back_populates="bill_of_material")"""
+
 class ProblemPositionAssociation(Base):
     __tablename__ = 'problem_position'
     id = Column(Integer, primary_key=True)
@@ -449,15 +475,19 @@ class ImageSolutionAssociation(Base):
     image = relationship("Image", back_populates="image_solution")
     solution = relationship("Solution", back_populates="image_solution")
 
-class PartsPositionAssociation(Base):
-    __tablename__ = 'part_position'
+class PartsPositionImageAssociation(Base):
+    __tablename__ = 'part_position_image'
     id = Column(Integer, primary_key=True)
     part_id = Column(Integer, ForeignKey('part.id'))
     position_id = Column(Integer, ForeignKey('position.id'))
+    image_id = Column(Integer, ForeignKey('image.id'))
 
-    part = relationship("Part", back_populates="part_position")
-    position = relationship("Position", back_populates="part_position")
-    
+    part = relationship("Part", back_populates="part_position_image")
+    position = relationship("Position", back_populates="part_position_image")
+    image = relationship("Image", back_populates="parts_position_image")
+    bill_of_material = relationship("BillOfMaterial", back_populates="part_position_image")
+
+
 class ImagePositionAssociation(Base):
     __tablename__ = 'image_position_association'
     id = Column(Integer, primary_key=True)
@@ -657,166 +687,6 @@ class User(Base):
     def check_password_hash(self, password):
         return check_password_hash(self.hashed_password, password)        
 
-# SiteLocation events
-event.listen(SiteLocation, 'after_insert', lambda m, c, t: log_insert(m, c, t, SiteLocationSnapshot))
-event.listen(SiteLocation, 'after_update', lambda m, c, t: log_update(m, c, t, SiteLocationSnapshot))
-event.listen(SiteLocation, 'after_delete', lambda m, c, t: log_delete(m, c, t, SiteLocationSnapshot))
-
-# Position events
-event.listen(Position, 'after_insert', lambda m, c, t: log_insert(m, c, t, PositionSnapshot))
-event.listen(Position, 'after_update', lambda m, c, t: log_update(m, c, t, PositionSnapshot))
-event.listen(Position, 'after_delete', lambda m, c, t: log_delete(m, c, t, PositionSnapshot))
-
-# Area events
-event.listen(Area, 'after_insert', lambda m, c, t: log_insert(m, c, t, AreaSnapshot))
-event.listen(Area, 'after_update', lambda m, c, t: log_update(m, c, t, AreaSnapshot))
-event.listen(Area, 'after_delete', lambda m, c, t: log_delete(m, c, t, AreaSnapshot))
-
-# EquipmentGroup events
-event.listen(EquipmentGroup, 'after_insert', lambda m, c, t: log_insert(m, c, t, EquipmentGroupSnapshot))
-event.listen(EquipmentGroup, 'after_update', lambda m, c, t: log_update(m, c, t, EquipmentGroupSnapshot))
-event.listen(EquipmentGroup, 'after_delete', lambda m, c, t: log_delete(m, c, t, EquipmentGroupSnapshot))
-
-# Model events
-event.listen(Model, 'after_insert', lambda m, c, t: log_insert(m, c, t, ModelSnapshot))
-event.listen(Model, 'after_update', lambda m, c, t: log_update(m, c, t, ModelSnapshot))
-event.listen(Model, 'after_delete', lambda m, c, t: log_delete(m, c, t, ModelSnapshot))
-
-# AssetNumber events
-event.listen(AssetNumber, 'after_insert', lambda m, c, t: log_insert(m, c, t, AssetNumberSnapshot))
-event.listen(AssetNumber, 'after_update', lambda m, c, t: log_update(m, c, t, AssetNumberSnapshot))
-event.listen(AssetNumber, 'after_delete', lambda m, c, t: log_delete(m, c, t, AssetNumberSnapshot))
-
-# Location events
-event.listen(Location, 'after_insert', lambda m, c, t: log_insert(m, c, t, LocationSnapshot))
-event.listen(Location, 'after_update', lambda m, c, t: log_update(m, c, t, LocationSnapshot))
-event.listen(Location, 'after_delete', lambda m, c, t: log_delete(m, c, t, LocationSnapshot))
-
-# Part events
-event.listen(Part, 'after_insert', lambda m, c, t: log_insert(m, c, t, PartSnapshot))
-event.listen(Part, 'after_update', lambda m, c, t: log_update(m, c, t, PartSnapshot))
-event.listen(Part, 'after_delete', lambda m, c, t: log_delete(m, c, t, PartSnapshot))
-
-# Image events
-event.listen(Image, 'after_insert', lambda m, c, t: log_insert(m, c, t, ImageSnapshot))
-event.listen(Image, 'after_update', lambda m, c, t: log_update(m, c, t, ImageSnapshot))
-event.listen(Image, 'after_delete', lambda m, c, t: log_delete(m, c, t, ImageSnapshot))
-
-# ImageEmbedding events
-event.listen(ImageEmbedding, 'after_insert', lambda m, c, t: log_insert(m, c, t, ImageEmbeddingSnapshot))
-event.listen(ImageEmbedding, 'after_update', lambda m, c, t: log_update(m, c, t, ImageEmbeddingSnapshot))
-event.listen(ImageEmbedding, 'after_delete', lambda m, c, t: log_delete(m, c, t, ImageEmbeddingSnapshot))
-
-# Drawing events
-event.listen(Drawing, 'after_insert', lambda m, c, t: log_insert(m, c, t, DrawingSnapshot))
-event.listen(Drawing, 'after_update', lambda m, c, t: log_update(m, c, t, DrawingSnapshot))
-event.listen(Drawing, 'after_delete', lambda m, c, t: log_delete(m, c, t, DrawingSnapshot))
-
-# Document events
-event.listen(Document, 'after_insert', lambda m, c, t: log_insert(m, c, t, DocumentSnapshot))
-event.listen(Document, 'after_update', lambda m, c, t: log_update(m, c, t, DocumentSnapshot))
-event.listen(Document, 'after_delete', lambda m, c, t: log_delete(m, c, t, DocumentSnapshot))
-
-# CompleteDocument events
-event.listen(CompleteDocument, 'after_insert', lambda m, c, t: log_insert(m, c, t, CompleteDocumentSnapshot))
-event.listen(CompleteDocument, 'after_update', lambda m, c, t: log_update(m, c, t, CompleteDocumentSnapshot))
-event.listen(CompleteDocument, 'after_delete', lambda m, c, t: log_delete(m, c, t, CompleteDocumentSnapshot))
-
-# Problem events
-event.listen(Problem, 'after_insert', lambda m, c, t: log_insert(m, c, t, ProblemSnapshot))
-event.listen(Problem, 'after_update', lambda m, c, t: log_update(m, c, t, ProblemSnapshot))
-event.listen(Problem, 'after_delete', lambda m, c, t: log_delete(m, c, t, ProblemSnapshot))
-
-# Solution events
-event.listen(Solution, 'after_insert', lambda m, c, t: log_insert(m, c, t, SolutionSnapshot))
-event.listen(Solution, 'after_update', lambda m, c, t: log_update(m, c, t, SolutionSnapshot))
-event.listen(Solution, 'after_delete', lambda m, c, t: log_delete(m, c, t, SolutionSnapshot))
-
-# PowerPoint events
-event.listen(PowerPoint, 'after_insert', lambda m, c, t: log_insert(m, c, t, PowerPointSnapshot))
-event.listen(PowerPoint, 'after_update', lambda m, c, t: log_update(m, c, t, PowerPointSnapshot))
-event.listen(PowerPoint, 'after_delete', lambda m, c, t: log_delete(m, c, t, PowerPointSnapshot))
-
-# Junction Table Snapshots
-# DrawingPartAssociation events
-event.listen(DrawingPartAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, DrawingPartAssociationSnapshot))
-event.listen(DrawingPartAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, DrawingPartAssociationSnapshot))
-event.listen(DrawingPartAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, DrawingPartAssociationSnapshot))
-
-# PartProblemAssociation events
-event.listen(PartProblemAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, PartProblemAssociationSnapshot))
-event.listen(PartProblemAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, PartProblemAssociationSnapshot))
-event.listen(PartProblemAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, PartProblemAssociationSnapshot))
-
-# PartSolutionAssociation events
-event.listen(PartSolutionAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, PartSolutionAssociationSnapshot))
-event.listen(PartSolutionAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, PartSolutionAssociationSnapshot))
-event.listen(PartSolutionAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, PartSolutionAssociationSnapshot))
-
-# DrawingProblemAssociation events
-event.listen(DrawingProblemAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, DrawingProblemAssociationSnapshot))
-event.listen(DrawingProblemAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, DrawingProblemAssociationSnapshot))
-event.listen(DrawingProblemAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, DrawingProblemAssociationSnapshot))
-
-# DrawingSolutionAssociation events
-event.listen(DrawingSolutionAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, DrawingSolutionAssociationSnapshot))
-event.listen(DrawingSolutionAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, DrawingSolutionAssociationSnapshot))
-event.listen(DrawingSolutionAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, DrawingSolutionAssociationSnapshot))
-
-# BillOfMaterial events
-event.listen(BillOfMaterial, 'after_insert', lambda m, c, t: log_insert(m, c, t, BillOfMaterialSnapshot))
-event.listen(BillOfMaterial, 'after_update', lambda m, c, t: log_update(m, c, t, BillOfMaterialSnapshot))
-event.listen(BillOfMaterial, 'after_delete', lambda m, c, t: log_delete(m, c, t, BillOfMaterialSnapshot))
-
-# ProblemPositionAssociation events
-event.listen(ProblemPositionAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, ProblemPositionAssociationSnapshot))
-event.listen(ProblemPositionAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, ProblemPositionAssociationSnapshot))
-event.listen(ProblemPositionAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, ProblemPositionAssociationSnapshot))
-
-# CompleteDocumentProblemAssociation events
-event.listen(CompleteDocumentProblemAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, CompleteDocumentProblemAssociationSnapshot))
-event.listen(CompleteDocumentProblemAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, CompleteDocumentProblemAssociationSnapshot))
-event.listen(CompleteDocumentProblemAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, CompleteDocumentProblemAssociationSnapshot))
-
-# CompleteDocumentSolutionAssociation events
-event.listen(CompleteDocumentSolutionAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, CompleteDocumentSolutionAssociationSnapshot))
-event.listen(CompleteDocumentSolutionAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, CompleteDocumentSolutionAssociationSnapshot))
-event.listen(CompleteDocumentSolutionAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, CompleteDocumentSolutionAssociationSnapshot))
-
-# ImageProblemAssociation events
-event.listen(ImageProblemAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, ImageProblemAssociationSnapshot))
-event.listen(ImageProblemAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, ImageProblemAssociationSnapshot))
-event.listen(ImageProblemAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, ImageProblemAssociationSnapshot))
-
-# ImageSolutionAssociation events
-event.listen(ImageSolutionAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, ImageSolutionAssociationSnapshot))
-event.listen(ImageSolutionAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, ImageSolutionAssociationSnapshot))
-event.listen(ImageSolutionAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, ImageSolutionAssociationSnapshot))
-
-# PartsPositionAssociation events
-event.listen(PartsPositionAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, PartsPositionAssociationSnapshot))
-event.listen(PartsPositionAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, PartsPositionAssociationSnapshot))
-event.listen(PartsPositionAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, PartsPositionAssociationSnapshot))
-
-# ImagePositionAssociation events
-event.listen(ImagePositionAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, ImagePositionAssociationSnapshot))
-event.listen(ImagePositionAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, ImagePositionAssociationSnapshot))
-event.listen(ImagePositionAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, ImagePositionAssociationSnapshot))
-
-# DrawingPositionAssociation events
-event.listen(DrawingPositionAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, DrawingPositionAssociationSnapshot))
-event.listen(DrawingPositionAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, DrawingPositionAssociationSnapshot))
-event.listen(DrawingPositionAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, DrawingPositionAssociationSnapshot))
-
-# CompletedDocumentPositionAssociation events
-event.listen(CompletedDocumentPositionAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, CompletedDocumentPositionAssociationSnapshot))
-event.listen(CompletedDocumentPositionAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, CompletedDocumentPositionAssociationSnapshot))
-event.listen(CompletedDocumentPositionAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, CompletedDocumentPositionAssociationSnapshot))
-
-# ImageCompletedDocumentAssociation events
-event.listen(ImageCompletedDocumentAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, ImageCompletedDocumentAssociationSnapshot))
-event.listen(ImageCompletedDocumentAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, ImageCompletedDocumentAssociationSnapshot))
-event.listen(ImageCompletedDocumentAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, ImageCompletedDocumentAssociationSnapshot))
 
 # Bind the engine to the Base class
 Base.metadata.bind = engine
@@ -839,49 +709,65 @@ if not OPENAI_API_KEY:
         config_file.write(f'copy_files = {COPY_FILES}\n')
         config_file.write(f'OPENAI_API_KEY = "{OPENAI_API_KEY}"\n')
 
-def create_position(area_id, equipment_group_id, model_id, asset_number_id, location_id, site_location_id):
-    with Session() as session:
-        try:
-            # Retrieve the related entities by their IDs
-            area_entity = session.query(Area).filter_by(id=area_id).first() if area_id else None
-            equipment_group_entity = session.query(EquipmentGroup).filter_by(id=equipment_group_id).first() if equipment_group_id else None
-            model_entity = session.query(Model).filter_by(id=model_id).first() if model_id else None
-            asset_number_entity = session.query(AssetNumber).filter_by(id=asset_number_id).first() if asset_number_id else None
-            location_entity = session.query(Location).filter_by(id=location_id).first() if location_id else None
-            site_location_entity = session.query(SiteLocation).filter_by(id=site_location_id).first() if site_location_id else None
+def create_position(area_id, equipment_group_id, model_id, asset_number_id, location_id, site_location_id,session):
+    session = Session()  # Obtain the session object from scoped_session
+    try:
+        logger.debug('Starting create_position function')
+        
+        # Log the input parameters
+        logger.debug(f"area_id: {area_id}, equipment_group_id: {equipment_group_id}, model_id: {model_id}, "
+                     f"asset_number_id: {asset_number_id}, location_id: {location_id}, site_location_id: {site_location_id}")
 
-            # Check for an existing Position with the same attributes
-            existing_position = session.query(Position).filter_by(
+        # Retrieve the related entities by their IDs
+        area_entity = session.query(Area).filter_by(id=area_id).first() if area_id else None
+        equipment_group_entity = session.query(EquipmentGroup).filter_by(id=equipment_group_id).first() if equipment_group_id else None
+        model_entity = session.query(Model).filter_by(id=model_id).first() if model_id else None
+        asset_number_entity = session.query(AssetNumber).filter_by(id=asset_number_id).first() if asset_number_id else None
+        location_entity = session.query(Location).filter_by(id=location_id).first() if location_id else None
+        site_location_entity = session.query(SiteLocation).filter_by(id=site_location_id).first() if site_location_id else None
+
+        # Log the retrieved entities
+        logger.debug(f"Retrieved area_entity: {area_entity}")
+        logger.debug(f"Retrieved equipment_group_entity: {equipment_group_entity}")
+        logger.debug(f"Retrieved model_entity: {model_entity}")
+        logger.debug(f"Retrieved asset_number_entity: {asset_number_entity}")
+        logger.debug(f"Retrieved location_entity: {location_entity}")
+        logger.debug(f"Retrieved site_location_entity: {site_location_entity}")
+
+        # Check for an existing Position with the same attributes
+        existing_position = session.query(Position).filter_by(
+            area=area_entity,
+            equipment_group=equipment_group_entity,
+            model=model_entity,
+            asset_number=asset_number_entity,
+            location=location_entity,
+            site_location=site_location_entity
+        ).first()
+
+        if existing_position:
+            logger.info(f"Found existing Position with ID: {existing_position.id}")
+            return existing_position.id
+        else:
+            # Create and add the Position entry
+            position = Position(
                 area=area_entity,
                 equipment_group=equipment_group_entity,
                 model=model_entity,
                 asset_number=asset_number_entity,
                 location=location_entity,
                 site_location=site_location_entity
-            ).first()
+            )
+            session.add(position)
+            session.commit()  # Commit changes to get the position ID
+            logger.info(f"Created new Position with ID: {position.id}")
+            return position.id
 
-            if existing_position:
-                logger.info(f"Found existing Position with ID: {existing_position.id}")
-                return existing_position.id
-            else:
-                # Create and add the Position entry
-                position = Position(
-                    area=area_entity,
-                    equipment_group=equipment_group_entity,
-                    model=model_entity,
-                    asset_number=asset_number_entity,
-                    location=location_entity,
-                    site_location=site_location_entity
-                )
-                session.add(position)
-                session.commit()  # Commit changes to get the position ID
-                logger.info(f"Created new Position with ID: {position.id}")
-                return position.id
-
-        except Exception as e:
-            logger.error(f"An error occurred in create_position: {e}")
-            session.rollback()
-            return None
+    except Exception as e:
+        logger.error(f"An error occurred in create_position: {e}")
+        session.rollback()
+        return None
+    finally:
+        session.close()  # Ensure the session is closed
 
 # Function to update keywords in the database from an Excel file
 def load_keywords_to_db(session: Session):
@@ -1125,66 +1011,87 @@ def get_total_images_count(description=''):
 # Example usage:
 # total_images = get_total_images_count(description="example")
 
-def add_image_to_db(title, file_path, position_id=None, completed_document_position_association_id=None, complete_document_id=None, description=""):
+def add_image_to_db(title, file_path, position_id=None, completed_document_position_association_id=None,
+                    complete_document_id=None, description=""):
+    new_image_id = None  # Initialize the new_image_id outside the session scope
+
     try:
-        logger.debug("Debugging add_image_to_db:")
-        logger.debug(f"Title: {title}")
-        logger.debug(f"File Path: {file_path}")
-        logger.debug(f"Position ID: {position_id}")
-        logger.debug(f"Completed Document Position Association ID: {completed_document_position_association_id}")
-        logger.debug(f"Complete Document ID: {complete_document_id}")
-        logger.debug(f"Description: {description}")
-
-        # Check for the current image embedding model
-        current_image_model = load_image_model_config_from_db()
-        logger.info(f"Current image model configuration from DB: {current_image_model}")
-        
-        # Dynamically set the model handler
-        model_handler = get_image_model_handler(current_image_model)
-        logger.info(f"Using model handler: {model_handler.__class__.__name__}")
-
         with Session() as session:
+            logger.debug('Inside add_image_to_db')
+
+            # Log the inputs for debugging
+            logger.debug(f"Title: {title}")
+            logger.debug(f"File Path: {file_path}")
+            logger.debug(f"Position ID: {position_id}")
+            logger.debug(f"Completed Document Position Association ID: {completed_document_position_association_id}")
+            logger.debug(f"Complete Document ID: {complete_document_id}")
+            logger.debug(f"Description: {description}")
+
+            # Step 1: Retrieve the current image embedding model configuration
+            current_image_model = load_image_model_config_from_db()
+            logger.info(f"Current image model configuration from DB: {current_image_model}")
+
+            # Step 2: Dynamically set the model handler based on the configuration
+            model_handler = get_image_model_handler(current_image_model)
+            logger.info(f"Using model handler: {model_handler.__class__.__name__}")
+
             logger.info(f'Processing image: {title}')
 
-            # Check if an image with the same title and description exists
-            existing_image = session.query(Image).filter(and_(Image.title == title, Image.description == description)).first()
+            # Step 3: Check if an image with the same title and description already exists
+            logger.debug("Checking if an image with the same title and description already exists")
+            existing_image = session.query(Image).filter(
+                and_(Image.title == title, Image.description == description)
+            ).first()
+
             if existing_image is not None and existing_image.file_path == file_path:
-                logger.info(f"Image with same title, description, and file path already exists: {title}")
+                logger.info(f"Image with the same title, description, and file path already exists: {title}")
                 new_image = existing_image
-                
+
+                # Log the duplication in the failed_uploads.txt file
                 error_file_path = os.path.join(DATABASE_PATH_IMAGES_FOLDER, 'failed_uploads.txt')
                 with open(error_file_path, 'a') as error_file:
-                    error_file.write(f"Image with title '{title}', description '{description}', and file path '{file_path}' already exists.\n")
+                    error_file.write(
+                        f"Image with title '{title}', description '{description}', and file path '{file_path}' already exists.\n")
             else:
+                # Step 4: Add the new image to the database
+                logger.info("Adding a new image to the database")
                 new_image = Image(
                     title=title,
                     description=description,
                     file_path=file_path
                 )
-
                 session.add(new_image)
                 session.commit()
+                new_image_id = new_image.id  # Assign the ID to new_image_id
+                logger.info(f"Added image: {title}, ID: {new_image_id}")
 
-                logger.info(f"Added image: {title}")
-
-            # Process the image and generate the embedding
+            # Step 5: Process the image and generate the embedding
             try:
-                logger.info(f"Opening image: {file_path}")
-                image = PILImage.open(file_path).convert("RGB")
+                # Convert the relative file path back to an absolute path
+                absolute_file_path = os.path.join(BASE_DIR, file_path)
+                logger.info(f"Opening image: {absolute_file_path}")
+
+                # Open the image using the absolute file path
+                image = PILImage.open(absolute_file_path).convert("RGB")
+
                 logger.info("Calling model_handler.is_valid_image()")
                 if not model_handler.is_valid_image(image):
-                    logger.info(f"Skipping {file_path}: Image does not meet the required dimensions or aspect ratio.")
+                    logger.info(
+                        f"Skipping {absolute_file_path}: Image does not meet the required dimensions or aspect ratio.")
                 else:
                     logger.info("Image passed validation.")
                     model_embedding = model_handler.get_image_embedding(image)
                     model_name = model_handler.__class__.__name__
 
+                    # Step 6: Check if the embedding already exists and add it if not
                     if model_name and model_embedding is not None:
-                        # Check if the embedding already exists
+                        logger.debug("Checking if the image embedding already exists")
                         existing_embedding = session.query(ImageEmbedding).filter(
-                            and_(ImageEmbedding.image_id == new_image.id, ImageEmbedding.model_name == model_name)).first()
+                            and_(ImageEmbedding.image_id == new_image.id, ImageEmbedding.model_name == model_name)
+                        ).first()
+
                         if existing_embedding is None:
-                            # Create an entry in the ImageEmbedding table
+                            logger.info("Creating a new ImageEmbedding entry")
                             image_embedding = ImageEmbedding(
                                 image_id=new_image.id,
                                 model_name=model_name,
@@ -1193,41 +1100,59 @@ def add_image_to_db(title, file_path, position_id=None, completed_document_posit
                             session.add(image_embedding)
                             logger.info(f"Created ImageEmbedding with image ID {new_image.id}, model name {model_name}")
 
+                    # Step 7: Handle position associations if applicable
                     if position_id:
+                        logger.debug("Checking if ImagePositionAssociation already exists")
                         existing_association = session.query(ImagePositionAssociation).filter(
-                            and_(ImagePositionAssociation.image_id == new_image.id, ImagePositionAssociation.position_id == position_id)).first()
+                            and_(ImagePositionAssociation.image_id == new_image.id,
+                                 ImagePositionAssociation.position_id == position_id)
+                        ).first()
+
                         if existing_association is None:
+                            logger.info("Creating a new ImagePositionAssociation entry")
                             image_position_association = ImagePositionAssociation(
                                 image_id=new_image.id,
                                 position_id=position_id
                             )
                             session.add(image_position_association)
-                            logger.info(f"Created ImagePositionAssociation with image ID {new_image.id} and position ID {position_id}")
+                            logger.info(
+                                f"Created ImagePositionAssociation with image ID {new_image.id} and position ID {position_id}")
 
+                    # Step 8: Handle completed document associations
                     if complete_document_id:
-                        existing_document_association = session.query(CompletedDocumentPositionAssociation).filter(
-                            and_(CompletedDocumentPositionAssociation.image_id == new_image.id, CompletedDocumentPositionAssociation.complete_document_id == complete_document_id)).first()
-                        if existing_document_association is None:
-                            image_completed_document_association = CompletedDocumentPositionAssociation(
-                                image_id=new_image.id,
-                                complete_document_id=complete_document_id
-                            )
-                            session.add(image_completed_document_association)
-                            logger.info(f"Created CompletedDocumentPositionAssociation with image ID {new_image.id} and completed document ID {complete_document_id}")
+                        logger.info("Creating a new ImageCompletedDocumentAssociation entry")
+                        image_completed_document_association = ImageCompletedDocumentAssociation(
+                            image_id=new_image.id,
+                            complete_document_id=complete_document_id
+                        )
+                        session.add(image_completed_document_association)
+                        logger.info(
+                            f"Created ImageCompletedDocumentAssociation with image ID {new_image.id} and complete document ID {complete_document_id}")
 
+                    # Step 9: Commit all the changes to the database
                     session.commit()
+
             except Exception as e:
+                # Log the error in the failed_uploads.txt file and handle exceptions
                 logger.error(f"An error occurred while processing the image: {e}")
                 error_file_path = os.path.join(DATABASE_PATH_IMAGES_FOLDER, 'failed_uploads.txt')
                 with open(error_file_path, 'a') as error_file:
                     error_file.write(f"Error processing image with title '{title}': {e}\n")
 
+            # Log completion and return the ID before closing the session
+            logger.info(f"Completed processing for image: {title}, ID: {new_image_id}")
+            return new_image_id
+
     except Exception as e:
+        # Handle exceptions and log them appropriately
         logger.error(f"An error occurred in add_image_to_db: {e}")
         logger.error(f"Attempted to process image: {title}")
         error_file_path = os.path.join(DATABASE_PATH_IMAGES_FOLDER, 'failed_uploads.txt')
         with open(error_file_path, 'a') as error_file:
             error_file.write(f"Error processing image with title '{title}': {e}\n")
+
+        return None  # Return None or an appropriate error code if an exception occurs
+
 
 def split_text_into_chunks(text, max_words=300, pad_token=""):
     logger.info("Starting split_text_into_chunks")
@@ -1322,6 +1247,17 @@ def extract_text_from_txt(txt_path):
         logger.error(f"An error occurred while extracting text from TXT file: {e}")
         return None
 
+def excel_to_csv(excel_file_path, csv_file_path):
+    try:
+        # Read Excel file
+        df = pd.read_excel(excel_file_path)
+        # Save as CSV
+        df.to_csv(csv_file_path, index=False)
+        return True
+    except Exception as e:
+        logger.error(f"Failed to convert Excel to CSV: {e}")
+        return False
+
 def add_docx_to_db(title, docx_path, position_id):
     try:
         # Initialize COM
@@ -1343,11 +1279,11 @@ def add_docx_to_db(title, docx_path, position_id):
         logger.error(f"An error occurred in add_docx_to_db: {e}")
         return False
   
-def add_document_to_db(title, file_path, position_id):
+def add_document_to_db(title, file_path, position_id, rev=None):
+    complete_document_id = None
+    completed_document_position_association_id = None
     try:
         extracted_text = None
-        complete_document_id = None
-        completed_document_position_association_id = None
         with Session() as session:
             logger.info(f"Processing file: {file_path}")
             if file_path.endswith(".pdf"):
@@ -1363,16 +1299,32 @@ def add_document_to_db(title, file_path, position_id):
                 return None, False
 
             if extracted_text:
+                # Determine the latest revision number if not provided
+                if rev is None:
+                    current_rev = session.query(func.max(CompleteDocument.rev)).filter_by(title=title).scalar()
+                    if current_rev:
+                        rev = f"R{int(current_rev[1:]) + 1}"
+                    else:
+                        rev = "R0"
+                logger.debug(f"New revision number for document: {rev}")
+
+                # Add the complete document with the given or new revision number
                 complete_document = CompleteDocument(
                     title=title,
                     file_path=os.path.relpath(file_path, DATABASE_DIR),
-                    content=extracted_text
+                    content=extracted_text,
+                    rev=rev  # Use the provided or calculated revision number
                 )
                 session.add(complete_document)
                 session.commit()
                 complete_document_id = complete_document.id
-                logger.info(f"Added complete document: {title}, ID: {complete_document_id}")
+                logger.info(f"Added complete document: {title}, ID: {complete_document_id}, Rev: {rev}")
 
+                # Verifying that the rev was saved
+                saved_complete_document = session.query(CompleteDocument).filter_by(id=complete_document_id).first()
+                logger.debug(f"Saved CompleteDocument revision: {saved_complete_document.rev}")
+
+                # Add association with position
                 completed_document_position_association = CompletedDocumentPositionAssociation(
                     complete_document_id=complete_document_id,
                     position_id=position_id
@@ -1382,11 +1334,13 @@ def add_document_to_db(title, file_path, position_id):
                 completed_document_position_association_id = completed_document_position_association.id
                 logger.info(f"Added CompletedDocumentPositionAssociation for complete document ID: {complete_document_id}, position ID: {position_id}")
 
+                # Add document to FTS table
                 insert_query_fts = "INSERT INTO documents_fts (title, content) VALUES (:title, :content)"
                 session.execute(text(insert_query_fts), {"title": title, "content": extracted_text})
                 session.commit()
                 logger.info("Added document to the FTS table.")
 
+                # Split document into chunks and process
                 text_chunks = split_text_into_chunks(extracted_text)
                 for i, chunk in enumerate(text_chunks):
                     padded_chunk = ' '.join(split_text_into_chunks(chunk, pad_token="", max_words=150))
@@ -1395,11 +1349,17 @@ def add_document_to_db(title, file_path, position_id):
                         file_path=os.path.relpath(file_path, DATABASE_DIR),
                         content=padded_chunk,
                         complete_document_id=complete_document_id,
+                        rev=rev  # Same revision number for document chunk
                     )
                     session.add(document)
                     session.commit()
-                    logger.info(f"Added chunk {i+1} of document: {title}")
+                    logger.info(f"Added chunk {i+1} of document: {title}, Rev: {document.rev}")
 
+                    # Verifying that the rev was saved
+                    saved_document_chunk = session.query(Document).filter_by(id=document.id).first()
+                    logger.debug(f"Saved Document chunk revision: {saved_document_chunk.rev}")
+
+                    # Generate and store embeddings if applicable
                     if CURRENT_EMBEDDING_MODEL != "NoEmbeddingModel":
                         embeddings = generate_embedding(padded_chunk, CURRENT_EMBEDDING_MODEL)
                         if embeddings is None:
@@ -1409,6 +1369,47 @@ def add_document_to_db(title, file_path, position_id):
                             logger.info(f"Generated and stored embedding for chunk {i+1} of document: {title}")
                     else:
                         logger.info(f"No embedding generated for chunk {i+1} of document: {title} because no model is selected.")
+                
+                
+                # Add version info and create snapshots
+                try:
+                    with RevisionControlSession() as rev_session:
+                        new_version = VersionInfo(version_number=int(rev[1:]), description="Document addition version")
+                        rev_session.add(new_version)
+                        rev_session.commit()
+
+                        # Create snapshots for related entities
+                        create_snapshot(saved_complete_document, rev_session, CompleteDocumentSnapshot)
+
+                        for area in session.query(Area).all():
+                            create_snapshot(area, rev_session, AreaSnapshot)
+                        for equipment_group in session.query(EquipmentGroup).all():
+                            create_snapshot(equipment_group, rev_session, EquipmentGroupSnapshot)
+                        for model in session.query(Model).all():
+                            create_snapshot(model, rev_session, ModelSnapshot)
+                        for asset_number in session.query(AssetNumber).all():
+                            create_snapshot(asset_number, rev_session, AssetNumberSnapshot)
+                        for location in session.query(Location).all():
+                            create_snapshot(location, rev_session, LocationSnapshot)
+
+                        rev_session.commit()
+                        logger.info("Version info added and snapshots created.")
+                except Exception as e:
+                    logger.error(f"An error occurred while adding version info and creating snapshots: {e}")
+                    rev_session.rollback()
+
+                # Querying the version_info table
+                try:
+                    with RevisionControlSession() as revision_session:
+                        logger.info("Querying version_info table in revision control database.")
+                        version_info = revision_session.query(VersionInfo).order_by(VersionInfo.id.desc()).first()
+                        if version_info:
+                            logger.info(f"Latest version_info: {version_info.version_number}")
+                        else:
+                            logger.warning("No version_info found.")
+                except Exception as e:
+                    logger.error(f"Error querying version_info table: {e}")
+                
             else:
                 logger.error("No text extracted from the document.")
                 return None, False
@@ -1424,7 +1425,10 @@ def add_document_to_db(title, file_path, position_id):
         logger.error(f"An error occurred in add_document_to_db: {e}")
         logger.error(f"Attempted Processed file: {file_path}")
         return None, False
-  
+    finally:
+        if 'session' in locals() and session is not None:
+            session.close()
+
 def add_text_file_to_db(title, txt_file_path, position_id):
     try:
         with open(txt_file_path, 'r', encoding='utf-8') as txt_file:
@@ -2305,4 +2309,44 @@ def create_directories(directories):
             logging.info(f"Created directory: {directory}")
         else:
             logging.info(f"Directory already exists: {directory}")
+
+
+def add_parts_position_image_association(part_id, position_id, image_id):
+    """
+    Adds a new entry to the PartsPositionImageAssociation table.
+
+    :param part_id: The ID of the Part.
+    :param position_id: The ID of the Position.
+    :param image_id: The ID of the Image.
+    :return: The created PartsPositionImageAssociation object.
+    """
+    # Initialize the database session
+    db_config = DatabaseConfig()
+    session = db_config.get_main_session()
+
+    try:
+        # Create a new PartsPositionImageAssociation entry
+        new_association = PartsPositionImageAssociation(
+            part_id=part_id,
+            position_id=position_id,
+            image_id=image_id
+        )
+
+        # Add and commit the new association to the database
+        session.add(new_association)
+        session.commit()
+
+        # Log success
+        logging.info(f"Added PartsPositionImageAssociation: Part ID: {part_id}, Position ID: {position_id}, Image ID: {image_id}")
+
+        return new_association
+
+    except Exception as e:
+        session.rollback()  # Rollback the session in case of an error
+        logging.error(f"Error adding PartsPositionImageAssociation: {e}")
+        raise
+
+    finally:
+        session.close()
+
 

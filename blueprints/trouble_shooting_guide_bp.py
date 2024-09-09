@@ -5,7 +5,7 @@ from sqlalchemy.orm import sessionmaker
 from emtacdb_fts import (
     Location, Problem, Solution, CompleteDocument, Image, engine, 
     ImageSolutionAssociation, ImageProblemAssociation, CompleteDocumentProblemAssociation, Part, Drawing, 
-    ProblemPositionAssociation, Position, CompleteDocumentSolutionAssociation, PartsPositionAssociation, PartProblemAssociation, PartSolutionAssociation, 
+    ProblemPositionAssociation, Position, CompleteDocumentSolutionAssociation, PartsPositionImageAssociation, PartProblemAssociation, PartSolutionAssociation, 
     DrawingPositionAssociation, DrawingProblemAssociation, DrawingSolutionAssociation
 )
 
@@ -120,7 +120,7 @@ def update_problem_solution():
             logger.info(f"Processing part_id: {part_id}")
             part = session.query(Part).filter_by(id=part_id).first()
             if part:
-                position_part_association = PartsPositionAssociation(part_id=part_id, position_id=position.id)
+                position_part_association = PartsPositionImageAssociation(part_id=part_id, position_id=position.id)
                 session.add(position_part_association)
             else:
                 logger.error("Error: Part not found for association")

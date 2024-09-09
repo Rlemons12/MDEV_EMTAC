@@ -28,6 +28,7 @@ DATABASE_DOC = os.path.join(DATABASE_DIR, 'DB_DOC')
 TEMPORARY_UPLOAD_FILES = os.path.join(DATABASE_DIR, 'temp_upload_files')
 DB_LOADSHEET = os.path.join(DATABASE_DIR, "DB_LOADSHEETS")
 DB_LOADSHEETS_BACKUP = os.path.join(DATABASE_DIR, "DB_LOADSHEETS_BACKUP")
+DB_LOADSHEET_BOMS = os.path.join(DATABASE_DIR, "DB_LOADSHEET_BOMS")
 BACKUP_DIR = os.path.join(DATABASE_DIR, "db_backup")
 Utility_tools = os.path.join(BASE_DIR, "Utility_tools")
 OPENAI_MODEL_NAME = "text-embedding-3-small"

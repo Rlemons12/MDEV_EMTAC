@@ -12,7 +12,7 @@ from emtac_revision_control_db import (
     AssetNumberSnapshot, PartSnapshot, ImageSnapshot, ImageEmbeddingSnapshot, DrawingSnapshot, LocationSnapshot,
     DocumentSnapshot, CompleteDocumentSnapshot, ProblemSnapshot, SolutionSnapshot,
     DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot, PartSolutionAssociationSnapshot,
-    PartsPositionAssociationSnapshot, DrawingProblemAssociationSnapshot, DrawingSolutionAssociationSnapshot,
+    PartsPositionImageAssociationSnapshot, DrawingProblemAssociationSnapshot, DrawingSolutionAssociationSnapshot,
     ProblemPositionAssociationSnapshot, CompleteDocumentProblemAssociationSnapshot,
     CompleteDocumentSolutionAssociationSnapshot, ImageProblemAssociationSnapshot,
     ImageSolutionAssociationSnapshot, ImagePositionAssociationSnapshot, DrawingPositionAssociationSnapshot,
@@ -30,12 +30,16 @@ from snapshot_utils import (
     create_image_problem_association_snapshot, create_image_solution_association_snapshot,
     create_image_position_association_snapshot, create_drawing_position_association_snapshot,
     create_completed_document_position_association_snapshot, create_image_completed_document_association_snapshot,
-    create_parts_position_association_snapshot
+    create_parts_position_association_snapshot, create_snapshot
 )
+from sqlalchemy.ext.declarative import declarative_base
+# Define the base for the revision control database models
+RevisionControlBase = declarative_base()
 
 # Initialize logging
 import logging
 
+RevisionControlBase = declarative_base()
 # Ensure the directory for the log file exists
 log_directory = os.path.join(BASE_DIR, "logs")
 if not os.path.exists(log_directory):

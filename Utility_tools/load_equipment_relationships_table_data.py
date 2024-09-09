@@ -13,7 +13,7 @@ from emtac_revision_control_db import (
     AssetNumberSnapshot, PartSnapshot, ImageSnapshot, ImageEmbeddingSnapshot, DrawingSnapshot,
     DocumentSnapshot, CompleteDocumentSnapshot, ProblemSnapshot, SolutionSnapshot,
     DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot, PartSolutionAssociationSnapshot,
-    PartsPositionAssociationSnapshot, DrawingProblemAssociationSnapshot, DrawingSolutionAssociationSnapshot,
+    PartsPositionImageAssociationSnapshot, DrawingProblemAssociationSnapshot, DrawingSolutionAssociationSnapshot,
     ProblemPositionAssociationSnapshot, CompleteDocumentProblemAssociationSnapshot,
     CompleteDocumentSolutionAssociationSnapshot, ImageProblemAssociationSnapshot,
     ImageSolutionAssociationSnapshot, ImagePositionAssociationSnapshot, DrawingPositionAssociationSnapshot,

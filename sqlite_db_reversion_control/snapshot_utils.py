@@ -1,4 +1,3 @@
-# snapshot_utils.py
 import os
 import logging
 from datetime import datetime
@@ -11,7 +10,7 @@ from emtac_revision_control_db import (
     AssetNumberSnapshot, LocationSnapshot ,PartSnapshot, ImageSnapshot, ImageEmbeddingSnapshot, DrawingSnapshot, 
     DocumentSnapshot, CompleteDocumentSnapshot, ProblemSnapshot, SolutionSnapshot, 
     DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot, PartSolutionAssociationSnapshot, 
-    PartsPositionAssociationSnapshot, DrawingProblemAssociationSnapshot, DrawingSolutionAssociationSnapshot, 
+    PartsPositionImageAssociationSnapshot, DrawingProblemAssociationSnapshot, DrawingSolutionAssociationSnapshot, 
     ProblemPositionAssociationSnapshot, CompleteDocumentProblemAssociationSnapshot, 
     CompleteDocumentSolutionAssociationSnapshot, ImageProblemAssociationSnapshot, 
     ImageSolutionAssociationSnapshot, ImagePositionAssociationSnapshot, DrawingPositionAssociationSnapshot, 
@@ -138,8 +137,8 @@ def create_drawing_part_association_snapshot(instance, session):
     create_snapshot(instance, session, DrawingPartAssociationSnapshot)
 
 def create_parts_position_association_snapshot(instance, session):
-    logger.info(f"Creating snapshot for PartsPositionAssociation: {instance.id}")
-    create_snapshot(instance, session, PartsPositionAssociationSnapshot)
+    logger.info(f"Creating snapshot for PartsPositionImageAssociation: {instance.id}")
+    create_snapshot(instance, session, PartsPositionImageAssociationSnapshot)
 
 def create_part_problem_association_snapshot(instance, session):
     logger.info(f"Creating snapshot for PartProblemAssociation: {instance.id}")

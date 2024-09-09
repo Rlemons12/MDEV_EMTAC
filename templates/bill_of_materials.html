@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bill of Materials</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles/bill_of_materials.css') }}">
+</head>
+<body>
+    <h1>Upload Bill of Materials</h1>
+    <form method="POST" enctype="multipart/form-data">
+        <label for="bom_areaDropdown">Area:</label>
+        <select name="area" id="bom_areaDropdown"></select><br>
+
+        <label for="bom_equipmentGroupDropdown">Equipment Group:</label>
+        <select name="equipment_group" id="bom_equipmentGroupDropdown"></select><br>
+
+        <label for="bom_modelDropdown">Model:</label>
+        <select name="model" id="bom_modelDropdown"></select><br>
+
+        <label for="bom_assetNumberDropdown">Asset Number:</label>
+        <select name="asset_number" id="bom_assetNumberDropdown"></select><br>
+
+        <label for="bom_locationDropdown">Location:</label>
+        <select name="location" id="bom_locationDropdown"></select><br>
+
+        <label for="image_path">Image Path:</label>
+        <input type="text" name="image_path" id="image_path"><br>
+
+        <input type="file" name="file">
+        <input type="submit" value="Upload">
+    </form>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            <ul>
+            {% for message in messages %}
+                <li>{{ message }}</li>
+            {% endfor %}
+            </ul>
+        {% endif %}
+    {% endwith %}
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="{{ url_for('static', filename='js/bill_of_materials.js') }}"></script>
+</body>
+</html>

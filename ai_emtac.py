@@ -4,7 +4,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from emtacdb_fts import  (QandA,
     ChatSession, Area, EquipmentGroup, Model, AssetNumber, Location, SiteLocation, Position,
     Document, Image, Drawing, Problem, Solution, CompleteDocument, Part, ImageEmbedding, PowerPoint, 
-    PartsPositionAssociation, ImagePositionAssociation, DrawingPositionAssociation,
+    PartsPositionImageAssociation, ImagePositionAssociation, DrawingPositionAssociation,
     CompletedDocumentPositionAssociation, ImageCompletedDocumentAssociation,
     ProblemPositionAssociation, ImageProblemAssociation, CompleteDocumentProblemAssociation,
     ImageSolutionAssociation)
@@ -24,22 +24,28 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.ext.mutable import MutableList
 from sqlalchemy.orm import declarative_base, configure_mappers, relationship, scoped_session, sessionmaker
+from event_listeners import register_event_listeners
 
-# Define the declarative base
-Base = declarative_base()
-RevisionControlBase = declarative_base()
+# Set the Python path to include the current directory
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+# Logging configuration
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 # Initialize database engines
 engine = create_engine(DATABASE_URL)
 revision_control_engine = create_engine(f'sqlite:///{REVISION_CONTROL_DB_PATH}')
 
+# Log SQL queries executed by SQLAlchemy
+@event.listens_for(engine, "before_cursor_execute")
+def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+    logger.debug(f"Executing query: {statement}")
+    logger.debug(f"With parameters: {parameters}")
+
 # Create sessions
 SessionFactory = sessionmaker(bind=engine)
 RevisionControlSessionFactory = sessionmaker(bind=revision_control_engine)
-
-# Logging configuration
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
 
 def create_app():
     app = Flask(__name__)
@@ -51,6 +57,9 @@ def create_app():
     # Register blueprints
     register_blueprints(app)
     
+    # Register event listeners
+    register_event_listeners()
+
     # Define routes
     @app.route('/')
     def index():
