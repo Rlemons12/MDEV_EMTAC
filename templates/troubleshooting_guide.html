@@ -25,6 +25,7 @@
     <a href="#" onclick="showForm('edit-troubleshooting-guide-form')">Edit Troubleshooting Guide Entry</a>
     <a href="#" onclick="showForm('drawing-search-form')">Search Drawings</a>
     <a href="#" onclick="showForm('image-search-form')">Search Images</a>
+    <a href="#upload-image" onclick="showForm('upload-image')">Upload Image</a>
     <a href="/tsg_search_problems" style="color: #39FF14">To Search Troubleshooting Guide</a>
     <a href="/upload_image" style="color: #39FF14;" class="upload-button">To Search and Upload </a>
     <a href="/bill_of_materials"style="color: #39FF14;">To Parts and BOMs</a>
@@ -278,6 +279,8 @@
 <script src="{{ url_for('static', filename='js/get_problem_solution_edit_data.js') }}"></script>
 <script src="{{ url_for('static', filename='js/get_tsg_guide_edit.js')}}" }}"></script>
 <script src="{{ url_for('static', filename='js/comment_pop_up.js')}}"></script>
+<script src="{{ url_for('static', filename='js/upload_image.js') }}"></script>
+<script src="{{ url_for('static', filename='js/image_search.js') }}"></script>
 <script>
 function showForm(formId) {
     // Hide all forms
