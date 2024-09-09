@@ -1,20 +1,120 @@
+import psutil
 from flask import Blueprint, request, jsonify, redirect, url_for
-from emtacdb_fts import create_position, SiteLocation, add_document_to_db, add_docx_to_db, add_text_file_to_db, add_csv_data_to_db, Position, create_position
-from blueprints import DATABASE_DOC,DATABASE_URL
+from emtacdb_fts import (add_docx_to_db,
+    create_position, SiteLocation, extract_text_from_pdf, extract_text_from_txt, 
+    CompleteDocument, Document, split_text_into_chunks, generate_embedding, 
+    store_embedding, CURRENT_EMBEDDING_MODEL, Area, EquipmentGroup, AssetNumber, 
+    Model, Location, ChatSession, Position, Image, Drawing, Problem, Solution, 
+    Part, ImageEmbedding, PowerPoint, PartsPositionImageAssociation, 
+    ImagePositionAssociation, DrawingPositionAssociation, 
+    CompletedDocumentPositionAssociation, ImageCompletedDocumentAssociation, 
+    ProblemPositionAssociation, ImageProblemAssociation, 
+    CompleteDocumentProblemAssociation, ImageSolutionAssociation
+)
+from config import DATABASE_URL, DATABASE_DOC, DATABASE_DIR, TEMPORARY_UPLOAD_FILES, REVISION_CONTROL_DB_PATH
 import os
 from werkzeug.utils import secure_filename
 import pandas as pd
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, scoped_session
+from sqlalchemy import create_engine, text, event
 import logging
+from concurrent.futures import ThreadPoolExecutor
+import threading
+from threading import Lock
+from datetime import datetime
+import fitz
+import time
+import requests
+from emtac_revision_control_db import (
+    VersionInfo, RevisionControlBase, RevisionControlSession, SiteLocationSnapshot, 
+    PositionSnapshot, AreaSnapshot, EquipmentGroupSnapshot, ModelSnapshot, 
+    AssetNumberSnapshot, PartSnapshot, ImageSnapshot, ImageEmbeddingSnapshot, 
+    DrawingSnapshot, DocumentSnapshot, CompleteDocumentSnapshot, ProblemSnapshot, 
+    SolutionSnapshot, DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot, 
+    PartSolutionAssociationSnapshot, DrawingProblemAssociationSnapshot, 
+    DrawingSolutionAssociationSnapshot, ProblemPositionAssociationSnapshot, 
+    CompleteDocumentProblemAssociationSnapshot, CompleteDocumentSolutionAssociationSnapshot, 
+    ImageProblemAssociationSnapshot, ImageSolutionAssociationSnapshot, 
+    ImagePositionAssociationSnapshot, DrawingPositionAssociationSnapshot, 
+    CompletedDocumentPositionAssociationSnapshot, ImageCompletedDocumentAssociationSnapshot, 
+    LocationSnapshot
+)
+from snapshot_utils import (
+    create_sitlocation_snapshot, create_position_snapshot, create_snapshot, 
+    create_area_snapshot, create_equipment_group_snapshot, create_model_snapshot, 
+    create_asset_number_snapshot, create_part_snapshot, create_image_snapshot, 
+    create_image_embedding_snapshot, create_drawing_snapshot, 
+    create_document_snapshot, create_complete_document_snapshot, 
+    create_problem_snapshot, create_solution_snapshot, 
+    create_drawing_part_association_snapshot, create_part_problem_association_snapshot, 
+    create_part_solution_association_snapshot, create_drawing_problem_association_snapshot, 
+    create_drawing_solution_association_snapshot, create_problem_position_association_snapshot, 
+    create_complete_document_problem_association_snapshot, 
+    create_complete_document_solution_association_snapshot, 
+    create_image_problem_association_snapshot, create_image_solution_association_snapshot, 
+    create_image_position_association_snapshot, create_drawing_position_association_snapshot, 
+    create_completed_document_position_association_snapshot, 
+    create_image_completed_document_association_snapshot, 
+    create_parts_position_association_snapshot
+)
+from auditlog import AuditLog, commit_audit_logs, add_audit_log_entry, audit_log_lock
 
-# Database setup (ensure DATABASE_URI is defined in your config)'
-engine = create_engine(DATABASE_URL)
-Session = sessionmaker(bind=engine)
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+# Create logs directory if it doesn't exist
+if not os.path.exists('logs'):
+    os.makedirs('logs')
+
+# Configure logging to write to a file with timestamps
+log_file = f'logs/{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.log'
+file_handler = logging.FileHandler(log_file)
+file_handler.setLevel(logging.INFO)
+file_handler.setFormatter(logging.Formatter('%(asctime)s - %(threadName)s - %(levelname)s - %(message)s'))
+
+# Get the root logger
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+logger.addHandler(file_handler)
+
+# Also add a stream handler for console output
+stream_handler = logging.StreamHandler()
+stream_handler.setLevel(logging.INFO)
+stream_handler.setFormatter(logging.Formatter('%(asctime)s - %(threadName)s - %(levelname)s - %(message)s'))
+logger.addHandler(stream_handler)
+
+# Database setup
+engine = create_engine(
+    DATABASE_URL, 
+    pool_size=10, 
+    max_overflow=20, 
+    connect_args={"check_same_thread": False}
+)
+
+Session = scoped_session(sessionmaker(bind=engine))
+
+# Revision control database configuration
+REVISION_CONTROL_DB_PATH = os.path.join(DATABASE_DIR, 'emtac_revision_control_db.db')
+revision_control_engine = create_engine(
+    f'sqlite:///{REVISION_CONTROL_DB_PATH}',
+    pool_size=10,            # Set a small pool size
+    max_overflow=20,         # Allow up to 10 additional connections
+    connect_args={"check_same_thread": False}  # Needed for SQLite when using threading
+)
+
+RevisionControlBase = declarative_base()
+RevisionControlSession = scoped_session(sessionmaker(bind=revision_control_engine))  # Use distinct name
+revision_control_session = RevisionControlSession()
+
+# Apply PRAGMA settings to SQLite database
+@event.listens_for(engine, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA synchronous = OFF")
+    cursor.execute("PRAGMA journal_mode = MEMORY")
+    cursor.execute("PRAGMA cache_size = -64000")
+    cursor.execute("PRAGMA temp_store = MEMORY")
+    cursor.close()
+
 
 # Create a blueprint for the add_document route
 add_document_bp = Blueprint("add_document_bp", __name__)
@@ -22,116 +122,341 @@ add_document_bp = Blueprint("add_document_bp", __name__)
 # Define the route for adding documents
 @add_document_bp.route("/add_document", methods=["POST"])
 def add_document():
-    # Check if the request contains any files
+    session = Session()  # Create a session at the beginning of the route
+    logger.info("Received a request to add documents")
+
     if "files" not in request.files:
+        logger.error("No files uploaded")
         return jsonify({"message": "No files uploaded"}), 400
 
     files = request.files.getlist("files")
+    logger.info(f"Number of files received: {len(files)}")
 
-    for file in files:
-        # Check if the file is empty
-        if file.filename == "":
-            continue  # Skip empty files
+    # Collect general metadata from the request
+    area = request.form.get("area")
+    equipment_group = request.form.get("equipment_group")
+    model = request.form.get("model")
+    asset_number = request.form.get("asset_number")
+    location = request.form.get("location")
+    site_location_title = request.form.get("site_location")
 
-        try:
-            # Get the title from the request
-            title = request.form.get("title")
-            # If title is not provided, use the filename
-            if not title:
-                filename = secure_filename(file.filename)
-                file_name_without_extension = os.path.splitext(filename)[0]
-                title = file_name_without_extension.replace('_', '')
-
-            # Get other variables from the request
-            area = request.form.get("area")
-            print(f'{area}')
-            equipment_group = request.form.get("equipment_group")
-            print(f'{equipment_group}')
-            model = request.form.get("model")
-            asset_number = request.form.get("asset_number")
-            location = request.form.get("location")
-            site_location_title = request.form.get("site_location")
-
-            # Ensure a secure filename and save to UPLOAD_FOLDER
-            filename = secure_filename(file.filename)
-            file_path = os.path.join(DATABASE_DOC, filename)
-            file.save(file_path)
-
-            # Process the site location
-            site_location = None
+    try:
+        site_location = None
+        with Session() as session:
             if site_location_title:
+                site_location = session.query(SiteLocation).filter_by(title=site_location_title).first()
+                if not site_location:
+                    site_location = SiteLocation(title=site_location_title, room_number="Unknown")
+                    session.add(site_location)
+                    session.commit()
+                logger.info(f"Processed site location: {site_location_title}")
+
+            position_id = create_position(area, equipment_group, model, asset_number, location, site_location.id if site_location else None,session)
+            logger.info(f"Processed position ID: {position_id}")
+
+        cpu_count = os.cpu_count()
+        max_workers = max(1, cpu_count - 2) 
+        logger.info(f"Using {max_workers} workers based on CPU count.")
+
+        num_files = len(files)
+        file_processing_workers = min(num_files, max_workers)
+        remaining_workers = max_workers - file_processing_workers
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = []
+            for file in files:
+                if file.filename == "":
+                    logger.warning("Skipped empty file")
+                    continue
+
+                title = request.form.get("title")
+                if not title:
+                    filename = secure_filename(file.filename)
+                    file_name_without_extension = os.path.splitext(filename)[0]
+                    title = file_name_without_extension.replace('_', ' ')
+
+                filename = secure_filename(file.filename)
+                file_path = os.path.join(DATABASE_DOC, filename)
+                file.save(file_path)
+                logger.info(f"Saved file: {file_path}")
+
+                if file_path.endswith(".docx"):
+                    # Process DOCX files first by converting them to PDF
+                    logger.info(f"Processing DOCX file: {file_path}")
+                    success = add_docx_to_db(title, file_path, position_id)
+                    if not success:
+                        logger.error(f"Failed to process DOCX file: {file_path}")
+                        raise Exception(f"Failed to process DOCX file: {file_path}")
+
                 with Session() as session:
-                    site_location = session.query(SiteLocation).filter_by(title=site_location_title).first()
-                    if not site_location:
-                        site_location = SiteLocation(title=site_location_title, room_number="Unknown")
-                        session.add(site_location)
-                        session.commit()
+                    existing_document = session.query(CompleteDocument).filter_by(title=title).order_by(CompleteDocument.rev.desc()).first()
+                    if existing_document:
+                        new_rev = f"R{int(existing_document.rev[1:]) + 1}"
+                        logger.info(f"Existing document found. Incrementing revision to: {new_rev}")
+                    else:
+                        new_rev = "R0"
+                        logger.info("No existing document found. Starting with revision R0.")
 
-            # Process the position
-            position_id = create_position(area, equipment_group, model, asset_number, location, site_location.id if site_location else None)
+                    # Create and add CompleteDocument
+                    complete_document = CompleteDocument(
+                        title=title,
+                        file_path=os.path.relpath(file_path, DATABASE_DIR),
+                        content=None,  # Text will be added later
+                        rev=new_rev
+                    )
+                    session.add(complete_document)
+                    session.commit()
+                    complete_document_id = complete_document.id
+                    logger.info(f"Created CompleteDocument with ID: {complete_document_id}")
 
-            # Process the file with the associated position
-            added = process_file(title, file_path, position_id)
+                    # Create and add CompletedDocumentPositionAssociation
+                    completed_document_position_association = CompletedDocumentPositionAssociation(
+                        complete_document_id=complete_document_id,
+                        position_id=position_id
+                    )
+                    session.add(completed_document_position_association)
+                    session.commit()
+                    completed_document_position_association_id = completed_document_position_association.id
+                    logger.info(f"Created CompletedDocumentPositionAssociation with ID: {completed_document_position_association_id}")
 
-        except Exception as e:
-            logger.error(f"Error processing file {file.filename}: {e}")
-            return jsonify({"message": str(e)}), 500
+                # Submit the file processing task to the executor
+                futures.append(executor.submit(
+                    add_document_to_db_multithread,
+                    title,
+                    file_path,
+                    position_id,
+                    new_rev,
+                    remaining_workers,
+                    complete_document_id,
+                    completed_document_position_association_id
+                ))
 
-    # After successfully processing the files, redirect to the 'upload_success' endpoint
+            for future in futures:
+                result = future.result()
+                if not result:
+                    logger.error("One of the file processing tasks failed")
+                    add_audit_log_entry(
+                        table_name="complete_document",
+                        operation="ERROR",
+                        record_id=None,
+                        new_data={"error": "One of the file processing tasks failed"},
+                        commit_to_db=False
+                    )
+                    raise Exception("One of the file processing tasks failed")
+
+        # At the end, save audit log entries to the database
+        commit_audit_logs()
+
+    except Exception as e:
+        logger.error(f"Error processing files: {e}")
+        return jsonify({"message": str(e)}), 500
+
+    logger.info("Successfully processed all files")
     return redirect(url_for('upload_success'))
 
-def process_file(title, file_path, position_id):
-    logger.info(f"Processing file: {file_path}")
+def add_document_to_db_multithread(title, file_path, position_id, revision, remaining_workers, complete_document_id, completed_document_position_association_id):
+    thread_id = threading.get_ident()
+    logger.info(f"[Thread {thread_id}] Started processing file: {file_path} with revision: {revision}")
 
-    # Extract the file name from the file path
-    file_name = os.path.basename(file_path)
-
-    logger.info(f"File name: {file_name}")
-
-    # Determine the file type (pdf, docx, txt, csv, xlsx) and process accordingly
-    if file_path.endswith(".pdf"):
-        logger.info("Detected PDF file.")
-        added = add_document_to_db(title, file_path, position_id)
-    elif file_path.endswith(".docx"):
-        logger.info("Detected Word document file.")
-        added = add_docx_to_db(title, file_path, position_id)
-    elif file_path.endswith(".txt"):
-        logger.info("Detected TXT file.")
-        added = add_text_file_to_db(title, file_path, position_id)
-    elif file_path.endswith(".csv"):
-        logger.info("Detected CSV file.")
-        added = add_csv_data_to_db(file_path, position_id)
-    elif file_path.endswith(".xlsx"):
-        logger.info("Detected Excel file.")
-        # Convert Excel to CSV
-        csv_file_path = os.path.splitext(file_path)[0] + ".csv"  # New CSV file path
-        if excel_to_csv(file_path, csv_file_path):
-            logger.info("Converted Excel to CSV successfully.")
-            added = add_csv_data_to_db(csv_file_path, position_id)
-        else:
-            logger.error("Failed to convert Excel to CSV.")
-            added = False
-    else:
-        logger.error("Unsupported file format.")
-        added = False
-
-    if added:
-        logger.info(f"Document added successfully: {file_path}")
-        # Now, move the uploaded file to the DATABASE_DOC directory
-        destination_path = os.path.join(DATABASE_DOC, file_name)
-        os.rename(file_path, destination_path)
-        logger.info(f"File moved to DATABASE_DOC directory: {destination_path}")
-    else:
-        logger.error(f"Failed to add the document: {file_path}")
-        logger.debug(f"Position ID: {position_id}")
-
-def excel_to_csv(excel_file_path, csv_file_path):
     try:
-        # Read Excel file
-        df = pd.read_excel(excel_file_path)
-        # Save as CSV
-        df.to_csv(csv_file_path, index=False)
-        return True
+        extracted_text = None
+
+        with Session() as session:
+            logger.info(f"[Thread {thread_id}] Session started for file: {file_path}")
+
+            # First, extract the text from the document
+            if file_path.endswith(".pdf"):
+                logger.info(f"[Thread {thread_id}] Extracting text from PDF...")
+                extracted_text = extract_text_from_pdf(file_path)
+                logger.info(f"[Thread {thread_id}] Text extracted from PDF.")
+            elif file_path.endswith(".txt"):
+                logger.info(f"[Thread {thread_id}] Extracting text from TXT...")
+                extracted_text = extract_text_from_txt(file_path)
+                logger.info(f"[Thread {thread_id}] Text extracted from TXT.")
+            else:
+                logger.error(f"[Thread {thread_id}] Unsupported file format: {file_path}")
+                return None, False
+
+            # Only proceed if the text was successfully extracted
+            if extracted_text:
+                # Check if an existing CompleteDocument with the same title and revision exists
+                existing_document = session.query(CompleteDocument).filter_by(title=title, rev=revision).first()
+
+                if existing_document:
+                    logger.info(f"[Thread {thread_id}] Found existing document: ID {existing_document.id} with title '{title}' and revision '{revision}'")
+                    # Update the existing document with the extracted content
+                    existing_document.content = extracted_text
+                    session.commit()
+                    complete_document_id = existing_document.id
+                    logger.info(f"[Thread {thread_id}] Updated existing document with content for ID: {complete_document_id}")
+                else:
+                    # Create a new CompleteDocument with the extracted content
+                    complete_document = CompleteDocument(
+                        title=title,
+                        file_path=os.path.relpath(file_path, DATABASE_DIR),
+                        content=extracted_text,
+                        rev=revision  # Use the passed revision number
+                    )
+                    session.add(complete_document)
+                    session.commit()
+                    complete_document_id = complete_document.id
+                    logger.info(f"[Thread {thread_id}] Added new complete document: {title}, ID: {complete_document_id}, Rev: {revision}")
+
+                # Create or update the CompletedDocumentPositionAssociation
+                completed_document_position_association = session.query(CompletedDocumentPositionAssociation).filter_by(
+                    complete_document_id=complete_document_id, position_id=position_id).first()
+
+                if not completed_document_position_association:
+                    completed_document_position_association = CompletedDocumentPositionAssociation(
+                        complete_document_id=complete_document_id,
+                        position_id=position_id
+                    )
+                    session.add(completed_document_position_association)
+                    session.commit()
+                    completed_document_position_association_id = completed_document_position_association.id
+                    logger.info(f"[Thread {thread_id}] Added CompletedDocumentPositionAssociation for complete document ID: {complete_document_id}, position ID: {position_id}")
+
+                # Add the document to the FTS table
+                insert_query_fts = "INSERT INTO documents_fts (title, content) VALUES (:title, :content)"
+                session.execute(text(insert_query_fts), {"title": title, "content": extracted_text})
+                session.commit()
+                logger.info(f"[Thread {thread_id}] Added document to the FTS table.")
+
+                # Now that the IDs are created, extract images
+                if file_path.endswith(".pdf"):
+                    logger.info(f"[Thread {thread_id}] Extracting images from PDF...")
+                    extract_images_from_pdf(file_path, complete_document_id, completed_document_position_association_id, position_id)
+                    logger.info(f"[Thread {thread_id}] Images extracted from PDF.")
+            else:
+                logger.error(f"[Thread {thread_id}] No text extracted from the document.")
+                return None, False
+
+            # Process document chunks and generate embeddings
+            text_chunks = split_text_into_chunks(extracted_text)
+            for i, chunk in enumerate(text_chunks):
+                padded_chunk = ' '.join(split_text_into_chunks(chunk, pad_token="", max_words=150))
+                document = Document(
+                    name=f"{title} - Chunk {i+1}",
+                    file_path=os.path.relpath(file_path, DATABASE_DIR),
+                    content=padded_chunk,
+                    complete_document_id=complete_document_id,
+                    rev=revision  # Same revision number for document chunk
+                )
+                session.add(document)
+                session.commit()
+                logger.info(f"[Thread {thread_id}] Added chunk {i+1} of document: {title}, Rev: {document.rev}")
+
+                if CURRENT_EMBEDDING_MODEL != "NoEmbeddingModel":
+                    embeddings = generate_embedding(padded_chunk, CURRENT_EMBEDDING_MODEL)
+                    if embeddings is None:
+                        logger.warning(f"[Thread {thread_id}] Failed to generate embedding for chunk {i+1} of document: {title}")
+                    else:
+                        store_embedding(document.id, embeddings, CURRENT_EMBEDDING_MODEL)
+                        logger.info(f"[Thread {thread_id}] Generated and stored embedding for chunk {i+1} of document: {title}")
+                else:
+                    logger.info(f"[Thread {thread_id}] No embedding generated for chunk {i+1} of document: {title} because no model is selected.")
+
+            # Querying the version_info table
+            try:
+                with RevisionControlSession() as revision_session:
+                    logger.info(f"[Thread {thread_id}] Querying version_info table in revision control database.")
+                    version_info = revision_session.query(VersionInfo).order_by(VersionInfo.id.desc()).first()
+                    if version_info:
+                        logger.info(f"[Thread {thread_id}] Latest version_info: {version_info.version_number}")
+                    else:
+                        logger.warning(f"[Thread {thread_id}] No version_info found.")
+            except Exception as e:
+                logger.error(f"[Thread {thread_id}] Error querying version_info table: {e}")
+
+            logger.info(f"[Thread {thread_id}] Successfully processed file: {file_path}")
+            return complete_document_id, True
     except Exception as e:
-        logger.error(f"Failed to convert Excel to CSV: {e}")
-        return False
+        logger.error(f"[Thread {thread_id}] An error occurred in add_document_to_db_multithread: {e}")
+        logger.error(f"[Thread {thread_id}] Attempted Processed file: {file_path}")
+        return None, False
+
+def extract_images_from_pdf(file_path, complete_document_id, completed_document_position_association_id, position_id=None):
+    session = Session()
+
+    try:
+        logger.info(f"extract_images_from_pdf called with arguments:")
+        logger.info(f"file_path: {file_path}")
+        logger.info(f"complete_document_id: {complete_document_id}")
+        logger.info(f"completed_document_position_association_id: {completed_document_position_association_id}")
+        logger.info(f"position_id: {position_id}")
+        logger.info(f"Session info: {session}")
+
+        logger.info(f"Opening PDF file from: {file_path}")
+        doc = fitz.open(file_path)
+        total_pages = len(doc)
+        logger.info(f"Total pages in the PDF: {total_pages}")
+        extracted_images = []
+
+        file_name = os.path.splitext(os.path.basename(file_path))[0].replace("_", " ")
+
+        if not os.path.exists(TEMPORARY_UPLOAD_FILES):
+            os.makedirs(TEMPORARY_UPLOAD_FILES)
+
+        for page_num in range(total_pages):
+            page = doc[page_num]
+            img_list = page.get_images(full=True)
+
+            logger.info(f"Processing page {page_num + 1}/{total_pages} with {len(img_list)} images.")
+
+            for img_index, img in enumerate(img_list):
+                xref = img[0]
+                base_image = doc.extract_image(xref)
+                image_bytes = base_image["image"]
+
+                temp_path = os.path.join(TEMPORARY_UPLOAD_FILES, f"{file_name}_page{page_num + 1}_image{img_index + 1}.jpg")
+
+                with open(temp_path, 'wb') as temp_file:
+                    temp_file.write(image_bytes)
+
+                logger.info(f"Saved image to {temp_path}")
+
+                try:
+                    response = requests.post('http://localhost:5000/image/add_image',
+                                             files={'image': open(temp_path, 'rb')},
+                                             data={'complete_document_id': complete_document_id,
+                                                   'completed_document_position_association_id': completed_document_position_association_id,
+                                                   'position_id': position_id})
+
+                    if response.status_code == 200:
+                        logger.info(f"Image processed successfully for page {page_num + 1}, image {img_index + 1}")
+                    else:
+                        logger.error(f"Failed to process image for page {page_num + 1}, image {img_index + 1}: {response.text}")
+                        logger.error(f"HTTP Status Code: {response.status_code}")
+                except Exception as e:
+                    logger.error(f"Exception occurred while processing image for page {page_num + 1}, image {img_index + 1}: {e}")
+
+                extracted_images.append(temp_path)
+
+        logger.info(f"extract_images_from_pdf completed. Extracted images: {extracted_images}")
+
+        return extracted_images
+
+    except Exception as e:
+        logger.error(f"An error occurred in extract_images_from_pdf: {e}")
+        session.rollback()  # Rollback the session in case of any errors
+        return []
+
+    finally:
+        session.close()  # Ensure the session is closed at the end
+
+
+def calculate_optimal_workers(memory_threshold=0.5, max_workers=None):
+    """Calculate optimal number of workers based on available memory."""
+    available_memory = psutil.virtual_memory().available
+    memory_per_thread = 100 * 1024 * 1024  # Example: assume each thread uses 100MB
+    max_memory_workers = available_memory // memory_per_thread
+
+    if max_workers is None:
+        max_workers = os.cpu_count()
+
+    # Limit workers based on memory and CPU availability
+    optimal_workers = min(max_memory_workers, max_workers)
+
+    # Apply a memory threshold to avoid using all available memory
+    return max(1, int(optimal_workers * memory_threshold))
+

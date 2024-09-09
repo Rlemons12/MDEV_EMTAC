@@ -2,30 +2,28 @@ import os
 import logging
 from flask import Blueprint, request, flash, jsonify, render_template
 from emtacdb_fts import Image, ImagePositionAssociation, Position, create_thumbnail
-from blueprints import DATABASE_URL, DATABASE_PATH_IMAGES_FOLDER
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, joinedload
+from blueprints import DATABASE_PATH_IMAGES_FOLDER
+from sqlalchemy.orm import joinedload
 from sqlalchemy.exc import SQLAlchemyError
 from PIL import Image as PILImage
 from io import BytesIO
 import base64
+from config_env import DatabaseConfig
 
 # Set up logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)  # Change to DEBUG for more verbose logs
 logger = logging.getLogger(__name__)
 
-# Create a SQLAlchemy engine using the DATABASE_URL from your config
-engine = create_engine(DATABASE_URL)
-
-# Create a session factory
-Session = sessionmaker(bind=engine)
+# Initialize the DatabaseConfig instance
+db_config = DatabaseConfig()
 
 # Blueprint setup
 tsg_search_images_bp = Blueprint('tsg_search_images_bp', __name__)
 
 @tsg_search_images_bp.route('/')
 def search_images():
-    session = Session()
+    # Create a session from the main database
+    session = db_config.get_main_session()
 
     # Retrieve parameters from the request
     description = request.args.get('description', '')
@@ -37,7 +35,9 @@ def search_images():
     location_id = request.args.get('tsg_searchimage_location', None)
 
     # Logging parameters
-    logger.debug(f"Search parameters - Description: {description}, Title: {title}, Area ID: {area_id}, Equipment Group ID: {equipment_group_id}, Model ID: {model_id}, Asset Number ID: {asset_number_id}, Location ID: {location_id}")
+    logger.debug(f"Search parameters - Description: {description}, Title: {title}, "
+                 f"Area ID: {area_id}, Equipment Group ID: {equipment_group_id}, Model ID: {model_id}, "
+                 f"Asset Number ID: {asset_number_id}, Location ID: {location_id}")
 
     page = request.args.get('page', 1, type=int)  # Default to page 1 if not provided
     per_page = 5  # Number of images per page
@@ -87,21 +87,20 @@ def search_images():
 
         if not images:
             flash("No images found", "error")
-            logger.info("No images found with the provided criteria")
+            logger.info("No images found with the provided criteria.")
             return jsonify(thumbnails=[])
 
         # Extract necessary attributes for each image and construct a list of dictionaries
         thumbnails = []
         for image in images:
             try:
+                # Construct full image path before any exception handling
+                image_path = os.path.join(DATABASE_PATH_IMAGES_FOLDER, image.file_path)
+                logger.debug(f"Constructed image path: {image_path}")
+
                 # Log DATABASE_PATH_IMAGES_FOLDER and image.file_path
                 logger.debug(f"DATABASE_PATH_IMAGES_FOLDER: {DATABASE_PATH_IMAGES_FOLDER}")
                 logger.debug(f"image.file_path: {image.file_path}")
-
-                # Strip 'DB_IMAGES' prefix from the file path if it exists
-                relative_file_path = image.file_path.replace('DB_IMAGES', '').lstrip(os.sep)
-                image_path = os.path.join(DATABASE_PATH_IMAGES_FOLDER, relative_file_path)
-                logger.debug(f"Constructed image path: {image_path}")
 
                 if not os.path.exists(image_path):
                     logger.error(f"File not found: {image_path}")
@@ -112,17 +111,18 @@ def search_images():
                     thumbnail = create_thumbnail(img)
 
                     if thumbnail is None:
-                        logger.error("Error creating thumbnail: Thumbnail is None")
+                        logger.error("Error creating thumbnail: Thumbnail is None.")
                         continue
 
                     thumbnail_bytes_io = BytesIO()
                     thumbnail.save(thumbnail_bytes_io, format='JPEG')
                     thumbnail_src = f"data:image/jpeg;base64,{base64.b64encode(thumbnail_bytes_io.getvalue()).decode()}"
 
-                    # Construct dictionary with image data including thumbnail source
+                    # Construct dictionary with image data including title, description, and thumbnail source
                     image_info = {
                         'id': image.id,
                         'title': image.title,
+                        'description': image.description,  # Add description to the response
                         'src': f'/serve_image/{image.id}',  # Corrected line
                         'thumbnail_src': thumbnail_src
                     }
@@ -134,21 +134,21 @@ def search_images():
         session.close()
 
         # Log the successful retrieval of images
-        logger.info("Successfully retrieved %d images", len(thumbnails))
+        logger.info(f"Successfully retrieved {len(thumbnails)} images.")
 
         # Return thumbnails as JSON
         return jsonify(thumbnails=thumbnails)
 
     except SQLAlchemyError as e:
         # Handle any SQLAlchemy errors
-        logger.error("An error occurred while retrieving images: %s", e)
+        logger.error(f"An SQLAlchemy error occurred while retrieving images: {e}")
         flash("An error occurred while retrieving images", "error")
         session.close()
         return jsonify(thumbnails=[])
 
     except Exception as e:
         # Handle any other exceptions
-        logger.error("An unexpected error occurred: %s", e)
+        logger.error(f"An unexpected error occurred: {e}")
         flash("An unexpected error occurred while retrieving images", "error")
         session.close()
         return jsonify(thumbnails=[])

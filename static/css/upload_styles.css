@@ -4,27 +4,37 @@ body {
     background-repeat: no-repeat;
     display: flex;
     color: black;
+    margin: 0;
+    height: 100vh;
 }
 
 .sidebar {
     width: 250px;
     height: 100vh;
-    background-color: rgba(0, 0, 0, 0.432);
+    background-color: Black;
     padding: 20px;
     box-sizing: border-box;
     transition: width 0.3s;
     overflow-x: hidden;
+    flex-shrink: 0; /* Prevent shrinking */
 }
 
 .sidebar.collapsed {
     width: 10px;
 }
 
-.sidebar h2 {
-    color: black;
+.sidebar h3 {
+    color: white;
     text-align: center;
 }
-
+.sidebar h2 {
+    color: Yellow;
+    text-align: center;
+}
+.sidebar h1 {
+    color: Yellow;
+    text-align: center;
+}
 .sidebar a {
     color: yellow;
     text-decoration: none;
@@ -52,28 +62,55 @@ body {
     margin: 0 auto 20px;
 }
 
+.content-wrapper {
+    display: flex;
+    flex: 1;
+    height: 100vh;
+    width: calc(100% - 250px); /* Adjust to take the remaining width */
+    margin-left: 250px; /* Offset by the width of the sidebar */
+}
+
+.sidebar.collapsed + .content-wrapper {
+    margin-left: 10px; /* Adjust when the sidebar is collapsed */
+    width: calc(100% - 10px); /* Adjust width when sidebar is collapsed */
+}
+
 .content {
+    display: flex;
     flex: 1;
     padding: 20px;
-    display: flex;
     gap: 20px;
 }
 
-.form-container {
-    width: 50%;
+.form-container,
+.results-container {
+    flex: 1;
     padding: 20px;
-    background-color: rgba(0, 0, 0, 0.432);
+    background-color: rgba(0, 0, 0, 255);
     border-radius: 10px;
+    overflow-y: auto;
 }
 
-.form-container h2 {
+.form-container h2, .results-container h2 {
     color: black;
 }
+.results-container a {
+    color: white; /* Changes the link color to white */
+    text-decoration: none; /* Optional: removes the underline */
+}
 
+.results-container a:hover {
+    color: #cccccc; /* Optional: changes the link color to a light gray on hover */
+    text-decoration: underline; /* Optional: adds an underline on hover */
+}
+
+.form-container h2, .results-container h2 {
+    color: white; /* Changes the heading color to white */
+}
 .form-container input,
 .form-container select,
 .form-container textarea {
-    width: 75%;
+    width: 100%;
     padding: 10px;
     margin: 10px 0;
     border-radius: 5px;
@@ -110,12 +147,10 @@ body {
 }
 
 .results-container {
-    width: 100%;
-    padding: 20px;
-    background-color: rgba(0, 0, 0, 0.432);
-    border-radius: 10px;
-    overflow-y: auto;
+    overflow-y: auto; /* Allow vertical scrolling */
     max-height: calc(100vh - 60px); /* Adjust height to fit within viewport */
+    display: flex;
+    flex-direction: column; /* Ensure content flows vertically */
 }
 
 .results-container h2 {
@@ -131,21 +166,22 @@ body {
     height: auto;
     margin: 10px;
     cursor: pointer;
-    float: left;
 }
 
-.image-container,
+.image-results-container,
 .document-container {
-    margin-top: 20px;
-    overflow: hidden;
+    display: flex;
+    flex-direction: column; /* Ensure images are displayed in a column */
+    gap: 20px;
 }
 
 .image-details,
 .document-details {
-    margin-left: 180px;
+    display: flex;
+    flex-direction: column;
     margin-bottom: 20px;
     padding-bottom: 10px;
-    border-bottom: 1px solid #ccc;
+    border-bottom: 1px solid #cccccc;
 }
 
 .image-details h2,
@@ -161,10 +197,13 @@ body {
 .pagination a {
     margin: 0 5px;
     text-decoration: none;
-    color: #007bff;
+    color: Yellow;
 }
 
 .pagination strong {
     margin: 0 5px;
-    color: #000;
+    color: yellow;
+}
+h1 {
+    color: yellow;
 }

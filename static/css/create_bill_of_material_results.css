@@ -1,0 +1,101 @@
+/* Add background image */
+body {
+    background-image: url("/static/background images/loadup.webp");
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    background-position: center;
+    font-family: Arial, sans-serif;
+    color: #333;
+}
+
+.container {
+    max-width: 1800px;
+    margin: 0 auto;
+    padding: 20px;
+    background-color: #ffffff; /* Set background to solid white, no transparency */
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.header-info {
+    padding: 10px 0;
+    text-align: center;
+    margin-bottom: 20px;
+    background-color: #f2f2f2; /* Optional: Adds a background color to the header section */
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+h1 {
+    margin: 0;
+    font-size: 1.5em;
+    color: #333;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+
+th, td {
+    padding: 10px;
+    text-align: left;
+    border: 1px solid #dddddd;
+}
+
+th {
+    background-color: #f2f2f2;
+}
+
+/* Adjust column widths */
+th:nth-child(1), td:nth-child(1) { width: 15%; } /* Part Number */
+th:nth-child(2), td:nth-child(2) { width: 20%; } /* Description */
+th:nth-child(3), td:nth-child(3) { width: 15%; } /* OEM Manufacturer */
+th:nth-child(4), td:nth-child(4) { width: 12%; } /* Model */
+th:nth-child(5), td:nth-child(5) { width: 8%; }  /* Class Flag */
+th:nth-child(6), td:nth-child(6) { width: 5%; }  /* UD6 */
+th:nth-child(7), td:nth-child(7) { width: 8%; }  /* Type */
+th:nth-child(8), td:nth-child(8) { width: 20%; } /* Notes */
+th:nth-child(9), td:nth-child(9) { width: 20%; } /* Documentation */
+th:nth-child(10), td:nth-child(10) { width: 15%; } /* Image */
+
+.thumbnail {
+    max-width: 100px;
+    max-height: 100px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 5px;
+    object-fit: cover;
+}
+
+.pagination {
+    margin-top: 20px;
+}
+
+.pagination a {
+    margin-right: 10px;
+    text-decoration: none;
+    color: #007BFF;
+}
+
+.pagination a:hover {
+    text-decoration: underline;
+}
+
+.pagination .next {
+    float: right;
+}
+
+.back-to-form {
+    margin-top: 20px;
+    display: block;
+    text-align: center;
+    color: #007BFF;
+    text-decoration: none;
+}
+
+.back-to-form:hover {
+    text-decoration: underline;
+}

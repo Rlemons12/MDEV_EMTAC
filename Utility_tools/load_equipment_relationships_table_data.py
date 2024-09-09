@@ -3,18 +3,69 @@ from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker, scoped_session
 import sys
 import os
-# Ensure the parent directory is in the Python path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from config import BASE_DIR, DATABASE_URL, DB_LOADSHEET, DB_LOADSHEETS_BACKUP
-from emtacdb_fts import Area, EquipmentGroup, Model, AssetNumber, Location, Base
-import os
-import shutil
 from datetime import datetime
 
-# Create SQLAlchemy engine
+from config import BASE_DIR, DATABASE_URL, DB_LOADSHEET, DB_LOADSHEETS_BACKUP, REVISION_CONTROL_DB_PATH
+from emtacdb_fts import Area, EquipmentGroup, Model, AssetNumber, Location, Base
+from auditlog import AuditLog, log_delete, log_insert, log_update
+from emtac_revision_control_db import (
+    VersionInfo, revision_control_engine, RevisionControlSession, SiteLocationSnapshot, PositionSnapshot, AreaSnapshot, EquipmentGroupSnapshot, ModelSnapshot,
+    AssetNumberSnapshot, PartSnapshot, ImageSnapshot, ImageEmbeddingSnapshot, DrawingSnapshot,
+    DocumentSnapshot, CompleteDocumentSnapshot, ProblemSnapshot, SolutionSnapshot,
+    DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot, PartSolutionAssociationSnapshot,
+    PartsPositionImageAssociationSnapshot, DrawingProblemAssociationSnapshot, DrawingSolutionAssociationSnapshot,
+    ProblemPositionAssociationSnapshot, CompleteDocumentProblemAssociationSnapshot,
+    CompleteDocumentSolutionAssociationSnapshot, ImageProblemAssociationSnapshot,
+    ImageSolutionAssociationSnapshot, ImagePositionAssociationSnapshot, DrawingPositionAssociationSnapshot,
+    CompletedDocumentPositionAssociationSnapshot, ImageCompletedDocumentAssociationSnapshot
+)
+from snapshot_utils import (
+    get_latest_version_info, add_version_info,
+    create_sitlocation_snapshot, create_position_snapshot, create_area_snapshot, create_equipment_group_snapshot,
+    create_model_snapshot, create_asset_number_snapshot, create_part_snapshot, create_image_snapshot,
+    create_image_embedding_snapshot, create_drawing_snapshot, create_document_snapshot,
+    create_complete_document_snapshot, create_problem_snapshot, create_solution_snapshot,
+    create_drawing_part_association_snapshot, create_part_problem_association_snapshot,
+    create_part_solution_association_snapshot, create_drawing_problem_association_snapshot,
+    create_drawing_solution_association_snapshot, create_problem_position_association_snapshot,
+    create_complete_document_problem_association_snapshot, create_complete_document_solution_association_snapshot,
+    create_image_problem_association_snapshot, create_image_solution_association_snapshot,
+    create_image_position_association_snapshot, create_drawing_position_association_snapshot,
+    create_completed_document_position_association_snapshot, create_image_completed_document_association_snapshot,
+    create_parts_position_association_snapshot
+)
+
+# Initialize logging
+import logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# Create SQLAlchemy engine for main database
 engine = create_engine(DATABASE_URL)
-Base = Base  # No need to redefine Base here
-Session = scoped_session(sessionmaker(bind=engine))  # Use scoped_session here
+Session = scoped_session(sessionmaker(bind=engine))
+session = Session()
+
+# Attach event listeners for logging and snapshots
+from sqlalchemy.event import listen
+listen(Area, 'after_insert', log_insert, retval=False)
+listen(Area, 'after_update', log_update, retval=False)
+listen(Area, 'after_delete', log_delete, retval=False)
+listen(EquipmentGroup, 'after_insert', log_insert, retval=False)
+listen(EquipmentGroup, 'after_update', log_update, retval=False)
+listen(EquipmentGroup, 'after_delete', log_delete, retval=False)
+listen(Model, 'after_insert', log_insert, retval=False)
+listen(Model, 'after_update', log_update, retval=False)
+listen(Model, 'after_delete', log_delete, retval=False)
+listen(AssetNumber, 'after_insert', log_insert, retval=False)
+listen(AssetNumber, 'after_update', log_update, retval=False)
+listen(AssetNumber, 'after_delete', log_delete, retval=False)
+listen(Location, 'after_insert', log_insert, retval=False)
+listen(Location, 'after_update', log_update, retval=False)
+listen(Location, 'after_delete', log_delete, retval=False)
+
+# Create SQLAlchemy engine for revision control session
+revision_control_engine = create_engine(f'sqlite:///{REVISION_CONTROL_DB_PATH}')
+RevisionControlSession = scoped_session(sessionmaker(bind=revision_control_engine))
 
 def delete_duplicates(session, model, attribute):
     # Find duplicate records based on the specified attribute
@@ -106,7 +157,7 @@ def upload_data_from_excel(file_path, engine):
     try:
         # Backup the database before making any changes
         backup_database_relationships(session)
-		
+        
         # Insert or update data into 'Area' table
         for _, row in df_area.iterrows():
             # Strip leading and trailing spaces from the area name
@@ -193,6 +244,24 @@ def upload_data_from_excel(file_path, engine):
         # Commit the session
         session.commit()
         print("Data uploaded successfully!")
+
+        # Add version info and create snapshots
+        with revision_control_session() as rev_session:
+            new_version = VersionInfo(version_number=1, description="Initial version")
+            rev_session.add(new_version)
+            rev_session.commit()
+
+            for area in session.query(Area).all():
+                create_snapshot(area, rev_session, AreaSnapshot)
+            for equipment_group in session.query(EquipmentGroup).all():
+                create_snapshot(equipment_group, rev_session, EquipmentGroupSnapshot)
+            for model in session.query(Model).all():
+                create_snapshot(model, rev_session, ModelSnapshot)
+            for asset_number in session.query(AssetNumber).all():
+                create_snapshot(asset_number, rev_session, AssetNumberSnapshot)
+            for location in session.query(Location).all():
+                create_snapshot(location, rev_session, LocationSnapshot)
+
     except Exception as e:
         print("An error occurred:", e)
         session.rollback()

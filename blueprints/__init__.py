@@ -1,19 +1,16 @@
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from emtacdb_fts import (AIModelConfig, ImageEmbedding, ImageModelConfig, ChatSession, User, engine, search_documents_fts, search_images_by_keyword, find_keyword_and_extract_detail,
     load_keywords_to_db, perform_action_based_on_keyword, load_keywords_and_patterns,
     find_most_relevant_document, create_session, update_session, get_session, QandA,
     ChatSession, Area, EquipmentGroup, Model, AssetNumber, Location, SiteLocation, Position,
     Document, Image, Drawing, Problem, Solution, CompleteDocument, PowerPoint, 
-    PartsPositionAssociation, ImagePositionAssociation, DrawingPositionAssociation,
     CompletedDocumentPositionAssociation, ImageCompletedDocumentAssociation,
     ProblemPositionAssociation, ImageProblemAssociation, CompleteDocumentProblemAssociation,
     ImageSolutionAssociation, UserLevel, User, AIModelConfig, load_config_from_db, load_image_model_config_from_db)
 from config import (TEMPORARY_FILES, OPENAI_API_KEY, DATABASE_PATH_IMAGES_FOLDER,
                     DATABASE_DOC, DATABASE_URL, DATABASE_DIR, PPT2PDF_PPT_FILES_PROCESS, 
                     PPT2PDF_PDF_FILES_PROCESS,UPLOAD_FOLDER)
-from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, configure_mappers, relationship, scoped_session, sessionmaker
 import log_config
 from plugins import load_ai_model, load_embedding_model
@@ -121,8 +118,6 @@ def register_blueprints(app):
     app.register_blueprint(admin_bp, url_prefix='/')
     app.register_blueprint(image_compare_bp, url_prefix='/')
     app.register_blueprint(folder_image_embedding_bp, url_prefix='/folder_image_embedding')
-
-
 app = Flask(__name__)
 app.secret_key = '1234'
 

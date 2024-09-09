@@ -13,6 +13,7 @@
         <a href="/">Return to Main Page</a>
         <a href="#set-models">Set Models</a>
         <a href="#users">Users</a>
+        <a href="#comments">Comments</a> <!-- Link to comments section -->
     </div>
 
     <div class="content">
@@ -76,6 +77,39 @@
                                 <button type="submit">Change Level</button>
                             </form>
                         </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Comments Section -->
+        <div class="table-container">
+            <h2 id="comments">Comments</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Employee ID</th>
+                        <th>Comment</th>
+                        <th>Page URL</th>
+                        <th>Image</th>
+                        <th>Timestamp</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for comment in comments %}
+                    <tr>
+                        <td>{{ comment.user.employee_id if comment.user else 'Anonymous' }}</td>
+                        <td>{{ comment.comment }}</td>
+                        <td><a href="{{ comment.page_url }}" target="_blank">{{ comment.page_url }}</a></td>
+                        <td>
+                            {% if comment.screenshot_path %}
+                            <a href="{{ url_for('static', filename=comment.screenshot_path) }}" target="_blank">View Image</a>
+                            {% else %}
+                            No Image
+                            {% endif %}
+                        </td>
+                        <td>{{ comment.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>

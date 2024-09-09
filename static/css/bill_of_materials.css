@@ -1,0 +1,115 @@
+body {
+    background-image: url("/static/background images/abstractfractal.jpg");
+    background-size: cover;
+    background-repeat: no-repeat;
+    display: flex;
+    color: black;
+    margin: 0;
+    height: 100vh;
+}
+
+.sidebar {
+    width: 250px;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.432);
+    padding: 20px;
+    box-sizing: border-box;
+    transition: width 0.3s;
+    overflow-x: hidden;
+    flex-shrink: 0; /* Prevent shrinking */
+}
+
+.sidebar.collapsed {
+    width: 10px;
+}
+
+.sidebar h2 {
+    color: black;
+    text-align: center;
+}
+
+.sidebar a {
+    color: yellow;
+    text-decoration: none;
+    display: block;
+    padding: 10px;
+    transition: padding-left 0.3s;
+}
+
+.sidebar.collapsed a {
+    padding-left: 10px;
+}
+
+.sidebar a:hover {
+    background-color: rgba(255, 255, 255, 0);
+}
+
+.toggle-btn {
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    padding: 10px 20px;
+    display: block;
+    margin: 0 auto 20px;
+}
+
+.content-wrapper {
+    display: flex;
+    flex: 1;
+    height: 100vh;
+    width: calc(100% - 250px); /* Adjust to take the remaining width */
+    margin-left: 250px; /* Offset by the width of the sidebar */
+}
+
+.sidebar.collapsed + .content-wrapper {
+    margin-left: 10px; /* Adjust when the sidebar is collapsed */
+    width: calc(100% - 10px); /* Adjust width when sidebar is collapsed */
+}
+
+.content {
+    display: flex;
+    flex: 1;
+    padding: 20px;
+    gap: 20px;
+}
+
+.form-container {
+    flex: 1;
+    padding: 20px;
+    background-color: rgba(0, 0, 0, 0.432);
+    border-radius: 10px;
+    overflow-y: auto;
+}
+
+.form-container h2 {
+    color: black;
+}
+
+.form-container input,
+.form-container select,
+.form-container textarea {
+    width: 100%;
+    padding: 10px;
+    margin: 10px 0;
+    border-radius: 5px;
+    border: none;
+    box-sizing: border-box;
+    color: black;
+}
+
+.form-container input[type="submit"] {
+    background-color: #4CAF50;
+    color: white;
+    cursor: pointer;
+}
+
+.form-container input[type="submit"]:hover {
+    background-color: #45a049;
+}
+
+.return-link {
+    color: yellow;
+    text-decoration: none;
+}

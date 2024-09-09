@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <title>Database Entry</title>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/redbanner.css') }}">
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/upload_styles.css') }}">
     <style>
-        /* Add basic styles for the drop zone */
         .drop-zone {
             border: 2px dashed #ccc;
             border-radius: 10px;
@@ -18,37 +18,83 @@
             border-color: white;
             color: yellow;
         }
+        .image-details {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .thumbnail {
+            max-width: 100px;
+            max-height: 100px;
+            margin-right: 20px;
+        }
     </style>
 </head>
 <body>
+    <div class="banner">
+        THIS IS FOR REFERENCE ONLY. ALL INFORMATION SHOULD BE VERIFIED WITH CURRENT SOP'S
+        <a href="#" id="commentPopupLink" style="color: #39FF14;">Leave a Comment</a>
+    </div>
+    
     <div class="sidebar" id="sidebar">
         <button class="toggle-btn" onclick="toggleSidebar()">Toggle Sidebar</button>
-        <h2>Forms</h2>
-        <a href="#upload-image" onclick="showForm('upload-image')">Upload Image</a>
-        <a href="#upload-document" onclick="showForm('upload-document')">Upload Document</a>
-        <a href="#upload-powerpoint" onclick="showForm('upload-powerpoint')">Upload PowerPoint</a>
-        <a href="#batch-upload" onclick="showForm('batch-upload')">Batch Upload Documents</a>
-        <a href="#search-powerpoints" onclick="showForm('search-powerpoints')">Search PowerPoints</a>
-        <a href="#search-images" onclick="showForm('search-images')">Search Images</a>
+         <h3><!-- Display the current user level -->
+            <p>User Level: {{ session['user_level'] }}</p></h3>
+        <h1> Search </h1>
+        <h2 style="color: Yellow;">Welcome {{ session['first_name'] }}! How can I assist you?</h2>
+        {% if session['user_level'] == 'ADMIN' or session['user_level'] == 'LEVEL_III' %}
+            <a href="/" style="color:  #FFFFFF;">Return to Main Page</a>
+        {%  endif %}
         <a href="#search-documents" onclick="showForm('search-documents')">Search Documents</a>
-        <a href="/">Return to Main Page</a>
+        <a href="#search-images" onclick="showForm('search-images')">Search Images</a>
+        <a href="#compare-images" onclick="showForm('compare-images')">Compare Images</a>
+        {% if session['user_level'] == 'ADMIN' or session['user_level'] == 'LEVEL_III' %}
+            <a href="#search-powerpoints" onclick="showForm('search-powerpoints')">Search PowerPoints</a>
+            <a href="#upload-image" onclick="showForm('upload-image')">Upload Image</a>
+            <a href="#upload-document" onclick="showForm('upload-document')">Upload Document</a>
+            <a href="#upload-powerpoint" onclick="showForm('upload-powerpoint')">Upload PowerPoint</a>
+            <a href="#batch-upload" onclick="showForm('batch-upload')">Batch Upload Documents</a>
+        {% endif %}
+        <a href="/tsg_search_problems"style="color: #39FF14;">To Search Troubleshooting</a>
+        <a href="/bill_of_materials" style="color: #39FF14;">To Parts and BOMs</a>
+        {% if session['user_level'] == 'ADMIN' or session['user_level'] == 'LEVEL_III' %}
+        <a href="/troubleshooting_guide" style="color: #39FF14;">To Update Troubleshooting Guide</a>
+        {% endif %}
+        <a href="/logout" style="color:  #FF5F1F;" class="logout-button">Logout</a>
     </div>
+    <!-- Popup Modal Structure -->
+    <div id="commentPopup" style="display: none;">
+        <form id="commentForm">
+            <h2>Leave a Comment</h2>
+            <!-- Instructions for filling out the form -->
+            <p>Instructions: You can write your comment, paste an image, or upload a file.</p>
 
-    <div class="content" id="content">
-        <!-- Add this block to render flash messages -->
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }}">
-                        {{ message }}
-                    </div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-        
+            <!-- Comment box where users can paste an image or type text -->
+            <textarea name="comment" id="comment" placeholder="Write your comment here..." required></textarea><br>
+
+            <!-- Hidden field to store base64 image data -->
+            <input type="hidden" id="imageData" name="imageData">
+
+            <!-- Display an indicator or preview if an image was pasted -->
+            <div id="pastedImageFeedback" style="display: none; color: green;">
+                Image snippet successfully added!
+            </div>
+            <img id="pastedImagePreview" src="" alt="Pasted Image Preview" style="display:none; max-width: 100px; margin-top: 10px;" />
+
+            <!-- Option to upload a file -->
+            <label for="fileUpload">Or upload an image:</label><br>
+            <input type="file" id="fileUpload" name="screenshot" accept="image/*" /><br><br>
+
+            <button type="submit">Send</button>
+            <button type="button" id="closePopup">Close</button>
+        </form>
+    </div>
+    <
+
+
         <div id="upload-image" class="form-container">
             <h2>Upload Image</h2>
-            <form action="/image/upload_image" method="post" enctype="multipart/form-data">
+            <form id="upload-image-form" action="/image/upload_image" method="post" enctype="multipart/form-data">
                 <input type="text" name="title" placeholder="Image Title"><br>
                 <textarea name="description" placeholder="Image Description"></textarea><br>
                 <select name="area" id="image_areaDropdown"></select><br>
@@ -60,7 +106,7 @@
                 <input type="submit" value="Upload Image">
             </form>
         </div>
-    
+
         <div id="upload-image-folder" class="form-container">
             <h2>Upload Image Folder</h2>
             <form id="folder-upload-form" action="{{ url_for('folder_image_embedding_bp.process_folder') }}" method="post" enctype="multipart/form-data">
@@ -73,17 +119,17 @@
         <div id="upload-document" class="form-container">
             <h2>Upload Document</h2>
             <form action="/documents/add_document" method="post" enctype="multipart/form-data">
-                <label for="title" style="color: black;">Document Title:</label>
+                <label for="title" style="color: Yellow;">Document Title:</label>
                 <input type="text" name="title" id="title" placeholder="Document Title"><br>
-                <label for="areaDropdown" style="color: black;">Area:</label>
+                <label for="areaDropdown" style="color: Yellow;">Area:</label>
                 <select name="area" id="areaDropdown"></select><br>
-                <label for="equipmentGroupDropdown" style="color: black;">Equipment Group:</label>
+                <label for="equipmentGroupDropdown" style="color: Yellow;">Equipment Group:</label>
                 <select name="equipment_group" id="equipmentGroupDropdown"></select><br>
-                <label for="modelDropdown" style="color: black;">Model:</label>
+                <label for="modelDropdown" style="color: Yellow;">Model:</label>
                 <select name="model" id="modelDropdown"></select><br>
-                <label for="assetNumberDropdown" style="color: black;">Asset Number:</label>
+                <label for="assetNumberDropdown" style="color: Yellow;">Asset Number:</label>
                 <select name="asset_number" id="assetNumberDropdown"></select><br>
-                <label for="locationDropdown" style="color: black;">Location:</label>
+                <label for="locationDropdown" style="color: Yellow;">Location:</label>
                 <select name="location" id="locationDropdown"></select><br>
                 <input type="file" name="files" id="files" multiple><br>
                 <input type="submit" value="Upload Document">
@@ -94,15 +140,15 @@
             <h2>Upload PowerPoint</h2>
             <form action="/powerpoints/upload_powerpoint" method="post" enctype="multipart/form-data">
                 <input type="text" name="title" placeholder="PowerPoint Title"><br>
-                <label for="area" style="color: black;">Area:</label><br>
+                <label for="area" style="color: Yellow;">Area:</label><br>
                 <select name="area" id="uploadpowerpoint_areaDropdown"></select><br>
-                <label for="equipment_group" style="color: black;">Equipment Group:</label><br>
+                <label for="equipment_group" style="color: Yellow;">Equipment Group:</label><br>
                 <select name="equipment_group" id="uploadpowerpoint_equipmentGroupDropdown"></select><br>
-                <label for="model" style="color: black;">Model:</label><br>
+                <label for="model" style="color: Yellow;">Model:</label><br>
                 <select name="model" id="uploadpowerpoint_modelDropdown"></select><br>
-                <label for="asset_number" style="color: black;">Asset Number:</label><br>
+                <label for="asset_number" style="color: Yellow;">Asset Number:</label><br>
                 <select name="asset_number" id="uploadpowerpoint_assetNumberDropdown"></select><br>
-                <label for="location" style="color: black;">Location:</label><br>
+                <label for="location" style="color: Yellow;">Location:</label><br>
                 <select name="location" id="uploadpowerpoint_locationDropdown"></select><br>
                 <input type="text" name="description" placeholder="PowerPoint Description"><br>
                 <input type="file" name="powerpoint" accept=".pptx" required><br>
@@ -113,19 +159,19 @@
         <div id="batch-upload" class="form-container">
             <h2>Batch Upload Documents</h2>
             <form action="/batch_processing" method="post" enctype="multipart/form-data">
-                <label for="batchTitle" style="color: black;">Document Title:</label>
+                <label for="batchTitle" style="color: Yellow;">Document Title:</label>
                 <input type="text" name="batchTitle" id="batchTitle" placeholder="Document Title"><br>
-                <label for="batchAreaDropdown" style="color: black;">Area:</label>
+                <label for="batchAreaDropdown" style="color: Yellow;">Area:</label>
                 <select name="batchArea" id="batchAreaDropdown"></select><br>
-                <label for="batchEquipmentGroupDropdown" style="color: black;">Equipment Group:</label>
+                <label for="batchEquipmentGroupDropdown" style="color: Yellow;">Equipment Group:</label>
                 <select name="batchEquipmentGroup" id="batchEquipmentGroupDropdown"></select><br>
-                <label for="batchModelDropdown" style="color: black;">Model:</label>
+                <label for="batchModelDropdown" style="color: Yellow;">Model:</label>
                 <select name="batchModel" id="batchModelDropdown"></select><br>
-                <label for="batchAssetNumberDropdown" style="color: black;">Asset Number:</label>
+                <label for="batchAssetNumberDropdown" style="color: Yellow;">Asset Number:</label>
                 <select name="batchAssetNumber" id="batchAssetNumberDropdown"></select><br>
-                <label for="batchLocationDropdown" style="color: black;">Location:</label>
+                <label for="batchLocationDropdown" style="color: Yellow;">Location:</label>
                 <select name="batchLocation" id="batchLocationDropdown"></select><br>
-                <label for="batchFolderPath" style="color: black;">Folder Path:</label>
+                <label for="batchFolderPath" style="color: Yellow;">Folder Path:</label>
                 <input type="text" name="batchFolderPath" id="batchFolderPath" placeholder="Absolute Folder Path"><br>
                 <input type="file" name="files" id="files" multiple><br>
                 <input type="submit" value="Process Folder">
@@ -135,80 +181,84 @@
         <div id="search-powerpoints" class="form-container">
             <h2>Search PowerPoints</h2>
             <form id="search-powerpoints-form">
-                <label for="description" style="color: black;">Description:</label><br>
+                <label for="description" style="color: Yellow;">Description:</label><br>
                 <input type="text" name="description" id="search_powerpoints_description" placeholder="Search by Description"><br>
-                <label for="title" style="color: black;">Title:</label><br>
+                <label for="title" style="color: Yellow;">Title:</label><br>
                 <input type="text" name="title" id="search_powerpoints_title" placeholder="Search by Title"><br>
-                <label for="area" style="color: black;">Area:</label><br>
+                <label for="area" style="color: Yellow;">Area:</label><br>
                 <select name="searchpowerpoint_area" id="searchpowerpoint_areaDropdown"></select><br>
-                <label for="equipment_group" style="color: black;">Equipment Group:</label><br>
+                <label for="equipment_group" style="color: Yellow;">Equipment Group:</label><br>
                 <select name="searchpowerpoint_equipment_group" id="searchpowerpoint_equipmentGroupDropdown"></select><br>
-                <label for="model" style="color: black;">Model:</label><br>
+                <label for="model" style="color: Yellow;">Model:</label><br>
                 <select name="searchpowerpoint_model" id="searchpowerpoint_modelDropdown"></select><br>
-                <label for="asset_number" style="color: black;">Asset Number:</label><br>
+                <label for="asset_number" style="color: Yellow;">Asset Number:</label><br>
                 <select name="searchpowerpoint_asset_number" id="searchpower_assetNumberDropdown"></select><br>
-                <label for="location" style="color: black;">Location:</label><br>
+                <label for="location" style="color: Yellow;">Location:</label><br>
                 <select name="searchpowerpoint_location" id="searchpowerpoint_locationDropdown"></select><br>
                 <input type="submit" value="Search">
             </form>
         </div>
 
         <div id="search-images" class="form-container">
-            <h2>Search and Compare Images</h2>
+            <h2>Search Images</h2>
             <form id="search-images-form">
-                <label for="description" style="color: black;">Description:</label><br>
+                <label for="description" style="color: Yellow;">Description:</label><br>
                 <input type="text" name="description" id="search_images_description" placeholder="Search by Description"><br>
-                <label for="title" style="color: black;">Title:</label><br>
+                <label for="title" style="color: Yellow;">Title:</label><br>
                 <input type="text" name="title" id="search_images_title" placeholder="Search by Title"><br>
-                <label for="area" style="color: black;">Area:</label><br>
+                <label for="area" style="color: Yellow;">Area:</label><br>
                 <select name="searchimage_area" id="searchimage_areaDropdown"></select><br>
-                <label for="equipment_group" style="color: black;">Equipment Group:</label><br>
+                <label for="equipment_group" style="color: Yellow;">Equipment Group:</label><br>
                 <select name="searchimage_equipment_group" id="searchimage_equipmentGroupDropdown"></select><br>
-                <label for="model" style="color: black;">Model:</label><br>
+                <label for="model" style="color: Yellow;">Model:</label><br>
                 <select name="searchimage_model" id="searchimage_modelDropdown"></select><br>
-                <label for="asset_number" style="color: black;">Asset Number:</label><br>
+                <label for="asset_number" style="color: Yellow;">Asset Number:</label><br>
                 <select name="searchimage_asset_number" id="searchimage_assetNumberDropdown"></select><br>
-                <label for="location" style="color: black;">Location:</label><br>
+                <label for="location" style="color: Yellow;">Location:</label><br>
                 <select name="searchimage_location" id="searchimage_locationDropdown"></select><br>
                 <input type="submit" value="Search">
             </form>
-            <h2>Upload and Compare Image</h2>
-            <form id="upload-form" action="{{ url_for('image_compare_bp.upload_and_compare') }}" method="post" enctype="multipart/form-data">
-                <div id="drop-zone" class="drop-zone">
-                    Drag & Drop your image here or click to upload
-                </div>
-                <input type="file" id="file-input" name="query_image" accept="image/*" style="display: none;">
-                <input type="hidden" name="model_name" value="clip"> <!-- Add the model_name here -->
-                <button type="submit" style="display: none;">Upload and Compare</button>
-            </form>
         </div>
+
+        <div class="content" id="content">
+            <div id="compare-images" class="form-container">
+                <h2>Upload and Compare Image</h2>
+                <form id="upload-compare-form" action="/upload_and_compare" method="post" enctype="multipart/form-data">
+                    <div id="drop-zone" class="drop-zone">
+                        Drag & Drop your image here or click to upload
+                    </div>
+                    <input type="file" id="file-input" name="query_image" accept="image/*" style="display: none;">
+                    <input type="hidden" name="model_name" value="clip">
+                    <button type="submit" style="display: none;">Upload and Compare</button>
+                </form>
+            </div>
 
         <div id="search-documents" class="form-container">
             <h2>Search Documents</h2>
             <form id="search-documents-form">
-                <label for="title" style="color: black;">Title:</label><br>
+                <label for="title" style="color: Yellow;">Title:</label><br>
                 <input type="text" name="title" id="search_documents_title" placeholder="Title"><br>
-                <label for="area" style="color: black;">Area:</label><br>
+                <label for="area" style="color: Yellow;">Area:</label><br>
                 <select name="searchdocument_area" id="searchdocument_areaDropdown"></select><br>
-                <label for="equipment_group" style="color: black;">Equipment Group:</label><br>
+                <label for="equipment_group" style="color: Yellow;">Equipment Group:</label><br>
                 <select name="searchdocument_equipmentgroup" id="searchdocument_equipmentGroupDropdown"></select><br>
-                <label for="model" style="color: black;">Model:</label><br>
+                <label for="model" style="color: Yellow;">Model:</label><br>
                 <select name="searchdocument_model" id="searchdocument_modelDropdown"></select><br>
-                <label for="asset_number" style="color: black;">Asset Number:</label><br>
+                <label for="asset_number" style="color: Yellow;">Asset Number:</label><br>
                 <select name="searchdocument_asset_number" id="searchdocument_assetNumberDropdown"></select><br>
-                <label for="location" style="color: black;">Location:</label><br>
+                <label for="location" style="color: Yellow;">Location:</label><br>
                 <select name="searchdocument_location" id="searchdocument_locationDropdown"></select><br>
                 <input type="submit" value="Search">
             </form>
         </div>
-        
+
         <div id="results" class="results-container">
             <h2>Search Results</h2>
             <ul id="documents-list"></ul>
-            <ul id="image-results" class="image-container"></ul>
+            <ul id="image-results" class="image-results-container"></ul>
+            <ul id="image-compare-results" class="image-compare-results-container"></ul>
         </div>
-    </div>
-    
+
     <!-- Include jQuery using a CDN -->
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
 
@@ -217,38 +267,50 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
 
     <!-- Include your custom JavaScript file -->
-    <script src="{{ url_for('static', filename='batch_upload.js') }}"></script>
-    <script src="{{ url_for('static', filename='upload_image.js') }}"></script>
-    <script src="{{ url_for('static', filename='image_upload.js') }}"></script>
-    <script src="{{ url_for('static', filename='upload_powerpoint.js') }}"></script>
-    <script src="{{ url_for('static', filename='document_search.js') }}"></script>
-    <script src="{{ url_for('static', filename='image_search.js') }}"></script>
-    <script src="{{ url_for('static', filename='powerpoint_search.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/drag_and_drop.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/upload_image_folder.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/batch_upload.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/upload_image.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/image_upload.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/upload_powerpoint.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/document_search.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/image_search.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/powerpoint_search.js') }}"></script>
+    <!--<script src="{{ url_for('static', filename='drag_and_drop.js') }}"></script>-->
+    <!--<script src="{{ url_for('static', filename='upload_image_folder.js') }}"></script>-->
+    <script src="{{ url_for('static', filename='js/image_compare.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/comment_pop_up.js')}}"></script>
+
     <script>
         function toggleSidebar() {
             var sidebar = document.getElementById('sidebar');
+            console.log('Toggling sidebar. Current state:', sidebar.classList.contains('collapsed') ? 'collapsed' : 'expanded');
             sidebar.classList.toggle('collapsed');
         }
 
         function showForm(formId) {
+            console.log('Showing form:', formId);
             var forms = document.getElementsByClassName('form-container');
             for (var i = 0; i < forms.length; i++) {
                 forms[i].style.display = 'none';
             }
             document.getElementById(formId).style.display = 'block';
+            clearPreviousResults(); // Clear previous results when showing a form
             document.getElementById('results').style.display = 'none'; // Hide results container when showing a form
         }
 
-        function showResults(content) {
+        function showResults() {
+            console.log('Showing results.');
             document.getElementById('results').style.display = 'block';
-            document.getElementById('documents-list').innerHTML = content;
-            document.getElementById('image-results').innerHTML = ''; // Clear image results
+        }
+
+        function clearPreviousResults() {
+            document.getElementById('documents-list').innerHTML = ''; // Clear document results
+            document.getElementById('image-results').innerHTML = ''; // Clear image search results
+            document.getElementById('image-compare-results').innerHTML = ''; // Clear previous comparison results
         }
 
         // Initially hide all forms and results
         document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM fully loaded and parsed.');
             var forms = document.getElementsByClassName('form-container');
             for (var i = 0; i < forms.length; i++) {
                 forms[i].style.display = 'none';
@@ -259,14 +321,19 @@
         // Handle search form submissions
         document.getElementById('search-documents-form').addEventListener('submit', function(event) {
             event.preventDefault();
+            console.log('Submitting search documents form.');
             var formData = new FormData(this);
             var params = new URLSearchParams(formData);
             fetch('/search_documents?' + params.toString())
                 .then(response => response.json())
                 .then(data => {
+                    clearPreviousResults(); // Clear previous results before showing new ones
                     if (data.error) {
-                        showResults(`<p>${data.error}</p>`);
+                        console.log('Error from server:', data.error);
+                        showResults();
+                        document.getElementById('documents-list').innerHTML = `<p>${data.error}</p>`;
                     } else {
+                        console.log('Rendering document results.');
                         renderDocumentResults(data);
                     }
                 });
@@ -277,28 +344,34 @@
             data.documents.forEach(document => {
                 documentsList += `<li><a href="search_documents/view_document/${document.id}" target="_blank">${document.title}</a></li>`;
             });
-            showResults(documentsList);
+            console.log('Document results prepared.');
+            document.getElementById('documents-list').innerHTML = documentsList;
+            showResults();
         }
 
         document.getElementById('search-images-form').addEventListener('submit', function(event) {
             event.preventDefault();
+            console.log('Submitting search images form.');
             var formData = new FormData(this);
             var params = new URLSearchParams(formData);
             fetch('/search_images?' + params.toString())
                 .then(response => response.json())
                 .then(data => {
+                    clearPreviousResults(); // Clear previous results before showing new ones
                     if (data.error) {
-                        document.getElementById('results').style.display = 'block';
+                        console.log('Error from server:', data.error);
+                        showResults();
                         document.getElementById('documents-list').innerHTML = `<p>${data.error}</p>`;
-                        document.getElementById('image-results').innerHTML = ''; // Clear document results
+                        document.getElementById('image-results').innerHTML = ''; // Clear image results
                     } else {
+                        console.log('Rendering image results.');
                         renderImageResults(data);
                     }
                 });
         });
 
         function renderImageResults(data) {
-            var imagesList = '';
+            let imagesList = '';
             data.images.forEach(image => {
                 imagesList += `<div class="image-details">
                                 <a href="/serve_image/${image.id}" target="_blank">
@@ -308,13 +381,61 @@
                                     <h2>${image.title}</h2>
                                     <p>${image.description}</p>
                                 </div>
+                                <div style="clear: both;"></div>`;
+            });
+            console.log('Image results prepared.');
+            document.getElementById('image-results').innerHTML = imagesList;
+            showResults();
+        }
+
+        // Handle compare image form submission
+        document.getElementById('upload-compare-form').addEventListener('submit', function(event) {
+            event.preventDefault();
+            console.log('Submitting image compare form.');
+            const formData = new FormData(this);
+            fetch('/upload_and_compare', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                clearPreviousResults(); // Clear previous results before showing new ones
+                if (data.error) {
+                    document.getElementById('documents-list').innerHTML = `<p>${data.error}</p>`;
+                    showResults();
+                } else {
+                    renderComparisonResults(data.image_similarity_search);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('documents-list').innerHTML = `<p>Error occurred: ${error}</p>`;
+                showResults();
+            });
+        });
+
+        function renderComparisonResults(results) {
+            clearPreviousResults(); // Ensure previous results are cleared before rendering new ones
+            let imagesList = '';
+            results.forEach(image => {
+                console.log('Rendering result for image:', image);
+                imagesList += `<div class="image-details">
+                                <a href="/uploads/${image.file_path}" target="_blank">
+                                    <img class="thumbnail" src="/uploads/${image.file_path}" alt="${image.title}">
+                                </a>
+                                <div class="description">
+                                    <h2>${image.title}</h2>
+                                    <p>${image.description}</p>
+                                    <p>Similarity: ${image.similarity.toFixed(2)}</p>
+                                </div>
                                 <div style="clear: both;"></div>
                               </div>`;
             });
-            document.getElementById('results').style.display = 'block';
-            document.getElementById('image-results').innerHTML = imagesList;
-            document.getElementById('documents-list').innerHTML = ''; // Clear document results
+            console.log('Comparison results prepared.');
+            document.getElementById('image-compare-results').innerHTML = imagesList;
+            showResults();
         }
     </script>
+
 </body>
 </html>

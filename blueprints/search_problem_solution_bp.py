@@ -3,7 +3,7 @@ from emtacdb_fts import (
     ImageProblemAssociation, ImageSolutionAssociation, CompleteDocument, get_total_images_count, create_thumbnail, 
     Image, serve_image, Problem, Solution, Document, Position, ProblemPositionAssociation, SiteLocation, CompleteDocumentProblemAssociation,
     Area, EquipmentGroup, Model, AssetNumber, Location, BillOfMaterial, Part, Drawing, DrawingProblemAssociation, DrawingSolutionAssociation,
-    PartProblemAssociation, PartSolutionAssociation
+    PartProblemAssociation, PartSolutionAssociation, PartsPositionImageAssociation
 )
 from blueprints import DATABASE_URL
 from sqlalchemy import create_engine
@@ -186,10 +186,14 @@ def search_problem_solution():
 
             # Query and add parts associated with the position
             if position:
-                bill_of_materials = session.query(BillOfMaterial).filter_by(position_id=position.id).all()
-                logger.info(f"Bill of materials for position {position.id}: {bill_of_materials}")
-                for bom in bill_of_materials:
-                    part = session.query(Part).get(bom.part_id)
+                # Query PartsPositionImageAssociation by position_id
+                part_position_images = session.query(PartsPositionImageAssociation).filter_by(
+                    position_id=position.id).all()
+                logger.info(f"Parts and images for position {position.id}: {part_position_images}")
+
+                for part_pos_image in part_position_images:
+                    # Query the Part table for the matching part_id
+                    part = session.query(Part).get(part_pos_image.part_id)
                     if part:
                         part_info = {
                             'id': part.id,
@@ -197,20 +201,30 @@ def search_problem_solution():
                             'name': part.name,
                             'images': []
                         }
-                        if bom.image:
-                            image_info = {
-                                'id': bom.image.id,
-                                'title': bom.image.title,
-                                'description': bom.image.description
-                            }
-                            part_info['images'].append(image_info)
+
+                        # Query the Image table for the matching image_id
+                        if part_pos_image.image_id:
+                            image = session.query(Image).get(part_pos_image.image_id)
+                            if image:
+                                image_info = {
+                                    'id': image.id,
+                                    'title': image.title,
+                                    'description': image.description
+                                }
+                                part_info['images'].append(image_info)
+
+                        # Append the part information to the result
                         problem_info['parts'].append(part_info)
                         all_parts.append(part_info)
 
+                # Logging the parts information
+                logger.info(f"Parts and images associated with position {position.id}: {problem_info['parts']}")
+
             # Retrieve associated documents using the CompleteDocument model
-            documents = session.query(CompleteDocument).join(CompleteDocumentProblemAssociation).filter(CompleteDocumentProblemAssociation.problem_id == problem.id).all()
+            documents = session.query(CompleteDocument).join(CompleteDocumentProblemAssociation).filter(
+                CompleteDocumentProblemAssociation.problem_id == problem.id).all()
             logger.info(f"Documents for problem {problem.id}: {documents}")
-            
+
             # Add associated documents
             serialized_documents = []
             for document in documents:
