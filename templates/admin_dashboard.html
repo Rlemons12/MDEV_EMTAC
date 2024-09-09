@@ -1,22 +1,25 @@
-<!doctype html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard</title>
+{% extends "base.html" %}
+
+{% block title %}
+    Admin Dashboard
+{% endblock %}
+
+{% block extra_head %}
+    <!-- Additional styles specific to admin dashboard if needed -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/admin_dashboard.css') }}">
-</head>
-<body>
-    <div class="sidebar" id="sidebar">
-        <button class="toggle-btn" onclick="toggleSidebar()">Toggle Sidebar</button>
-        <h2>Menu</h2>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bass.css')}}">
+{% endblock %}
+
+{% block content %}
+    <!-- Admin Dashboard Content -->
+     <div class="sidebar" id="sidebar">
         <a href="/">Return to Main Page</a>
         <a href="#set-models">Set Models</a>
         <a href="#users">Users</a>
         <a href="#comments">Comments</a> <!-- Link to comments section -->
     </div>
-
     <div class="content">
+        <!-- Set Models Form -->
         <div class="form-container">
             <h2 id="set-models">Set Models</h2>
             <form action="{{ url_for('admin_bp.set_models') }}" method="post">
@@ -46,6 +49,7 @@
             </form>
         </div>
 
+        <!-- Users Table -->
         <div class="table-container">
             <h2 id="users">Users</h2>
             <table>
@@ -116,12 +120,11 @@
             </table>
         </div>
     </div>
+{% endblock %}
 
-    <script>
-        function toggleSidebar() {
-            var sidebar = document.getElementById("sidebar");
-            sidebar.classList.toggle("collapsed");
-        }
-    </script>
-</body>
-</html>
+{% block extra_scripts %}
+    <!-- Additional scripts specific to admin dashboard if needed -->
+
+    <script src="{{ url_for('static', filename='js/base_sidebar.js') }}"></script>
+
+{% endblock %}

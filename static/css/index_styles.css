@@ -1,3 +1,4 @@
+/* Index Page Specific Background and Layout */
 body {
     background-image: url("/static/background images/abstractfractal.jpg");
     background-repeat: no-repeat;
@@ -13,6 +14,7 @@ body {
     padding-top: 60px; /* Adjust based on the banner height */
 }
 
+/* Main Container for Index Page */
 .main-container {
     display: flex;
     flex-direction: row;
@@ -22,74 +24,13 @@ body {
     width: 100%;
 }
 
-.sidebar {
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.8);
-    overflow-x: hidden;
-    transition: 0.5s;
-    position: fixed;
-    top: 60px; /* Adjusted to be below the banner */
-    left: 0;
-    padding-top: 60px; /* Ensure the content starts below the banner */
-    width: 250px; /* Set the width of the sidebar */
-    font-size: 16px; /* Smaller font size for the sidebar */
-    color: yellow; /* Change text color to yellow */
-}
-
-.sidebar a,
-.sidebar button,
-.sidebar select {
-    padding: 10px 15px;
-    text-decoration: none;
-    color: inherit; /* Inherit color from sidebar */
-    display: block;
-    transition: 0.3s;
-    background: none;
-    border: none;
-    text-align: left;
-    cursor: pointer;
-    font-size: inherit; /* Ensure consistent font size */
-}
-
-.sidebar a:hover,
-.sidebar button:hover,
-.sidebar select:hover {
-    color: yellow; /* Keep yellow color on hover */
-}
-
-.sidebar .close-btn {
-    position: absolute;
-    top: 0;
-    right: 25px;
-    font-size: 36px;
-    margin-left: 50px;
-}
-
-#sidebarCollapse {
-    font-size: 30px;
-    cursor: pointer;
-    color: white;
-    position: fixed;
-    top: 70px; /* Adjusted to be below the banner */
-    left: 10px;
-    z-index: 1001; /* Ensure it stays above other content but below the banner */
-}
-
+/* Content Area */
 .content {
-    margin-left: 250px; /* Same width as the sidebar */
-    transition: margin-left 0.5s;
     padding: 16px;
+    transition: margin-left 0.5s;
 }
 
-.main-container.collapsed .content {
-    margin-left: 0;
-}
-
-.main-container.collapsed .sidebar {
-    width: 0;
-    padding-top: 0;
-}
-
+/* Additional CSS for the answer section */
 .answer-section {
     background-color: black;
     padding: 15px;
@@ -153,22 +94,6 @@ body {
     margin: 5px; /* Add some spacing between thumbnails */
 }
 
-.upload-button {
-    color: yellow; /* Change text color to yellow */
-}
-
-.logout-button {
-    color: white;
-    text-decoration: none;
-    display: block;
-    text-align: left;
-    font-size: inherit; /* Ensure consistent font size */
-}
-
-.logout-button:hover {
-    color: yellow;
-}
-
 /* Style for the rating selection and submit button */
 .rating-section {
     margin-top: 10px; /* Add space above the rating selection */
@@ -204,18 +129,3 @@ body {
     font-weight: bold;
     margin: 0; /* Remove default margin */
 }
-
-/* Red banner CSS
-.banner {
-    width: 100%;
-    background-color: red; /* Solid red background */
-    /*color: white;  White text color */
-    /*text-align: center;
-    padding: 10px 0; /* Vertical padding */
-   /* position: fixed; /* Fixed position at the top */
-   /* top: 0;
-    left: 0;
-    z-index: 1002; /* Ensure it stays on top */
-  /*  font-weight: bold; /* Bold text */
-
-*/
