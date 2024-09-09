@@ -46,24 +46,30 @@ document.addEventListener('DOMContentLoaded', function () {
         fileInput.files = files;
     }
 
+    function clearPreviousResults() {
+        document.getElementById('image-results').innerHTML = ''; // Clear image search results
+        document.getElementById('image-compare-results').innerHTML = ''; // Clear previous comparison results
+    }
+
     function handleUpload() {
         const formData = new FormData(uploadForm);
         fetch('/upload_and_compare', {
             method: 'POST',
             body: formData
         })
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    showResults(`<p>${data.error}</p>`);
-                } else {
-                    renderComparisonResults(data.image_similarity_search);
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showResults(`<p>Error occurred: ${error}</p>`);
-            });
+        .then(response => response.json())
+        .then(data => {
+            clearPreviousResults(); // Clear previous results before showing new ones
+            if (data.error) {
+                showResults(`<p>${data.error}</p>`);
+            } else {
+                renderComparisonResults(data.image_similarity_search);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showResults(`<p>Error occurred: ${error}</p>`);
+        });
     }
 
     function showResults(content) {
@@ -71,11 +77,6 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('results').style.display = 'block';
         document.getElementById('documents-list').innerHTML = content;
         clearPreviousResults();
-    }
-
-    function clearPreviousResults() {
-        document.getElementById('image-results').innerHTML = ''; // Clear image search results
-        document.getElementById('image-compare-results').innerHTML = ''; // Clear previous comparison results
     }
 
     function renderComparisonResults(results) {
