@@ -8,12 +8,10 @@ import time
 import logging
 import comtypes.client
 import win32com.client
-
 from datetime import datetime
 from io import BytesIO
 from io import BytesIO as BytesIOImage
 from pathlib import Path
-
 import docx
 from docx2pdf import convert
 import fitz
@@ -32,7 +30,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from flask import current_app, send_file, url_for
 from sqlalchemy.orm import configure_mappers
 from sqlalchemy import (DateTime, Date,Column, ForeignKey, Integer, JSON, LargeBinary, Enum as SqlEnum,
-                        String, Table, and_, create_engine, func, or_, text, Float, Text, UniqueConstraint)
+                        String, Table, and_, create_engine, func, or_, text, Float, Text, UniqueConstraint,event)
 from enum import Enum as PyEnum  # Import Enum and alias it as PyEnum
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.declarative import declarative_base
@@ -40,7 +38,32 @@ from sqlalchemy.ext.mutable import MutableList
 from sqlalchemy.orm import declarative_base, configure_mappers, relationship, scoped_session, sessionmaker
 from config import (CURRENT_EMBEDDING_MODEL, OPENAI_API_KEY, BASE_DIR, COPY_FILES, DATABASE_DIR, DATABASE_DOC,
                     DATABASE_PATH, DATABASE_URL, KEYWORDS_FILE_PATH, TEMPORARY_FILES,
-                    TEMPORARY_UPLOAD_FILES, UPLOAD_FOLDER,DATABASE_PATH_IMAGES_FOLDER)
+                    TEMPORARY_UPLOAD_FILES, UPLOAD_FOLDER,DATABASE_PATH_IMAGES_FOLDER, REVISION_CONTROL_DB_PATH)
+
+from emtac_revision_control_db import (
+    VersionInfo, RevisionControlBase, revision_control_engine, LocationSnapshot, 
+    SiteLocationSnapshot, PositionSnapshot, AreaSnapshot, EquipmentGroupSnapshot, ModelSnapshot, 
+    AssetNumberSnapshot, PartSnapshot, ImageSnapshot, ImageEmbeddingSnapshot, DrawingSnapshot, 
+    DocumentSnapshot, CompleteDocumentSnapshot, ProblemSnapshot, SolutionSnapshot, 
+    DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot, PartSolutionAssociationSnapshot, 
+    PartsPositionAssociationSnapshot, DrawingProblemAssociationSnapshot, DrawingSolutionAssociationSnapshot, 
+    ProblemPositionAssociationSnapshot, CompleteDocumentProblemAssociationSnapshot, 
+    CompleteDocumentSolutionAssociationSnapshot, ImageProblemAssociationSnapshot, 
+    ImageSolutionAssociationSnapshot, ImagePositionAssociationSnapshot, DrawingPositionAssociationSnapshot, 
+    CompletedDocumentPositionAssociationSnapshot, ImageCompletedDocumentAssociationSnapshot 
+)
+from auditlog import log_insert, log_update, log_delete  # Ensure this is the correct module for these functions
+from snapshot_utils import (
+    create_sitlocation_snapshot, create_position_snapshot,
+    create_area_snapshot, create_equipment_group_snapshot, create_model_snapshot, create_asset_number_snapshot,
+    create_part_snapshot, create_image_snapshot, create_image_embedding_snapshot, create_drawing_snapshot,
+    create_document_snapshot, create_complete_document_snapshot, create_problem_snapshot, create_solution_snapshot,
+    create_drawing_part_association_snapshot, create_part_problem_association_snapshot, create_part_solution_association_snapshot,
+    create_drawing_problem_association_snapshot, create_drawing_solution_association_snapshot, create_problem_position_association_snapshot,
+    create_complete_document_problem_association_snapshot, create_complete_document_solution_association_snapshot,
+    create_image_problem_association_snapshot, create_image_solution_association_snapshot, create_image_position_association_snapshot,
+    create_drawing_position_association_snapshot, create_completed_document_position_association_snapshot, create_image_completed_document_association_snapshot,
+    create_parts_position_association_snapshot, create_snapshot)
 
 # Configure mappers (must be called after all ORM classes are defined)
 configure_mappers()
@@ -67,13 +90,19 @@ DATABASE_PATH = os.path.join(DATABASE_DIR, 'emtac_db.db')
 if not os.path.exists(DATABASE_PATH):
     open(DATABASE_PATH, 'w').close()
 
-# Create SQLAlchemy engine
+# Create SQLAlchemy engine form main database
 engine = create_engine(DATABASE_URL)
 Base = declarative_base()
 Session = scoped_session(sessionmaker(bind=engine))  # Use scoped_session here
 session = Session()
-
 Base = declarative_base()
+
+# Revision control database configuration
+REVISION_CONTROL_DB_PATH = os.path.join(DATABASE_DIR, 'emtac_revision_control_db.db')
+revision_control_engine = create_engine(f'sqlite:///{REVISION_CONTROL_DB_PATH}')
+RevisionControlBase = declarative_base()
+RevisionControlSession = scoped_session(sessionmaker(bind=revision_control_engine))  # Use distinct name
+revision_control_session = RevisionControlSession()
 
 # Main Tables
 class SiteLocation(Base):
@@ -627,12 +656,174 @@ class User(Base):
 
     def check_password_hash(self, password):
         return check_password_hash(self.hashed_password, password)        
-       
+
+# SiteLocation events
+event.listen(SiteLocation, 'after_insert', lambda m, c, t: log_insert(m, c, t, SiteLocationSnapshot))
+event.listen(SiteLocation, 'after_update', lambda m, c, t: log_update(m, c, t, SiteLocationSnapshot))
+event.listen(SiteLocation, 'after_delete', lambda m, c, t: log_delete(m, c, t, SiteLocationSnapshot))
+
+# Position events
+event.listen(Position, 'after_insert', lambda m, c, t: log_insert(m, c, t, PositionSnapshot))
+event.listen(Position, 'after_update', lambda m, c, t: log_update(m, c, t, PositionSnapshot))
+event.listen(Position, 'after_delete', lambda m, c, t: log_delete(m, c, t, PositionSnapshot))
+
+# Area events
+event.listen(Area, 'after_insert', lambda m, c, t: log_insert(m, c, t, AreaSnapshot))
+event.listen(Area, 'after_update', lambda m, c, t: log_update(m, c, t, AreaSnapshot))
+event.listen(Area, 'after_delete', lambda m, c, t: log_delete(m, c, t, AreaSnapshot))
+
+# EquipmentGroup events
+event.listen(EquipmentGroup, 'after_insert', lambda m, c, t: log_insert(m, c, t, EquipmentGroupSnapshot))
+event.listen(EquipmentGroup, 'after_update', lambda m, c, t: log_update(m, c, t, EquipmentGroupSnapshot))
+event.listen(EquipmentGroup, 'after_delete', lambda m, c, t: log_delete(m, c, t, EquipmentGroupSnapshot))
+
+# Model events
+event.listen(Model, 'after_insert', lambda m, c, t: log_insert(m, c, t, ModelSnapshot))
+event.listen(Model, 'after_update', lambda m, c, t: log_update(m, c, t, ModelSnapshot))
+event.listen(Model, 'after_delete', lambda m, c, t: log_delete(m, c, t, ModelSnapshot))
+
+# AssetNumber events
+event.listen(AssetNumber, 'after_insert', lambda m, c, t: log_insert(m, c, t, AssetNumberSnapshot))
+event.listen(AssetNumber, 'after_update', lambda m, c, t: log_update(m, c, t, AssetNumberSnapshot))
+event.listen(AssetNumber, 'after_delete', lambda m, c, t: log_delete(m, c, t, AssetNumberSnapshot))
+
+# Location events
+event.listen(Location, 'after_insert', lambda m, c, t: log_insert(m, c, t, LocationSnapshot))
+event.listen(Location, 'after_update', lambda m, c, t: log_update(m, c, t, LocationSnapshot))
+event.listen(Location, 'after_delete', lambda m, c, t: log_delete(m, c, t, LocationSnapshot))
+
+# Part events
+event.listen(Part, 'after_insert', lambda m, c, t: log_insert(m, c, t, PartSnapshot))
+event.listen(Part, 'after_update', lambda m, c, t: log_update(m, c, t, PartSnapshot))
+event.listen(Part, 'after_delete', lambda m, c, t: log_delete(m, c, t, PartSnapshot))
+
+# Image events
+event.listen(Image, 'after_insert', lambda m, c, t: log_insert(m, c, t, ImageSnapshot))
+event.listen(Image, 'after_update', lambda m, c, t: log_update(m, c, t, ImageSnapshot))
+event.listen(Image, 'after_delete', lambda m, c, t: log_delete(m, c, t, ImageSnapshot))
+
+# ImageEmbedding events
+event.listen(ImageEmbedding, 'after_insert', lambda m, c, t: log_insert(m, c, t, ImageEmbeddingSnapshot))
+event.listen(ImageEmbedding, 'after_update', lambda m, c, t: log_update(m, c, t, ImageEmbeddingSnapshot))
+event.listen(ImageEmbedding, 'after_delete', lambda m, c, t: log_delete(m, c, t, ImageEmbeddingSnapshot))
+
+# Drawing events
+event.listen(Drawing, 'after_insert', lambda m, c, t: log_insert(m, c, t, DrawingSnapshot))
+event.listen(Drawing, 'after_update', lambda m, c, t: log_update(m, c, t, DrawingSnapshot))
+event.listen(Drawing, 'after_delete', lambda m, c, t: log_delete(m, c, t, DrawingSnapshot))
+
+# Document events
+event.listen(Document, 'after_insert', lambda m, c, t: log_insert(m, c, t, DocumentSnapshot))
+event.listen(Document, 'after_update', lambda m, c, t: log_update(m, c, t, DocumentSnapshot))
+event.listen(Document, 'after_delete', lambda m, c, t: log_delete(m, c, t, DocumentSnapshot))
+
+# CompleteDocument events
+event.listen(CompleteDocument, 'after_insert', lambda m, c, t: log_insert(m, c, t, CompleteDocumentSnapshot))
+event.listen(CompleteDocument, 'after_update', lambda m, c, t: log_update(m, c, t, CompleteDocumentSnapshot))
+event.listen(CompleteDocument, 'after_delete', lambda m, c, t: log_delete(m, c, t, CompleteDocumentSnapshot))
+
+# Problem events
+event.listen(Problem, 'after_insert', lambda m, c, t: log_insert(m, c, t, ProblemSnapshot))
+event.listen(Problem, 'after_update', lambda m, c, t: log_update(m, c, t, ProblemSnapshot))
+event.listen(Problem, 'after_delete', lambda m, c, t: log_delete(m, c, t, ProblemSnapshot))
+
+# Solution events
+event.listen(Solution, 'after_insert', lambda m, c, t: log_insert(m, c, t, SolutionSnapshot))
+event.listen(Solution, 'after_update', lambda m, c, t: log_update(m, c, t, SolutionSnapshot))
+event.listen(Solution, 'after_delete', lambda m, c, t: log_delete(m, c, t, SolutionSnapshot))
+
+# PowerPoint events
+event.listen(PowerPoint, 'after_insert', lambda m, c, t: log_insert(m, c, t, PowerPointSnapshot))
+event.listen(PowerPoint, 'after_update', lambda m, c, t: log_update(m, c, t, PowerPointSnapshot))
+event.listen(PowerPoint, 'after_delete', lambda m, c, t: log_delete(m, c, t, PowerPointSnapshot))
+
+# Junction Table Snapshots
+# DrawingPartAssociation events
+event.listen(DrawingPartAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, DrawingPartAssociationSnapshot))
+event.listen(DrawingPartAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, DrawingPartAssociationSnapshot))
+event.listen(DrawingPartAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, DrawingPartAssociationSnapshot))
+
+# PartProblemAssociation events
+event.listen(PartProblemAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, PartProblemAssociationSnapshot))
+event.listen(PartProblemAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, PartProblemAssociationSnapshot))
+event.listen(PartProblemAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, PartProblemAssociationSnapshot))
+
+# PartSolutionAssociation events
+event.listen(PartSolutionAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, PartSolutionAssociationSnapshot))
+event.listen(PartSolutionAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, PartSolutionAssociationSnapshot))
+event.listen(PartSolutionAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, PartSolutionAssociationSnapshot))
+
+# DrawingProblemAssociation events
+event.listen(DrawingProblemAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, DrawingProblemAssociationSnapshot))
+event.listen(DrawingProblemAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, DrawingProblemAssociationSnapshot))
+event.listen(DrawingProblemAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, DrawingProblemAssociationSnapshot))
+
+# DrawingSolutionAssociation events
+event.listen(DrawingSolutionAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, DrawingSolutionAssociationSnapshot))
+event.listen(DrawingSolutionAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, DrawingSolutionAssociationSnapshot))
+event.listen(DrawingSolutionAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, DrawingSolutionAssociationSnapshot))
+
+# BillOfMaterial events
+event.listen(BillOfMaterial, 'after_insert', lambda m, c, t: log_insert(m, c, t, BillOfMaterialSnapshot))
+event.listen(BillOfMaterial, 'after_update', lambda m, c, t: log_update(m, c, t, BillOfMaterialSnapshot))
+event.listen(BillOfMaterial, 'after_delete', lambda m, c, t: log_delete(m, c, t, BillOfMaterialSnapshot))
+
+# ProblemPositionAssociation events
+event.listen(ProblemPositionAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, ProblemPositionAssociationSnapshot))
+event.listen(ProblemPositionAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, ProblemPositionAssociationSnapshot))
+event.listen(ProblemPositionAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, ProblemPositionAssociationSnapshot))
+
+# CompleteDocumentProblemAssociation events
+event.listen(CompleteDocumentProblemAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, CompleteDocumentProblemAssociationSnapshot))
+event.listen(CompleteDocumentProblemAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, CompleteDocumentProblemAssociationSnapshot))
+event.listen(CompleteDocumentProblemAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, CompleteDocumentProblemAssociationSnapshot))
+
+# CompleteDocumentSolutionAssociation events
+event.listen(CompleteDocumentSolutionAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, CompleteDocumentSolutionAssociationSnapshot))
+event.listen(CompleteDocumentSolutionAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, CompleteDocumentSolutionAssociationSnapshot))
+event.listen(CompleteDocumentSolutionAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, CompleteDocumentSolutionAssociationSnapshot))
+
+# ImageProblemAssociation events
+event.listen(ImageProblemAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, ImageProblemAssociationSnapshot))
+event.listen(ImageProblemAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, ImageProblemAssociationSnapshot))
+event.listen(ImageProblemAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, ImageProblemAssociationSnapshot))
+
+# ImageSolutionAssociation events
+event.listen(ImageSolutionAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, ImageSolutionAssociationSnapshot))
+event.listen(ImageSolutionAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, ImageSolutionAssociationSnapshot))
+event.listen(ImageSolutionAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, ImageSolutionAssociationSnapshot))
+
+# PartsPositionAssociation events
+event.listen(PartsPositionAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, PartsPositionAssociationSnapshot))
+event.listen(PartsPositionAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, PartsPositionAssociationSnapshot))
+event.listen(PartsPositionAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, PartsPositionAssociationSnapshot))
+
+# ImagePositionAssociation events
+event.listen(ImagePositionAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, ImagePositionAssociationSnapshot))
+event.listen(ImagePositionAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, ImagePositionAssociationSnapshot))
+event.listen(ImagePositionAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, ImagePositionAssociationSnapshot))
+
+# DrawingPositionAssociation events
+event.listen(DrawingPositionAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, DrawingPositionAssociationSnapshot))
+event.listen(DrawingPositionAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, DrawingPositionAssociationSnapshot))
+event.listen(DrawingPositionAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, DrawingPositionAssociationSnapshot))
+
+# CompletedDocumentPositionAssociation events
+event.listen(CompletedDocumentPositionAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, CompletedDocumentPositionAssociationSnapshot))
+event.listen(CompletedDocumentPositionAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, CompletedDocumentPositionAssociationSnapshot))
+event.listen(CompletedDocumentPositionAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, CompletedDocumentPositionAssociationSnapshot))
+
+# ImageCompletedDocumentAssociation events
+event.listen(ImageCompletedDocumentAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, ImageCompletedDocumentAssociationSnapshot))
+event.listen(ImageCompletedDocumentAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, ImageCompletedDocumentAssociationSnapshot))
+event.listen(ImageCompletedDocumentAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, ImageCompletedDocumentAssociationSnapshot))
+
 # Bind the engine to the Base class
 Base.metadata.bind = engine
 
 # Then call create_all()
 Base.metadata.create_all(engine, checkfirst=True)
+
 
 # Create the 'documents_fts' table for full-text search
 with Session() as session:

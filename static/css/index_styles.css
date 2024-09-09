@@ -1,4 +1,3 @@
-/* Common CSS styles for both half and full-screen views */
 body {
     background-image: url("/static/background images/abstractfractal.jpg");
     background-repeat: no-repeat;
@@ -33,7 +32,8 @@ body {
     left: 0;
     padding-top: 60px; /* Ensure the content starts below the banner */
     width: 250px; /* Set the width of the sidebar */
-    font-size: inherit; /* Ensure consistent font size */
+    font-size: 16px; /* Smaller font size for the sidebar */
+    color: yellow; /* Change text color to yellow */
 }
 
 .sidebar a,
@@ -41,7 +41,7 @@ body {
 .sidebar select {
     padding: 10px 15px;
     text-decoration: none;
-    color: white;
+    color: inherit; /* Inherit color from sidebar */
     display: block;
     transition: 0.3s;
     background: none;
@@ -54,7 +54,7 @@ body {
 .sidebar a:hover,
 .sidebar button:hover,
 .sidebar select:hover {
-    color: yellow;
+    color: yellow; /* Keep yellow color on hover */
 }
 
 .sidebar .close-btn {
@@ -217,7 +217,4 @@ body {
     left: 0;
     z-index: 1002; /* Ensure it stays on top */
     font-weight: bold; /* Bold text */
-    font-size: 1.5em; /* Font size */
-    text-transform: uppercase; /* Capital letters */
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Optional shadow for depth */
-}
+   

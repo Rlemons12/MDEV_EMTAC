@@ -7,7 +7,7 @@ import os
 from werkzeug.utils import secure_filename
 import pandas as pd
 from sqlalchemy.orm import sessionmaker, scoped_session
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, event
 import logging
 from concurrent.futures import ThreadPoolExecutor
 import threading
@@ -15,6 +15,28 @@ from datetime import datetime
 import fitz
 import time
 import requests
+from emtac_revision_control_db import (VersionInfo, RevisionControlBase, RevisionControlSession, SiteLocationSnapshot, PositionSnapshot, AreaSnapshot,
+    EquipmentGroupSnapshot, ModelSnapshot, AssetNumberSnapshot, PartSnapshot, ImageSnapshot,
+    ImageEmbeddingSnapshot, DrawingSnapshot, DocumentSnapshot, CompleteDocumentSnapshot,
+    ProblemSnapshot, SolutionSnapshot, DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot,
+    PartSolutionAssociationSnapshot, DrawingProblemAssociationSnapshot, DrawingSolutionAssociationSnapshot,
+    ProblemPositionAssociationSnapshot, CompleteDocumentProblemAssociationSnapshot,
+    CompleteDocumentSolutionAssociationSnapshot, ImageProblemAssociationSnapshot, ImageSolutionAssociationSnapshot,
+    ImagePositionAssociationSnapshot, DrawingPositionAssociationSnapshot, CompletedDocumentPositionAssociationSnapshot,
+    ImageCompletedDocumentAssociationSnapshot
+)
+from snapshot_utils import (
+    create_sitlocation_snapshot, create_position_snapshot,
+    create_area_snapshot, create_equipment_group_snapshot, create_model_snapshot, create_asset_number_snapshot,
+    create_part_snapshot, create_image_snapshot, create_image_embedding_snapshot, create_drawing_snapshot,
+    create_document_snapshot, create_complete_document_snapshot, create_problem_snapshot, create_solution_snapshot,
+    create_drawing_part_association_snapshot, create_part_problem_association_snapshot, create_part_solution_association_snapshot,
+    create_drawing_problem_association_snapshot, create_drawing_solution_association_snapshot, create_problem_position_association_snapshot,
+    create_complete_document_problem_association_snapshot, create_complete_document_solution_association_snapshot,
+    create_image_problem_association_snapshot, create_image_solution_association_snapshot, create_image_position_association_snapshot,
+    create_drawing_position_association_snapshot, create_completed_document_position_association_snapshot, create_image_completed_document_association_snapshot,
+    create_parts_position_association_snapshot, create_snapshot
+)
 
 # Create logs directory if it doesn't exist
 if not os.path.exists('logs'):
@@ -40,6 +62,16 @@ logger.addHandler(stream_handler)
 # Database setup
 engine = create_engine(DATABASE_URL, pool_size=10, max_overflow=20)
 Session = scoped_session(sessionmaker(bind=engine))
+
+# Apply PRAGMA settings to SQLite database
+@event.listens_for(engine, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA synchronous = OFF")
+    cursor.execute("PRAGMA journal_mode = MEMORY")
+    cursor.execute("PRAGMA cache_size = -64000")
+    cursor.execute("PRAGMA temp_store = MEMORY")
+    cursor.close()
 
 # Create a blueprint for the add_document route
 add_document_bp = Blueprint("add_document_bp", __name__)
@@ -143,7 +175,7 @@ def add_document_to_db_multithread(title, file_path, position_id, remaining_work
         completed_document_position_association_id = None
         with Session() as session:
             logger.info(f"[Thread {thread_id}] Session started for file: {file_path}")
-            
+
             # Thread function to extract text
             def extract_text():
                 nonlocal extracted_text
@@ -226,6 +258,18 @@ def add_document_to_db_multithread(title, file_path, position_id, remaining_work
             else:
                 logger.error(f"[Thread {thread_id}] No text extracted from the document.")
                 return None, False
+
+            # Querying the version_info table
+            try:
+                with RevisionControlSession() as revision_session:
+                    logger.info(f"[Thread {thread_id}] Querying version_info table in revision control database.")
+                    version_info = revision_session.query(VersionInfo).order_by(VersionInfo.id.desc()).first()
+                    if version_info:
+                        logger.info(f"[Thread {thread_id}] Latest version_info: {version_info.version_number}")
+                    else:
+                        logger.warning(f"[Thread {thread_id}] No version_info found.")
+            except Exception as e:
+                logger.error(f"[Thread {thread_id}] Error querying version_info table: {e}")
 
             logger.info(f"[Thread {thread_id}] Successfully processed file: {file_path}")
             return complete_document_id, True
