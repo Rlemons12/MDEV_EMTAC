@@ -39,11 +39,25 @@
     </div>
 
     <div class="main-container">
-
-
         <!-- Main Content -->
         <div class="content">
             {% block content %}{% endblock %}
+        </div>
+
+        <!-- Results Container (optional, can be used in specific pages) -->
+        <div class="results-container" id="results-container" style="display: none;">
+            <ul id="searchResults" style="color:white;">
+                <!-- Search results will be populated here -->
+            </ul>
+
+            <!-- Thumbnails and Drawing List -->
+            <div id="thumbnails-section">
+                <!-- Thumbnails will be dynamically added here -->
+            </div>
+
+            <div id="drawingList">
+                <!-- Drawing search results will be dynamically added here -->
+            </div>
         </div>
     </div>
 

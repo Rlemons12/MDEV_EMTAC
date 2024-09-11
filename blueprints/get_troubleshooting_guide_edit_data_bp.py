@@ -1,9 +1,9 @@
-from flask import Blueprint, request, redirect, url_for, flash, jsonify
+from flask import Blueprint, request, jsonify
 from sqlalchemy import create_engine, and_
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
 from blueprints import DATABASE_URL
-from emtacdb_fts import Problem, Solution, ProblemPositionAssociation, Position
+from emtacdb_fts import Problem, Solution, ProblemPositionAssociation, PartProblemAssociation, PartSolutionAssociation, DrawingProblemAssociation, DrawingSolutionAssociation, Position
 import logging
 
 # Configure logging
@@ -18,7 +18,6 @@ Session = scoped_session(sessionmaker(bind=engine))
 # Define the blueprint
 get_troubleshooting_guide_edit_data_bp = Blueprint('get_troubleshooting_guide_edit_data_bp', __name__)
 
-# Define the routes related to this blueprint
 @get_troubleshooting_guide_edit_data_bp.route('/get_troubleshooting_guide_edit_data', methods=['GET'])
 def get_troubleshooting_guide_edit_data():
     logger.info("get_troubleshooting_guide_edit_data route accessed")
@@ -74,11 +73,30 @@ def get_troubleshooting_guide_edit_data():
             logger.info(f"Searching for problems with a partial title match: {problem_name}")
             problem_query = problem_query.filter(Problem.name.ilike(f"%{problem_name}%"))
 
-        # Retrieve the problems
+        # Retrieve the problems along with their associated solutions and relations
         problems = problem_query.all()
 
-        # Prepare the response
-        results = [{'id': problem.id, 'name': problem.name} for problem in problems]
+        # Prepare the response with details from associated tables (Solution, Images, Documents, etc.)
+        results = []
+        for problem in problems:
+            problem_data = {
+                'id': problem.id,
+                'name': problem.name,
+                'description': problem.description,
+                'solution': [{
+                    'id': solution.id,
+                    'description': solution.description,
+                    'parts': [{'id': assoc.part_id} for assoc in solution.part_solution],
+                    'drawings': [{'id': assoc.drawing_id} for assoc in solution.drawing_solution]
+                } for solution in problem.solution],
+                'positions': [{'id': assoc.position_id} for assoc in problem.problem_position],
+                'images': [{'id': assoc.image_id} for assoc in problem.image_problem],
+                'documents': [{'id': assoc.complete_document_id} for assoc in problem.complete_document_problem],
+                'drawings': [{'id': assoc.drawing_id} for assoc in problem.drawing_problem],
+                'parts': [{'id': assoc.part_id} for assoc in problem.part_problem]
+            }
+            results.append(problem_data)
+
         return jsonify({'problems': results})
 
     except Exception as e:

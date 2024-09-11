@@ -42,7 +42,7 @@ body {
     left: 0;
     width: 300px; /* Sidebar width when visible */
     padding-top: 20px;
-    font-size: 20px;
+    font-size: 18px;
     color: yellow;
     z-index: 1000; /* Ensure it's above content */
 }
@@ -174,4 +174,25 @@ body {
     cursor: pointer;
     text-decoration: underline;
     color: white;
+}
+/* Results Container */
+.results-container {
+    width: 50%; /* Adjust to desired width */
+    padding-left: 20px; /* Space between form and results */
+    color: white; /* Ensure text is visible */
+}
+
+/* Additional Styles for Thumbnails and Drawing List */
+#thumbnails-section {
+    width: 50%;
+    display: inline-block;
+    vertical-align: top;
+}
+
+.thumbnail {
+    margin-right: 10px;
+}
+
+#drawingList {
+    color: white; /* Ensure visibility over dark backgrounds */
 }

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Trouble Shooting Guide</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/redbanner.css')}}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css')}}">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/dropzone/5.9.3/min/dropzone.min.css" rel="stylesheet">
     <link href="{{ url_for('static', filename='css/troubleshooting_guide.css') }}" rel="stylesheet">
 </head>
@@ -63,14 +63,14 @@
     <!-- Edit Troubleshooting Guide Form -->
     <div class="form-container" id="edit-troubleshooting-guide-form">
         <div style="color: white;">
-            <h2>Edit Troubleshooting Guide</h2>
+            <h2>Edit Troubleshooting Guide!!!!</h2>
 
             <!-- Form for searching and editing problems -->
             <form id="editProblemSolutionForm" action="/troubleshooting_guide_edit_update" method="post" enctype="multipart/form-data">
 
                 <!-- Search Problem Section -->
                 <label for="searchProblem">Search for Problem:</label>
-                <input type="text" id="searchProblem" name="search_problem" placeholder="Enter problem title or ID">
+                <input type="text" id="searchProblem" name="search_problem" placeholder="Enter problem title or ID"><br>
 
                 <!-- Area Dropdown -->
                 <label for="tsg_edit_areaDropdown">Area:</label>
@@ -92,7 +92,7 @@
                 <label for="tsg_edit_locationDropdown">Location:</label>
                 <select name="tsg_edit_location" id="tsg_edit_locationDropdown"></select><br>
 
-                <button type="button" onclick="searchForProblem()">Search</button> <!-- Search button -->
+                <button type="button" onclick="searchForProblem()">Search</button><br>
 
                 <!-- Hidden Fields for Problem and Solution IDs -->
                 <input type="hidden" name="problem_id" id="edit_problem_id">
@@ -101,23 +101,54 @@
                 <!-- Display and edit the retrieved problem name -->
                 <div id="problemNameContainer" style="margin-top: 15px;">
                     <label for="edit_problem_name"><strong>Problem Name:</strong></label>
-                    <input type="text" name="problem_name" id="edit_problem_name">
+                    <input type="text" name="problem_name" id="edit_problem_name"><br>
                 </div>
-
 
                 <!-- Problem Description -->
                 <label for="edit_problem_description">Problem Description:</label><br>
                 <textarea name="problem_description" id="edit_problem_description" rows="4" cols="50"></textarea><br>
 
+                <!-- Associated Problem Images -->
+                <label for="edit_problem_image">Associated Problem Images:</label><br>
+                <select name="edit_problem_image" id="edit_problem_imageDropdown" multiple>
+                    <!-- Dynamically populate the options with associated problem images -->
+                </select><br>
+
                 <!-- Solution Description -->
                 <label for="edit_solution_description">Solution Description:</label><br>
                 <textarea name="solution_description" id="edit_solution_description" rows="4" cols="50"></textarea><br>
+
+                <!-- Associated Solution Images -->
+                <label for="edit_solution_image">Associated Solution Images:</label><br>
+                <select name="edit_solution_image" id="edit_solution_imageDropdown" multiple>
+                    <!-- Dynamically populate the options with associated solution images -->
+                </select><br>
+
+                <!-- Associated Documents -->
+                <label for="edit_document">Associated Documents:</label><br>
+                <select name="edit_document" id="edit_documentDropdown" multiple>
+                    <!-- Dynamically populate the options with associated documents -->
+                </select><br>
+
+                <!-- Associated Parts -->
+                <label for="edit_part">Associated Parts:</label><br>
+                <select name="edit_part" id="edit_partDropdown" multiple>
+                    <!-- Dynamically populate the options with associated parts -->
+                </select><br>
+
+                <!-- Associated Drawing Numbers -->
+                <label for="edit_drawing">Associated Drawing Numbers:</label><br>
+                <select name="edit_drawing" id="edit_drawingdropdown" multiple>
+                    <!-- Dynamically populate the options with associated drawings -->
+                </select><br>
+
 
                 <!-- Save Changes Button -->
                 <button type="submit">Save Changes</button>
             </form>
         </div>
     </div>
+
 
 
     <!-- Troubleshooting Guide New Entry Form -->

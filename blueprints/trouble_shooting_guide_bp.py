@@ -152,6 +152,24 @@ def update_problem_solution():
             )
             session.add(image_solution_association)
 
+        # Associate Parts with Problem
+        for part_id in selected_part_ids:
+            logger.info(f"Associating part_id {part_id} with problem_id {problem.id}")
+            part_problem_association = PartProblemAssociation(
+                part_id=part_id,
+                problem_id=problem.id
+            )
+            session.add(part_problem_association)
+
+        # Associate Parts with Solution
+        for part_id in selected_part_ids:
+            logger.info(f"Associating part_id {part_id} with solution_id {solution.id}")
+            part_solution_association = PartSolutionAssociation(
+                part_id=part_id,
+                solution_id=solution.id
+            )
+            session.add(part_solution_association)
+
         # Associate Parts with Position
         for part_id in selected_part_ids:
             logger.info(f"Processing part_id: {part_id}")
@@ -165,20 +183,6 @@ def update_problem_solution():
             else:
                 logger.error("Error: Part not found for association")
                 return jsonify({'error': 'Part not found for association'}), 400
-
-        # Associate Drawings with Solution
-        for drawing_id in selected_drawing_ids:
-            logger.info(f"Processing drawing_id: {drawing_id}")
-            drawing = session.query(Drawing).filter_by(id=drawing_id).first()
-            if drawing:
-                drawing_solution_association = DrawingSolutionAssociation(
-                    drawing_id=drawing_id,
-                    solution_id=solution.id
-                )
-                session.add(drawing_solution_association)
-            else:
-                logger.error("Error: Drawing not found for association")
-                return jsonify({'error': 'Drawing not found for association'}), 400
 
         # Associate Drawings with Position
         for drawing_id in selected_drawing_ids:
@@ -194,7 +198,23 @@ def update_problem_solution():
                 logger.error("Error: Drawing not found for association")
                 return jsonify({'error': 'Drawing not found for association'}), 400
 
+        # Associate Drawings with Problem
+        for drawing_id in selected_drawing_ids:
+            logger.info(f"Associating drawing_id {drawing_id} with problem_id {problem.id}")
+            drawing = session.query(Drawing).filter_by(id=drawing_id).first()
+            if drawing:
+                problem_drawing_association = DrawingProblemAssociation(
+                    drawing_id=drawing_id,
+                    problem_id=problem.id
+                )
+                session.add(problem_drawing_association)
+            else:
+                logger.error("Error: Drawing not found for association with problem")
+                return jsonify({'error': 'Drawing not found for association with problem'}), 400
+
+        # Commit the changes after associating parts, drawings, and images
         session.commit()
+        logger.info("Problem, solution, parts, and drawings associated successfully")
 
         return render_template('troubleshooting_guide.html')
     except Exception as e:

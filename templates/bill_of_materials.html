@@ -6,7 +6,7 @@
     <title>Bill of Materials</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/search_bill_of_material.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/bill_of_materials.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/redbanner.css')}}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css')}}">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 <body>
@@ -42,6 +42,7 @@
     </form>
 </div>
 
+    <div class="hamburger" id="hamburger">&#9776;</div>
 
 
     <div class="sidebar" id="sidebar">
@@ -200,5 +201,6 @@
 <script src="{{ url_for('static', filename='js/bill_of_materials.js') }}"></script>
 <script src="{{ url_for('static', filename='js/comment_pop_up.js')}}"></script>
 <!--<script src="{{ url_for('static', filename='js/populate_part_dropdowns.js') }}"></script> -->
+<script src="{{ url_for('static', filename='js/base_sidebar.js') }}"></script>
 </body>
 </html>

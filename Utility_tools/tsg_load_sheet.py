@@ -98,6 +98,7 @@ def add_tsg_loadsheet_to_document_table_db(file_path, area_data, equipment_group
         # Iterate through each row in the dataframe
         for index, row in df.iterrows():
             # Extract data from the row
+
             problem_desc = row['problem']
             location_name = row['location'].strip()  # Strip leading and trailing spaces from location name
             model_name = row['model'].strip()  # Strip leading and trailing spaces from model name

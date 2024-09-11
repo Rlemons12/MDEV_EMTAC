@@ -5,7 +5,9 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
 from blueprints import DATABASE_URL
 from emtacdb_fts import (Area, EquipmentGroup, Model, AssetNumber, Location, Image, CompleteDocument, Part,
-                         Drawing, Position, SiteLocation,Problem,Solution)
+                         Drawing, Position, SiteLocation, Problem, Solution,
+                         ImageProblemAssociation, ImageSolutionAssociation, CompleteDocumentProblemAssociation,
+                         PartProblemAssociation, DrawingProblemAssociation)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -87,18 +89,41 @@ def get_problem_solution_data(problem_id):
 
         solution = session.query(Solution).filter_by(problem_id=problem_id).first()
 
+        # Fetch associated problem images
+        problem_images = session.query(ImageProblemAssociation).filter_by(problem_id=problem_id).all()
+        problem_image_data = [{'id': img.image.id, 'title': img.image.title, 'file_path': img.image.file_path} for img in problem_images]
+
+        # Fetch associated solution images
+        solution_images = session.query(ImageSolutionAssociation).filter_by(solution_id=solution.id).all() if solution else []
+        solution_image_data = [{'id': img.image.id, 'title': img.image.title, 'file_path': img.image.file_path} for img in solution_images]
+
+        # Fetch associated documents
+        problem_documents = session.query(CompleteDocumentProblemAssociation).filter_by(problem_id=problem_id).all()
+        document_data = [{'id': doc.complete_document_id, 'title': doc.complete_document.title} for doc in problem_documents]
+
+        # Fetch associated parts
+        problem_parts = session.query(PartProblemAssociation).filter_by(problem_id=problem_id).all()
+        part_data = [{'id': part.part_id, 'name': part.part.name} for part in problem_parts]
+
+        # Fetch associated drawings
+        problem_drawings = session.query(DrawingProblemAssociation).filter_by(problem_id=problem_id).all()
+        drawing_data = [{'id': drw.drawing.id, 'number': drw.drawing.drw_number} for drw in problem_drawings]  # Assuming `drw_number` is the drawing number field
+
         # Convert problem and solution data to dictionary
         problem_data = {
             'id': problem.id,
             'name': problem.name,
             'description': problem.description,
-            # Add other necessary fields here
+            'images': problem_image_data,
+            'documents': document_data,
+            'parts': part_data,
+            'drawings': drawing_data,  # Add drawings here
         }
 
         solution_data = {
             'id': solution.id if solution else None,
             'description': solution.description if solution else '',
-            # Add other necessary fields here
+            'images': solution_image_data,
         }
 
         return jsonify({

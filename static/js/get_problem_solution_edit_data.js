@@ -53,10 +53,40 @@ function loadProblemSolution(problemId) {
             $('#edit_problem_description').val(data.problem.description);
             $('#edit_solution_id').val(data.solution.id);
             $('#edit_solution_description').val(data.solution.description);
-            // Populate other fields as necessary
+
+            // Clear and populate the Associated Problem Images dropdown
+            $('#edit_problem_imageDropdown').empty();
+            data.problem.images.forEach(function(image) {
+                $('#edit_problem_imageDropdown').append('<option value="' + image.id + '">' + image.title + '</option>');
+            });
+
+            // Clear and populate the Associated Solution Images dropdown
+            $('#edit_solution_imageDropdown').empty();
+            data.solution.images.forEach(function(image) {
+                $('#edit_solution_imageDropdown').append('<option value="' + image.id + '">' + image.title + '</option>');
+            });
+
+            // Clear and populate the Associated Documents dropdown
+            $('#edit_documentDropdown').empty();
+            data.problem.documents.forEach(function(document) {
+                $('#edit_documentDropdown').append('<option value="' + document.id + '">' + document.title + '</option>');
+            });
+
+            // Clear and populate the Associated Parts dropdown
+            $('#edit_partDropdown').empty();
+            data.problem.parts.forEach(function(part) {
+                $('#edit_partDropdown').append('<option value="' + part.id + '">' + part.name + '</option>');
+            });
+
+            // Clear and populate the Associated Drawing Numbers dropdown
+            $('#edit_drawingdropdown').empty();
+            data.problem.drawings.forEach(function(drawing) {
+                $('#edit_drawingdropdown').append('<option value="' + drawing.id + '">' + drawing.number + '</option>');
+            });
         },
         error: function(xhr) {
             alert('Failed to load problem/solution data: ' + xhr.responseText);
         }
     });
 }
+
