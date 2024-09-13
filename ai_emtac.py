@@ -74,7 +74,9 @@ def create_app():
         # List of routes that do not require login
         allowed_routes = ['login_bp.login', 'login_bp.logout', 'static', 'create_user_bp.create_user',
                           'create_user_bp.submit_user_creation','tsg_search_parts_bp.tsg_search_parts',
-                          'trouble_shooting_guide_bp.update_problem_solution']
+                          'trouble_shooting_guide_bp.update_problem_solution',
+                          'trouble_shooting_guide_edit_update.troubleshooting_guide_edit_update',
+                          'trouble_shooting_guide_bp.search_documents']
 
         # If user is not logged in and the endpoint is not in the allowed routes, redirect to login
         if 'user_id' not in session and request.endpoint not in allowed_routes:
@@ -155,9 +157,12 @@ def create_app():
         logger.debug("Rendering bill_of_materials page.")
         return render_template('bill_of_materials.html')
 
+
+
     @app.errorhandler(403)
     def forbidden(e):
         return render_template('403.html'), 403
+
 
     return app
 

@@ -1,5 +1,3 @@
-// troubleshooting_guide_edit.js
-
 // Function to search for problems to edit
 function searchForProblem() {
     // Capture the search query and the dropdown values
@@ -9,6 +7,9 @@ function searchForProblem() {
     var modelId = $('#tsg_edit_modelDropdown').val();
     var assetNumberId = $('#tsg_edit_assetNumberDropdown').val();
     var locationId = $('#tsg_edit_locationDropdown').val();
+
+    // Show a loading spinner (optional)
+    $('#searchResults').html('<li>Loading...</li>');
 
     $.ajax({
         url: '/get_troubleshooting_guide_edit_data',  // The backend route
@@ -26,11 +27,15 @@ function searchForProblem() {
             $('#searchResults').empty();
 
             // Populate the search results with problems
-            data.problems.forEach(function(problem) {
-                $('#searchResults').append(
-                    '<li onclick="loadProblemSolution(' + problem.id + ')">' + problem.name + '</li>'
-                );
-            });
+            if (data.problems.length > 0) {
+                data.problems.forEach(function(problem) {
+                    $('#searchResults').append(
+                        '<li onclick="loadProblemSolution(' + problem.id + ')">' + problem.name + '</li>'
+                    );
+                });
+            } else {
+                $('#searchResults').append('<li>No results found</li>');
+            }
         },
         error: function(xhr) {
             alert('Failed to search for problem: ' + xhr.responseText);
@@ -40,6 +45,9 @@ function searchForProblem() {
 
 // Function to load the selected problem into the form
 function loadProblemSolution(problemId) {
+    // Disable the form to prevent multiple requests
+    $('#editProblemSolutionForm button').prop('disabled', true);
+
     $.ajax({
         url: '/get_problem_solution_data/' + problemId,
         method: 'GET',
@@ -57,36 +65,114 @@ function loadProblemSolution(problemId) {
             // Clear and populate the Associated Problem Images dropdown
             $('#edit_problem_imageDropdown').empty();
             data.problem.images.forEach(function(image) {
-                $('#edit_problem_imageDropdown').append('<option value="' + image.id + '">' + image.title + '</option>');
+                $('#edit_problem_imageDropdown').append('<option value="' + image.id + '" selected>' + image.title + '</option>');
             });
 
             // Clear and populate the Associated Solution Images dropdown
             $('#edit_solution_imageDropdown').empty();
             data.solution.images.forEach(function(image) {
-                $('#edit_solution_imageDropdown').append('<option value="' + image.id + '">' + image.title + '</option>');
+                $('#edit_solution_imageDropdown').append('<option value="' + image.id + '" selected>' + image.title + '</option>');
             });
 
             // Clear and populate the Associated Documents dropdown
             $('#edit_documentDropdown').empty();
             data.problem.documents.forEach(function(document) {
-                $('#edit_documentDropdown').append('<option value="' + document.id + '">' + document.title + '</option>');
+                $('#edit_documentDropdown').append('<option value="' + document.id + '" selected>' + document.title + '</option>');
             });
 
             // Clear and populate the Associated Parts dropdown
             $('#edit_partDropdown').empty();
             data.problem.parts.forEach(function(part) {
-                $('#edit_partDropdown').append('<option value="' + part.id + '">' + part.name + '</option>');
+                $('#edit_partDropdown').append('<option value="' + part.id + '" selected>' + part.name + '</option>');
             });
 
             // Clear and populate the Associated Drawing Numbers dropdown
             $('#edit_drawingdropdown').empty();
             data.problem.drawings.forEach(function(drawing) {
-                $('#edit_drawingdropdown').append('<option value="' + drawing.id + '">' + drawing.number + '</option>');
+                $('#edit_drawingdropdown').append('<option value="' + drawing.id + '" selected>' + drawing.number + '</option>');
             });
+
+            // Enable the form after data is loaded
+            $('#editProblemSolutionForm button').prop('disabled', false);
         },
         error: function(xhr) {
             alert('Failed to load problem/solution data: ' + xhr.responseText);
+            $('#editProblemSolutionForm button').prop('disabled', false);
         }
     });
 }
 
+// Function to search for additional documents
+$('#search_document').on('input', function () {
+    var searchQuery = $(this).val();
+    if (searchQuery.length > 2) {  // Trigger search only if input length > 2
+        // Disable the search field while fetching data
+        $('#search_document').prop('disabled', true);
+
+        $.ajax({
+            url: '/search_documents',  // Backend route for searching documents
+            method: 'GET',
+            data: { query: searchQuery },
+            success: function (data) {
+                // Clear previous search results
+                $('#documentSearchResults').empty();
+
+                // Populate the search results with documents
+                if (data.documents.length > 0) {
+                    data.documents.forEach(function (document) {
+                        $('#documentSearchResults').append(
+                            '<li><input type="checkbox" value="' + document.id + '">' + document.title + '</li>'
+                        );
+                    });
+                } else {
+                    $('#documentSearchResults').append('<li>No documents found</li>');
+                }
+
+                // Enable the search field after data is loaded
+                $('#search_document').prop('disabled', false);
+            },
+            error: function (xhr) {
+                alert('Error searching for documents: ' + xhr.responseText);
+                $('#search_document').prop('disabled', false);
+            }
+        });
+    }
+});
+
+// Function to add selected documents from search results to the dropdown
+$('#addDocumentButton').on('click', function () {
+    $('#documentSearchResults input:checked').each(function () {
+        var docId = $(this).val();
+        var docTitle = $(this).parent().text().trim();
+
+        // Log the document being added
+        console.log('Adding Document:', docId, docTitle);
+
+        // Check if the document is already in the dropdown
+        if ($('#edit_documentDropdown option[value="' + docId + '"]').length === 0) {
+            // Add the document to the dropdown using jQuery's $('<option>')
+            var newOption = $('<option>', {
+                value: docId,
+                text: docTitle,
+                selected: true
+            });
+            $('#edit_documentDropdown').append(newOption);
+            console.log('Document added:', docId);
+        } else {
+            console.log('Document already exists in dropdown:', docId);
+        }
+    });
+
+    // Clear the search results after adding
+    $('#documentSearchResults').empty();
+});
+
+// Function to remove selected documents from the dropdown
+$('#deleteDocumentButton').on('click', function () {
+    $('#edit_documentDropdown option:selected').each(function () {
+        var docId = $(this).val();
+        var docTitle = $(this).text();
+        console.log('Removing Document:', docId, docTitle);
+        $(this).remove();
+    });
+});

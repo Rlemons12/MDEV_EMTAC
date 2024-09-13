@@ -1,5 +1,5 @@
 import logging
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
@@ -73,7 +73,7 @@ def get_list_data():
     }
 
     logger.info('Data combined into a single dictionary')
-    logger.info(f'Drawings List: {drawings_list}')
+    """logger.info(f'Drawings List: {drawings_list}')"""
     return jsonify(data)
 
 @get_troubleshooting_guide_data_bp.route('/get_problem_solution_data/<int:problem_id>', methods=['GET'])
@@ -137,3 +137,22 @@ def get_problem_solution_data(problem_id):
     finally:
         session.close()
         logger.info('Database session closed')
+
+@get_troubleshooting_guide_data_bp.route('/search_documents', methods=['GET'])
+def search_documents():
+    query = request.args.get('query', '')
+
+    session = Session()
+    try:
+        # Search documents by title, description, or any other criteria
+        documents = session.query(CompleteDocument).filter(CompleteDocument.title.ilike(f'%{query}%')).all()
+
+        # Prepare the response
+        document_data = [{'id': doc.id, 'title': doc.title} for doc in documents]
+
+        return jsonify({'documents': document_data})
+    except Exception as e:
+        logger.error(f"An error occurred while searching for documents: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        session.close()

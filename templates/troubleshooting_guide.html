@@ -28,7 +28,7 @@
     <a href="#upload-image" onclick="showForm('upload-image')">Upload Image</a>
     <a href="/tsg_search_problems" style="color: #39FF14">To Search Troubleshooting Guide</a>
     <a href="/upload_image" style="color: #39FF14;" class="upload-button">To Search and Upload </a>
-    <a href="/bill_of_materials"style="color: #39FF14;">To Parts and BOMs</a>
+    <a href="/bill_of_materials" style="color: #39FF14;">To Parts and BOMs</a>
     <a href="/logout" class="logout-button" style="color: #FF5F1f">Logout</a>
 </div>
 
@@ -63,7 +63,7 @@
     <!-- Edit Troubleshooting Guide Form -->
     <div class="form-container" id="edit-troubleshooting-guide-form">
         <div style="color: white;">
-            <h2>Edit Troubleshooting Guide!!!!</h2>
+            <h2>Edit Troubleshooting Guide</h2>
 
             <!-- Form for searching and editing problems -->
             <form id="editProblemSolutionForm" action="/troubleshooting_guide_edit_update" method="post" enctype="multipart/form-data">
@@ -110,7 +110,7 @@
 
                 <!-- Associated Problem Images -->
                 <label for="edit_problem_image">Associated Problem Images:</label><br>
-                <select name="edit_problem_image" id="edit_problem_imageDropdown" multiple>
+                <select name="edit_problem_image[]" id="edit_problem_imageDropdown" multiple>
                     <!-- Dynamically populate the options with associated problem images -->
                 </select><br>
 
@@ -120,35 +120,48 @@
 
                 <!-- Associated Solution Images -->
                 <label for="edit_solution_image">Associated Solution Images:</label><br>
-                <select name="edit_solution_image" id="edit_solution_imageDropdown" multiple>
+                <select name="edit_solution_image[]" id="edit_solution_imageDropdown" multiple>
                     <!-- Dynamically populate the options with associated solution images -->
                 </select><br>
 
                 <!-- Associated Documents -->
                 <label for="edit_document">Associated Documents:</label><br>
-                <select name="edit_document" id="edit_documentDropdown" multiple>
+                <select name="edit_document[]" id="edit_documentDropdown" multiple>
                     <!-- Dynamically populate the options with associated documents -->
                 </select><br>
 
+                <!-- Search for Documents to Add -->
+                <label for="search_document">Search for Documents to Add:</label><br>
+                <input type="text" id="search_document" placeholder="Search for documents"><br>
+
+                <!-- Search Results -->
+                <ul id="documentSearchResults">
+                    <!-- Results will be populated dynamically here -->
+                </ul>
+
+                <!-- Button to add selected documents -->
+                <button type="button" id="addDocumentButton">Add Selected Document(s)</button><br>
+
+                <!-- Button to delete selected documents -->
+                <button type="button" id="deleteDocumentButton">Delete Selected Document(s)</button><br>
+
                 <!-- Associated Parts -->
                 <label for="edit_part">Associated Parts:</label><br>
-                <select name="edit_part" id="edit_partDropdown" multiple>
+                <select name="edit_part[]" id="edit_partDropdown" multiple>
                     <!-- Dynamically populate the options with associated parts -->
                 </select><br>
 
                 <!-- Associated Drawing Numbers -->
                 <label for="edit_drawing">Associated Drawing Numbers:</label><br>
-                <select name="edit_drawing" id="edit_drawingdropdown" multiple>
+                <select name="edit_drawing[]" id="edit_drawingdropdown" multiple>
                     <!-- Dynamically populate the options with associated drawings -->
                 </select><br>
-
 
                 <!-- Save Changes Button -->
                 <button type="submit">Save Changes</button>
             </form>
         </div>
     </div>
-
 
 
     <!-- Troubleshooting Guide New Entry Form -->
@@ -308,7 +321,7 @@
 <script src="{{ url_for('static', filename='tsg_drawing_form.js') }}"></script>
 <script src="{{ url_for('static', filename='tsg_part_form.js')}}"></script>
 <script src="{{ url_for('static', filename='js/get_problem_solution_edit_data.js') }}"></script>
-<script src="{{ url_for('static', filename='js/get_tsg_guide_edit.js')}}" }}"></script>
+<script src="{{ url_for('static', filename='js/get_tsg_guide_edit.js') }}"></script>
 <script src="{{ url_for('static', filename='js/comment_pop_up.js')}}"></script>
 <script src="{{ url_for('static', filename='js/upload_image.js') }}"></script>
 <script src="{{ url_for('static', filename='js/image_search.js') }}"></script>
@@ -331,9 +344,6 @@ function showForm(formId) {
 </script>
 
 <script>
-    // Call the function to populate dropdowns when the page loads
-    $(document).ready(function() {
-        populateTroubleshootingGuideDropdowns();
 
         // Initialize Dropzone for uploading multiple images
         Dropzone.autoDiscover = false;
@@ -346,8 +356,8 @@ function showForm(formId) {
             addRemoveLinks: true,
             dictDefaultMessage: "Drop images here or click to upload",
             dictRemoveFile: "Remove",
-            dictFileTooBig: "File is too big ({{filesize}}MB). Max filesize: {{maxFilesize}}MB.",
-            dictMaxFilesExceeded: "You can only upload {{maxFiles}} images.",
+            dictFileTooBig: "File is too big. Max filesize: 5MB.",
+            dictMaxFilesExceeded: "You can only upload 20 images.",
             success: function(file, response) {
                 // Handle the success callback if needed
             },
@@ -359,10 +369,22 @@ function showForm(formId) {
 </script>
 
 <script type="text/javascript">
+    let isFormSubmitting = false;
+
+    // Add event listener to mark when form submission starts
+    document.querySelectorAll('form').forEach(function(form) {
+        form.addEventListener('submit', function() {
+            isFormSubmitting = true;
+        });
+    });
+
     window.addEventListener("beforeunload", function (event) {
-        navigator.sendBeacon('/logout_bp');
+        if (!isFormSubmitting) {
+            navigator.sendBeacon('/logout_bp');
+        }
     });
 </script>
+
 
 <script>
     document.getElementById("hamburger").onclick = function() {
