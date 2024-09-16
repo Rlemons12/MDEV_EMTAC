@@ -11,7 +11,6 @@ from emtacdb_fts import (
 import traceback
 from logging.handlers import RotatingFileHandler
 
-
 # Configure logging
 def setup_logger():
     logger = logging.getLogger(__name__)
@@ -56,7 +55,6 @@ db_config = DatabaseConfig()
 # Create the Blueprint
 troubleshooting_guide_edit_update_bp = Blueprint('troubleshooting_guide_edit_update_bp', __name__)
 
-
 @troubleshooting_guide_edit_update_bp.route('/troubleshooting_guide_edit_update', methods=['POST'])
 def edit_update_problem_solution():
     logger.info("Accessed /troubleshooting_guide_edit_update route via POST method")
@@ -72,11 +70,11 @@ def edit_update_problem_solution():
     solution_description = request.form.get('solution_description')
 
     # Associated data
-    selected_problem_image_ids = request.form.getlist('edit_problem_image[]')  # Updated to include '[]'
-    selected_solution_image_ids = request.form.getlist('edit_solution_image[]')  # Updated to include '[]'
-    selected_document_ids = request.form.getlist('edit_document[]')  # Already correctly named
-    selected_part_ids = request.form.getlist('edit_part[]')  # Updated to include '[]'
-    selected_drawing_ids = request.form.getlist('edit_drawing[]')  # Updated to include '[]'
+    selected_problem_image_ids = request.form.getlist('edit_problem_image[]')
+    selected_solution_image_ids = request.form.getlist('edit_solution_image[]')
+    selected_document_ids = request.form.getlist('edit_document[]')
+    selected_part_ids = request.form.getlist('edit_part[]')
+    selected_drawing_ids = request.form.getlist('edit_drawing[]')
 
     # Log individual fields
     logger.info(f"Received form data - Problem ID: {problem_id}, Problem Name: {problem_name}, "
@@ -84,8 +82,6 @@ def edit_update_problem_solution():
                 f"Solution Description: {solution_description}, Problem Images: {selected_problem_image_ids}, "
                 f"Solution Images: {selected_solution_image_ids}, Documents: {selected_document_ids}, "
                 f"Parts: {selected_part_ids}, Drawings: {selected_drawing_ids}")
-
-    # Continue with existing processing...
 
     # Validate required fields
     if not all([problem_id, problem_name, solution_id, problem_description, solution_description]):
@@ -125,13 +121,26 @@ def edit_update_problem_solution():
         # Function to handle associations
         def update_associations(model, filter_field, filter_value, association_fields, selected_ids, association_type):
             logger.info(f"Updating {association_type} associations for ID={filter_value}")
-            # Remove existing associations
-            deleted_count = session.query(model).filter(getattr(model, filter_field) == filter_value).delete(synchronize_session=False)
-            logger.info(f"Deleted {deleted_count} existing {association_type} associations for ID={filter_value}")
 
-            # Create new associations
+            # Retrieve existing associations
+            existing_associations = session.query(model).filter(getattr(model, filter_field) == filter_value).all()
+            existing_ids = {getattr(assoc, 'image_id', None) or getattr(assoc, 'complete_document_id', None) or getattr(assoc, 'part_id', None) or getattr(assoc, 'drawing_id', None) for assoc in existing_associations}
+
+            # Determine associations to remove (those that exist but are not in selected_ids)
+            to_remove = [assoc for assoc in existing_associations if getattr(assoc, 'image_id', None) or getattr(assoc, 'complete_document_id', None) not in selected_ids]
+
+            # Remove old associations
+            for assoc in to_remove:
+                session.delete(assoc)
+                logger.debug(f"Deleted {association_type} association: {assoc}")
+            logger.info(f"Removed {len(to_remove)} existing {association_type} associations for ID={filter_value}")
+
+            # Determine associations to add (those in selected_ids but not already associated)
+            to_add = [assoc_id for assoc_id in selected_ids if assoc_id not in existing_ids]
+
+            # Add new associations
             new_associations = []
-            for assoc_id in selected_ids:
+            for assoc_id in to_add:
                 assoc = model(**association_fields(filter_value, assoc_id))
                 new_associations.append(assoc)
                 logger.debug(f"Prepared new {association_type} association: {assoc}")

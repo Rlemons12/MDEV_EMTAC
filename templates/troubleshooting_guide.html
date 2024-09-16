@@ -392,6 +392,13 @@ function showForm(formId) {
         document.querySelector(".main-content").classList.toggle("sidebar-active");
     };
 </script>
+<script>
+    // Automatically select all documents in the dropdown before submitting the form
+    $('#editProblemSolutionForm').on('submit', function() {
+        $('#edit_documentDropdown option').prop('selected', true);
+    });
+</script>
+
 
 </body>
 </html>

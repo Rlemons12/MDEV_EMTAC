@@ -169,10 +169,19 @@ $('#addDocumentButton').on('click', function () {
 
 // Function to remove selected documents from the dropdown
 $('#deleteDocumentButton').on('click', function () {
-    $('#edit_documentDropdown option:selected').each(function () {
-        var docId = $(this).val();
-        var docTitle = $(this).text();
-        console.log('Removing Document:', docId, docTitle);
-        $(this).remove();
-    });
+    // Check if any document is selected for deletion
+    if ($('#edit_documentDropdown option:selected').length > 0) {
+        // Confirm with the user before deleting
+        if (confirm('Are you sure you want to delete the selected document(s)?')) {
+            $('#edit_documentDropdown option:selected').each(function () {
+                var docId = $(this).val();
+                var docTitle = $(this).text();
+                console.log('Removing Document:', docId, docTitle);
+                $(this).remove();  // Remove the selected option
+            });
+        }
+    } else {
+        alert('Please select at least one document to delete.');
+    }
 });
+
