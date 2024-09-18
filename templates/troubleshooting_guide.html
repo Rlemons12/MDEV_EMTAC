@@ -110,9 +110,20 @@
 
                 <!-- Associated Problem Images -->
                 <label for="edit_problem_image">Associated Problem Images:</label><br>
-                <select name="edit_problem_image[]" id="edit_problem_imageDropdown" multiple>
-                    <!-- Dynamically populate the options with associated problem images -->
+                <select name="edit_problem_image[]" id="edit_problem_imageDropdown" multiple style="width: 100%;">
+                    <!-- Dynamically populated associated problem images -->
                 </select><br>
+
+                <!-- Search for Problem Images -->
+                <label for="imageSearch" style="color:white;">Search Problem Images:</label><br>
+                <select id="tsg_imageSearchDropdown" style="width: 100%;"></select><br>
+
+                <!-- Button to Add Selected Image(s) -->
+                <button type="button" id="addImageButton">Add Selected Image(s)</button><br>
+
+                <!-- Button to Remove Selected Image(s) -->
+                <button type="button" id="removeImageButton">Remove Selected Image(s)</button><br>
+
 
                 <!-- Solution Description -->
                 <label for="edit_solution_description">Solution Description:</label><br>
@@ -120,9 +131,20 @@
 
                 <!-- Associated Solution Images -->
                 <label for="edit_solution_image">Associated Solution Images:</label><br>
-                <select name="edit_solution_image[]" id="edit_solution_imageDropdown" multiple>
-                    <!-- Dynamically populate the options with associated solution images -->
+                <select name="edit_solution_image[]" id="edit_solution_imageDropdown" multiple style="width: 100%;">
+                    <!-- Dynamically populated associated solution images -->
                 </select><br>
+
+                <!-- Search for Solution Images -->
+                <label for="solutionImageSearch" style="color:white;">Search Solution Images:</label><br>
+                <select id="tsg_solutionImageSearchDropdown" style="width: 100%;"></select><br>
+
+                <!-- Button to Add Selected Solution Image(s) -->
+                <button type="button" id="addSolutionImageButton">Add Selected Solution Image(s)</button><br>
+
+                <!-- Button to Remove Selected Solution Image(s) -->
+                <button type="button" id="removeSolutionImageButton">Remove Selected Solution Image(s)</button><br>
+
 
                 <!-- Associated Documents -->
                 <label for="edit_document">Associated Documents:</label><br>
@@ -162,7 +184,6 @@
                 <button type="button" id="removePartButton">Remove Selected Part(s)</button><br>
 
 
-
                 <!-- Associated Drawing Numbers -->
                 <label for="edit_drawing">Associated Drawing Numbers:</label><br>
                 <select name="edit_drawing[]" id="edit_drawingdropdown" multiple style="width: 100%;">
@@ -178,7 +199,6 @@
 
                 <!-- Button to Remove Selected Drawing(s) -->
                 <button type="button" id="removeDrawingButton">Remove Selected Drawing(s)</button><br>
-
 
                 <!-- Save Changes Button -->
                 <button type="submit">Save Changes</button>

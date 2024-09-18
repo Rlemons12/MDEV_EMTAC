@@ -101,6 +101,118 @@ function loadProblemSolution(problemId) {
         }
     });
 }
+// Initialize Select2 for image search
+$('#tsg_imageSearchDropdown').select2({
+    ajax: {
+        url: '/search_images',  // Endpoint for searching problem images
+        dataType: 'json',
+        delay: 250,
+        data: function(params) {
+            return { q: params.term };  // Search term entered by the user
+        },
+        processResults: function(data) {
+            return {
+                results: data.map(function(image) {
+                    return {
+                        id: image.id,
+                        text: image.title  // Display image title
+                    };
+                })
+            };
+        },
+        cache: true
+    },
+    minimumInputLength: 2,
+    placeholder: 'Search for a problem image...'
+});
+
+// Add selected image from the search dropdown to the edit_problem_imageDropdown
+$('#addImageButton').on('click', function() {
+    var selectedImages = $('#tsg_imageSearchDropdown').select2('data');  // Get selected image data
+
+    // Loop through selected images and add them to the edit_problem_imageDropdown
+    selectedImages.forEach(function(image) {
+        if ($('#edit_problem_imageDropdown option[value="' + image.id + '"]').length === 0) {
+            var newOption = $('<option>', {
+                value: image.id,
+                text: image.text,  // Display image title
+                selected: true  // Mark as selected when added
+            });
+            $('#edit_problem_imageDropdown').append(newOption);
+        }
+    });
+
+    // Clear the search dropdown after adding the image
+    $('#tsg_imageSearchDropdown').val(null).trigger('change');
+});
+
+// Remove selected images from the edit_problem_imageDropdown
+$('#removeImageButton').on('click', function() {
+    $('#edit_problem_imageDropdown option:selected').each(function() {
+        $(this).remove();  // Remove the selected option
+    });
+});
+
+// Ensure all images in the edit_problem_imageDropdown are selected before form submission
+$('#editProblemSolutionForm').on('submit', function() {
+    $('#edit_problem_imageDropdown option').prop('selected', true);  // Select all options before submission
+});
+// Initialize Select2 for solution image search
+$('#tsg_solutionImageSearchDropdown').select2({
+    ajax: {
+        url: '/search_solution_images',  // Endpoint for searching solution images
+        dataType: 'json',
+        delay: 250,
+        data: function(params) {
+            return { q: params.term };  // Search term entered by the user
+        },
+        processResults: function(data) {
+            return {
+                results: data.map(function(image) {
+                    return {
+                        id: image.id,
+                        text: image.title  // Display image title
+                    };
+                })
+            };
+        },
+        cache: true
+    },
+    minimumInputLength: 2,
+    placeholder: 'Search for a solution image...'
+});
+
+// Add selected solution image from the search dropdown to the edit_solution_imageDropdown
+$('#addSolutionImageButton').on('click', function() {
+    var selectedSolutionImages = $('#tsg_solutionImageSearchDropdown').select2('data');  // Get selected solution image data
+
+    // Loop through selected solution images and add them to the edit_solution_imageDropdown
+    selectedSolutionImages.forEach(function(image) {
+        if ($('#edit_solution_imageDropdown option[value="' + image.id + '"]').length === 0) {
+            var newOption = $('<option>', {
+                value: image.id,
+                text: image.text,  // Display image title
+                selected: true  // Mark as selected when added
+            });
+            $('#edit_solution_imageDropdown').append(newOption);
+        }
+    });
+
+    // Clear the search dropdown after adding the solution image
+    $('#tsg_solutionImageSearchDropdown').val(null).trigger('change');
+});
+
+// Remove selected solution images from the edit_solution_imageDropdown
+$('#removeSolutionImageButton').on('click', function() {
+    $('#edit_solution_imageDropdown option:selected').each(function() {
+        $(this).remove();  // Remove the selected option
+    });
+});
+
+// Ensure all solution images in the edit_solution_imageDropdown are selected before form submission
+$('#editProblemSolutionForm').on('submit', function() {
+    $('#edit_solution_imageDropdown option').prop('selected', true);  // Select all options before submission
+});
 
 // Function to search for additional documents
 $('#search_document').on('input', function () {
