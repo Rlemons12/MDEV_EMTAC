@@ -145,17 +145,40 @@
                 <!-- Button to delete selected documents -->
                 <button type="button" id="deleteDocumentButton">Delete Selected Document(s)</button><br>
 
-                <!-- Associated Parts -->
+                 <!-- Associated Parts -->
                 <label for="edit_part">Associated Parts:</label><br>
-                <select name="edit_part[]" id="edit_partDropdown" multiple>
-                    <!-- Dynamically populate the options with associated parts -->
+                <select name="edit_part[]" id="edit_partDropdown" multiple style="width: 100%;">
+                    <!-- Options for both existing and newly added parts will be populated here -->
                 </select><br>
+
+                <!-- Part Number Search Dropdown -->
+                <label for="partnumberSearch" style="color:white;">Search Part Number:</label><br>
+                <select id="tsg_partSearchDropdown" style="width: 100%;"></select><br>
+
+                <!-- Button to Add Selected Part(s) -->
+                <button type="button" id="addPartButton">Add Selected Part(s)</button><br>
+
+                <!-- Button to Remove Selected Part(s) -->
+                <button type="button" id="removePartButton">Remove Selected Part(s)</button><br>
+
+
 
                 <!-- Associated Drawing Numbers -->
                 <label for="edit_drawing">Associated Drawing Numbers:</label><br>
-                <select name="edit_drawing[]" id="edit_drawingdropdown" multiple>
-                    <!-- Dynamically populate the options with associated drawings -->
+                <select name="edit_drawing[]" id="edit_drawingdropdown" multiple style="width: 100%;">
+                    <!-- Options for associated drawings will be dynamically added here -->
                 </select><br>
+
+                <!-- Search for Drawing Numbers -->
+                <label for="drawingSearch" style="color:white;">Search Drawing Numbers:</label><br>
+                <select id="tsg_drawingSearchDropdown" style="width: 100%;"></select><br>
+
+                <!-- Button to Add Selected Drawing(s) -->
+                <button type="button" id="addDrawingButton">Add Selected Drawing(s)</button><br>
+
+                <!-- Button to Remove Selected Drawing(s) -->
+                <button type="button" id="removeDrawingButton">Remove Selected Drawing(s)</button><br>
+
 
                 <!-- Save Changes Button -->
                 <button type="submit">Save Changes</button>
@@ -307,6 +330,13 @@
         </div>
     </div>
 
+<!-- Include jQuery (Select2 depends on it) -->
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+
+<!-- Include Select2 CSS and JS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
 <!-- Include jQuery using a CDN -->
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" rel="stylesheet" />
@@ -396,6 +426,27 @@ function showForm(formId) {
     // Automatically select all documents in the dropdown before submitting the form
     $('#editProblemSolutionForm').on('submit', function() {
         $('#edit_documentDropdown option').prop('selected', true);
+    });
+</script>
+<script>
+    // Automatically select all parts in the dropdown before submitting the form
+    $('#editProblemSolutionForm').on('submit', function() {
+        $('#selectedPartsDropdown option').prop('selected', true);
+    });
+</script>
+<script>
+    $(document).ready(function() {
+        // Remove selected parts from the dropdown
+        $('#removePartButton').on('click', function() {
+            $('#edit_partDropdown option:selected').each(function() {
+                $(this).remove();  // Remove the selected option
+            });
+        });
+
+        // Automatically select all parts in the dropdown before submitting the form
+        $('#editProblemSolutionForm').on('submit', function() {
+            $('#edit_partDropdown option').prop('selected', true);  // Ensure all parts are selected when submitting
+        });
     });
 </script>
 

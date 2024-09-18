@@ -185,3 +185,119 @@ $('#deleteDocumentButton').on('click', function () {
     }
 });
 
+$(document).ready(function() {
+    // Initialize Select2 for part search
+    $('#tsg_partSearchDropdown').select2({
+        placeholder: 'Search for part number...',
+        minimumInputLength: 2,
+        ajax: {
+            url: '/search_parts',  // Endpoint for searching parts
+            dataType: 'json',
+            delay: 250,
+            data: function(params) {
+                return { q: params.term };  // Search term entered by the user
+            },
+            processResults: function(data) {
+                return {
+                    results: data.map(function(part) {
+                        return {
+                            id: part.id,
+                            text: part.name  // Include part number if desired
+                        };
+                    })
+                };
+            },
+            cache: true
+        }
+    });
+
+    // Add selected parts from search dropdown to the edit_partDropdown
+    $('#addPartButton').on('click', function() {
+        var selectedParts = $('#tsg_partSearchDropdown').select2('data');
+
+        selectedParts.forEach(function(part) {
+            if ($('#edit_partDropdown option[value="' + part.id + '"]').length === 0) {
+                var newOption = $('<option>', {
+                    value: part.id,
+                    text: part.text,
+                    selected: true
+                });
+                $('#edit_partDropdown').append(newOption);
+            }
+        });
+
+        // Clear the search dropdown after adding the part
+        $('#tsg_partSearchDropdown').val(null).trigger('change');
+    });
+
+    // Remove selected parts from the edit_partDropdown
+    $('#removePartButton').on('click', function() {
+        $('#edit_partDropdown option:selected').each(function() {
+            $(this).remove();
+        });
+    });
+
+    // Ensure all parts are selected before form submission
+    $('#editProblemSolutionForm').on('submit', function() {
+        $('#edit_partDropdown option').prop('selected', true);
+    });
+});
+
+
+// Initialize Select2 for drawing search
+$('#tsg_drawingSearchDropdown').select2({
+    ajax: {
+        url: '/search_drawings',  // Endpoint for searching drawings
+        dataType: 'json',
+        delay: 250,
+        data: function(params) {
+            return { q: params.term };  // Search term entered by the user
+        },
+        processResults: function(data) {
+            return {
+                results: data.map(function(drawing) {
+                    return {
+                        id: drawing.id,
+                        text: drawing.name  // Display drawing number and name
+                    };
+                })
+            };
+        },
+        cache: true
+    },
+    minimumInputLength: 2,
+    placeholder: 'Search for a drawing...'
+});
+
+// Add selected drawing from the search dropdown to the edit_drawingdropdown
+$('#addDrawingButton').on('click', function() {
+    var selectedDrawings = $('#tsg_drawingSearchDropdown').select2('data');  // Get selected drawing data
+
+    // Loop through selected drawings and add them to the edit_drawingdropdown
+    selectedDrawings.forEach(function(drawing) {
+        if ($('#edit_drawingdropdown option[value="' + drawing.id + '"]').length === 0) {
+            $('#edit_drawingdropdown').append(
+                $('<option>', {
+                    value: drawing.id,
+                    text: drawing.text,  // Display drawing number and name
+                    selected: true  // Mark as selected when added
+                })
+            );
+        }
+    });
+
+    // Clear the search dropdown after adding the drawing
+    $('#tsg_drawingSearchDropdown').val(null).trigger('change');
+});
+
+// Remove selected drawings from the edit_drawingdropdown
+$('#removeDrawingButton').on('click', function() {
+    $('#edit_drawingdropdown option:selected').each(function() {
+        $(this).remove();  // Remove the selected option
+    });
+});
+
+// Ensure all drawings in the edit_drawingdropdown are selected before form submission
+$('#editProblemSolutionForm').on('submit', function() {
+    $('#edit_drawingdropdown option').prop('selected', true);  // Select all options before submission
+});

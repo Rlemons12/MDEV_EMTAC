@@ -1,15 +1,16 @@
 import os
-from flask import Blueprint, request, redirect, url_for, flash, render_template
+from flask import (Blueprint, request, redirect, url_for,
+                   jsonify,flash, render_template)
 import logging
 from config_env import DatabaseConfig  # Ensure this path is correct
-from emtacdb_fts import (
-    Problem, Solution,
+from emtacdb_fts import (Drawing,Problem, Solution,
     ImageProblemAssociation, ImageSolutionAssociation,
-    CompleteDocumentProblemAssociation,
+    CompleteDocumentProblemAssociation, Part,
     PartProblemAssociation, DrawingProblemAssociation
 )
 import traceback
 from logging.handlers import RotatingFileHandler
+from sqlalchemy import or_
 
 # Configure logging
 def setup_logger():
@@ -73,8 +74,8 @@ def edit_update_problem_solution():
     selected_problem_image_ids = request.form.getlist('edit_problem_image[]')
     selected_solution_image_ids = request.form.getlist('edit_solution_image[]')
     selected_document_ids = request.form.getlist('edit_document[]')
-    selected_part_ids = request.form.getlist('edit_part[]')
-    selected_drawing_ids = request.form.getlist('edit_drawing[]')
+    selected_part_ids = request.form.getlist('edit_part[]')  # Updated to match the part input name
+    selected_drawing_ids = request.form.getlist('edit_drawing[]')  # Updated for drawing selection
 
     # Log individual fields
     logger.info(f"Received form data - Problem ID: {problem_id}, Problem Name: {problem_name}, "
@@ -127,7 +128,7 @@ def edit_update_problem_solution():
             existing_ids = {getattr(assoc, 'image_id', None) or getattr(assoc, 'complete_document_id', None) or getattr(assoc, 'part_id', None) or getattr(assoc, 'drawing_id', None) for assoc in existing_associations}
 
             # Determine associations to remove (those that exist but are not in selected_ids)
-            to_remove = [assoc for assoc in existing_associations if getattr(assoc, 'image_id', None) or getattr(assoc, 'complete_document_id', None) not in selected_ids]
+            to_remove = [assoc for assoc in existing_associations if getattr(assoc, 'image_id', None) or getattr(assoc, 'complete_document_id', None) or getattr(assoc, 'part_id', None) or getattr(assoc, 'drawing_id', None) not in selected_ids]
 
             # Remove old associations
             for assoc in to_remove:
@@ -217,3 +218,46 @@ def edit_update_problem_solution():
 
     # Redirect back to the troubleshooting guide page after updating
     return render_template('troubleshooting_guide.html')
+
+@troubleshooting_guide_edit_update_bp.route('/search_parts')
+def search_parts():
+    search_term = request.args.get('q', '')  # Get the search query from the request
+
+    # Get the session object from DatabaseConfig
+    session = db_config.get_main_session()
+
+    # Use 'or_' to search across multiple fields: part_number, name, oem_mfg, and model
+    parts = session.query(Part).filter(
+        or_(
+            Part.part_number.ilike(f'%{search_term}%'),
+            Part.name.ilike(f'%{search_term}%'),
+            Part.oem_mfg.ilike(f'%{search_term}%'),
+            Part.model.ilike(f'%{search_term}%')
+        )
+    ).limit(10).all()
+
+    # Format the results for Select2: Part number and name
+    results = [{'id': part.id, 'name': f"{part.part_number} - {part.name}"} for part in parts]
+
+    return jsonify(results)
+@troubleshooting_guide_edit_update_bp.route('/search_drawings')
+def search_drawings():
+    search_term = request.args.get('q', '')
+
+    session = db_config.get_main_session()
+
+    # Filter based on the search term in multiple fields
+    drawings = session.query(Drawing).filter(
+        or_(
+            Drawing.drw_number.ilike(f'%{search_term}%'),
+            Drawing.drw_name.ilike(f'%{search_term}%'),
+            Drawing.drw_revision.ilike(f'%{search_term}%'),
+            Drawing.drw_equipment_name.ilike(f'%{search_term}%')
+        )
+    ).limit(10).all()
+
+    # Format results for select2
+    results = [{'id': drawing.id, 'text': f"{drawing.drw_number} - {drawing.drw_name}"} for drawing in drawings]
+
+    return jsonify(results)
+
