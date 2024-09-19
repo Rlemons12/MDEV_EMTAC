@@ -36,14 +36,19 @@ def get_troubleshooting_guide_edit_data():
         filters = []
         if area_id:
             filters.append(Position.area_id == area_id)
+            logger.info("Area [{area_id}]")
         if equipment_group_id:
             filters.append(Position.equipment_group_id == equipment_group_id)
+            logger.info("Equipment Group ID [{equipment_group_id}]")
         if model_id:
             filters.append(Position.model_id == model_id)
+            logger.info("Model ID [{model_id}]")
         if asset_number_id:
             filters.append(Position.asset_number_id == asset_number_id)
+            logger.info("Asset Number [{asset_number_id}]")
         if location_id:
             filters.append(Position.location_id == location_id)
+            logger.info("Location ID [{location_id}]")
 
         # Query positions based on filters (if filters exist)
         position_ids = []
@@ -105,3 +110,4 @@ def get_troubleshooting_guide_edit_data():
 
     finally:
         session.close()
+

@@ -61,150 +61,101 @@
         </form>
     </div>
     <!-- Edit Troubleshooting Guide Form -->
-    <div class="form-container" id="edit-troubleshooting-guide-form">
-        <div style="color: white;">
-            <h2>Edit Troubleshooting Guide</h2>
+<div class="form-container" id="edit-troubleshooting-guide-form">
+    <div style="color: white;">
+        <h2>Edit Troubleshooting Guide</h2>
 
-            <!-- Form for searching and editing problems -->
-            <form id="editProblemSolutionForm" action="/troubleshooting_guide_edit_update" method="post" enctype="multipart/form-data">
+        <!-- Form for searching and editing problems -->
+        <form id="editProblemSolutionForm" action="/troubleshooting_guide_edit_update" method="post" enctype="multipart/form-data">
 
-                <!-- Search Problem Section -->
+            <!-- Collapsible Search Problem Section -->
+            <details open>
+                <summary>Search for Problem</summary>
                 <label for="searchProblem">Search for Problem:</label>
                 <input type="text" id="searchProblem" name="search_problem" placeholder="Enter problem title or ID"><br>
-
-                <!-- Area Dropdown -->
                 <label for="tsg_edit_areaDropdown">Area:</label>
                 <select name="tsg_edit_area" id="tsg_edit_areaDropdown"></select><br>
-
-                <!-- Equipment Group Dropdown -->
                 <label for="tsg_edit_equipmentGroupDropdown">Equipment Group:</label>
                 <select name="tsg_edit_equipment_group" id="tsg_edit_equipmentGroupDropdown"></select><br>
-
-                <!-- Model Dropdown -->
                 <label for="tsg_edit_modelDropdown">Model:</label>
                 <select name="tsg_edit_model" id="tsg_edit_modelDropdown"></select><br>
-
-                <!-- Asset Number Dropdown -->
                 <label for="tsg_edit_assetNumberDropdown">Asset Number:</label>
                 <select name="tsg_edit_asset_number" id="tsg_edit_assetNumberDropdown"></select><br>
-
-                <!-- Location Dropdown -->
                 <label for="tsg_edit_locationDropdown">Location:</label>
                 <select name="tsg_edit_location" id="tsg_edit_locationDropdown"></select><br>
-
                 <button type="button" onclick="searchForProblem()">Search</button><br>
+            </details>
 
-                <!-- Hidden Fields for Problem and Solution IDs -->
+            <!-- Collapsible Problem Details Section -->
+            <details>
+                <summary>Problem Details</summary>
                 <input type="hidden" name="problem_id" id="edit_problem_id">
                 <input type="hidden" name="solution_id" id="edit_solution_id">
-
-                <!-- Display and edit the retrieved problem name -->
-                <div id="problemNameContainer" style="margin-top: 15px;">
-                    <label for="edit_problem_name"><strong>Problem Name:</strong></label>
-                    <input type="text" name="problem_name" id="edit_problem_name"><br>
-                </div>
-
-                <!-- Problem Description -->
+                <label for="edit_problem_name"><strong>Problem Name:</strong></label>
+                <input type="text" name="problem_name" id="edit_problem_name"><br>
                 <label for="edit_problem_description">Problem Description:</label><br>
                 <textarea name="problem_description" id="edit_problem_description" rows="4" cols="50"></textarea><br>
-
-                <!-- Associated Problem Images -->
                 <label for="edit_problem_image">Associated Problem Images:</label><br>
-                <select name="edit_problem_image[]" id="edit_problem_imageDropdown" multiple style="width: 100%;">
-                    <!-- Dynamically populated associated problem images -->
-                </select><br>
-
-                <!-- Search for Problem Images -->
+                <select name="edit_problem_image[]" id="edit_problem_imageDropdown" multiple style="width: 100%;"></select><br>
                 <label for="imageSearch" style="color:white;">Search Problem Images:</label><br>
                 <select id="tsg_imageSearchDropdown" style="width: 100%;"></select><br>
-
-                <!-- Button to Add Selected Image(s) -->
                 <button type="button" id="addImageButton">Add Selected Image(s)</button><br>
-
-                <!-- Button to Remove Selected Image(s) -->
                 <button type="button" id="removeImageButton">Remove Selected Image(s)</button><br>
+            </details>
 
-
-                <!-- Solution Description -->
+            <!-- Collapsible Solution Section -->
+            <details>
+                <summary>Solution Details</summary>
                 <label for="edit_solution_description">Solution Description:</label><br>
                 <textarea name="solution_description" id="edit_solution_description" rows="4" cols="50"></textarea><br>
-
-                <!-- Associated Solution Images -->
                 <label for="edit_solution_image">Associated Solution Images:</label><br>
-                <select name="edit_solution_image[]" id="edit_solution_imageDropdown" multiple style="width: 100%;">
-                    <!-- Dynamically populated associated solution images -->
-                </select><br>
-
-                <!-- Search for Solution Images -->
+                <select name="edit_solution_image[]" id="edit_solution_imageDropdown" multiple style="width: 100%;"></select><br>
                 <label for="solutionImageSearch" style="color:white;">Search Solution Images:</label><br>
                 <select id="tsg_solutionImageSearchDropdown" style="width: 100%;"></select><br>
-
-                <!-- Button to Add Selected Solution Image(s) -->
                 <button type="button" id="addSolutionImageButton">Add Selected Solution Image(s)</button><br>
-
-                <!-- Button to Remove Selected Solution Image(s) -->
                 <button type="button" id="removeSolutionImageButton">Remove Selected Solution Image(s)</button><br>
+            </details>
 
-
-                <!-- Associated Documents -->
+            <!-- Collapsible Documents Section -->
+            <details>
+                <summary>Associated Documents</summary>
                 <label for="edit_document">Associated Documents:</label><br>
-                <select name="edit_document[]" id="edit_documentDropdown" multiple>
-                    <!-- Dynamically populate the options with associated documents -->
-                </select><br>
-
-                <!-- Search for Documents to Add -->
+                <select name="edit_document[]" id="edit_documentDropdown" multiple></select><br>
                 <label for="search_document">Search for Documents to Add:</label><br>
                 <input type="text" id="search_document" placeholder="Search for documents"><br>
-
-                <!-- Search Results -->
-                <ul id="documentSearchResults">
-                    <!-- Results will be populated dynamically here -->
-                </ul>
-
-                <!-- Button to add selected documents -->
+                <ul id="documentSearchResults"></ul>
                 <button type="button" id="addDocumentButton">Add Selected Document(s)</button><br>
-
-                <!-- Button to delete selected documents -->
                 <button type="button" id="deleteDocumentButton">Delete Selected Document(s)</button><br>
+            </details>
 
-                 <!-- Associated Parts -->
+            <!-- Collapsible Parts Section -->
+            <details>
+                <summary>Associated Parts</summary>
                 <label for="edit_part">Associated Parts:</label><br>
-                <select name="edit_part[]" id="edit_partDropdown" multiple style="width: 100%;">
-                    <!-- Options for both existing and newly added parts will be populated here -->
-                </select><br>
-
-                <!-- Part Number Search Dropdown -->
+                <select name="edit_part[]" id="edit_partDropdown" multiple style="width: 100%;"></select><br>
                 <label for="partnumberSearch" style="color:white;">Search Part Number:</label><br>
                 <select id="tsg_partSearchDropdown" style="width: 100%;"></select><br>
-
-                <!-- Button to Add Selected Part(s) -->
                 <button type="button" id="addPartButton">Add Selected Part(s)</button><br>
-
-                <!-- Button to Remove Selected Part(s) -->
                 <button type="button" id="removePartButton">Remove Selected Part(s)</button><br>
+            </details>
 
-
-                <!-- Associated Drawing Numbers -->
+            <!-- Collapsible Drawings Section -->
+            <details>
+                <summary>Associated Drawing Numbers</summary>
                 <label for="edit_drawing">Associated Drawing Numbers:</label><br>
-                <select name="edit_drawing[]" id="edit_drawingdropdown" multiple style="width: 100%;">
-                    <!-- Options for associated drawings will be dynamically added here -->
-                </select><br>
-
-                <!-- Search for Drawing Numbers -->
+                <select name="edit_drawing[]" id="edit_drawingdropdown" multiple style="width: 100%;"></select><br>
                 <label for="drawingSearch" style="color:white;">Search Drawing Numbers:</label><br>
                 <select id="tsg_drawingSearchDropdown" style="width: 100%;"></select><br>
-
-                <!-- Button to Add Selected Drawing(s) -->
                 <button type="button" id="addDrawingButton">Add Selected Drawing(s)</button><br>
-
-                <!-- Button to Remove Selected Drawing(s) -->
                 <button type="button" id="removeDrawingButton">Remove Selected Drawing(s)</button><br>
+            </details>
 
-                <!-- Save Changes Button -->
-                <button type="submit">Save Changes</button>
-            </form>
-        </div>
+            <!-- Save Changes Button -->
+            <button type="submit">Save Changes</button>
+        </form>
     </div>
+</div>
+
 
 
     <!-- Troubleshooting Guide New Entry Form -->

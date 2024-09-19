@@ -2806,3 +2806,13 @@
 2024-09-13 05:39:50,921 - blueprints.create_bill_of_material - INFO - Found 3 matching positions.
 2024-09-13 05:39:50,930 - blueprints.create_bill_of_material - INFO - Found 380 associated parts and images.
 2024-09-13 05:39:50,930 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-18 14:12:03,591 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-18 14:12:03,593 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-09-18 14:12:03,602 - blueprints.create_bill_of_material - INFO - Found 5 matching positions.
+2024-09-18 14:12:03,618 - blueprints.create_bill_of_material - INFO - Found 380 associated parts and images.
+2024-09-18 14:12:03,620 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-19 03:58:19,840 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-19 03:58:19,842 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-09-19 03:58:19,846 - blueprints.create_bill_of_material - INFO - Found 5 matching positions.
+2024-09-19 03:58:19,856 - blueprints.create_bill_of_material - INFO - Found 380 associated parts and images.
+2024-09-19 03:58:19,857 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.

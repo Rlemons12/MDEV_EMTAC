@@ -6,11 +6,11 @@ import os
 import shutil
 from datetime import datetime
 import logging
-import json  # Import json module
+import json
 # Ensure the parent directory is in the Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from config import DATABASE_DIR, BASE_DIR, DATABASE_URL, DB_LOADSHEET, DB_LOADSHEETS_BACKUP
-from emtacdb_fts import (Area, EquipmentGroup, Model, AssetNumber, Location, SiteLocation, Problem, Solution, Base, Position, ProblemPositionAssociation, 
+from emtacdb_fts import (Area, EquipmentGroup, Model, AssetNumber, Location, SiteLocation, Problem, Solution, Base, Position, ProblemPositionAssociation,
     split_text_into_chunks, extract_images_from_pdf, create_position, Document, load_config_from_db)
 from plugins.ai_models import generate_embedding
 from config_env import DatabaseConfig
@@ -58,7 +58,7 @@ def backup_database():
         df_model = pd.DataFrame(model_data, columns=['name', 'description', 'equipment_group_id'])
         df_asset_number = pd.DataFrame(asset_number_data, columns=['number', 'model_id', 'description'])
         df_location = pd.DataFrame(location_data, columns=['name', 'model_id'])
-        df_problem = pd.DataFrame(problem_data, columns(['name', 'description']))
+        df_problem = pd.DataFrame(problem_data, columns=['name', 'description'])
         df_solution = pd.DataFrame(solution_data, columns=['description', 'problem_id'])
 
         # Write DataFrames to the Excel file
@@ -87,7 +87,7 @@ def add_tsg_loadsheet_to_document_table_db(file_path, area_data, equipment_group
         logger.info(f"Columns in the Excel file: {df.columns}")
 
         # Check if the necessary columns are present
-        required_columns = ['area', 'model', 'location', 'problem', 'solution']
+        required_columns = ['area', 'equipmentgroup', 'model', 'asset', 'location', 'problem', 'solution']
         if not all(column in df.columns for column in required_columns):
             logger.error("Excel file is missing required columns.")
             return None, False
@@ -98,38 +98,60 @@ def add_tsg_loadsheet_to_document_table_db(file_path, area_data, equipment_group
         # Iterate through each row in the dataframe
         for index, row in df.iterrows():
             # Extract data from the row
-
-            problem_desc = row['problem']
-            location_name = row['location'].strip()  # Strip leading and trailing spaces from location name
-            model_name = row['model'].strip()  # Strip leading and trailing spaces from model name
-            solution_desc = row['solution']  # Extract solution description
+            area_name = row['area'].strip() if pd.notna(row['area']) else None
+            equipment_group_name = row['equipmentgroup'].strip() if pd.notna(row['equipmentgroup']) else None
+            asset_number = row['asset'].strip() if pd.notna(row['asset']) else None
+            location_name = row['location'].strip() if pd.notna(row['location']) else None
+            model_name = row['model'].strip() if pd.notna(row['model']) else None
+            problem_desc = row['problem'].strip() if pd.notna(row['problem']) else None
+            solution_desc = row['solution'].strip() if pd.notna(row['solution']) else None
 
             logger.info(
-                f"Processing row {index + 1} - Problem: {problem_desc}, Location: {location_name}, Model: {model_name}, Solution: {solution_desc}")
+                f"Processing row {index + 1} - Problem: {problem_desc}, Area: {area_name}, EquipmentGroup: {equipment_group_name}, Asset: {asset_number}, Location: {location_name}, Model: {model_name}, Solution: {solution_desc}")
+
+            # Query Area table to find matching area_id
+            area = session.query(Area).filter(Area.name == area_name).first()
+            if area:
+                area_id = area.id
+            else:
+                logger.warning("Area '%s' not found.", area_name)
+                continue
+
+            # Query EquipmentGroup table to find matching equipment_group_id
+            equipment_group = session.query(EquipmentGroup).filter(EquipmentGroup.name == equipment_group_name).first()
+            if equipment_group:
+                equipment_group_id = equipment_group.id
+            else:
+                logger.warning("Equipment group '%s' not found.", equipment_group_name)
+                continue
+
+            # Query AssetNumber table to find matching asset_number_id (if provided)
+            asset_number_id = None
+            if asset_number:
+                asset = session.query(AssetNumber).filter(AssetNumber.number == asset_number).first()
+                if asset:
+                    asset_number_id = asset.id
+                else:
+                    logger.warning("Asset number '%s' not found.", asset_number)
 
             # Query Location table to find matching location_id
             location = session.query(Location).filter(Location.name == location_name).first()
-            logger.info("Checking location: %s", location_name)  # Log the location being checked
             if location:
                 location_id = location.id
-                logger.info("Location found: %s", location_name)  # Log when a location is found
             else:
-                logger.warning("Location '%s' not found.", location_name)  # Log when a location is not found
+                logger.warning("Location '%s' not found.", location_name)
                 continue
 
             # Query Model table to find matching model_id
             model = session.query(Model).filter(Model.name == model_name).first()
-            logger.info("Checking model: %s", model_name)  # Log the model being checked
             if model:
                 model_id = model.id
-                logger.info("Model found: %s", model_name)  # Log when a model is found
             else:
-                logger.warning("Model '%s' not found.", model_name)  # Log when a model is not found
+                logger.warning("Model '%s' not found.", model_name)
                 continue
 
             # Create a new position if required
-            position_id = create_position(None, None, model_id, None, location_id, None,
-                                          session)  # Adjust parameters as needed
+            position_id = create_position(area_id, equipment_group_id, model_id, asset_number_id, location_id, None, session)
             if not position_id:
                 logger.error("Failed to create or retrieve position.")
                 continue
@@ -146,22 +168,20 @@ def add_tsg_loadsheet_to_document_table_db(file_path, area_data, equipment_group
             session.commit()
 
             # Insert solution into Solution table if it exists and is valid
-            if not pd.isna(solution_desc) and solution_desc.strip():
+            if solution_desc:
                 new_solution = Solution(description=solution_desc, problem_id=new_problem.id)
                 session.add(new_solution)
                 session.commit()
             else:
-                logger.warning("Invalid solution description for problem '%s'. Skipping solution insertion.",
-                               problem_desc)
+                logger.warning("Invalid solution description for problem '%s'. Skipping solution insertion.", problem_desc)
 
             # Create a new entry in the ProblemPositionAssociation table
-            problem_position_association = ProblemPositionAssociation(problem_id=new_problem.id,
-                                                                      position_id=position_id)
+            problem_position_association = ProblemPositionAssociation(problem_id=new_problem.id, position_id=position_id)
             session.add(problem_position_association)
             session.commit()
 
             # Concatenate extracted text for embedding
-            extracted_text = f"{problem_desc} {location_name} {model_name} {solution_desc}"
+            extracted_text = f"{problem_desc} {area_name} {equipment_group_name} {asset_number} {location_name} {model_name} {solution_desc}"
 
             logger.info("Splitting extracted text into chunks.")
             # Split text into chunks and process each chunk
@@ -177,8 +197,7 @@ def add_tsg_loadsheet_to_document_table_db(file_path, area_data, equipment_group
                         store_embedding(document_id, embeddings, current_embedding_model)
                         logger.info(f"Generated and stored embedding for chunk {i + 1} of document: {file_path}")
                 else:
-                    logger.info(
-                        f"No embedding generated for chunk {i + 1} of document: {file_path} because no model is selected.")
+                    logger.info(f"No embedding generated for chunk {i + 1} of document: {file_path} because no model is selected.")
 
         logger.info(f"Successfully processed file: {file_path}")
         return document_id, True
