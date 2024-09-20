@@ -1,177 +1,15 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Search Problems</title>
-    <style>
-        /* Add CSS styles here */
-        body {
-            background-image: url("/static/background images/abstractfractal.jpg");
-            background-size: cover;
-            background-repeat: no-repeat;
-            display: flex;
-            color: white;
-            margin: 0;
-            height: 100vh;
-            overflow: hidden;
-        }
+{% extends 'base.html' %}
 
-        .sidebar {
-            width: 250px;
-            height: 100vh;
-            background-color: rgba(0, 0, 0, 0.8);
-            padding: 20px;
-            box-sizing: border-box;
-            transition: width 0.3s;
-            overflow-x: hidden;
-        }
+{% block title %}
+    Search Problems
+{% endblock %}
 
-        .sidebar.collapsed {
-            width: 60px;
-        }
+{% block extra_head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tsg_search_problems.css') }}">
+{% endblock %}
 
-        .sidebar h2 {
-            color: white;
-            text-align: center;
-        }
-
-        .sidebar a {
-            color: yellow;
-            text-decoration: none;
-            display: block;
-            padding: 10px;
-            transition: padding-left 0.3s;
-        }
-
-        .sidebar.collapsed a {
-            padding-left: 10px;
-        }
-
-        .sidebar a:hover {
-            background-color: rgba(255, 255, 255, 0.1);
-        }
-
-        .toggle-btn {
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            padding: 10px 20px;
-            display: block;
-            margin: 0 auto 20px;
-        }
-
-        .content {
-            flex: 1;
-            padding: 20px;
-            display: flex;
-            gap: 20px;
-            overflow-y: auto;
-        }
-
-        .form-container {
-            flex: 1;
-            padding: 20px;
-            background-color: rgba(0, 0, 0, 0.7);
-            border-radius: 10px;
-            max-height: calc(100vh - 40px); /* Adjust height to fit within viewport */
-            overflow-y: auto;
-        }
-
-        .form-container h2 {
-            color: white;
-        }
-
-        .form-container input,
-        .form-container select,
-        .form-container textarea {
-            width: 100%;
-            padding: 10px;
-            margin: 10px 0;
-            border-radius: 5px;
-            border: none;
-            box-sizing: border-box;
-        }
-
-        .form-container input[type="submit"] {
-            background-color: #4CAF50;
-            color: white;
-            cursor: pointer;
-        }
-
-        .form-container input[type="submit"]:hover {
-            background-color: #45a049;
-        }
-
-        .results-container {
-            flex: 1;
-            padding: 20px;
-            background-color: rgba(0, 0, 0, 0.7);
-            border-radius: 10px;
-            max-height: calc(100vh - 40px); /* Adjust height to fit within viewport */
-            overflow-y: auto;
-        }
-
-        .results-container h2 {
-            color: white;
-        }
-
-        .results-container p {
-            color: white;
-        }
-
-        .thumbnail {
-            width: 150px;
-            height: auto;
-            margin: 10px;
-            cursor: pointer;
-            float: left;
-        }
-
-        .image-container,
-        .document-container {
-            margin-top: 20px;
-            overflow: hidden;
-        }
-
-        .image-details,
-        .document-details {
-            margin-left: 180px;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #ccc;
-        }
-
-        .image-details h2,
-        .document-details h2 {
-            margin-top: 0;
-        }
-
-        .pagination {
-            margin-top: 20px;
-            text-align: right;
-        }
-
-        .pagination a {
-            margin: 0 5px;
-            text-decoration: none;
-            color: #007bff;
-        }
-
-        .pagination strong {
-            margin: 0 5px;
-            color: #000;
-        }
-    </style>
-</head>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/redbanner.css')}}">
-<body>
-    <div class="banner">
-        THIS IS FOR REFERENCE ONLY. ALL INFORMATION SHOULD BE VERIFIED WITH CURRENT SOP'S
-        <a href="#" id="commentPopupLink" style="color: #39FF14;">Leave a Comment</a>
-    </div>
-    <div class="sidebar">
+{% block content %}
+  <div class="sidebar">
          <h2 style="color: Yellow;">Welcome {{ session['first_name'] }}! How can I assist you?</h2>
         {% if session['user_level'] != 'STANDARD' %}
             <a href="/" style="color:  #FFFFFF;">Return to Main Page</a>
@@ -186,155 +24,129 @@
         <a href="/logout" style="color:  #FF5F1F;" class="logout-button">Logout</a>
         <button class="toggle-btn" onclick="toggleSidebar()">Toggle</button>
     </div>
-    <div class="main-content">
-    <!-- Popup Modal Structure -->
-    <div id="commentPopup" style="display: none;">
-        <form id="commentForm">
-            <h2>Leave a Comment</h2>
-            <!-- Instructions for filling out the form -->
-            <p>Instructions: You can write your comment, paste an image, or upload a file.</p>
+<div class="content">
+    <div class="form-container">
+        <h2>Search Problems</h2>
+        <form id="search-form" action="/search_problem_solution" method="get">
+            <label for="problemDescription" style="color: white;">Description:</label><br>
+            <input type="text" name="problem_description" id="problemDescription" placeholder="Search by Description"><br>
 
-            <!-- Comment box where users can paste an image or type text -->
-            <textarea name="comment" id="comment" placeholder="Write your comment here..." required></textarea><br>
+            <label for="problemArea" style="color: white;">Area:</label><br>
+            <select name="problem_area" id="problemArea"></select><br>
 
-            <!-- Hidden field to store base64 image data -->
-            <input type="hidden" id="imageData" name="imageData">
+            <label for="problemEquipmentGroup" style="color: white;">Equipment Group:</label><br>
+            <select name="problem_equipment_group" id="problemEquipmentGroup"></select><br>
 
-            <!-- Display an indicator or preview if an image was pasted -->
-            <div id="pastedImageFeedback" style="display: none; color: green;">
-                Image snippet successfully added!
-            </div>
-            <img id="pastedImagePreview" src="" alt="Pasted Image Preview" style="display:none; max-width: 100px; margin-top: 10px;" />
+            <label for="problemModel" style="color: white;">Model:</label><br>
+            <select name="problem_model" id="problemModel"></select><br>
 
-            <!-- Option to upload a file -->
-            <label for="fileUpload">Or upload an image:</label><br>
-            <input type="file" id="fileUpload" name="screenshot" accept="image/*" /><br><br>
+            <label for="problemAssetNumber" style="color: white;">Asset Number:</label><br>
+            <select name="problem_asset_number" id="problemAssetNumber"></select><br>
 
-            <button type="submit">Send</button>
-            <button type="button" id="closePopup">Close</button>
+            <label for="problemLocation" style="color: white;">Location:</label><br>
+            <select name="problem_location" id="problemLocation"></select><br>
+
+            <label for="problemTitle" style="color: white;">Problem Title:</label><br>
+            <select name="problem_title" id="problemTitle">
+                <option value="">Select...</option>
+            </select><br>
+
+            <button type="submit">Search</button>
         </form>
     </div>
-    <div class="content">
-        <div class="form-container">
-            <h2>Search Problems</h2>
-            <form id="search-form" action="/search_problem_solution" method="get">
-                <label for="problemDescription" style="color: white;">Description:</label><br>
-                <input type="text" name="problem_description" id="problemDescription" placeholder="Search by Description"><br>
-                
-                <label for="problemArea" style="color: white;">Area:</label><br>
-                <select name="problem_area" id="problemArea"></select><br>
-                
-                <label for="problemEquipmentGroup" style="color: white;">Equipment Group:</label><br>
-                <select name="problem_equipment_group" id="problemEquipmentGroup"></select><br>  
-                
-                <label for="problemModel" style="color: white;">Model:</label><br>
-                <select name="problem_model" id="problemModel"></select><br>
-                
-                <label for="problemAssetNumber" style="color: white;">Asset Number:</label><br>
-                <select name="problem_asset_number" id="problemAssetNumber"></select><br>
-                
-                <label for="problemLocation" style="color: white;">Location:</label><br>
-                <select name="problem_location" id="problemLocation"></select><br>
-                
-                <label for="problemTitle" style="color: white;">Problem Title:</label><br>
-                <select name="problem_title" id="problemTitle">
-                    <option value="">Select...</option>
-                </select><br>
-                
-                <button type="submit">Search</button>
-            </form>
-        </div>
 
-        <div class="results-container">
-            <h2>Results</h2>
-            <div id="answer-section">
-                <div class="row">
+    <div class="results-container">
+        <h2>Results</h2>
+        <div id="answer-section">
+            <div class="row">
+                <div class="column">
+                    <h3>Problem:</h3>
+                    <p id="problem"></p>
+                    <h3>Solution:</h3>
+                    <p id="solution"></p>
                     <div class="column">
-                        <h3>Problem:</h3>
-                        <p id="problem"></p>
-                        <h3>Solution:</h3>
-                        <p id="solution"></p>
-                        <div class="column">
-                            <h3>Associated Documents:</h3>
-                            <ul id="documents-list"></ul>
-                        </div>
-                    </div>
-                    
-                    <div class="column thumbnails-section" id="thumbnails-section"></div>
-                    
-                    <div class="column">
-                        <h3>Associated Images:</h3>
-                        <div id="images-section"></div>
-                        <h3>Associated Drawings:</h3>
-                        <div id="drawings-section"></div>
-                        <h3>Associated Parts:</h3>
-                        <div id="parts-section"></div>
+                        <h3>Associated Documents:</h3>
+                        <ul id="documents-list"></ul>
                     </div>
                 </div>
-                <h3>Generated SQL Query:</h3>
-                <pre id="sql-query"></pre>
+
+                <div class="column thumbnails-section" id="thumbnails-section"></div>
+
+                <div class="column">
+                    <h3>Associated Images:</h3>
+                    <div id="images-section"></div>
+                    <h3>Associated Drawings:</h3>
+                    <div id="drawings-section"></div>
+                    <h3>Associated Parts:</h3>
+                    <div id="parts-section"></div>
+                </div>
             </div>
+            <h3>Generated SQL Query:</h3>
+            <pre id="sql-query"></pre>
         </div>
     </div>
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
-    <script src="{{ url_for('static', filename='tsg_search_problem.js') }}"></script>
-    <script src="{{ url_for('static', filename='tsg_search_problem_thumbnail.js') }}"></script>
-    <script src="{{ url_for('static', filename='tsg_handleSearchResults.js') }}"></script>
-    <script src="{{ url_for('static', filename='tsg_displaypartsthumbnails.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/comment_pop_up.js')}}"></script>
-    <script>
-        function toggleSidebar() {
-            document.querySelector('.sidebar').classList.toggle('collapsed');
-        }
+</div>
+{% endblock %}
 
-        $(document).ready(function() {
-            $('#problemTitle').on('change focus', function() {
-                var maxWidth = $(this).parent().width();
-                $(this).css('max-width', maxWidth + 'px');
-            });
+{% block extra_scripts %}
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<script src="{{ url_for('static', filename='tsg_search_problem.js') }}"></script>
+<script src="{{ url_for('static', filename='tsg_search_problem_thumbnail.js') }}"></script>
+<script src="{{ url_for('static', filename='tsg_handleSearchResults.js') }}"></script>
+<script src="{{ url_for('static', filename='tsg_displaypartsthumbnails.js') }}"></script>
+<script src="{{ url_for('static', filename='js/comment_pop_up.js')}}"></script>
+<script>
+    function toggleSidebar() {
+        document.querySelector('.sidebar').classList.toggle('collapsed');
+    }
+
+    $(document).ready(function() {
+        $('#problemTitle').on('change focus', function() {
+            var maxWidth = $(this).parent().width();
+            $(this).css('max-width', maxWidth + 'px');
         });
+    });
 
-        $('#search-form').submit(function(event) {
-            event.preventDefault();
-            var formData = $(this).serialize();
-            $.ajax({
-                url: '/search_problem_solution',
-                type: 'GET',
-                data: formData,
-                success: function(data) {
-                    $('#answer-section').html(data);
-                    $('.document-link').click(function() {
-                        var documentId = $(this).data('document-id');
-                        window.location.href = '/view_document/' + documentId;
-                    });
-                    displayThumbnails(data.thumbnails);
-                    renderDocumentLinks(data.documents);
-                    console.log(data.documents);
-                },
-                error: function(xhr, status, error) {
-                    console.error('Error:', error);
-                }
-            });
-        });
-
-        function renderDocumentLinks(documents) {
-            var documentsList = $('#documents-list');
-            if (documentsList.length) {
-                documentsList.empty();
-                documents.forEach(function(document) {
-                    var listItem = $('<li>');
-                    var documentLink = $('<a>')
-                        .attr('href', '/view_document/' + document.id)
-                        .attr('data-document-id', document.id)
-                        .addClass('document-link')
-                        .text(document.title);
-                    listItem.append(documentLink);
-                    documentsList.append(listItem);
+    $('#search-form').submit(function(event) {
+        event.preventDefault();
+        var formData = $(this).serialize();
+        $.ajax({
+            url: '/search_problem_solution',
+            type: 'GET',
+            data: formData,
+            success: function(data) {
+                $('#answer-section').html(data);
+                $('.document-link').click(function() {
+                    var documentId = $(this).data('document-id');
+                    window.location.href = '/view_document/' + documentId;
                 });
-            } else {
-                console.error('#documents-list element not found');
+                displayThumbnails(data.thumbnails);
+                renderDocumentLinks(data.documents);
+                console.log(data.documents);
+            },
+            error: function(xhr, status, error) {
+                console.error('Error:', error);
             }
+        });
+    });
+
+    function renderDocumentLinks(documents) {
+        var documentsList = $('#documents-list');
+        if (documentsList.length) {
+            documentsList.empty();
+            documents.forEach(function(document) {
+                var listItem = $('<li>');
+                var documentLink = $('<a>')
+                    .attr('href', '/view_document/' + document.id)
+                    .attr('data-document-id', document.id)
+                    .addClass('document-link')
+                    .text(document.title);
+                listItem.append(documentLink);
+                documentsList.append(listItem);
+            });
+        } else {
+            console.error('#documents-list element not found');
         }
-    </script>
-</body>
-</html>
+    }
+</script>
+{% endblock %}
