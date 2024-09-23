@@ -5,6 +5,7 @@ from openpyxl import load_workbook, Workbook
 from concurrent.futures import ThreadPoolExecutor
 from config import DB_LOADSHEET_BOMS
 
+# Append parent directory to system path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # Setup logging
@@ -18,7 +19,7 @@ logging.basicConfig(
 def prompt_for_source_file():
     logging.info("Prompting for source file.")
     file_path = input("Please enter the path to the source file that starts with 'bom_for_': ")
-    file_path = file_path.strip('\"\'')
+    file_path = file_path.strip('\"\'')  # Remove extra quotes
 
     if os.path.exists(file_path) and os.path.basename(file_path).startswith("bom_for_"):
         logging.info(f"Source file found: {file_path}")
@@ -33,13 +34,16 @@ def prompt_for_target_file(source_file):
     # Extract the suffix from the source file name
     suffix = os.path.basename(source_file).replace("bom_for_", "").replace(".xlsx", "")
 
+    # Ensure target directory exists
     if not os.path.exists(DB_LOADSHEET_BOMS):
         os.makedirs(DB_LOADSHEET_BOMS)
         logging.info(f"Directory {DB_LOADSHEET_BOMS} created.")
 
+    # Generate target file path
     target_file_name = f"load_bom_for_{suffix}.xlsx"
     file_path = os.path.join(DB_LOADSHEET_BOMS, target_file_name)
 
+    # Log whether the file already exists
     if os.path.exists(file_path):
         logging.info(f"Target file already exists: {file_path}")
         print(f"The file {file_path} already exists and will be updated.")
@@ -52,30 +56,43 @@ def prompt_for_target_file(source_file):
 def copy_bom_sheet_to_target(source_path, target_path):
     logging.info(f"Copying BOM sheet from {source_path} to {target_path}.")
     wb_source = load_workbook(source_path)
+
+    # Check if the BOM sheet exists in the source file
     if "BOM" in wb_source.sheetnames:
         bom_sheet = wb_source["BOM"]
 
+        # Open or create the target workbook
         if os.path.exists(target_path):
             wb_target = load_workbook(target_path)
+            logging.info(f"Opened existing target workbook: {target_path}")
         else:
             wb_target = Workbook()
             default_sheet = wb_target.active
             wb_target.remove(default_sheet)
+            logging.info(f"Created new target workbook: {target_path}")
 
+        # Create the new BOM sheet in the target workbook
         suffix = os.path.basename(target_path).replace("load_bom_for_", "").replace(".xlsx", "")
         new_bom_sheet_name = f"bom_{suffix}"
         bom_target_sheet = wb_target.create_sheet(new_bom_sheet_name)
+        logging.info(f"Created new sheet: {new_bom_sheet_name}")
 
+        # Copy the content of the BOM sheet to the new sheet
         for row in bom_sheet.iter_rows(values_only=True):
             bom_target_sheet.append(row)
+        logging.info(f"Copied BOM sheet data to {new_bom_sheet_name} in target workbook.")
 
-        part_position_image_sheet = wb_target.create_sheet("part_position_image")
-        part_position_image_sheet.append(["part", "position", "image", "description"])
+        # Create the part_position_image sheet if it doesn't exist
+        if "part_position_image" not in wb_target.sheetnames:
+            part_position_image_sheet = wb_target.create_sheet("part_position_image")
+            part_position_image_sheet.append(["part", "position", "image", "description"])
+            logging.info(f"Created new sheet: part_position_image")
 
+        # Save the target workbook
         wb_target.save(target_path)
-        logging.info(f"'BOM' sheet copied to '{new_bom_sheet_name}' in {target_path}.")
+        logging.info(f"Saved target workbook: {target_path}")
     else:
-        logging.error("The source workbook does not contain a sheet named 'BOM'.")
+        logging.error(f"The source workbook does not contain a sheet named 'BOM'.")
         print("The source workbook does not contain a sheet named 'BOM'.")
 
 def process_row(part_position_image_sheet, item_number, photo, description, manufacturer_description):
@@ -95,6 +112,7 @@ def match_items_and_update_sheet(target_path):
     wb_part_list = load_workbook(part_list_image_path)
     photo_list_sheet = wb_part_list["photo_list"]
 
+    # Logging headers of the BOM and photo list sheets
     bom_headers = [cell.value for cell in bom_sheet[1]]
     photo_list_headers = [cell.value for cell in photo_list_sheet[1]]
     logging.debug(f"BOM sheet headers: {bom_headers}")
@@ -108,7 +126,7 @@ def match_items_and_update_sheet(target_path):
             logging.debug(f"Processing Item Number: {item_number} (Full row data: {row})")
 
             if item_number and item_number.startswith("A"):
-                item_number = item_number[1:]
+                item_number = item_number[1:]  # Remove leading 'A' if present
                 logging.debug(f"Stripped leading 'A': {item_number}")
 
             part_number_prefix = item_number[:6]

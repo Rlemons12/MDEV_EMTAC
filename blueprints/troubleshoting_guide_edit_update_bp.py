@@ -1,16 +1,16 @@
 import os
 from flask import (Blueprint, request, redirect, url_for,
-                   jsonify,flash, render_template)
+                   jsonify, flash, render_template)
 import logging
 from config_env import DatabaseConfig  # Ensure this path is correct
-from emtacdb_fts import (Drawing,Problem, Solution,
-    ImageProblemAssociation, ImageSolutionAssociation,
-    CompleteDocumentProblemAssociation, Part,
-    PartProblemAssociation, DrawingProblemAssociation
-)
+from emtacdb_fts import (Drawing, Problem, Solution, ImageProblemAssociation,
+                         ImageSolutionAssociation, CompleteDocumentProblemAssociation,
+                         Part, PartProblemAssociation, DrawingProblemAssociation,
+                         PartsPositionImageAssociation, ProblemPositionAssociation)
 import traceback
 from logging.handlers import RotatingFileHandler
 from sqlalchemy import or_
+
 
 # Configure logging
 def setup_logger():
@@ -29,7 +29,7 @@ def setup_logger():
     # File Handler with rotation
     file_handler = RotatingFileHandler(
         os.path.join(log_directory, 'app.log'),
-        maxBytes=5*1024*1024,  # 5 MB
+        maxBytes=5 * 1024 * 1024,  # 5 MB
         backupCount=5
     )
     file_handler.setLevel(logging.DEBUG)
@@ -48,6 +48,7 @@ def setup_logger():
 
     return logger
 
+
 logger = setup_logger()
 
 # Initialize DatabaseConfig
@@ -55,6 +56,65 @@ db_config = DatabaseConfig()
 
 # Create the Blueprint
 troubleshooting_guide_edit_update_bp = Blueprint('troubleshooting_guide_edit_update_bp', __name__)
+
+
+def get_position_for_problem(session, problem_id):
+    logger.info(f"Retrieving position for Problem ID: {problem_id}")
+
+    # Retrieve the position_id associated with the problem_id
+    problem_position = session.query(ProblemPositionAssociation).filter_by(problem_id=problem_id).first()
+
+    if not problem_position:
+        logger.warning(f"No position found for Problem ID: {problem_id}")
+        return None
+
+    logger.info(f"Found Position ID: {problem_position.position_id} for Problem ID: {problem_id}")
+    return problem_position.position_id
+
+
+def update_parts_position_image_associations(session, problem_id, selected_part_ids, selected_image_ids):
+    # Get the position associated with the problem
+    position_id = get_position_for_problem(session, problem_id)
+
+    if not position_id:
+        logger.warning(
+            f"No position associated with Problem ID: {problem_id}, skipping PartsPositionImageAssociation update")
+        return
+
+    logger.info(f"Updating PartsPositionImageAssociation for Problem ID: {problem_id}, Position ID: {position_id}")
+
+    # Update Part-Position-Image associations
+    existing_associations = session.query(PartsPositionImageAssociation).filter_by(position_id=position_id).all()
+    existing_part_ids = {assoc.part_id for assoc in existing_associations}
+    existing_image_ids = {assoc.image_id for assoc in existing_associations}
+
+    # Remove associations that are no longer selected
+    to_remove = [assoc for assoc in existing_associations if
+                 assoc.part_id not in selected_part_ids or assoc.image_id not in selected_image_ids]
+
+    for assoc in to_remove:
+        session.delete(assoc)
+        logger.debug(f"Deleted PartsPositionImageAssociation: {assoc}")
+
+    logger.info(f"Removed {len(to_remove)} existing PartsPositionImage associations for Position ID: {position_id}")
+
+    # Add new associations that do not exist
+    to_add_parts = [part_id for part_id in selected_part_ids if part_id not in existing_part_ids]
+    to_add_images = [image_id for image_id in selected_image_ids if image_id not in existing_image_ids]
+
+    new_associations = []
+    for part_id in to_add_parts:
+        for image_id in to_add_images:
+            new_assoc = PartsPositionImageAssociation(part_id=part_id, position_id=position_id, image_id=image_id)
+            new_associations.append(new_assoc)
+            logger.debug(f"Prepared new PartsPositionImageAssociation: {new_assoc}")
+
+    if new_associations:
+        session.bulk_save_objects(new_associations)
+        logger.info(f"Added {len(new_associations)} new PartsPositionImage associations for Position ID: {position_id}")
+    else:
+        logger.info(f"No new PartsPositionImage associations to add for Position ID: {position_id}")
+
 
 @troubleshooting_guide_edit_update_bp.route('/troubleshooting_guide_edit_update', methods=['POST'])
 def edit_update_problem_solution():
@@ -125,10 +185,16 @@ def edit_update_problem_solution():
 
             # Retrieve existing associations
             existing_associations = session.query(model).filter(getattr(model, filter_field) == filter_value).all()
-            existing_ids = {getattr(assoc, 'image_id', None) or getattr(assoc, 'complete_document_id', None) or getattr(assoc, 'part_id', None) or getattr(assoc, 'drawing_id', None) for assoc in existing_associations}
+            existing_ids = {
+                getattr(assoc, 'image_id', None) or getattr(assoc, 'complete_document_id', None) or getattr(assoc,
+                                                                                                            'part_id',
+                                                                                                            None) or getattr(
+                    assoc, 'drawing_id', None) for assoc in existing_associations}
 
             # Determine associations to remove (those that exist but are not in selected_ids)
-            to_remove = [assoc for assoc in existing_associations if getattr(assoc, 'image_id', None) or getattr(assoc, 'complete_document_id', None) or getattr(assoc, 'part_id', None) or getattr(assoc, 'drawing_id', None) not in selected_ids]
+            to_remove = [assoc for assoc in existing_associations if
+                         getattr(assoc, 'image_id', None) or getattr(assoc, 'complete_document_id', None) or getattr(
+                             assoc, 'part_id', None) or getattr(assoc, 'drawing_id', None) not in selected_ids]
 
             # Remove old associations
             for assoc in to_remove:
@@ -202,13 +268,22 @@ def edit_update_problem_solution():
             'DrawingProblemAssociation'
         )
 
+        # Update PartsPositionImageAssociation based on the problem's position
+        update_parts_position_image_associations(
+            session,
+            problem_id,
+            selected_part_ids,
+            selected_problem_image_ids
+        )
+
         # Commit the changes to the database
         session.commit()
         logger.info(f"Successfully updated Problem ID={problem_id} and Solution ID={solution_id} with all associations")
         flash('Problem and Solution updated successfully', 'success')
 
     except Exception as e:
-        logger.error(f"An error occurred while updating Problem ID={problem_id} and Solution ID={solution_id}: {e}", exc_info=True)
+        logger.error(f"An error occurred while updating Problem ID={problem_id} and Solution ID={solution_id}: {e}",
+                     exc_info=True)
         session.rollback()
         flash(f'An error occurred: {e}', 'danger')
 
@@ -218,6 +293,7 @@ def edit_update_problem_solution():
 
     # Redirect back to the troubleshooting guide page after updating
     return render_template('troubleshooting_guide.html')
+
 
 @troubleshooting_guide_edit_update_bp.route('/search_parts')
 def search_parts():
@@ -240,6 +316,8 @@ def search_parts():
     results = [{'id': part.id, 'name': f"{part.part_number} - {part.name}"} for part in parts]
 
     return jsonify(results)
+
+
 @troubleshooting_guide_edit_update_bp.route('/search_drawings')
 def search_drawings():
     search_term = request.args.get('q', '')
@@ -260,4 +338,3 @@ def search_drawings():
     results = [{'id': drawing.id, 'text': f"{drawing.drw_number} - {drawing.drw_name}"} for drawing in drawings]
 
     return jsonify(results)
-

@@ -16,7 +16,7 @@ body {
     box-sizing: border-box;
     transition: width 0.3s;
     overflow-x: hidden;
-    flex-shrink: 0; /* Prevent shrinking */
+    flex-shrink: 0;
 }
 
 .sidebar.collapsed {
@@ -58,14 +58,17 @@ body {
 .content-wrapper {
     display: flex;
     flex: 1;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 20px;
     height: 100vh;
-    width: calc(100% - 250px); /* Adjust to take the remaining width */
-    margin-left: 250px; /* Offset by the width of the sidebar */
+    width: calc(100% - 250px);
+    margin-left: 250px;
 }
 
 .sidebar.collapsed + .content-wrapper {
-    margin-left: 10px; /* Adjust when the sidebar is collapsed */
-    width: calc(100% - 10px); /* Adjust width when sidebar is collapsed */
+    margin-left: 50px;
+    width: calc(100% - 50px);
 }
 
 .content {
@@ -76,8 +79,9 @@ body {
 }
 
 .form-container {
-    flex: 1;
-    padding: 20px;
+    width: 60%;
+    max-width: 800px;
+    padding: 30px;
     background-color: rgba(0, 0, 0, 0.432);
     border-radius: 10px;
     overflow-y: auto;
@@ -103,13 +107,32 @@ body {
     background-color: #4CAF50;
     color: white;
     cursor: pointer;
+    width: auto; /* Adjust the width of the submit button */
+    padding: 10px 20px; /* Increase padding for a cleaner look */
 }
 
 .form-container input[type="submit"]:hover {
     background-color: #45a049;
 }
 
+.form-container input[type="submit"].wide-button {
+    width: auto; /* Set the button width to be automatic */
+    display: block;
+    margin: 0 auto; /* Center the button */
+}
+
 .return-link {
     color: yellow;
     text-decoration: none;
+}
+
+#toggleFormBtn {
+    width: auto;
+    padding: 10px 20px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    cursor: pointer;
+    display: block;
+    margin: 0 auto;
 }

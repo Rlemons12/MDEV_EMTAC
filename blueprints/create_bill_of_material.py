@@ -179,3 +179,62 @@ def view_bill_of_material():
         flash(f'An error occurred: {str(e)}', 'error')
         return redirect(url_for('create_bill_of_material_bp.view_bill_of_material', index=max(0, index - per_page)))
 
+@create_bill_of_material_bp.route('/bom_general_search', methods=['POST'])
+def bom_general_search():
+    try:
+        # Get the search parameters from the form
+        general_asset_number = request.form.get('general_asset_number', '').strip()
+        general_location = request.form.get('general_location', '').strip()
+
+        logger.info(f"General Search initiated with Asset Number: {general_asset_number} and Location: {general_location}")
+
+        # Get a session from db_config
+        db_session = db_config.get_main_session()
+
+        # Start building the query
+        query = db_session.query(Position)
+
+        # Filter by asset number or location if provided
+        if general_asset_number:
+            query = query.filter(Position.asset_number_id == general_asset_number)
+        if general_location:
+            query = query.filter(Position.location_id == general_location)
+
+        # Execute the query to get all matching positions
+        positions = query.all()
+
+        if not positions:
+            flash('No results found for the given Asset Number or Location.', 'error')
+            logger.warning('No matching positions found for the general search.')
+            return render_template('bill_of_materials.html')
+
+        logger.info(f'Found {len(positions)} matching positions for the general search.')
+
+        # Aggregate all associated Part and Image IDs from the PartsPositionImageAssociation table
+        associated_parts_images = []
+        for position in positions:
+            parts_images = db_session.query(PartsPositionImageAssociation).filter_by(position_id=position.id).all()
+            associated_parts_images.extend(parts_images)
+
+        if not associated_parts_images:
+            flash('No parts or images found for the selected Asset Number or Location.', 'error')
+            logger.warning('No parts or images found for the general search.')
+            return render_template('bill_of_materials.html')
+
+        logger.info(f'Found {len(associated_parts_images)} associated parts and images for the general search.')
+
+        # Prepare data for display and serialize it for session storage
+        results = [{'part_id': association.part_id, 'image_id': association.image_id} for association in associated_parts_images]
+        flask_session['results'] = json.dumps(results)
+        flask_session['general_asset_number'] = general_asset_number
+        flask_session['general_location'] = general_location
+
+        logger.info('Serialized general search results and stored them in session.')
+
+        # Start with the first item (index 0)
+        return redirect(url_for('create_bill_of_material_bp.view_bill_of_material', index=0))
+
+    except Exception as e:
+        logger.error(f'An error occurred during general search: {str(e)}')
+        flash(f'An error occurred: {str(e)}', 'error')
+        return render_template('bill_of_materials.html')

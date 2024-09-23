@@ -151,7 +151,6 @@ def bill_of_materials():
 
     return render_template('bill_of_materials.html')
 
-
 def process_bom_loadsheet(source_file, image_path, position_id):
     logging.info(f"Starting BOM loadsheet process for file: {source_file}")
 
@@ -168,7 +167,6 @@ def process_bom_loadsheet(source_file, image_path, position_id):
     process_remaining_items_in_image_folder(target_path, image_path, position_id)
 
     logging.info("BOM loadsheet process completed.")
-
 
 def match_items_in_part_list_image(target_path, image_path, position_id):
     """
@@ -254,7 +252,6 @@ def match_items_in_part_list_image(target_path, image_path, position_id):
     except Exception as e:
         logging.error(f"An error occurred: {e}")
 
-
 def process_row(part_position_image_sheet, item_number, photo, description, manufacturer_description, position_id):
     logging.debug(
         f"Preparing to process row: Item Number: {item_number}, Photo: {photo}, Description: {description}, Manufacturer Description: {manufacturer_description}, Position ID: {position_id}")
@@ -266,7 +263,6 @@ def process_row(part_position_image_sheet, item_number, photo, description, manu
             f"Added entry: Item Number: {item_number}, Position ID: {position_id}, Photo: {photo}, Description: {full_description}")
     else:
         logging.warning(f"No photo provided for Item Number: {item_number}. Row not added.")
-
 
 def find_image_in_subfolders(image_title, base_path):
     logging.debug(f"Searching for image '{image_title}' in '{base_path}' and its subfolders.")
@@ -286,6 +282,7 @@ def find_image_in_subfolders(image_title, base_path):
                 return full_path
     logging.warning(f"Image '{image_title}' not found in '{base_path}' or its subfolders.")
     return None
+
 def process_remaining_items_in_image_folder(target_path, image_path, position_id):
     logging.info(f"Processing all BOM items by searching the image folder from the beginning in {target_path}.")
     wb_target = load_workbook(target_path)
@@ -308,11 +305,34 @@ def process_remaining_items_in_image_folder(target_path, image_path, position_id
                 logging.info(f"Match found for BOM item '{item_number}' at row {row_idx} with image file '{image_file_path}'.")
                 process_part_position_image(item_number, position_id, first_seven_chars, image_path)
             else:
-                logging.warning(f"No matching image found for BOM item '{item_number}' at row {row_idx}. Continuing to next item.")
+                logging.warning(f"No matching image found for BOM item '{item_number}' at row {row_idx}. Creating entry with no image.")
+                create_part_position_entry_no_image(item_number, position_id)
 
     wb_target.save(target_path)
     logging.info(f"part_position_image sheet updated with image folder matches in {target_path}.")
 
+def create_part_position_entry_no_image(part_number, position_id):
+    """
+    Create a record in part_position_image for parts without corresponding images.
+    """
+    session = db_config.get_main_session()
+    try:
+        part = session.query(Part).filter(Part.part_number == part_number[:7]).one()
+        logging.info(f"Part found with ID: {part.id} for part number: {part_number}")
+
+        # Create an entry in the part_position_image table without an image
+        part_position_image_association = PartsPositionImageAssociation(
+            part_id=part.id,
+            position_id=position_id,
+            image_id=None  # No image available
+        )
+
+        session.add(part_position_image_association)
+        session.commit()
+        logging.info(f"Entry created in part_position_image with Part ID: {part.id}, Position ID: {position_id}, without image.")
+    except NoResultFound:
+        logging.error(f"No part found with part number: {part_number}.")
+        session.rollback()
 
 def process_part_position_image(part_number, position_id, image_title, base_image_path):
     logging.info(f"Starting to process part position image for Part Number: {part_number}, Position ID: {position_id}, Image Title: {image_title}")
@@ -345,7 +365,6 @@ def process_part_position_image(part_number, position_id, image_title, base_imag
         logging.error(f"Failed to process image '{file_name_without_ext}'. It was not added to the database.")
 
     logging.info(f"Finished processing part position image for Part Number: {part_number}, Position ID: {position_id}, Image Title: {file_name_without_ext}")
-
 
 def create_part_position_image_association(image_title, position_id, image_id, session):
     logging.info(f"Creating part_position_image association for image title: {image_title}, position ID: {position_id}, image ID: {image_id}")

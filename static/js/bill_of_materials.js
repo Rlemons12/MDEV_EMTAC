@@ -94,8 +94,24 @@ function populateDropdownsBOM() {
     });
 }
 
+// Add logic to allow users to manually type in Asset Number and Location
+$('#bom_assetNumberInput').on('input', function() {
+    var assetNumber = $(this).val();
+    if (assetNumber.length > 1) {
+        $('#bom_assetNumberDropdown').prop('disabled', true); // Disable dropdown when typing in manually
+    } else {
+        $('#bom_assetNumberDropdown').prop('disabled', false); // Enable dropdown if input is cleared
+    }
+});
 
-
+$('#bom_locationInput').on('input', function() {
+    var location = $(this).val();
+    if (location.length > 1) {
+        $('#bom_locationDropdown').prop('disabled', true); // Disable dropdown when typing in manually
+    } else {
+        $('#bom_locationDropdown').prop('disabled', false); // Enable dropdown if input is cleared
+    }
+});
 
 // Call the function to populate dropdowns when the page loads
 $(document).ready(function() {

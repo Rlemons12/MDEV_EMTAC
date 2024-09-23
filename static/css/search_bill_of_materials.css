@@ -1,0 +1,23 @@
+<h2>Parts for Position</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Part Number</th>
+            <th>Name</th>
+            <th>OEM Manufacturer</th>
+            <th>Model</th>
+            <th>Category</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for part in parts %}
+        <tr>
+            <td>{{ part.part_number }}</td>
+            <td>{{ part.name }}</td>
+            <td>{{ part.oem_mfg }}</td>
+            <td>{{ part.model }}</td>
+            <td>{{ part.class_flag }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
