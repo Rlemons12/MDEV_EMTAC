@@ -13,33 +13,32 @@
         <a href="#" id="commentPopupLink" style="color: #39FF14;">Leave a Comment</a>
     </div>
     <!-- Popup Modal Structure -->
-<div id="commentPopup" style="display: none;">
-    <form id="commentForm">
-        <h2>Leave a Comment</h2>
-        <!-- Instructions for filling out the form -->
-        <p>Instructions: You can write your comment, paste an image, or upload a file.</p>
+    <div id="commentPopup" style="display: none;">
+        <form id="commentForm">
+            <h2>Leave a Comment</h2>
+            <!-- Instructions for filling out the form -->
+            <p>Instructions: You can write your comment, paste an image, or upload a file.</p>
 
-        <!-- Comment box where users can paste an image or type text -->
-        <textarea name="comment" id="comment" placeholder="Write your comment here..." required></textarea><br>
+            <!-- Comment box where users can paste an image or type text -->
+            <textarea name="comment" id="comment" placeholder="Write your comment here..." required></textarea><br>
 
-        <!-- Hidden field to store base64 image data -->
-        <input type="hidden" id="imageData" name="imageData">
+            <!-- Hidden field to store base64 image data -->
+            <input type="hidden" id="imageData" name="imageData">
 
-        <!-- Display an indicator or preview if an image was pasted -->
-        <div id="pastedImageFeedback" style="display: none; color: green;">
-            Image snippet successfully added!
-        </div>
-        <img id="pastedImagePreview" src="" alt="Pasted Image Preview" style="display:none; max-width: 100px; margin-top: 10px;" />
+            <!-- Display an indicator or preview if an image was pasted -->
+            <div id="pastedImageFeedback" style="display: none; color: green;">
+                Image snippet successfully added!
+            </div>
+            <img id="pastedImagePreview" src="" alt="Pasted Image Preview" style="display:none; max-width: 100px; margin-top: 10px;" />
 
-        <!-- Option to upload a file -->
-        <label for="fileUpload">Or upload an image:</label><br>
-        <input type="file" id="fileUpload" name="screenshot" accept="image/*" /><br><br>
+            <!-- Option to upload a file -->
+            <label for="fileUpload">Or upload an image:</label><br>
+            <input type="file" id="fileUpload" name="screenshot" accept="image/*" /><br><br>
 
-        <button type="submit">Send</button>
-        <button type="button" id="closePopup">Close</button>
-    </form>
-</div>
-
+            <button type="submit">Send</button>
+            <button type="button" id="closePopup">Close</button>
+        </form>
+    </div>
 
     <div class="container"> <!-- Added container div for layout control -->
         <!-- Header Info (optional, if needed) -->
@@ -85,9 +84,15 @@
                     <td>{{ item.part.notes }}</td>
                     <td>{{ item.part.documentation }}</td>
                     <td>
-                        <a href="{{ url_for('create_bill_of_material_bp.serve_image_route', image_id=item.image.id) }}" target="_blank">
-                            <img class="thumbnail" src="{{ url_for('create_bill_of_material_bp.serve_image_route', image_id=item.image.id) }}" alt="{{ item.image.title }}" />
-                        </a>
+                        {% if item.image %}
+                            <a href="{{ url_for('create_bill_of_material_bp.serve_image_route', image_id=item.image.id) }}" target="_blank">
+                                <img class="thumbnail" src="{{ url_for('create_bill_of_material_bp.serve_image_route', image_id=item.image.id) }}" alt="{{ item.image.title }}" />
+                            </a>
+                        {% else %}
+                            <p>No image available</p>
+                            <!-- Optionally, you can display a placeholder image -->
+                            <!-- <img class="thumbnail" src="{{ url_for('static', filename='images/placeholder.png') }}" alt="No Image Available" /> -->
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}
@@ -96,7 +101,7 @@
 
         <!-- Pagination, Items Per Page Selector, and Page Jump -->
         <div class="pagination">
-            <form method="GET" action="{{ url_for('create_bill_of_material_bp.view_bill_of_material', index=0) }}" style="display: inline;">
+            <form method="GET" action="{{ url_for('create_bill_of_material_bp.view_bill_of_material') }}" style="display: inline;">
                 <label for="per_page">Items per page:</label>
                 <select id="per_page" name="per_page" onchange="this.form.submit()">
                     <option value="5" {% if per_page == 5 %}selected{% endif %}>5</option>

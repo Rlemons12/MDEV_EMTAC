@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Position Data Assignment</h1>
+
+<!-- Search Section (Collapsible) -->
+<details open>
+    <summary>Search Position</summary>
+    <form id="searchPositionForm" action="{{ url_for('position_data_assignment_bp.get_positions') }}" method="post">
+
+        <!-- Area Dropdown -->
+        <div>
+            <label for="pda_areaDropdown">Area:</label>
+            <select name="area_id" id="pda_areaDropdown" required>
+                <option value="">Select Area</option>
+                {% for area in areas %}
+                    <option value="{{ area.id }}">{{ area.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Equipment Group Dropdown -->
+        <div>
+            <label for="pda_equipmentGroupDropdown">Equipment Group:</label>
+            <select name="equipment_group_id" id="pda_equipmentGroupDropdown" disabled required>
+                <option value="">Select Equipment Group</option>
+            </select>
+        </div>
+
+        <!-- Model Dropdown -->
+        <div>
+            <label for="pda_modelDropdown">Model:</label>
+            <select name="model_id" id="pda_modelDropdown" disabled required>
+                <option value="">Select Model</option>
+            </select>
+        </div>
+
+        <!-- Asset Number Dropdown or Input -->
+        <div>
+            <label for="pda_assetNumberDropdown">Asset Number:</label>
+            <select name="asset_number_id" id="pda_assetNumberDropdown" disabled required>
+                <option value="">Select Asset Number</option>
+            </select>
+            <input type="text" name="asset_number_input" id="pda_assetNumberInput" placeholder="Or type Asset Number">
+        </div>
+
+        <!-- Location Dropdown or Input -->
+        <div>
+            <label for="pda_locationDropdown">Location:</label>
+            <select name="location_id" id="pda_locationDropdown" disabled required>
+                <option value="">Select Location</option>
+            </select>
+            <input type="text" name="location_input" id="pda_locationInput" placeholder="Or type Location">
+        </div>
+
+        <!-- Site Location Dropdown -->
+        <div>
+            <label for="pda_siteLocation">Site Location:</label>
+            <select name="site_location_id" id="pda_siteLocation" disabled required>
+                <option value="">Select Site Location</option>
+            </select>
+        </div>
+
+        <!-- Search Button -->
+        <button type="button" id="searchPositionBtn">Search Position</button>
+    </form>
+</details>
+
+<!-- Update Section (Collapsible) -->
+<details id="updateSection" style="display:none;">
+    <summary>Update Position Data</summary>
+    <form id="updatePositionForm" action="{{ url_for('position_data_assignment_bp.update_position') }}" method="post" enctype="multipart/form-data">
+
+        <!-- Hidden field for Position ID -->
+        <input type="hidden" id="position_id" name="position_id">
+
+        <!-- Update Area -->
+        <div>
+            <label for="edit_areaDropdown">Edit Area:</label>
+            <select name="area_id" id="edit_areaDropdown" required>
+                <option value="">Select Area</option>
+                {% for area in areas %}
+                    <option value="{{ area.id }}">{{ area.name }}</option>
+                {% endfor %}
+            </select>
+            <input type="text" name="edit_area_name" id="edit_area_name" placeholder="Edit Area Name">
+        </div>
+
+        <!-- Update Equipment Group -->
+        <div>
+            <label for="edit_equipmentGroupDropdown">Edit Equipment Group:</label>
+            <select name="equipment_group_id" id="edit_equipmentGroupDropdown" disabled required>
+                <option value="">Select Equipment Group</option>
+            </select>
+            <input type="text" name="edit_equipment_group_name" id="edit_equipment_group_name" placeholder="Edit Equipment Group Name">
+        </div>
+
+        <!-- Update Model -->
+        <div>
+            <label for="edit_modelDropdown">Edit Model:</label>
+            <select name="model_id" id="edit_modelDropdown" disabled required>
+                <option value="">Select Model</option>
+            </select>
+            <input type="text" name="edit_model_name" id="edit_model_name" placeholder="Edit Model Name">
+        </div>
+
+        <!-- Update Asset Number -->
+        <div>
+            <label for="edit_assetNumberDropdown">Edit Asset Number:</label>
+            <select name="asset_number_id" id="edit_assetNumberDropdown" disabled required>
+                <option value="">Select Asset Number</option>
+            </select>
+            <input type="text" name="edit_asset_number" id="edit_asset_number" placeholder="Edit Asset Number">
+        </div>
+
+        <!-- Update Location -->
+        <div>
+            <label for="edit_locationDropdown">Edit Location:</label>
+            <select name="location_id" id="edit_locationDropdown" disabled required>
+                <option value="">Select Location</option>
+            </select>
+            <input type="text" name="edit_location_name" id="edit_location_name" placeholder="Edit Location Name">
+        </div>
+
+        <!-- Save Changes Button -->
+        <button type="submit">Save Changes</button>
+    </form>
+</details>
+
+<!-- Parts Input -->
+<details open>
+    <summary>Manage Parts</summary>
+    <div id="parts-container">
+        <div class="part-entry">
+            <label>Part Number:</label>
+            <input type="text" name="part_numbers[]" required>
+        </div>
+    </div>
+    <button type="button" onclick="addPartEntry()">Add Another Part</button>
+</details>
+
+<!-- Images and Drawings Upload -->
+<details open>
+    <summary>Manage Images and Drawings</summary>
+    <div>
+        <label for="images">Upload Images:</label>
+        <input type="file" name="images[]" multiple accept="image/*">
+    </div>
+    <div>
+        <label for="drawings">Upload Drawings:</label>
+        <input type="file" name="drawings[]" multiple accept=".pdf,.jpg,.jpeg,.png">
+    </div>
+</details>
+
+<!-- JavaScript and AJAX code -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+    var getEquipmentGroupsUrl = "{{ url_for('position_data_assignment_bp.get_equipment_groups') }}";
+    var getAssetNumbersUrl = "{{ url_for('position_data_assignment_bp.get_asset_numbers') }}";
+    var getLocationsUrl = "{{ url_for('position_data_assignment_bp.get_locations') }}";
+    var getSiteLocationsUrl = "{{ url_for('position_data_assignment_bp.get_site_locations') }}";
+    var getPositionsUrl = "{{ url_for('position_data_assignment_bp.get_positions') }}";
+</script>
+<script src="{{ url_for('static', filename='js/get_position_data_assignment_data.js') }}"></script>
+
+<!-- Load your custom JavaScript file -->
+<script src="{{ url_for('static', filename='js/get_position_data_assignment_data.js') }}"></script>
+
+{% endblock %}

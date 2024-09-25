@@ -705,6 +705,20 @@ class UserComments(Base):
     user = relationship("User", back_populates="comments")
 
 
+
+class BOMResult(Base):
+    __tablename__ = 'bom_result'
+    id = Column(Integer, primary_key=True)
+    part_id = Column(Integer, ForeignKey('part.id'), nullable=False)
+    position_id = Column(Integer, ForeignKey('position.id'), nullable=False)
+    image_id = Column(Integer, ForeignKey('image.id'), nullable=True)
+    description = Column(String)
+
+    part = relationship('Part', lazy='joined')
+    image = relationship('Image', lazy='joined')
+
+
+
 # Bind the engine to the Base class
 Base.metadata.bind = engine
 

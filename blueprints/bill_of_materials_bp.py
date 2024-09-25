@@ -391,3 +391,4 @@ def create_part_position_image_association(image_title, position_id, image_id, s
     except NoResultFound:
         logging.error(f"No part found with part number: {part_number}. Unable to create part_position_image association.")
         session.rollback()
+

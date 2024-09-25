@@ -157,6 +157,10 @@ def create_app():
         logger.debug("Rendering bill_of_materials page.")
         return render_template('bill_of_materials.html')
 
+    @app.route('/position_data_assignment')
+    def position_data_assignment():
+        logger.debug("Rendering position_data_assignment page.")
+        return render_template('position_data_assignment.html')
 
 
     @app.errorhandler(403)
