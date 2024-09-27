@@ -1,0 +1,100 @@
+/* Custom background image for this page */
+body {
+    background-image: url("/static/background images/abstractfractal.jpg");
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+/* Custom styling for the content on this page */
+.position-data-container {
+    background-color: rgba(0, 0, 0, 0.8);
+    padding: 30px;
+    border-radius: 10px;
+    color: yellow; /* Changed the text color to yellow for better visibility */
+    margin-top: 20px;
+}
+
+/* Adjust form input and label styling */
+#searchPositionForm input,
+#searchPositionForm select,
+#updatePositionForm input,
+#updatePositionForm select {
+    background-color: rgba(255, 255, 255, 0.9);
+    color: black;
+    border: 1px solid #ccc;
+}
+
+/* Ensure labels and text are yellow */
+#searchPositionForm label,
+#updatePositionForm label,
+details summary,
+.details-content {
+    color: yellow; /* Ensure all form text, labels, and summary headings are yellow */
+}
+
+/* Styling for collapsible sections */
+details summary {
+    font-weight: bold;
+    color: yellow; /* Make summary text yellow */
+}
+
+details[open] summary {
+    color: yellow; /* Ensure the open state of details keeps the text yellow */
+}
+
+details summary:hover {
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+/* Ensure the contents of the collapsed section are yellow as well */
+details div,
+details p,
+details ul,
+details li,
+details label {
+    color: yellow; /* Ensure all text inside the collapsible sections is yellow */
+}
+
+/* Adjust button styles for better contrast */
+button {
+    background-color: #333;
+    color: yellow; /* Button text color */
+    border: 2px solid yellow; /* Button border to match text color */
+    padding: 8px 16px;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: yellow;
+    color: black; /* Change text to black on hover */
+}
+
+/* Modify the color for the main content */
+.content {
+    color: yellow; /* All text in the content area will be yellow */
+}
+
+/* Modify the color for the h1 (Position Data Assignment heading) */
+.content h1 {
+    color: #39FF14; /* Set a bright green color for the heading */
+}
+.scrollable-list {
+    max-height: 300px; /* Adjust height as needed */
+    overflow-y: auto;
+    border: 1px solid #ccc;
+    padding: 10px;
+    margin-bottom: 10px;
+}
+
+.pagination-controls {
+    margin-top: 10px;
+    text-align: center;
+}
+
+.pagination-controls button {
+    margin: 0 5px;
+    padding: 5px 10px;
+    cursor: pointer;
+}

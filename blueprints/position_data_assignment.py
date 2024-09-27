@@ -3,7 +3,9 @@ from werkzeug.utils import secure_filename
 import os
 import logging
 from sqlalchemy.orm import joinedload
-from emtacdb_fts import Area, EquipmentGroup, Model, AssetNumber, Location, SiteLocation, Position
+from emtacdb_fts import (Part,PartsPositionImageAssociation,DrawingPositionAssociation,CompletedDocumentPositionAssociation,
+                Area, EquipmentGroup, Model, AssetNumber, Location, SiteLocation,CompleteDocument,
+                         Image,Position, ImagePositionAssociation)
 from config_env import DatabaseConfig
 from config import ALLOWED_EXTENSIONS
 
@@ -21,12 +23,14 @@ def allowed_file(filename, allowed_extensions=ALLOWED_EXTENSIONS):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
 
 
+# Route for displaying and submitting position data assignment form
 @position_data_assignment_bp.route('/position_data_assignment', methods=['GET', 'POST'])
 def position_data_assignment():
     db_session = db_config.get_main_session()
+
     if request.method == 'POST':
         try:
-            # Retrieve form data
+            # Handle form submission
             area_id = request.form.get('area_id')
             equipment_group_id = request.form.get('equipment_group_id')
             model_id = request.form.get('model_id')
@@ -55,7 +59,6 @@ def position_data_assignment():
             images = request.files.getlist('images[]')
             drawings = request.files.getlist('drawings[]')
 
-            # Process and save files as needed
             saved_image_paths = []
             for image in images:
                 if image and allowed_file(image.filename):
@@ -81,7 +84,7 @@ def position_data_assignment():
                 location_id=location_id,
                 site_location_id=site_location_id,
                 position_id=position_id,
-                parts=part_numbers,  # Adjust based on your model
+                parts=part_numbers,
                 images=saved_image_paths,
                 drawings=saved_drawing_paths
             )
@@ -98,6 +101,8 @@ def position_data_assignment():
             return redirect(url_for('position_data_assignment_bp.position_data_assignment'))
         finally:
             db_session.close()
+
+    # If it's a GET request, load the form with initial data
     else:
         try:
             areas = db_session.query(Area).all()
@@ -108,6 +113,7 @@ def position_data_assignment():
             return redirect(url_for('position_data_assignment_bp.position_data_assignment'))
         finally:
             db_session.close()
+
 # Additional routes for AJAX requests
 @position_data_assignment_bp.route('/get_equipment_groups')
 def get_equipment_groups():
@@ -116,7 +122,7 @@ def get_equipment_groups():
     try:
         equipment_groups = db_session.query(EquipmentGroup).filter_by(area_id=area_id).all()
         data = [{'id': eg.id, 'name': eg.name} for eg in equipment_groups]
-        return jsonify(data)
+        return jsonify(data)  # Ensure data is in the correct format
     finally:
         db_session.close()
 
@@ -164,7 +170,7 @@ def get_site_locations():
             model_id=model_id,
             asset_number_id=asset_number_id,
             location_id=location_id
-        ).options(joinedload('site_location')).all()
+        ).options(joinedload(Position.site_location)).all()
         # Extract unique site locations
         site_location_set = {
             (p.site_location.id, p.site_location.title, p.site_location.room_number)
@@ -175,22 +181,139 @@ def get_site_locations():
     finally:
         db_session.close()
 
-@position_data_assignment_bp.route('/get_positions')
+@position_data_assignment_bp.route('/get_positions', methods=['GET'])
 def get_positions():
+    # Get the filter parameters from the request
     site_location_id = request.args.get('site_location_id')
+    area_id = request.args.get('area_id')
+    equipment_group_id = request.args.get('equipment_group_id')
+    model_id = request.args.get('model_id')
     asset_number_id = request.args.get('asset_number_id')
     location_id = request.args.get('location_id')
+
+    logger.info(f"Received GET request with filter parameters: "
+                f"site_location_id={site_location_id}, area_id={area_id}, equipment_group_id={equipment_group_id}, "
+                f"model_id={model_id}, asset_number_id={asset_number_id}, location_id={location_id}")
+
     db_session = db_config.get_main_session()
     try:
-        positions = db_session.query(Position).filter_by(
-            site_location_id=site_location_id,
-            asset_number_id=asset_number_id,
-            location_id=location_id
-        ).all()
-        data = [{'id': pos.id, 'name': f"Position {pos.id}"} for pos in positions]  # Adjust 'name' as needed
-        return jsonify(data)
+        # Step 1: Search for Positions with filters, only applying filters if they exist
+        query = db_session.query(Position)
+        logger.info("Initialized query for Position")
+
+        if site_location_id:
+            query = query.filter(Position.site_location_id == site_location_id)
+            logger.info(f"Applied filter: site_location_id={site_location_id}")
+        if area_id:
+            query = query.filter(Position.area_id == area_id)
+            logger.info(f"Applied filter: area_id={area_id}")
+        if equipment_group_id:
+            query = query.filter(Position.equipment_group_id == equipment_group_id)
+            logger.info(f"Applied filter: equipment_group_id={equipment_group_id}")
+        if model_id:
+            query = query.filter(Position.model_id == model_id)
+            logger.info(f"Applied filter: model_id={model_id}")
+        if asset_number_id:
+            query = query.filter(Position.asset_number_id == asset_number_id)
+            logger.info(f"Applied filter: asset_number_id={asset_number_id}")
+        if location_id:
+            query = query.filter(Position.location_id == location_id)
+            logger.info(f"Applied filter: location_id={location_id}")
+
+        positions = query.all()
+        logger.info(f"Query executed. Number of positions found: {len(positions)}")
+
+        if not positions:
+            logger.warning("No positions found for the provided filters")
+            return jsonify({"message": "No positions found"}), 404
+
+        # Step 2: Prepare a response with the associated data
+        result_data = []
+
+        for position in positions:
+            position_data = {
+                'position_id': position.id,
+                'parts': [],
+                'documents': [],
+                'drawings': [],
+                'images': []
+            }
+
+            logger.info(f"Processing position: {position.id}")
+
+
+            # Step 3: Search the parts_position_image table to get part IDs
+            parts_position_image = db_session.query(PartsPositionImageAssociation).filter_by(
+                position_id=position.id).all()
+            part_ids = [ppi.part_id for ppi in parts_position_image]
+            logger.info(f"Found {len(parts_position_image)} part associations for position {position.id}")
+
+            # Step 4: Search the part table to get part numbers and descriptions
+            if part_ids:
+                parts = db_session.query(Part).filter(Part.id.in_(part_ids)).all()
+                logger.info(f"Found {len(parts)} parts for position {position.id}")
+                for part in parts:
+                    position_data['parts'].append({
+                        'part_id': part.id,
+                        'part_number': part.part_number,
+                        'name': part.name
+                    })
+
+            # Step 5: Search complete_document_position_association table
+            complete_documents = db_session.query(CompletedDocumentPositionAssociation).filter_by(
+                position_id=position.id).all()
+            logger.info(f"Found {len(complete_documents)} complete document associations for position {position.id}")
+            for cdpa in complete_documents:
+                complete_doc = db_session.query(CompleteDocument).filter_by(id=cdpa.complete_document_id).first()
+                if complete_doc:
+                    position_data['documents'].append({
+                        'complete_document_id': complete_doc.id,
+                        'title': complete_doc.title,
+                        'rev': complete_doc.rev
+                    })
+
+            # Step 6: Search drawing_position table
+            drawing_positions = db_session.query(DrawingPositionAssociation).filter_by(position_id=position.id).all()
+            logger.info(f"Found {len(drawing_positions)} drawing associations for position {position.id}")
+            for dp in drawing_positions:
+                drawing = db_session.query(Drawing).filter_by(id=dp.drawing_id).first()
+                if drawing:
+                    position_data['drawings'].append({
+                        'drawing_id': drawing.id,
+                        'drawing_name': drawing.drw_name,
+                        'drawing_revision': drawing.drw_revision
+                    })
+
+            # Step 7: Search image_position_association table
+            image_positions = db_session.query(ImagePositionAssociation).filter_by(position_id=position.id).all()
+            logger.info(f"Found {len(image_positions)} image associations for position {position.id}")
+            for ip in image_positions:
+                image = db_session.query(Image).filter_by(id=ip.image_id).first()
+                if image:
+                    position_data['images'].append({
+                        'image_id': image.id,
+                        'image_title': image.title,
+                        'description': image.description
+                    })
+
+            # Add position data to the result list
+            result_data.append(position_data)
+
+        logger.info(f"Returning result data for {len(result_data)} positions")
+        logger.info(f"Returning position data: {position_data}")
+
+        # Step 8: Return the response as JSON
+        return jsonify(result_data)
+
+
+    except Exception as e:
+        db_session.rollback()
+        logger.error(f"Error during position search: {str(e)}", exc_info=True)  # Log the error with stack trace
+        return jsonify({"message": "Error occurred during search", "error": str(e)}), 500
+
     finally:
         db_session.close()
+        logger.info("Database session closed")
 
 
 @position_data_assignment_bp.route('/add_site_location', methods=['GET', 'POST'])
