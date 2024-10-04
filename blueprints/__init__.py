@@ -96,6 +96,8 @@ from blueprints.troubleshoting_guide_edit_update_bp import troubleshooting_guide
 from blueprints.comment_pop_up_bp import comment_pop_up_bp
 from blueprints.update_part_bp import update_part_bp
 from blueprints.position_data_assignment import position_data_assignment_bp
+from blueprints.position_data_assignment_data_add_dependencies_bp import position_data_assignment_data_add_dependencies_bp
+
 engine = create_engine(DATABASE_URL)
 Session = sessionmaker(bind=engine)
 
@@ -165,6 +167,10 @@ def register_blueprints(app):
     app.register_blueprint(comment_pop_up_bp)
     app.register_blueprint(update_part_bp)
     app.register_blueprint(position_data_assignment_bp)
+
+    app.register_blueprint(position_data_assignment_data_add_dependencies_bp)
+
+
 app = Flask(__name__)
 app.secret_key = '1234'
 

@@ -172,6 +172,7 @@ class EquipmentGroup(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
     area_id = Column(Integer, ForeignKey('area.id'))
+    description = Column(String,nullable=True)
     
     area = relationship("Area", back_populates="equipment_group") 
     model = relationship("Model", back_populates="equipment_group")
@@ -207,6 +208,7 @@ class Location(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)    
     model_id = Column(Integer, ForeignKey('model.id'))
+    description = Column(String, nullable=True)
     
     model = relationship("Model", back_populates="location")
     position = relationship("Position", back_populates="location")
@@ -660,7 +662,6 @@ def load_image_model_config_from_db():
 
     return current_image_model
 
-
 # Define the User model
 class User(Base):
     __tablename__ = 'users'
@@ -689,7 +690,6 @@ class User(Base):
     def check_password_hash(self, password):
         return check_password_hash(self.hashed_password, password)
 
-
 # Define the UserComments model
 class UserComments(Base):
     __tablename__ = 'user_comments'
@@ -704,8 +704,6 @@ class UserComments(Base):
     # Relationship to User
     user = relationship("User", back_populates="comments")
 
-
-
 class BOMResult(Base):
     __tablename__ = 'bom_result'
     id = Column(Integer, primary_key=True)
@@ -717,14 +715,11 @@ class BOMResult(Base):
     part = relationship('Part', lazy='joined')
     image = relationship('Image', lazy='joined')
 
-
-
 # Bind the engine to the Base class
 Base.metadata.bind = engine
 
 # Then call create_all()
 Base.metadata.create_all(engine, checkfirst=True)
-
 
 # Create the 'documents_fts' table for full-text search
 with Session() as session:
@@ -1183,7 +1178,6 @@ def add_image_to_db(title, file_path, position_id=None, completed_document_posit
             error_file.write(f"Error processing image with title '{title}': {e}\n")
 
         return None  # Return None or an appropriate error code if an exception occurs
-
 
 def split_text_into_chunks(text, max_words=300, pad_token=""):
     logger.info("Starting split_text_into_chunks")
@@ -2158,8 +2152,6 @@ def create_thumbnail(image):
         logger.error(f"Error creating thumbnail: {e}")
         return None
 
-
-
 def image_to_base64(image):
     print(f'# Convert image to base64 string')
     buffered = BytesIO()
@@ -2340,7 +2332,6 @@ def create_directories(directories):
             logging.info(f"Created directory: {directory}")
         else:
             logging.info(f"Directory already exists: {directory}")
-
 
 def add_parts_position_image_association(part_id, position_id, image_id):
     """

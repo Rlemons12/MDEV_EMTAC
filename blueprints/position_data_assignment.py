@@ -28,6 +28,8 @@ def allowed_file(filename, allowed_extensions=ALLOWED_EXTENSIONS):
 def position_data_assignment():
     db_session = db_config.get_main_session()
 
+    position_id = request.args.get('position_id')  # Get position ID from query parameters
+
     if request.method == 'POST':
         try:
             # Handle form submission
@@ -75,23 +77,45 @@ def position_data_assignment():
                     drawing.save(drawing_path)
                     saved_drawing_paths.append(drawing_path)
 
-            # Assuming `PositionDataAssignment` is your model to save this data
-            new_pda = PositionDataAssignment(
-                area_id=area_id,
-                equipment_group_id=equipment_group_id,
-                model_id=model_id,
-                asset_number_id=asset_number_id,
-                location_id=location_id,
-                site_location_id=site_location_id,
-                position_id=position_id,
-                parts=part_numbers,
-                images=saved_image_paths,
-                drawings=saved_drawing_paths
-            )
-            db_session.add(new_pda)
-            db_session.commit()
+            # Check if we're updating an existing position or creating a new one
+            if position_id:
+                # Updating an existing position
+                position = db_session.query(Position).filter_by(id=position_id).first()
+                if not position:
+                    flash('Position not found.', 'error')
+                    return redirect(url_for('position_data_assignment_bp.position_data_assignment'))
 
-            flash('Position Data Assigned Successfully!', 'success')
+                # Update position fields
+                position.area_id = area_id
+                position.equipment_group_id = equipment_group_id
+                position.model_id = model_id
+                position.asset_number_id = asset_number_id
+                position.location_id = location_id
+                position.site_location_id = site_location_id
+                position.parts = part_numbers  # Assuming position has a parts relationship or column
+
+                db_session.commit()
+                flash('Position Data Updated Successfully!', 'success')
+
+            else:
+                # Creating a new position
+                new_pda = PositionDataAssignment(
+                    area_id=area_id,
+                    equipment_group_id=equipment_group_id,
+                    model_id=model_id,
+                    asset_number_id=asset_number_id,
+                    location_id=location_id,
+                    site_location_id=site_location_id,
+                    position_id=position_id,
+                    parts=part_numbers,
+                    images=saved_image_paths,
+                    drawings=saved_drawing_paths
+                )
+                db_session.add(new_pda)
+                db_session.commit()
+
+                flash('Position Data Assigned Successfully!', 'success')
+
             return redirect(url_for('position_data_assignment_bp.position_data_assignment'))
 
         except Exception as e:
@@ -99,6 +123,7 @@ def position_data_assignment():
             logger.error(f"Error during form submission: {e}")
             flash('An error occurred while processing your request.', 'error')
             return redirect(url_for('position_data_assignment_bp.position_data_assignment'))
+
         finally:
             db_session.close()
 
@@ -106,11 +131,34 @@ def position_data_assignment():
     else:
         try:
             areas = db_session.query(Area).all()
-            return render_template('position_data_assignment.html', areas=areas)
+            equipment_groups = db_session.query(EquipmentGroup).all()
+            models = db_session.query(Model).all()
+            asset_numbers = db_session.query(AssetNumber).all()
+            locations = db_session.query(Location).all()
+            site_locations = db_session.query(SiteLocation).all()
+
+            position = None
+
+            # Load the position if position_id is provided (for updating)
+            if position_id:
+                position = db_session.query(Position).filter_by(id=position_id).first()
+
+            return render_template(
+                'position_data_assignment.html',
+                areas=areas,
+                equipment_groups=equipment_groups,
+                models=models,
+                asset_numbers=asset_numbers,
+                locations=locations,
+                site_locations=site_locations,
+                position=position
+            )
+
         except Exception as e:
-            logger.error(f"Error fetching areas: {e}")
+            logger.error(f"Error fetching areas or position: {e}")
             flash('Error loading the form', 'error')
             return redirect(url_for('position_data_assignment_bp.position_data_assignment'))
+
         finally:
             db_session.close()
 
@@ -233,6 +281,29 @@ def get_positions():
         for position in positions:
             position_data = {
                 'position_id': position.id,
+                'area': {
+                    'id': position.area.id if position.area else None,
+                    'name': position.area.name if position.area else None,
+                    'description': position.area.description if position.area else None  # Add description for area
+                },
+                'equipment_group': {
+                    'id': position.equipment_group.id if position.equipment_group else None,
+                    'name': position.equipment_group.name if position.equipment_group else None
+                },
+                'model': {
+                    'id': position.model.id if position.model else None,
+                    'name': position.model.name if position.model else None,
+                    'description': position.model.description if position.model else None  # Add description for model
+                },
+                'asset_number': {
+                    'id': position.asset_number.id if position.asset_number else None,
+                    'number': position.asset_number.number if position.asset_number else None,
+                    'description': position.asset_number.description if position.asset_number else None  # Add description for asset number
+                },
+                'location': {
+                    'id': position.location.id if position.location else None,
+                    'name': position.location.name if position.location else None
+                },
                 'parts': [],
                 'documents': [],
                 'drawings': [],
@@ -241,14 +312,12 @@ def get_positions():
 
             logger.info(f"Processing position: {position.id}")
 
-
-            # Step 3: Search the parts_position_image table to get part IDs
+            # Fetch parts
             parts_position_image = db_session.query(PartsPositionImageAssociation).filter_by(
                 position_id=position.id).all()
             part_ids = [ppi.part_id for ppi in parts_position_image]
             logger.info(f"Found {len(parts_position_image)} part associations for position {position.id}")
 
-            # Step 4: Search the part table to get part numbers and descriptions
             if part_ids:
                 parts = db_session.query(Part).filter(Part.id.in_(part_ids)).all()
                 logger.info(f"Found {len(parts)} parts for position {position.id}")
@@ -259,7 +328,7 @@ def get_positions():
                         'name': part.name
                     })
 
-            # Step 5: Search complete_document_position_association table
+            # Fetch complete documents
             complete_documents = db_session.query(CompletedDocumentPositionAssociation).filter_by(
                 position_id=position.id).all()
             logger.info(f"Found {len(complete_documents)} complete document associations for position {position.id}")
@@ -272,7 +341,7 @@ def get_positions():
                         'rev': complete_doc.rev
                     })
 
-            # Step 6: Search drawing_position table
+            # Fetch drawings
             drawing_positions = db_session.query(DrawingPositionAssociation).filter_by(position_id=position.id).all()
             logger.info(f"Found {len(drawing_positions)} drawing associations for position {position.id}")
             for dp in drawing_positions:
@@ -284,7 +353,7 @@ def get_positions():
                         'drawing_revision': drawing.drw_revision
                     })
 
-            # Step 7: Search image_position_association table
+            # Fetch images
             image_positions = db_session.query(ImagePositionAssociation).filter_by(position_id=position.id).all()
             logger.info(f"Found {len(image_positions)} image associations for position {position.id}")
             for ip in image_positions:
@@ -300,21 +369,18 @@ def get_positions():
             result_data.append(position_data)
 
         logger.info(f"Returning result data for {len(result_data)} positions")
-        logger.info(f"Returning position data: {position_data}")
 
         # Step 8: Return the response as JSON
         return jsonify(result_data)
 
-
     except Exception as e:
         db_session.rollback()
-        logger.error(f"Error during position search: {str(e)}", exc_info=True)  # Log the error with stack trace
+        logger.error(f"Error during position search: {str(e)}", exc_info=True)
         return jsonify({"message": "Error occurred during search", "error": str(e)}), 500
 
     finally:
         db_session.close()
         logger.info("Database session closed")
-
 
 @position_data_assignment_bp.route('/add_site_location', methods=['GET', 'POST'])
 def add_site_location():
@@ -356,59 +422,113 @@ def update_position():
         # Retrieve form data from the update form
         position_id = request.form.get('position_id')
         area_id = request.form.get('area_id')
+        area_name = request.form.get('area_name')
+        area_description = request.form.get('area_description')
+
         equipment_group_id = request.form.get('equipment_group_id')
+        equipment_group_name = request.form.get('equipment_group_name')
+        equipment_group_description = request.form.get('equipment_group_description')
+
         model_id = request.form.get('model_id')
-        asset_number_id = request.form.get('asset_number_id') or None
-        asset_number_input = request.form.get('edit_asset_number') or None
-        location_id = request.form.get('location_id') or None
-        location_input = request.form.get('edit_location_name') or None
-        part_numbers = request.form.getlist('part_numbers[]')
+        model_name = request.form.get('model_name')
+        model_description = request.form.get('model_description')
+
+        asset_number_id = request.form.get('asset_number_id')
+        asset_number_input = request.form.get('asset_number')
+        asset_number_description = request.form.get('asset_number_description')
+
+        location_id = request.form.get('location_id')
+        location_name = request.form.get('location_name')
+        location_description = request.form.get('location_description')
+
+        site_id = request.form.get('site_id')
+        site_title = request.form.get('site_title')
+        site_room_number = request.form.get('site_room_number')
+
+        # Log form data retrieval
+        logger.info(f"Updating position with ID {position_id}")
+        logger.debug(f"Form data - Area: {area_id}, Area Name: {area_name}, Description: {area_description}")
+        logger.debug(f"Equipment Group: {equipment_group_id}, Name: {equipment_group_name}, Description: {equipment_group_description}")
+        logger.debug(f"Model: {model_id}, Name: {model_name}, Description: {model_description}")
+        logger.debug(f"Asset Number: {asset_number_id}, Number: {asset_number_input}, Description: {asset_number_description}")
+        logger.debug(f"Location: {location_id}, Name: {location_name}")
+        logger.debug(f"Location: {location_description}")
+        logger.debug(f"Site: {site_id}, Name: {site_title}")
+        logger.debug(f"Site: {site_room_number}")
 
         # Fetch the existing Position object from the database
         position = db_session.query(Position).filter_by(id=position_id).first()
 
         if not position:
+            logger.error(f"Position with ID {position_id} not found.")
             flash('Position not found.', 'error')
             return redirect(url_for('position_data_assignment_bp.position_data_assignment'))
 
-        # Update the position data
-        position.area_id = area_id
-        position.equipment_group_id = equipment_group_id
-        position.model_id = model_id
+        logger.info(f"Position with ID {position_id} found. Proceeding with updates.")
 
-        # Handle manual input for Asset Number
-        if asset_number_input:
-            if not asset_number_id:
-                # Create a new AssetNumber entry if none exists
-                new_asset = AssetNumber(number=asset_number_input, model_id=model_id)
-                db_session.add(new_asset)
-                db_session.commit()
-                asset_number_id = new_asset.id
-            position.asset_number_id = asset_number_id
+        # Update the current data for the related entities
+        # Update Area name and description
+        if area_id:
+            db_session.query(Area).filter_by(id=area_id).update({
+                "name": area_name,
+                "description": area_description
+            })
+            logger.info(f"Updated Area ID {area_id} with name '{area_name}' and description.")
 
-        # Handle manual input for Location
-        if location_input:
-            if not location_id:
-                # Create a new Location entry if none exists
-                new_location = Location(name=location_input, model_id=model_id)
-                db_session.add(new_location)
-                db_session.commit()
-                location_id = new_location.id
-            position.location_id = location_id
+        # Update EquipmentGroup name and description
+        if equipment_group_id:
+            db_session.query(EquipmentGroup).filter_by(id=equipment_group_id).update({
+                "name": equipment_group_name,
+                "description": equipment_group_description
+            })
+            logger.info(f"Updated Equipment Group ID {equipment_group_id} with name '{equipment_group_name}' and description.")
 
-        # Update parts
-        position.parts = part_numbers  # Adjust this based on your model structure
+        # Update Model name and description
+        if model_id:
+            db_session.query(Model).filter_by(id=model_id).update({
+                "name": model_name,
+                "description": model_description
+            })
+            logger.info(f"Updated Model ID {model_id} with name '{model_name}' and description.")
 
-        # Save updated data
+        # Update AssetNumber
+        if asset_number_id and asset_number_input:
+            db_session.query(AssetNumber).filter_by(id=asset_number_id).update({
+                "number": asset_number_input,
+                "description": asset_number_description
+            })
+            logger.info(f"Updated Asset Number ID {asset_number_id} with number '{asset_number_input}' and description.")
+
+        # Update Location name and description
+        if location_id and location_name:
+            db_session.query(Location).filter_by(id=location_id).update({
+                "name": location_name,
+                "description": location_description  # Make sure to use location_description from form data
+            })
+            logger.info(
+                f"Updated Location ID {location_id} with name '{location_name}' and description '{location_description}'.")
+
+        # Update Site Location Name and Description
+        if site_id and site_title:
+            db_session.query(SiteLocation).filter_by(id=site_id).update({
+                "title": site_title,
+                "room_number": site_room_number
+            })
+            logger.info(
+                f'Updated Site Location ID {site_id} with title "{site_title}" and room_number "{site_room_number}".')
+
+        # Save the updated data
         db_session.commit()
+        logger.info(f"Position ID {position_id} and related entities updated successfully.")
 
         flash('Position data updated successfully!', 'success')
         return redirect(url_for('position_data_assignment_bp.position_data_assignment'))
 
     except Exception as e:
         db_session.rollback()
-        logger.error(f"Error updating position data: {e}")
+        logger.error(f"Error updating position data: {e}", exc_info=True)
         flash('An error occurred while updating position data.', 'error')
         return redirect(url_for('position_data_assignment_bp.position_data_assignment'))
     finally:
         db_session.close()
+        logger.info(f"Database session for position ID {position_id} closed.")
