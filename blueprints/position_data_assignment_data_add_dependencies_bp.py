@@ -16,7 +16,6 @@ session = db_config.get_main_session()
 # Create a blueprint for the route
 position_data_assignment_data_add_dependencies_bp = Blueprint('position_data_assignment_data_add_dependencies_bp', __name__)
 
-
 @position_data_assignment_data_add_dependencies_bp.route('/add_position', methods=['POST'])
 def add_position():
     # Extract data from the form
@@ -77,7 +76,9 @@ def add_position():
 
             for name, description in zip(new_equipment_group_names, new_equipment_group_descriptions):
                 if name:
-                    new_equipment_group = EquipmentGroup(name=name, description=description)
+                    # Ensure equipment group is related to an area
+                    area_id = new_area_ids[0] if new_area_ids else None
+                    new_equipment_group = EquipmentGroup(name=name, description=description, area_id=area_id)
                     session.add(new_equipment_group)
                     session.commit()
                     new_equipment_group_ids.append(new_equipment_group.id)
