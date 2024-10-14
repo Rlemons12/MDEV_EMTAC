@@ -12,7 +12,6 @@
 <div class="main-container">
 
     <!-- Sidebar and Menu -->
-    <div class="hamburger" id="hamburger">&#9776;</div>
     <div class="sidebar" id="sidebar">
         <h2>Menu</h2>
         {% if session['user_level'] == 'ADMIN' or session['user_level'] == 'LEVEL_III' %}
@@ -279,48 +278,8 @@
     </form>
 </details>
 
-        <!-- Update Section (Collapsible) -->
-        <details id="updateSection" >
-            <summary>Update Position Data</summary>
-
-            <form id="updatePositionForm" action="{{ url_for('position_data_assignment_bp.update_position') }}" method="post" enctype="multipart/form-data">
-                <!-- Display the position information (ID and Name, for example) -->
-                <div>
-                    <h3>Editing Position: {{ position.id }} - {{ position.name }}</h3>
-                </div>
-
-                <!-- Hidden field for Position ID (make it visible for debugging) -->
-                <input type="text" id="position_id" name="position_id" value="{{ position.id }}">
-
-                <!-- Visible field for Position ID (for display purposes) -->
-                <div>
-                    <label for="position_display">Position ID:</label>
-                    <input type="text" id="position_display" name="position_display" value="{{ position.id }}" readonly>
-                </div>
-
-                <!-- Update Area (Collapsible Section) -->
-                <details>
-                    <summary>Update Area</summary>
-                    <div>
-                        <label for="edit_areaDropdown">Edit Area:</label>
-                        <select name="area_id" id="edit_areaDropdown">
-                            <option value="">Select Area</option>
-                            {% for area in areas %}
-                                <option value="{{ area.id }}">{{ area.name }}</option>
-                            {% endfor %}
-                        </select>
-
-                        <!-- Name and Description for Area -->
-                        <label for="edit_area_name">Area Name:</label>
-                        <input type="text" id="edit_area_name" name="area_name" value="{{ position.area.name if position.area else '' }}">
-
-                        <label for="edit_area_description">Area Description:</label>
-                        <textarea id="edit_area_description" name="area_description">{{ position.area.description if position.area else '' }}</textarea>
-                    </div>
-                </details>
-
-        <!-- Update Section (Collapsible) -->
-    <details id="updateSection" open>
+<!-- Update Section (Collapsible) -->
+<details id="updateSection" open>
     <summary>Update Position Data</summary>
 
     <form id="updatePositionForm" action="{{ url_for('position_data_assignment_bp.update_position') }}" method="post" enctype="multipart/form-data">
@@ -330,7 +289,7 @@
         </div>
 
         <!-- Hidden field for Position ID (make it visible for debugging) -->
-        <input type="text" id="position_id" name="position_id" value="{{ position.id }}">
+        <input type="hidden" id="position_id" name="position_id" value="{{ position.id }}">
 
         <!-- Visible field for Position ID (for display purposes) -->
         <div>
@@ -443,8 +402,8 @@
                 <label for="edit_location_description">Location Description:</label>
                 <textarea id="edit_location_description" name="location_description">{{ position.location.description if position.location else '' }}</textarea>
             </div>
-
         </details>
+
         <!-- Update Site Location (Collapsible Section) -->
         <details>
             <summary>Update Site Location</summary>
@@ -469,9 +428,8 @@
         <!-- Submit Button -->
         <button type="submit">Update Position</button>
     </form>
-
-    <p>No position selected for update. Please search for a position first.</p>
 </details>
+
 
 <!-- Document Section -->
 <details>
@@ -491,44 +449,84 @@
     <div id="documents-pagination" class="pagination-controls"></div>
 </details>
 
-        <!-- Parts Input -->
 <details>
     <summary>Manage Parts</summary>
+
+    <!-- Parts Search Functionality -->
     <div>
-        <label for="search-parts">Search Parts:</label>
-        <input type="text" id="search-parts" placeholder="Search parts...">
+        <label for="parts-search">Parts Search:</label>
+        <input type="text" id="parts-search" placeholder="Search parts...">
+        <div id="suggestion-box" class="suggestion-box" style="display: none;"></div>
     </div>
+
+    <!-- Display Existing Parts -->
     <div id="parts-container">
         <h4>Existing Parts:</h4>
-        <div id="existing-parts-list" class="scrollable-list"></div>
+        <div id="existing-parts-list" class="scrollable-list">
+            {% for part in existing_parts %}
+                <div class="existing-part">
+                    <span>Part Number: {{ part.part_number }} - {{ part.name }}</span>
+                    <button type="button" onclick="removeExistingPart(this, '{{ part.id }}', '{{ position.id }}')">Remove</button>
+                </div>
+            {% endfor %}
+        </div>
     </div>
-    <div id="parts-pagination" class="pagination-controls"></div>
+
+    <!-- Add New Parts Section -->
     <h4>Add New Parts:</h4>
-    <div class="part-entry">
-        <label>Part Number:</label>
-        <input type="text" name="part_numbers[]">
+    <div id="new-parts-container">
+        <!-- New part entries will be dynamically added here -->
     </div>
-    <button type="button" onclick="addPartEntry()">Add Another Part</button>
+
+    <!-- Hidden Field for Position ID -->
+    <input type="hidden" id="position_id" name="position_id" value="{{ position.id }}">
+
+    <!-- Button to Add More Parts -->
+    <button type="button" id="add-part-button">Add Another Part</button>
+
+    <!-- Button to Submit New Parts -->
+    <button type="button" id="submit-parts-button">Submit New Parts</button>
+
 </details>
+
 
 <!-- Images Section -->
 <details>
     <summary>Manage Images</summary>
+
+    <!-- Search Images -->
     <div>
-        <label for="search-images">Search Images:</label>
-        <input type="text" id="search-images" placeholder="Search images...">
+        <label for="images-search">Search Images:</label>
+        <input type="text" id="images-search" placeholder="Search images...">
+        <div id="image-suggestion-box" class="suggestion-box"></div>
     </div>
+
+    <!-- Existing Images List -->
     <div id="images-container">
         <h4>Existing Images:</h4>
-        <div id="existing-images-list" class="scrollable-list"></div>
+        <div id="existing-images-list" class="scrollable-list">
+            {% for image in existing_images %}
+                <div class="existing-image">
+                    <span>Image Name: {{ image.image_name }}</span>
+                    <button type="button" class="remove-existing-image-button" data-image-id="{{ image.id }}">Remove</button>
+                </div>
+            {% endfor %}
+        </div>
     </div>
-    <div id="images-pagination" class="pagination-controls"></div>
-    <h4>Upload New Images:</h4>
-    <div>
-        <label for="images">Upload Images:</label>
-        <input type="file" name="images[]" multiple accept="image/*">
+
+    <!-- Add New Images -->
+    <h4>Add New Images:</h4>
+    <div id="new-images-container">
+        <!-- New image entries will be appended here -->
     </div>
+    <button type="button" id="add-image-button">Add Another Image</button>
+    <button type="button" id="submit-images-button">Submit New Images</button>
+
+    <!-- Hidden Input for Position ID -->
+    <input type="hidden" id="position_id" value="{{ position.id }}">
 </details>
+
+
 
 <!-- Drawings Section -->
 <details>
@@ -564,7 +562,8 @@
 <script src="{{ url_for('static', filename='js/position_data_assignment_data_add_dependencies.js') }}"></script>
 <script src="{{ url_for('static', filename='js/get_position_data_assignment_data.js') }}"></script>
 <script src="{{ url_for('static', filename='js/base_sidebar.js') }}"></script>
-
+<script src="{{ url_for('static', filename= 'js/get_position_data_assignment_data_part.js')}}"></script>
+<script src="{{ url_for('static', filename='js/get_position_data_assignment_data_image.js') }}"></script>
 <script>
     var getEquipmentGroupsUrl = "{{ url_for('position_data_assignment_bp.get_equipment_groups') }}";
     var getModelsUrl = "{{ url_for('position_data_assignment_bp.get_models') }}";
@@ -590,15 +589,6 @@
 });
 
 
-    function addPartEntry() {
-        const container = document.getElementById('parts-container');
-        const div = document.createElement('div');
-        div.classList.add('part-entry');
-        div.innerHTML = `
-            <label>Part Number:</label>
-            <input type="text" name="part_numbers[]">
-        `;
-        container.appendChild(div);
-    }
+
 </script>
 {% endblock %}

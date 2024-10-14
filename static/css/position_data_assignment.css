@@ -54,7 +54,7 @@ details p,
 details ul,
 details li,
 details label {
-    color: yellow; /* Ensure all text inside the collapsible sections is yellow */
+    color: BLUE; /* Ensure all text inside the collapsible sections is yellow */
 }
 
 /* Adjust button styles for better contrast */
@@ -80,14 +80,80 @@ button:hover {
 .content h1 {
     color: #39FF14; /* Set a bright green color for the heading */
 }
-.scrollable-list {
-    max-height: 300px; /* Adjust height as needed */
-    overflow-y: auto;
-    border: 1px solid #ccc;
-    padding: 10px;
+
+/* Styling for the existing parts section (associated with a position) */
+#parts-container {
+    background-color: rgba(0, 0, 0, 0.8); /* Dark background for contrast */
+    padding: 20px;
+    border-radius: 8px;
+    margin-top: 15px;
+}
+
+#parts-container h4 {
+    color: #FFD700; /* A bright yellow for the "Existing Parts" heading */
+    font-size: 18px;
     margin-bottom: 10px;
 }
 
+/* Styling for the existing parts list */
+#existing-parts-list {
+    background-color: rgba(255, 255, 255, 0.1); /* Semi-transparent background for better visibility */
+    border: 1px solid #FFD700; /* Yellow border to match the heading */
+    max-height: 300px; /* Limit the height to make it scrollable */
+    overflow-y: auto; /* Scrollable for long lists */
+    padding: 10px;
+    margin-top: 10px;
+    color: yellow; /* Text color for the parts in the list */
+}
+
+/* Styling for each part entry in the list */
+.existing-part {
+    padding: 8px;
+    border-bottom: 1px solid #FFD700; /* Divider between parts */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.existing-part span {
+    color: yellow; /* Ensure part numbers are visible */
+}
+
+/* Styling for the remove button next to each part */
+.existing-part button {
+    background-color: #333;
+    color: yellow; /* Button text color */
+    border: 1px solid yellow;
+    padding: 5px;
+    cursor: pointer;
+}
+
+.existing-part button:hover {
+    background-color: yellow;
+    color: black; /* Invert colors on hover */
+}
+
+/* Styling for the scrollable area */
+.scrollable-list {
+    scrollbar-width: thin;
+    scrollbar-color: yellow #333; /* Custom scrollbar colors */
+}
+
+/* Scrollbar customization for WebKit browsers */
+.scrollable-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.scrollable-list::-webkit-scrollbar-thumb {
+    background-color: yellow;
+    border-radius: 5px;
+}
+
+.scrollable-list::-webkit-scrollbar-track {
+    background-color: #333;
+}
+
+/* Pagination controls for existing parts */
 .pagination-controls {
     margin-top: 10px;
     text-align: center;
@@ -97,4 +163,24 @@ button:hover {
     margin: 0 5px;
     padding: 5px 10px;
     cursor: pointer;
+}
+
+/* Suggestion box styling for any autocomplete features */
+.suggestion-box {
+    border: 1px solid #ccc;
+    background-color: #fff;
+    max-height: 200px;
+    overflow-y: auto;
+    position: absolute;
+    width: 200px;
+    z-index: 1000;
+}
+
+.suggestion-item {
+    padding: 8px;
+    cursor: pointer;
+}
+
+.suggestion-item:hover {
+    background-color: #f0f0f0;
 }

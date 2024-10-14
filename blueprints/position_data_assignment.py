@@ -3,11 +3,12 @@ from werkzeug.utils import secure_filename
 import os
 import logging
 from sqlalchemy.orm import joinedload
-from emtacdb_fts import (Part,PartsPositionImageAssociation,DrawingPositionAssociation,CompletedDocumentPositionAssociation,
+from emtacdb_fts import (Drawing,Part,PartsPositionImageAssociation,DrawingPositionAssociation,CompletedDocumentPositionAssociation,
                 Area, EquipmentGroup, Model, AssetNumber, Location, SiteLocation,CompleteDocument,
                          Image,Position, ImagePositionAssociation)
 from config_env import DatabaseConfig
 from config import ALLOWED_EXTENSIONS
+from sqlalchemy import or_
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -532,3 +533,289 @@ def update_position():
     finally:
         db_session.close()
         logger.info(f"Database session for position ID {position_id} closed.")
+
+@position_data_assignment_bp.route('/remove_part_from_position', methods=['POST'])
+def remove_part_from_position():
+    try:
+        part_id = request.json.get('part_id')
+        position_id = request.json.get('position_id')
+
+        if not part_id or not position_id:
+            return jsonify({'message': 'Part ID and Position ID are required'}), 400
+
+        with db_config.get_main_session() as session:
+            # Find the association
+            association = session.query(PartsPositionImageAssociation).filter_by(part_id=part_id, position_id=position_id).first()
+            if not association:
+                return jsonify({'message': 'Part is not associated with this position'}), 404
+
+            # Remove the association
+            session.delete(association)
+            session.commit()
+
+            logger.info(f"Removed Part ID {part_id} from Position ID {position_id}")
+            return jsonify({'message': 'Part successfully removed from position'}), 200
+    except Exception as e:
+        logger.error(f"Error removing part from position: {e}")
+        return jsonify({'message': 'Failed to remove part from position'}), 500
+
+@position_data_assignment_bp.route('/add_part_to_position', methods=['POST'])
+def add_part_to_position():
+    try:
+        part_id = request.json.get('part_id')
+        position_id = request.json.get('position_id')
+
+        if not part_id or not position_id:
+            return jsonify({'message': 'Part ID and Position ID are required'}), 400
+
+        with db_config.get_main_session() as session:
+            # Check if the association already exists
+            existing_association = session.query(PartsPositionImageAssociation).filter_by(part_id=part_id, position_id=position_id).first()
+            if existing_association:
+                return jsonify({'message': 'Part is already associated with this position'}), 409
+
+            # Create a new association
+            new_association = PartsPositionImageAssociation(part_id=part_id, position_id=position_id)
+            session.add(new_association)
+
+            # Fetch the part to get the part_number
+            part = session.query(Part).filter_by(id=part_id).first()
+            if not part:
+                return jsonify({'message': 'Part not found'}), 404
+
+            session.commit()
+
+            logger.info(f"Added Part ID {part_id} to Position ID {position_id}")
+            return jsonify({
+                'message': 'Part successfully added to position',
+                'part_id': part_id,
+                'part_number': part.part_number
+            }), 200
+    except Exception as e:
+        logger.error(f"Error adding part to position: {e}")
+        return jsonify({'message': 'Failed to add part to position'}), 500
+
+@position_data_assignment_bp.route('/pda_search_parts', methods=['GET'])
+def search_parts():
+    try:
+        # Get the search query from the request
+        search_term = request.args.get('query', '').strip()
+
+        logging.info(f"Received search_term: '{search_term}' in position_data_assignment_bp")
+
+        # Build the like pattern for part numbers only
+        like_pattern = f"%{search_term}%"
+
+        # Use 'ilike' to search only the part_number field
+        with db_config.get_main_session() as session:
+            parts = session.query(Part).filter(
+                Part.part_number.ilike(like_pattern)
+            ).limit(10).all()
+
+            # Prepare the result list, including part ID
+            result = []
+            for part in parts:
+                result.append({
+                    'id': part.id,
+                    'part_number': part.part_number,
+                    'name': part.name,
+                    'oem_mfg': part.oem_mfg,
+                    'model': part.model
+                })
+
+        return jsonify(result), 200
+    except Exception as e:
+        logging.error(f"Error during part search: {e}", exc_info=True)
+        return jsonify({"message": "Error occurred during part search"}), 500
+
+@position_data_assignment_bp.route('/create_and_add_part', methods=['POST'])
+def create_and_add_part():
+    try:
+        part_number = request.json.get('part_number')
+        position_id = request.json.get('position_id')
+
+        if not part_number or not position_id:
+            return jsonify({'message': 'Part number and Position ID are required'}), 400
+
+        with db_config.get_main_session() as session:
+            # Check if the part already exists
+            part = session.query(Part).filter_by(part_number=part_number).first()
+            if not part:
+                # Create a new Part
+                part = Part(part_number=part_number)
+                session.add(part)
+                session.flush()  # Get the new part's ID
+
+            # Check if the association already exists
+            existing_association = session.query(PartsPositionImageAssociation).filter_by(part_id=part.id, position_id=position_id).first()
+            if existing_association:
+                return jsonify({'message': 'Part is already associated with this position'}), 409
+
+            # Create a new association
+            new_association = PartsPositionImageAssociation(part_id=part.id, position_id=position_id)
+            session.add(new_association)
+            session.commit()
+
+            logger.info(f"Created Part ID {part.id} and added to Position ID {position_id}")
+            return jsonify({
+                'message': 'Part successfully created and added to position',
+                'part_id': part.id,
+                'part_number': part.part_number
+            }), 200
+    except Exception as e:
+        logger.error(f"Error creating and adding part to position: {e}")
+        return jsonify({'message': 'Failed to create and add part to position'}), 500
+
+@position_data_assignment_bp.route('/create_and_add_image', methods=['POST'])
+def create_and_add_image():
+    try:
+        title = request.json.get('title')
+        description = request.json.get('description', '')  # Optional field
+        file_path = request.json.get('file_path', '')      # Optional field
+        position_id = request.json.get('position_id')
+
+        if not title or not position_id:
+            return jsonify({'message': 'Image title and Position ID are required'}), 400
+
+        with db_config.get_main_session() as session:
+            # Create a new Image
+            image = Image(title=title, description=description, file_path=file_path)
+            session.add(image)
+            session.flush()  # Get the new image's ID
+
+            # Verify that the position exists
+            position = session.query(Position).filter_by(id=position_id).first()
+            if not position:
+                return jsonify({'message': 'Position not found'}), 404
+
+            # Check if the association already exists
+            existing_association = session.query(ImagePositionAssociation).filter_by(
+                image_id=image.id, position_id=position_id
+            ).first()
+            if existing_association:
+                return jsonify({'message': 'Image is already associated with this position'}), 409
+
+            # Create a new association
+            new_association = ImagePositionAssociation(
+                image_id=image.id, position_id=position_id
+            )
+            session.add(new_association)
+            session.commit()
+
+            logging.info(f"Created Image ID {image.id} and added to Position ID {position_id}")
+            return jsonify({
+                'message': 'Image successfully created and added to position',
+                'image_id': image.id,
+                'title': image.title
+            }), 200
+    except Exception as e:
+        logging.error(f"Error creating and adding image to position: {e}", exc_info=True)
+        return jsonify({'message': 'Failed to create and add image to position'}), 500
+
+@position_data_assignment_bp.route('/pda_search_images', methods=['GET'])
+def search_images():
+    try:
+        search_term = request.args.get('query', '').strip()
+        logging.info(f"Received search_term: '{search_term}' in position_data_assignment_bp for images")
+
+        if not search_term:
+            logging.warning("Search term is empty.")
+            return jsonify([]), 200  # Return an empty list if no search term provided
+
+        like_pattern = f"%{search_term}%"
+        logging.info(f"Using like_pattern: '{like_pattern}'")
+
+        with db_config.get_main_session() as session:
+            images = session.query(Image).filter(
+                or_(
+                    Image.title.ilike(like_pattern),
+                    Image.description.ilike(like_pattern)
+                )
+            ).limit(10).all()
+
+            logging.info(f"Found {len(images)} images matching the search term.")
+
+            result = []
+            for image in images:
+                logging.debug(f"Image found: ID={image.id}, Title='{image.title}'")
+                result.append({
+                    'id': image.id,
+                    'title': image.title,
+                    'description': image.description,
+                    'file_path': image.file_path,
+                })
+
+        return jsonify(result), 200
+    except Exception as e:
+        logging.error(f"Error during image search: {e}", exc_info=True)
+        return jsonify({"message": "Error occurred during image search"}), 500
+
+@position_data_assignment_bp.route('/add_image_to_position', methods=['POST'])
+def add_image_to_position():
+    try:
+        image_id = request.json.get('image_id')
+        position_id = request.json.get('position_id')
+
+        if not image_id or not position_id:
+            return jsonify({'message': 'Image ID and Position ID are required'}), 400
+
+        with db_config.get_main_session() as session:
+            # Verify that the image and position exist
+            image = session.query(Image).filter_by(id=image_id).first()
+            if not image:
+                return jsonify({'message': 'Image not found'}), 404
+
+            position = session.query(Position).filter_by(id=position_id).first()
+            if not position:
+                return jsonify({'message': 'Position not found'}), 404
+
+            # Check if the association already exists
+            existing_association = session.query(ImagePositionAssociation).filter_by(
+                image_id=image_id, position_id=position_id
+            ).first()
+            if existing_association:
+                return jsonify({'message': 'Image is already associated with this position'}), 409
+
+            # Create a new association
+            new_association = ImagePositionAssociation(
+                image_id=image_id, position_id=position_id
+            )
+            session.add(new_association)
+            session.commit()
+
+            logging.info(f"Added Image ID {image_id} to Position ID {position_id}")
+            return jsonify({
+                'message': 'Image successfully added to position',
+                'image_id': image.id,
+                'title': image.title  # Updated attribute name
+            }), 200
+    except Exception as e:
+        logging.error(f"Error adding image to position: {e}", exc_info=True)
+        return jsonify({'message': 'Failed to add image to position'}), 500
+
+
+@position_data_assignment_bp.route('/remove_image_from_position', methods=['POST'])
+def remove_image_from_position():
+    try:
+        image_id = request.json.get('image_id')
+        position_id = request.json.get('position_id')
+
+        if not image_id or not position_id:
+            return jsonify({'message': 'Image ID and Position ID are required'}), 400
+
+        with db_config.get_main_session() as session:
+            # Find the association
+            association = session.query(ImagePositionAssociation).filter_by(image_id=image_id, position_id=position_id).first()
+            if not association:
+                return jsonify({'message': 'Image is not associated with this position'}), 404
+
+            # Remove the association
+            session.delete(association)
+            session.commit()
+
+            logging.info(f"Removed Image ID {image_id} from Position ID {position_id}")
+            return jsonify({'message': 'Image successfully removed from position'}), 200
+    except Exception as e:
+        logging.error(f"Error removing image from position: {e}", exc_info=True)
+        return jsonify({'message': 'Failed to remove image from position'}), 500
+

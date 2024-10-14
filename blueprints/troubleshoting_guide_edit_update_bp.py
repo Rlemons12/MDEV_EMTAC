@@ -71,7 +71,6 @@ def get_position_for_problem(session, problem_id):
     logger.info(f"Found Position ID: {problem_position.position_id} for Problem ID: {problem_id}")
     return problem_position.position_id
 
-
 def update_parts_position_image_associations(session, problem_id, selected_part_ids, selected_image_ids):
     # Get the position associated with the problem
     position_id = get_position_for_problem(session, problem_id)
@@ -114,7 +113,6 @@ def update_parts_position_image_associations(session, problem_id, selected_part_
         logger.info(f"Added {len(new_associations)} new PartsPositionImage associations for Position ID: {position_id}")
     else:
         logger.info(f"No new PartsPositionImage associations to add for Position ID: {position_id}")
-
 
 @troubleshooting_guide_edit_update_bp.route('/troubleshooting_guide_edit_update', methods=['POST'])
 def edit_update_problem_solution():
@@ -293,7 +291,6 @@ def edit_update_problem_solution():
 
     # Redirect back to the troubleshooting guide page after updating
     return render_template('troubleshooting_guide.html')
-
 
 @troubleshooting_guide_edit_update_bp.route('/search_parts')
 def search_parts():

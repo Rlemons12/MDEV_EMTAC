@@ -3583,3 +3583,22 @@
 2024-09-26 02:45:42,182 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=, asset_number_id=, location_id=
 2024-09-26 02:45:42,190 - blueprints.create_bill_of_material - INFO - Found 8 matching positions.
 2024-09-26 02:45:43,803 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-10-07 07:00:50,426 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-10-07 07:00:50,427 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=21, asset_number_id=, location_id=
+2024-10-07 07:00:50,431 - blueprints.create_bill_of_material - INFO - Found 8 matching positions.
+2024-10-07 07:00:58,961 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-10-07 14:15:49,543 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-10-07 14:15:49,544 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=21, asset_number_id=, location_id=
+2024-10-07 14:15:49,549 - blueprints.create_bill_of_material - INFO - Found 8 matching positions.
+2024-10-07 14:15:51,075 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-10-09 05:21:38,123 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-10-09 05:21:38,124 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-10-09 05:21:38,127 - blueprints.create_bill_of_material - INFO - Found 17 matching positions.
+2024-10-09 05:21:39,518 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-10-14 11:34:53,457 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-10-14 11:34:53,458 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=1, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-10-14 11:34:53,463 - blueprints.create_bill_of_material - INFO - Found 3 matching positions.
+2024-10-14 11:34:53,471 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-10-14 11:35:16,830 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-10-14 11:35:16,831 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=1, equipment_group_id=6, model_id=36, asset_number_id=, location_id=
+2024-10-14 11:35:16,835 - blueprints.create_bill_of_material - WARNING - No matching positions found.
