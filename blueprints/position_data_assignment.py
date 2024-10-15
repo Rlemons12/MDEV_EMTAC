@@ -232,51 +232,45 @@ def get_site_locations():
 
 @position_data_assignment_bp.route('/get_positions', methods=['GET'])
 def get_positions():
-    # Get the filter parameters from the request
-    site_location_id = request.args.get('site_location_id')
-    area_id = request.args.get('area_id')
-    equipment_group_id = request.args.get('equipment_group_id')
-    model_id = request.args.get('model_id')
-    asset_number_id = request.args.get('asset_number_id')
-    location_id = request.args.get('location_id')
+    # Existing imports and configurations...
 
-    logger.info(f"Received GET request with filter parameters: "
-                f"site_location_id={site_location_id}, area_id={area_id}, equipment_group_id={equipment_group_id}, "
-                f"model_id={model_id}, asset_number_id={asset_number_id}, location_id={location_id}")
-
-    db_session = db_config.get_main_session()
     try:
-        # Step 1: Search for Positions with filters, only applying filters if they exist
+        # Get filter parameters from the request
+        site_location_id = request.args.get('site_location_id')
+        area_id = request.args.get('area_id')
+        equipment_group_id = request.args.get('equipment_group_id')
+        model_id = request.args.get('model_id')
+        asset_number_id = request.args.get('asset_number_id')
+        location_id = request.args.get('location_id')
+
+        logger.info(f"Received GET request with filters: site_location_id={site_location_id}, area_id={area_id}, equipment_group_id={equipment_group_id}, model_id={model_id}, asset_number_id={asset_number_id}, location_id={location_id}")
+
+        db_session = db_config.get_main_session()
+
+        # Build the query based on filters
         query = db_session.query(Position)
-        logger.info("Initialized query for Position")
 
         if site_location_id:
             query = query.filter(Position.site_location_id == site_location_id)
-            logger.info(f"Applied filter: site_location_id={site_location_id}")
         if area_id:
             query = query.filter(Position.area_id == area_id)
-            logger.info(f"Applied filter: area_id={area_id}")
         if equipment_group_id:
             query = query.filter(Position.equipment_group_id == equipment_group_id)
-            logger.info(f"Applied filter: equipment_group_id={equipment_group_id}")
         if model_id:
             query = query.filter(Position.model_id == model_id)
-            logger.info(f"Applied filter: model_id={model_id}")
         if asset_number_id:
             query = query.filter(Position.asset_number_id == asset_number_id)
-            logger.info(f"Applied filter: asset_number_id={asset_number_id}")
         if location_id:
             query = query.filter(Position.location_id == location_id)
-            logger.info(f"Applied filter: location_id={location_id}")
 
         positions = query.all()
-        logger.info(f"Query executed. Number of positions found: {len(positions)}")
+        logger.info(f"Found {len(positions)} positions matching the filters.")
 
         if not positions:
-            logger.warning("No positions found for the provided filters")
+            logger.warning("No positions found with the given filters.")
             return jsonify({"message": "No positions found"}), 404
 
-        # Step 2: Prepare a response with the associated data
+        # Prepare the response data
         result_data = []
 
         for position in positions:
@@ -285,7 +279,7 @@ def get_positions():
                 'area': {
                     'id': position.area.id if position.area else None,
                     'name': position.area.name if position.area else None,
-                    'description': position.area.description if position.area else None  # Add description for area
+                    'description': position.area.description if position.area else None
                 },
                 'equipment_group': {
                     'id': position.equipment_group.id if position.equipment_group else None,
@@ -294,16 +288,17 @@ def get_positions():
                 'model': {
                     'id': position.model.id if position.model else None,
                     'name': position.model.name if position.model else None,
-                    'description': position.model.description if position.model else None  # Add description for model
+                    'description': position.model.description if position.model else None
                 },
                 'asset_number': {
                     'id': position.asset_number.id if position.asset_number else None,
                     'number': position.asset_number.number if position.asset_number else None,
-                    'description': position.asset_number.description if position.asset_number else None  # Add description for asset number
+                    'description': position.asset_number.description if position.asset_number else None
                 },
                 'location': {
                     'id': position.location.id if position.location else None,
-                    'name': position.location.name if position.location else None
+                    'name': position.location.name if position.location else None,
+                    'description': position.location.description if position.location else None
                 },
                 'parts': [],
                 'documents': [],
@@ -311,17 +306,13 @@ def get_positions():
                 'images': []
             }
 
-            logger.info(f"Processing position: {position.id}")
+            logger.info(f"Processing Position ID: {position.id}")
 
             # Fetch parts
-            parts_position_image = db_session.query(PartsPositionImageAssociation).filter_by(
-                position_id=position.id).all()
-            part_ids = [ppi.part_id for ppi in parts_position_image]
-            logger.info(f"Found {len(parts_position_image)} part associations for position {position.id}")
-
+            parts_associations = db_session.query(PartsPositionImageAssociation).filter_by(position_id=position.id).all()
+            part_ids = [assoc.part_id for assoc in parts_associations]
             if part_ids:
                 parts = db_session.query(Part).filter(Part.id.in_(part_ids)).all()
-                logger.info(f"Found {len(parts)} parts for position {position.id}")
                 for part in parts:
                     position_data['parts'].append({
                         'part_id': part.id,
@@ -329,59 +320,32 @@ def get_positions():
                         'name': part.name
                     })
 
-            # Fetch complete documents
-            complete_documents = db_session.query(CompletedDocumentPositionAssociation).filter_by(
-                position_id=position.id).all()
-            logger.info(f"Found {len(complete_documents)} complete document associations for position {position.id}")
-            for cdpa in complete_documents:
-                complete_doc = db_session.query(CompleteDocument).filter_by(id=cdpa.complete_document_id).first()
-                if complete_doc:
-                    position_data['documents'].append({
-                        'complete_document_id': complete_doc.id,
-                        'title': complete_doc.title,
-                        'rev': complete_doc.rev
-                    })
-
-            # Fetch drawings
-            drawing_positions = db_session.query(DrawingPositionAssociation).filter_by(position_id=position.id).all()
-            logger.info(f"Found {len(drawing_positions)} drawing associations for position {position.id}")
-            for dp in drawing_positions:
-                drawing = db_session.query(Drawing).filter_by(id=dp.drawing_id).first()
-                if drawing:
+            # Fetch drawings with drw_number
+            drawing_associations = db_session.query(DrawingPositionAssociation).filter_by(position_id=position.id).all()
+            drawing_ids = [assoc.drawing_id for assoc in drawing_associations]
+            if drawing_ids:
+                drawings = db_session.query(Drawing).filter(Drawing.id.in_(drawing_ids)).all()
+                for drawing in drawings:
                     position_data['drawings'].append({
                         'drawing_id': drawing.id,
-                        'drawing_name': drawing.drw_name,
-                        'drawing_revision': drawing.drw_revision
+                        'drw_name': drawing.drw_name,
+                        'drw_number': drawing.drw_number  # Ensure 'drw_number' is used
+                        # 'drw_revision': drawing.drw_revision  # Include if needed
                     })
 
-            # Fetch images
-            image_positions = db_session.query(ImagePositionAssociation).filter_by(position_id=position.id).all()
-            logger.info(f"Found {len(image_positions)} image associations for position {position.id}")
-            for ip in image_positions:
-                image = db_session.query(Image).filter_by(id=ip.image_id).first()
-                if image:
-                    position_data['images'].append({
-                        'image_id': image.id,
-                        'image_title': image.title,
-                        'description': image.description
-                    })
-
-            # Add position data to the result list
+            # Append the position data to the result list
             result_data.append(position_data)
 
-        logger.info(f"Returning result data for {len(result_data)} positions")
-
-        # Step 8: Return the response as JSON
-        return jsonify(result_data)
+        logger.info(f"Returning data for {len(result_data)} positions.")
+        return jsonify(result_data), 200
 
     except Exception as e:
-        db_session.rollback()
-        logger.error(f"Error during position search: {str(e)}", exc_info=True)
-        return jsonify({"message": "Error occurred during search", "error": str(e)}), 500
+        logger.error(f"Error in /get_positions: {e}", exc_info=True)
+        return jsonify({"message": "Error occurred during position search", "error": str(e)}), 500
 
     finally:
         db_session.close()
-        logger.info("Database session closed")
+        logger.info("Database session closed for /get_positions.")
 
 @position_data_assignment_bp.route('/add_site_location', methods=['GET', 'POST'])
 def add_site_location():
@@ -819,3 +783,179 @@ def remove_image_from_position():
         logging.error(f"Error removing image from position: {e}", exc_info=True)
         return jsonify({'message': 'Failed to remove image from position'}), 500
 
+from sqlalchemy import or_
+
+@position_data_assignment_bp.route('/pda_search_drawings', methods=['GET'])
+def search_drawings():
+    try:
+        search_term = request.args.get('query', '').strip()
+        logging.info(f"Received search_term: '{search_term}' in position_data_assignment_bp for drawings")
+
+        if not search_term:
+            logging.warning("Search term is empty.")
+            return jsonify([]), 200
+
+        like_pattern = f"%{search_term}%"
+        logging.info(f"Using like_pattern: '{like_pattern}'")
+
+        with db_config.get_main_session() as session:
+            drawings = session.query(Drawing).filter(
+                or_(
+                    Drawing.drw_equipment_name.ilike(like_pattern),
+                    Drawing.drw_number.ilike(like_pattern),
+                    Drawing.drw_name.ilike(like_pattern),
+                    Drawing.drw_revision.ilike(like_pattern),
+                    Drawing.drw_spare_part_number.ilike(like_pattern)
+                )
+            ).limit(10).all()
+
+            logging.info(f"Found {len(drawings)} drawings matching the search term.")
+
+            result = []
+            for drawing in drawings:
+                logging.debug(f"Drawing found: ID={drawing.id}, Name='{drawing.drw_name}'")
+                result.append({
+                    'id': drawing.id,
+                    'drw_equipment_name': drawing.drw_equipment_name,
+                    'drw_number': drawing.drw_number,
+                    'drw_name': drawing.drw_name,
+                    'drw_revision': drawing.drw_revision,
+                    'drw_spare_part_number': drawing.drw_spare_part_number,
+                    'file_path': drawing.file_path
+                })
+
+        return jsonify(result), 200
+    except Exception as e:
+        logging.error(f"Error during drawing search: {e}", exc_info=True)
+        return jsonify({"message": "Error occurred during drawing search"}), 500
+
+@position_data_assignment_bp.route('/pda_create_and_add_drawing', methods=['POST'])
+def create_and_add_drawing():
+    try:
+        title = request.form.get('title')
+        description = request.form.get('description', '')
+        position_id = request.form.get('position_id')
+
+        # Handle file upload
+        file = request.files.get('file')
+        if not file:
+            return jsonify({'message': 'File is required'}), 400
+
+        # Save the file
+        filename = secure_filename(file.filename)
+        file_path = os.path.join(app.config['DRAWINGS_UPLOAD_FOLDER'], filename)
+        file.save(file_path)
+
+        if not title or not position_id:
+            return jsonify({'message': 'Drawing title and Position ID are required'}), 400
+
+        with db_config.get_main_session() as session:
+            # Create a new Drawing
+            drawing = Drawing(title=title, description=description, file_path=file_path)
+            session.add(drawing)
+            session.flush()  # Get the new drawing's ID
+
+            # Verify that the position exists
+            position = session.query(Position).filter_by(id=position_id).first()
+            if not position:
+                return jsonify({'message': 'Position not found'}), 404
+
+            # Create a new association
+            new_association = DrawingPositionAssociation(
+                drawing_id=drawing.id, position_id=position_id
+            )
+            session.add(new_association)
+            session.commit()
+
+            logging.info(f"Created Drawing ID {drawing.id} and added to Position ID {position_id}")
+            return jsonify({
+                'message': 'Drawing successfully created and added to position',
+                'drawing_id': drawing.id,
+                'drw_name': drawing.drw_name,
+                'drw_number': drawing.drw_number,  # Include drw_number
+                'file_path': drawing.file_path
+            }), 200
+
+    except Exception as e:
+        logging.error(f"Error creating and adding drawing to position: {e}", exc_info=True)
+        return jsonify({'message': 'Failed to create and add drawing to position'}), 500
+
+@position_data_assignment_bp.route('/pda_add_drawing_to_position', methods=['POST'])
+def add_drawing_to_position():
+    try:
+        # Extract JSON data
+        data = request.get_json()
+        logging.debug(f"Received data: {data}")
+
+        drawing_id = data.get('drawing_id')
+        position_id = data.get('position_id')
+
+        logging.debug(f"drawing_id: {drawing_id}, position_id: {position_id}")
+
+        if not drawing_id or not position_id:
+            logging.warning("Missing drawing_id or position_id in the request.")
+            return jsonify({'message': 'Drawing ID and Position ID are required'}), 400
+
+        with db_config.get_main_session() as session:
+            # Verify that the drawing and position exist
+            drawing = session.query(Drawing).filter_by(id=drawing_id).first()
+            if not drawing:
+                logging.warning(f"Drawing with ID {drawing_id} not found.")
+                return jsonify({'message': 'Drawing not found'}), 404
+
+            position = session.query(Position).filter_by(id=position_id).first()
+            if not position:
+                logging.warning(f"Position with ID {position_id} not found.")
+                return jsonify({'message': 'Position not found'}), 404
+
+            # Check if the association already exists
+            existing_association = session.query(DrawingPositionAssociation).filter_by(
+                drawing_id=drawing_id, position_id=position_id
+            ).first()
+            if existing_association:
+                logging.info(f"Association already exists between Drawing ID {drawing_id} and Position ID {position_id}.")
+                return jsonify({'message': 'Drawing is already associated with this position'}), 409
+
+            # Create a new association
+            new_association = DrawingPositionAssociation(
+                drawing_id=drawing_id, position_id=position_id
+            )
+            session.add(new_association)
+            session.commit()
+
+            logging.info(f"Added Drawing ID {drawing_id} to Position ID {position_id}")
+            return jsonify({
+                'message': 'Drawing successfully added to position',
+                'drawing_id': drawing.id,
+                'drw_name': drawing.drw_name  # Corrected attribute
+            }), 200
+    except Exception as e:
+        logging.error(f"Error adding drawing to position: {e}", exc_info=True)
+        return jsonify({'message': 'Failed to add drawing to position'}), 500
+
+@position_data_assignment_bp.route('/pda_remove_drawing_from_position', methods=['POST'])
+def remove_drawing_from_position():
+    try:
+        drawing_id = request.json.get('drawing_id')
+        position_id = request.json.get('position_id')
+
+        if not drawing_id or not position_id:
+            return jsonify({'message': 'Drawing ID and Position ID are required'}), 400
+
+        with db_config.get_main_session() as session:
+            # Find the association
+            association = session.query(DrawingPositionAssociation).filter_by(
+                drawing_id=drawing_id, position_id=position_id
+            ).first()
+            if not association:
+                return jsonify({'message': 'Drawing is not associated with this position'}), 404
+
+            # Remove the association
+            session.delete(association)
+            session.commit()
+
+            logging.info(f"Removed Drawing ID {drawing_id} from Position ID {position_id}")
+            return jsonify({'message': 'Drawing successfully removed from position'}), 200
+    except Exception as e:
+        logging.error(f"Error removing drawing from position: {e}", exc_info=True)
+        return jsonify({'message': 'Failed to remove drawing from position'}), 500
