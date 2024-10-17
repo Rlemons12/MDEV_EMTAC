@@ -8,38 +8,35 @@
 
 # Ignore everything in /Database/ except the specified folders
 /Database/*
-!/Database/      # Include the Database folder itself
 !/Database/db_backup/
 !/Database/DB_DOC/
 !/Database/DB_IMAGES/
 !/Database/DB_LOADSHEETS/
 !/Database/DB_LOADSHEETS_BACKUP/
+!/Database/logs/
 !/Database/PDF_FILES/
 !/Database/PPT_FILES/
-!/Database/DB_LOADSHEET_BOMS/
 
-# Ignore all contents within the tracked folders but keep the folder itself
+# Ignore all contents within the tracked folders
 /Database/db_backup/*
 /Database/DB_DOC/*
 /Database/DB_IMAGES/*
 /Database/DB_LOADSHEETS/*
 /Database/DB_LOADSHEETS_BACKUP/*
+/Database/logs/*
 /Database/PDF_FILES/*
 /Database/PPT_FILES/*
-/Database/DB_LOADSHEET_BOMS/*
 
-# Ensure .gitkeep files (or other placeholders) are not ignored to track folders
-!/Database/.gitkeep
+# Ensure .gitkeep files are not ignored
 !/Database/db_backup/.gitkeep
 !/Database/DB_DOC/.gitkeep
 !/Database/DB_IMAGES/.gitkeep
 !/Database/DB_LOADSHEETS/.gitkeep
 !/Database/DB_LOADSHEETS_BACKUP/.gitkeep
+!/Database/logs/.gitkeep
 !/Database/PDF_FILES/.gitkeep
 !/Database/PPT_FILES/.gitkeep
-!/Database/DB_LOADSHEET_BOMS/.gitkeep
 
-# Ignore Python cache files
 __pycache__/
 *.pyc
 
@@ -47,3 +44,6 @@ __pycache__/
 .idea/*
 !.idea/codeStyles/
 !.idea/runConfigurations/
+
+app.log
+create_bill_of_material.log
