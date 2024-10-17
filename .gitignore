@@ -37,8 +37,10 @@
 !/Database/PDF_FILES/.gitkeep
 !/Database/PPT_FILES/.gitkeep
 
+# Ignore Python cache files
 __pycache__/
 *.pyc
+
 
 # Ignore .idea folder except for specific subfolders
 .idea/*
