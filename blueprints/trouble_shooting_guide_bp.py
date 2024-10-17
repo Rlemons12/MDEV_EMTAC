@@ -29,6 +29,8 @@ def update_problem_solution():
 
     # Get form data
     problem_name = request.form.get('problem_name')
+    tsg_area_id = request.form.get('tsg_area')
+    tsg_equipment_group_id = request.form.get('tsg_equipment_group')
     tsg_model_id = request.form.get('tsg_model')
     tsg_asset_number_id = request.form.get('tsg_asset_number')
     tsg_location_id = request.form.get('tsg_location')
@@ -104,6 +106,8 @@ def update_problem_solution():
 
         # Create the Position entity
         position = Position(
+            area_id=tsg_area_id,
+            equipment_group_id=tsg_equipment_group_id,
             model_id=tsg_model_id,
             asset_number_id=tsg_asset_number_id,
             location_id=tsg_location_id
