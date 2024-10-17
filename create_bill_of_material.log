@@ -3606,3 +3606,801 @@
 2024-10-16 03:36:30,080 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=21, asset_number_id=, location_id=
 2024-10-16 03:36:30,083 - blueprints.create_bill_of_material - INFO - Found 8 matching positions.
 2024-10-16 03:36:31,611 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-10-17 07:28:18,797 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-10-17 07:28:18,798 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=11, equipment_group_id=16, model_id=, asset_number_id=, location_id=
+2024-10-17 07:28:18,803 - blueprints.create_bill_of_material - INFO - Found 1 matching positions.
+2024-10-17 07:28:18,808 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-20 05:10:52,458 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-20 05:10:52,460 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=2, model_id=, asset_number_id=, location_id=
+2024-09-20 05:10:52,480 - blueprints.create_bill_of_material - INFO - Found 7 matching positions.
+2024-09-20 05:10:52,486 - blueprints.create_bill_of_material - WARNING - No parts or images found for the selected positions.
+2024-09-20 05:11:04,374 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-20 05:11:04,376 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=21, asset_number_id=, location_id=
+2024-09-20 05:11:04,378 - blueprints.create_bill_of_material - INFO - Found 7 matching positions.
+2024-09-20 05:11:04,386 - blueprints.create_bill_of_material - WARNING - No parts or images found for the selected positions.
+2024-09-20 05:11:06,490 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-20 05:11:06,490 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=1, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-09-20 05:11:06,492 - blueprints.create_bill_of_material - WARNING - No matching positions found.
+2024-09-20 08:44:34,649 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-20 08:44:34,652 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=1, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-09-20 08:44:34,656 - blueprints.create_bill_of_material - WARNING - No matching positions found.
+2024-09-20 08:44:41,769 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-20 08:44:41,769 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=, asset_number_id=, location_id=
+2024-09-20 08:44:41,772 - blueprints.create_bill_of_material - INFO - Found 7 matching positions.
+2024-09-20 08:44:41,789 - blueprints.create_bill_of_material - WARNING - No parts or images found for the selected positions.
+2024-09-20 09:03:35,252 - blueprints.create_bill_of_material - INFO - General Search initiated with Asset Number:  and Location: p
+2024-09-20 09:03:35,257 - blueprints.create_bill_of_material - WARNING - No matching positions found for the general search.
+2024-09-23 04:02:09,498 - blueprints.create_bill_of_material - INFO - General Search initiated with Asset Number:  and Location: 
+2024-09-23 04:02:09,503 - blueprints.create_bill_of_material - INFO - Found 14 matching positions for the general search.
+2024-09-23 04:02:09,513 - blueprints.create_bill_of_material - WARNING - No parts or images found for the general search.
+2024-09-23 09:02:52,162 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-23 09:02:52,163 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-09-23 09:02:52,167 - blueprints.create_bill_of_material - INFO - Found 14 matching positions.
+2024-09-23 09:02:52,181 - blueprints.create_bill_of_material - INFO - Found 1 associated parts and images.
+2024-09-23 09:02:52,182 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-23 09:03:14,189 - blueprints.create_bill_of_material - INFO - General Search initiated with Asset Number:  and Location: 
+2024-09-23 09:03:14,191 - blueprints.create_bill_of_material - INFO - Found 15 matching positions for the general search.
+2024-09-23 09:03:14,202 - blueprints.create_bill_of_material - INFO - Found 1 associated parts and images for the general search.
+2024-09-23 09:03:14,203 - blueprints.create_bill_of_material - INFO - Serialized general search results and stored them in session.
+2024-09-23 09:03:47,250 - blueprints.create_bill_of_material - INFO - General Search initiated with Asset Number:  and Location: 
+2024-09-23 09:03:47,251 - blueprints.create_bill_of_material - INFO - Found 15 matching positions for the general search.
+2024-09-23 09:03:47,262 - blueprints.create_bill_of_material - INFO - Found 1 associated parts and images for the general search.
+2024-09-23 09:03:47,262 - blueprints.create_bill_of_material - INFO - Serialized general search results and stored them in session.
+2024-09-23 09:58:40,122 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-23 09:58:40,124 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-09-23 09:58:40,130 - blueprints.create_bill_of_material - INFO - Found 15 matching positions.
+2024-09-23 09:58:40,141 - blueprints.create_bill_of_material - INFO - Found 1 associated parts and images.
+2024-09-23 09:58:40,141 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-23 09:59:15,204 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-23 09:59:15,204 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=21, asset_number_id=, location_id=
+2024-09-23 09:59:15,210 - blueprints.create_bill_of_material - INFO - Found 8 matching positions.
+2024-09-23 09:59:15,218 - blueprints.create_bill_of_material - WARNING - No parts or images found for the selected positions.
+2024-09-23 10:04:27,201 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-23 10:04:27,202 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=21, asset_number_id=, location_id=
+2024-09-23 10:04:27,208 - blueprints.create_bill_of_material - INFO - Found 8 matching positions.
+2024-09-23 10:04:27,251 - blueprints.create_bill_of_material - WARNING - No parts or images found for the selected positions.
+2024-09-23 10:28:32,479 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-23 10:28:32,481 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=21, asset_number_id=, location_id=
+2024-09-23 10:28:32,483 - blueprints.create_bill_of_material - INFO - Found 8 matching positions.
+2024-09-23 10:28:32,490 - blueprints.create_bill_of_material - WARNING - No parts or images found for the selected positions.
+2024-09-23 10:28:40,821 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-23 10:28:40,821 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-09-23 10:28:40,831 - blueprints.create_bill_of_material - INFO - Found 15 matching positions.
+2024-09-23 10:28:40,841 - blueprints.create_bill_of_material - INFO - Found 1 associated parts and images.
+2024-09-23 10:28:40,841 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-23 10:29:57,973 - blueprints.create_bill_of_material - INFO - General Search initiated with Asset Number:  and Location: 
+2024-09-23 10:29:57,975 - blueprints.create_bill_of_material - INFO - Found 17 matching positions for the general search.
+2024-09-23 10:29:57,987 - blueprints.create_bill_of_material - INFO - Found 1 associated parts and images for the general search.
+2024-09-23 10:29:57,987 - blueprints.create_bill_of_material - INFO - Serialized general search results and stored them in session.
+2024-09-23 12:58:30,122 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-23 12:58:30,124 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-09-23 12:58:30,137 - blueprints.create_bill_of_material - INFO - Found 15 matching positions.
+2024-09-23 12:58:30,155 - blueprints.create_bill_of_material - INFO - Found 821 associated parts and images.
+2024-09-23 12:58:30,157 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-23 12:58:40,178 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-23 12:58:40,179 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=21, asset_number_id=, location_id=
+2024-09-23 12:58:40,183 - blueprints.create_bill_of_material - INFO - Found 8 matching positions.
+2024-09-23 12:58:40,193 - blueprints.create_bill_of_material - INFO - Found 820 associated parts and images.
+2024-09-23 12:58:40,195 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-23 13:13:56,821 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-23 13:13:56,821 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=, asset_number_id=, location_id=
+2024-09-23 13:13:56,828 - blueprints.create_bill_of_material - INFO - Found 8 matching positions.
+2024-09-23 13:13:56,838 - blueprints.create_bill_of_material - INFO - Found 820 associated parts and images.
+2024-09-23 13:13:56,840 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-23 13:22:18,544 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:18,544 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:18,564 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:18,572 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:18,572 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:18,580 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:18,590 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:18,590 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:18,597 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:18,606 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:18,606 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:18,613 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:18,621 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:18,621 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:18,627 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:18,637 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:18,637 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:18,645 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:18,655 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:18,655 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:18,663 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:18,672 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:18,672 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:18,680 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:18,691 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:18,691 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:18,698 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:18,707 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:18,707 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:18,713 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:18,722 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:18,722 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:18,728 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:18,737 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:18,738 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:18,747 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:18,758 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:18,759 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:18,766 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:18,780 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:18,780 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:18,790 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:18,802 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:18,803 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:18,809 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:18,822 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:18,822 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:18,830 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:18,843 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:18,843 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:18,850 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:18,863 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:18,863 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:18,870 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:18,878 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:18,878 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:18,884 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:18,893 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:18,893 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:18,899 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:19,955 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:19,955 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:19,961 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:19,969 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:19,969 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:19,976 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:19,985 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:19,985 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:19,994 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:20,002 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:20,002 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:20,010 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:20,018 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:20,018 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:20,025 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:20,036 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:20,036 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:20,046 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:20,055 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:20,057 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:20,063 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:20,071 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:20,071 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:20,077 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:20,086 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:20,086 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:20,091 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:20,101 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:20,102 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:20,108 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:20,116 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:20,116 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:20,123 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:20,132 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:20,132 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:20,137 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:20,147 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:20,147 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:20,153 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:20,164 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:20,164 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:20,169 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:20,181 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:20,181 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:20,191 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:20,205 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:20,205 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:20,211 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:20,222 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:20,222 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:20,229 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:20,240 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:20,240 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:20,248 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:20,262 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:20,262 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:20,268 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:20,278 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:20,278 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:20,284 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:22,831 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:22,832 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:22,838 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:22,848 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:22,848 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:22,854 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:22,862 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:22,862 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:22,869 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:22,877 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:22,877 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:22,883 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:22,893 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:22,893 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:22,899 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:22,906 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:22,906 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:22,912 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:22,921 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:22,921 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:22,927 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:22,935 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:22,935 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:22,941 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:22,950 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:22,950 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:22,956 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:22,964 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:22,964 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:22,970 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:22,978 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:22,978 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:22,984 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:22,992 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:22,992 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:22,998 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:23,006 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:23,006 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:23,012 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:23,021 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:23,021 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:23,026 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:23,034 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:23,034 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:23,040 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:23,050 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:23,050 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:23,056 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:23,070 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:23,070 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:23,078 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:23,088 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:23,089 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:23,095 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:23,105 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:23,105 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:23,113 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:23,124 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:23,124 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:23,130 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:53,031 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-23 13:22:53,031 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=21, asset_number_id=, location_id=
+2024-09-23 13:22:53,035 - blueprints.create_bill_of_material - INFO - Found 8 matching positions.
+2024-09-23 13:22:53,047 - blueprints.create_bill_of_material - INFO - Found 820 associated parts and images.
+2024-09-23 13:22:53,048 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-23 13:22:53,056 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:53,057 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:53,063 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:53,070 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:53,071 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:53,077 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:53,085 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:53,085 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:53,092 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:53,100 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:53,100 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:53,106 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:53,113 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:53,114 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:53,120 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:53,128 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:53,128 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:53,135 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:53,142 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:53,142 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:53,148 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:53,157 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:53,157 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:53,164 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:53,172 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:53,172 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:53,178 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:53,186 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:53,186 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:53,192 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:53,201 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:53,201 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:53,209 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:53,219 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:53,219 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:53,224 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:53,234 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:53,234 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:53,239 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:53,249 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:53,249 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:53,260 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:53,271 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:53,271 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:53,280 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:53,292 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:53,292 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:53,299 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:53,311 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:53,311 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:53,320 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:53,330 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:53,332 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:53,338 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:53,352 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:53,352 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:53,358 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:54,405 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:54,405 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:54,412 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:54,419 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:54,419 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:54,425 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:54,438 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:54,438 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:54,448 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:54,457 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:54,457 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:54,467 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:54,477 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:54,477 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:54,485 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:54,495 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:54,495 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:54,503 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:54,514 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:54,514 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:54,521 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:54,532 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:54,532 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:54,537 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:54,548 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:54,548 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:54,553 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:54,562 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:54,562 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:54,568 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:54,577 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:54,577 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:54,583 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:54,595 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:54,595 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:54,605 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:54,614 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:54,616 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:54,624 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:54,636 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:54,636 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:54,643 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:54,670 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:54,670 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:54,677 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:54,688 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:54,688 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:54,696 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:54,707 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:54,707 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:54,714 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:54,725 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:54,725 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:54,736 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:54,745 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:54,745 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:54,754 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:54,763 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:54,763 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:54,769 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:59,805 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:59,805 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:59,814 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:59,824 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:59,824 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:59,832 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:59,841 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:59,842 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:59,849 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:59,859 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:59,860 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:59,869 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:59,877 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:59,877 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:59,886 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:59,896 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:59,896 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:59,901 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:59,912 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:59,912 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:59,919 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:59,926 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:59,926 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:59,932 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:59,941 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:59,941 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:59,947 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:59,957 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:59,957 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:59,963 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:59,972 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:59,972 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:59,978 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:22:59,987 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:22:59,987 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:22:59,993 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:23:00,003 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:23:00,003 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:23:00,012 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:23:00,026 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:23:00,026 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:23:00,033 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:23:00,044 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:23:00,044 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:23:00,053 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:23:00,065 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:23:00,065 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:23:00,075 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:23:00,089 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:23:00,089 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:23:00,095 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:23:00,108 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:23:00,108 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:23:00,118 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:23:00,130 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:23:00,130 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:23:00,135 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:23:00,144 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:23:00,144 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:23:00,150 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'search_images_bp.serve_image_route' instead?
+2024-09-23 13:25:19,800 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-23 13:25:19,800 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=, asset_number_id=, location_id=
+2024-09-23 13:25:19,805 - blueprints.create_bill_of_material - INFO - Found 8 matching positions.
+2024-09-23 13:25:19,818 - blueprints.create_bill_of_material - INFO - Found 820 associated parts and images.
+2024-09-23 13:25:19,819 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-23 13:25:19,832 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:19,832 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:19,847 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:25:19,856 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:19,856 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:19,862 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:25:19,872 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:19,872 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:19,878 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:25:19,886 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:19,886 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:19,893 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:25:19,902 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:19,902 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:19,907 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:25:19,918 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:19,918 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:19,924 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:25:19,933 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:19,933 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:19,940 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:25:19,948 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:19,949 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:19,954 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:25:19,964 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:19,964 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:19,970 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:25:19,979 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:19,979 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:19,984 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:25:19,992 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:19,992 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:19,998 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:25:20,010 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:20,010 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:20,017 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:25:20,026 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:20,027 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:20,033 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:25:20,045 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:20,046 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:20,052 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:25:20,065 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:20,065 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:20,075 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:25:20,087 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:20,088 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:20,097 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:25:20,109 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:20,109 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:20,120 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:25:20,131 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:20,131 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:20,138 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:25:20,146 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:20,146 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:20,152 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:25:21,202 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:21,202 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:21,209 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:25:21,219 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:21,220 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:21,229 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:25:21,240 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:21,240 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:21,250 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:25:21,261 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:21,261 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:21,268 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:25:21,283 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:21,283 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:21,291 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:25:21,302 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:21,302 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:21,312 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:25:21,323 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:21,323 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:21,333 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:25:21,344 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:21,344 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:21,350 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:25:21,361 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:21,361 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:21,369 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:25:21,381 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:21,381 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:21,389 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:25:21,400 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:21,400 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:21,406 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:25:21,417 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:21,417 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:21,424 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:25:21,437 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:21,437 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:21,448 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:25:21,463 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:21,463 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:21,473 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:25:21,487 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:21,487 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:21,497 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:25:21,511 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:21,511 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:21,520 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:25:21,531 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:21,531 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:21,536 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:25:21,546 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:21,546 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:21,552 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:25:21,563 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:21,563 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:21,569 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:25:21,578 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:25:21,578 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:25:21,585 - blueprints.create_bill_of_material - ERROR - An error occurred: Could not build url for endpoint 'create_bill_of_material_bp.serve_image_route' with values ['image_id']. Did you mean 'create_bill_of_material_bp.serve_image' instead?
+2024-09-23 13:27:00,318 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-23 13:27:00,319 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=21, asset_number_id=, location_id=
+2024-09-23 13:27:00,328 - blueprints.create_bill_of_material - INFO - Found 8 matching positions.
+2024-09-23 13:27:00,355 - blueprints.create_bill_of_material - INFO - Found 820 associated parts and images.
+2024-09-23 13:27:00,357 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-23 13:27:00,379 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:27:00,379 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:27:41,656 - blueprints.create_bill_of_material - INFO - General Search initiated with Asset Number: Afl31600 and Location: 
+2024-09-23 13:27:41,659 - blueprints.create_bill_of_material - WARNING - No matching positions found for the general search.
+2024-09-23 13:28:01,094 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-23 13:28:01,094 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=21, asset_number_id=, location_id=
+2024-09-23 13:28:01,096 - blueprints.create_bill_of_material - INFO - Found 8 matching positions.
+2024-09-23 13:28:01,110 - blueprints.create_bill_of_material - INFO - Found 820 associated parts and images.
+2024-09-23 13:28:01,111 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-23 13:28:01,120 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 4
+2024-09-23 13:28:01,120 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-23 13:28:15,202 - blueprints.create_bill_of_material - DEBUG - Displaying results from 0 to 50
+2024-09-23 13:28:15,202 - blueprints.create_bill_of_material - DEBUG - Total results: 1, Current page results: 1
+2024-09-24 02:19:58,922 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-24 02:19:58,923 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=21, asset_number_id=, location_id=
+2024-09-24 02:19:58,928 - blueprints.create_bill_of_material - INFO - Found 8 matching positions.
+2024-09-24 02:19:58,940 - blueprints.create_bill_of_material - INFO - Found 820 associated parts and images.
+2024-09-24 02:19:58,946 - blueprints.create_bill_of_material - ERROR - An error occurred: Instance <PartsPositionImageAssociation at 0x25317dbe2c0> is not bound to a Session; attribute refresh operation cannot proceed (Background on this error at: https://sqlalche.me/e/20/bhk3)
+2024-09-24 02:21:57,790 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-24 02:21:57,791 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=21, asset_number_id=, location_id=
+2024-09-24 02:21:57,796 - blueprints.create_bill_of_material - INFO - Found 8 matching positions.
+2024-09-24 02:21:57,812 - blueprints.create_bill_of_material - ERROR - An error occurred: Instance <PartsPositionImageAssociation at 0x24c1222c1f0> is not bound to a Session; attribute refresh operation cannot proceed (Background on this error at: https://sqlalche.me/e/20/bhk3)
+2024-09-24 02:22:11,521 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-24 02:22:11,521 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=21, asset_number_id=, location_id=
+2024-09-24 02:22:11,523 - blueprints.create_bill_of_material - INFO - Found 8 matching positions.
+2024-09-24 02:22:11,542 - blueprints.create_bill_of_material - ERROR - An error occurred: Instance <PartsPositionImageAssociation at 0x24c122a52d0> is not bound to a Session; attribute refresh operation cannot proceed (Background on this error at: https://sqlalche.me/e/20/bhk3)
+2024-09-24 02:23:19,932 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-24 02:23:19,932 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=21, asset_number_id=, location_id=
+2024-09-24 02:23:19,937 - blueprints.create_bill_of_material - INFO - Found 8 matching positions.
+2024-09-24 02:23:19,954 - blueprints.create_bill_of_material - ERROR - An error occurred: Instance <PartsPositionImageAssociation at 0x23b67f6a170> is not bound to a Session; attribute refresh operation cannot proceed (Background on this error at: https://sqlalche.me/e/20/bhk3)
+2024-09-24 04:57:33,027 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-24 04:57:33,028 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=, asset_number_id=, location_id=
+2024-09-24 04:57:33,034 - blueprints.create_bill_of_material - INFO - Found 8 matching positions.
+2024-09-24 04:57:33,050 - blueprints.create_bill_of_material - ERROR - An error occurred: Instance <PartsPositionImageAssociation at 0x1ff8a3049a0> is not bound to a Session; attribute refresh operation cannot proceed (Background on this error at: https://sqlalche.me/e/20/bhk3)
+2024-09-24 05:02:00,300 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-24 05:02:00,301 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=21, asset_number_id=, location_id=
+2024-09-24 05:02:00,305 - blueprints.create_bill_of_material - INFO - Found 8 matching positions.
+2024-09-24 05:02:02,144 - blueprints.create_bill_of_material - ERROR - An error occurred: Instance <PartsPositionImageAssociation at 0x1d3899268c0> is not bound to a Session; attribute refresh operation cannot proceed (Background on this error at: https://sqlalche.me/e/20/bhk3)
+2024-09-24 05:10:29,311 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-24 05:10:29,312 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=, asset_number_id=, location_id=
+2024-09-24 05:10:29,316 - blueprints.create_bill_of_material - INFO - Found 8 matching positions.
+2024-09-24 05:10:31,293 - blueprints.create_bill_of_material - ERROR - An error occurred: Instance <PartsPositionImageAssociation at 0x17de3f53160> is not bound to a Session; attribute refresh operation cannot proceed (Background on this error at: https://sqlalche.me/e/20/bhk3)
+2024-09-24 05:11:54,044 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-24 05:11:54,045 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=21, asset_number_id=, location_id=
+2024-09-24 05:11:54,050 - blueprints.create_bill_of_material - INFO - Found 8 matching positions.
+2024-09-24 05:11:56,607 - blueprints.create_bill_of_material - ERROR - An error occurred: Instance <PartsPositionImageAssociation at 0x1deaa9d5060> is not bound to a Session; attribute refresh operation cannot proceed (Background on this error at: https://sqlalche.me/e/20/bhk3)
+2024-09-24 05:14:11,011 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-24 05:14:11,012 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-09-24 05:14:11,016 - blueprints.create_bill_of_material - INFO - Found 15 matching positions.
+2024-09-24 05:14:11,023 - blueprints.create_bill_of_material - ERROR - An error occurred: Instance <Position at 0x29fe57d5660> is not bound to a Session; attribute refresh operation cannot proceed (Background on this error at: https://sqlalche.me/e/20/bhk3)
+2024-09-24 05:22:31,282 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-24 05:22:31,282 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=, asset_number_id=, location_id=
+2024-09-24 05:22:31,288 - blueprints.create_bill_of_material - INFO - Found 8 matching positions.
+2024-09-24 05:22:33,984 - blueprints.create_bill_of_material - ERROR - An error occurred: Instance <PartsPositionImageAssociation at 0x1fe00547130> is not bound to a Session; attribute refresh operation cannot proceed (Background on this error at: https://sqlalche.me/e/20/bhk3)
+2024-09-24 05:24:56,971 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-24 05:24:56,972 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=21, asset_number_id=, location_id=
+2024-09-24 05:24:56,975 - blueprints.create_bill_of_material - INFO - Found 8 matching positions.
+2024-09-24 05:24:59,974 - blueprints.create_bill_of_material - ERROR - An error occurred: Instance <PartsPositionImageAssociation at 0x1fe003a60b0> is not bound to a Session; attribute refresh operation cannot proceed (Background on this error at: https://sqlalche.me/e/20/bhk3)
+2024-09-24 05:28:11,965 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-24 05:28:11,966 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=21, asset_number_id=, location_id=
+2024-09-24 05:28:11,970 - blueprints.create_bill_of_material - INFO - Found 8 matching positions.
+2024-09-24 05:28:11,990 - blueprints.create_bill_of_material - ERROR - An error occurred: Instance <PartsPositionImageAssociation at 0x1ba94c11b40> is not bound to a Session; attribute refresh operation cannot proceed (Background on this error at: https://sqlalche.me/e/20/bhk3)
+2024-09-24 05:31:33,689 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-24 05:31:33,689 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=21, asset_number_id=, location_id=
+2024-09-24 05:31:33,693 - blueprints.create_bill_of_material - INFO - Found 8 matching positions.
+2024-09-24 05:31:33,711 - blueprints.create_bill_of_material - ERROR - An error occurred: Instance <PartsPositionImageAssociation at 0x270ad568160> is not bound to a Session; attribute refresh operation cannot proceed (Background on this error at: https://sqlalche.me/e/20/bhk3)
+2024-09-24 05:44:23,486 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-24 05:44:23,486 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=21, asset_number_id=, location_id=
+2024-09-24 05:44:23,491 - blueprints.create_bill_of_material - INFO - Found 8 matching positions.
+2024-09-24 05:44:24,716 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-24 05:44:41,728 - blueprints.create_bill_of_material - ERROR - An error occurred: 'None' has no attribute 'id'
+2024-09-24 05:45:03,808 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-24 05:45:03,808 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=, asset_number_id=, location_id=
+2024-09-24 05:45:03,811 - blueprints.create_bill_of_material - INFO - Found 8 matching positions.
+2024-09-24 05:45:05,037 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-24 05:45:46,756 - blueprints.create_bill_of_material - ERROR - An error occurred: 'None' has no attribute 'id'
+2024-09-24 05:45:58,350 - blueprints.create_bill_of_material - INFO - General Search initiated with Asset Number:  and Location: 
+2024-09-24 05:45:58,352 - blueprints.create_bill_of_material - INFO - Found 17 matching positions for the general search.
+2024-09-24 05:45:59,650 - blueprints.create_bill_of_material - INFO - Serialized general search results and stored them in session.
+2024-09-24 05:46:26,309 - blueprints.create_bill_of_material - ERROR - An error occurred: 'None' has no attribute 'id'
+2024-09-24 05:51:44,546 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-24 05:51:44,546 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=21, asset_number_id=, location_id=
+2024-09-24 05:51:44,551 - blueprints.create_bill_of_material - INFO - Found 8 matching positions.
+2024-09-24 05:51:45,748 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-24 05:52:07,735 - blueprints.create_bill_of_material - ERROR - An error occurred: 'None' has no attribute 'id'
+2024-09-24 05:52:56,876 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-24 05:52:56,877 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=21, asset_number_id=, location_id=
+2024-09-24 05:52:56,879 - blueprints.create_bill_of_material - INFO - Found 8 matching positions.
+2024-09-24 05:52:58,107 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-24 05:53:08,899 - blueprints.create_bill_of_material - ERROR - An error occurred: 'None' has no attribute 'id'
+2024-09-24 08:04:25,632 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-24 08:04:25,633 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=21, asset_number_id=, location_id=
+2024-09-24 08:04:25,639 - blueprints.create_bill_of_material - INFO - Found 8 matching positions.
+2024-09-24 08:04:27,183 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-24 08:04:42,296 - blueprints.create_bill_of_material - ERROR - An error occurred: 'None' has no attribute 'id'
+2024-09-24 08:17:23,228 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-24 08:17:23,229 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=, asset_number_id=, location_id=
+2024-09-24 08:17:23,235 - blueprints.create_bill_of_material - INFO - Found 8 matching positions.
+2024-09-24 08:17:24,716 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-24 08:24:13,250 - blueprints.create_bill_of_material - INFO - General Search initiated with Asset Number: Afl31600 and Location: 
+2024-09-24 08:24:13,251 - blueprints.create_bill_of_material - ERROR - Invalid search input: invalid literal for int() with base 10: 'Afl31600'
+2024-09-24 08:24:21,034 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-24 08:24:21,034 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=1, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-09-24 08:24:21,039 - blueprints.create_bill_of_material - INFO - Found 1 matching positions.
+2024-09-24 08:24:21,044 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-24 08:24:47,954 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-24 08:24:47,955 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=1, model_id=, asset_number_id=, location_id=
+2024-09-24 08:24:47,958 - blueprints.create_bill_of_material - WARNING - No matching positions found.
+2024-09-24 08:25:43,419 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-24 08:25:43,419 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=, asset_number_id=, location_id=
+2024-09-24 08:25:43,421 - blueprints.create_bill_of_material - INFO - Found 8 matching positions.
+2024-09-24 08:25:45,070 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-24 09:13:31,718 - blueprints.create_bill_of_material - INFO - General Search initiated with Asset Number: Afl31600 and Location: 
+2024-09-24 09:13:31,721 - blueprints.create_bill_of_material - ERROR - An error occurred during general search: name 'AssetNumber' is not defined
+2024-09-24 09:14:14,754 - blueprints.create_bill_of_material - INFO - General Search initiated with Asset Number: Afl31600 and Location: 
+2024-09-24 09:14:14,756 - blueprints.create_bill_of_material - WARNING - No AssetNumber records found matching the provided input.
+2024-09-24 09:22:08,773 - blueprints.create_bill_of_material - INFO - General Search initiated with Asset Number: Afl31600 and Location: 
+2024-09-24 09:22:08,776 - blueprints.create_bill_of_material - WARNING - No AssetNumber records found matching the provided input.
+2024-09-24 09:23:55,411 - blueprints.create_bill_of_material - INFO - General Search initiated with Asset Number: AFL31600 and Location: 
+2024-09-24 09:23:55,414 - blueprints.create_bill_of_material - INFO - Retrieved AssetNumber IDs: [127]
+2024-09-24 09:23:55,415 - blueprints.create_bill_of_material - INFO - Found 1 matching positions for the general search.
+2024-09-24 09:23:55,422 - blueprints.create_bill_of_material - INFO - Serialized general search results and stored them in session.
+2024-09-24 09:24:17,138 - blueprints.create_bill_of_material - INFO - General Search initiated with Asset Number: Afl31600 and Location: 
+2024-09-24 09:24:17,139 - blueprints.create_bill_of_material - WARNING - No AssetNumber records found matching the provided input.
+2024-09-24 09:24:21,097 - blueprints.create_bill_of_material - INFO - General Search initiated with Asset Number: AFL31600 and Location: 
+2024-09-24 09:24:21,099 - blueprints.create_bill_of_material - INFO - Retrieved AssetNumber IDs: [127]
+2024-09-24 09:24:21,101 - blueprints.create_bill_of_material - INFO - Found 1 matching positions for the general search.
+2024-09-24 09:24:21,106 - blueprints.create_bill_of_material - INFO - Serialized general search results and stored them in session.
+2024-09-24 09:26:34,756 - blueprints.create_bill_of_material - INFO - General Search initiated with Asset Number: AER50400 and Location: 
+2024-09-24 09:26:34,758 - blueprints.create_bill_of_material - INFO - Retrieved AssetNumber IDs: [3]
+2024-09-24 09:26:34,758 - blueprints.create_bill_of_material - INFO - Found 1 matching positions for the general search.
+2024-09-24 09:26:34,762 - blueprints.create_bill_of_material - INFO - Serialized general search results and stored them in session.
+2024-09-24 09:27:05,989 - blueprints.create_bill_of_material - INFO - General Search initiated with Asset Number:  and Location: 
+2024-09-24 09:27:05,991 - blueprints.create_bill_of_material - INFO - Found 18 matching positions for the general search.
+2024-09-24 09:27:07,318 - blueprints.create_bill_of_material - INFO - Serialized general search results and stored them in session.
+2024-09-24 09:35:56,272 - blueprints.create_bill_of_material - INFO - General Search initiated with Asset Number: AFL31600 and Location: 
+2024-09-24 09:35:56,276 - blueprints.create_bill_of_material - INFO - Retrieved AssetNumber IDs: [127]
+2024-09-24 09:35:56,276 - blueprints.create_bill_of_material - INFO - Excluding positions with NULL location_id.
+2024-09-24 09:35:56,278 - blueprints.create_bill_of_material - WARNING - No matching positions found for the general search.
+2024-09-24 09:36:16,856 - blueprints.create_bill_of_material - INFO - General Search initiated with Asset Number: AER50400 and Location: 
+2024-09-24 09:36:16,858 - blueprints.create_bill_of_material - INFO - Retrieved AssetNumber IDs: [3]
+2024-09-24 09:36:16,858 - blueprints.create_bill_of_material - INFO - Excluding positions with NULL location_id.
+2024-09-24 09:36:16,859 - blueprints.create_bill_of_material - INFO - Found 1 matching positions for the general search.
+2024-09-24 09:36:16,865 - blueprints.create_bill_of_material - INFO - Serialized general search results and stored them in session.
+2024-09-24 09:37:04,119 - blueprints.create_bill_of_material - INFO - General Search initiated with Asset Number: AER50400 and Location: 
+2024-09-24 09:37:04,121 - blueprints.create_bill_of_material - INFO - Retrieved AssetNumber IDs: [3]
+2024-09-24 09:37:04,121 - blueprints.create_bill_of_material - INFO - Excluding positions with NULL location_id.
+2024-09-24 09:37:04,125 - blueprints.create_bill_of_material - INFO - Found 1 matching positions for the general search.
+2024-09-24 09:37:04,129 - blueprints.create_bill_of_material - INFO - Serialized general search results and stored them in session.
+2024-09-24 09:40:34,319 - blueprints.create_bill_of_material - INFO - General Search initiated with Asset Number: AER50400 and Location: 
+2024-09-24 09:40:34,322 - blueprints.create_bill_of_material - INFO - Retrieved AssetNumber IDs: [3]
+2024-09-24 09:40:34,322 - blueprints.create_bill_of_material - INFO - Excluding positions with NULL location_id.
+2024-09-24 09:40:34,324 - blueprints.create_bill_of_material - INFO - Found 1 matching positions for the general search.
+2024-09-24 09:40:34,331 - blueprints.create_bill_of_material - INFO - Serialized general search results and stored them in session.
+2024-09-24 09:45:39,082 - blueprints.create_bill_of_material - INFO - General Search initiated with Asset Number: AER50400 and Location: 
+2024-09-24 09:45:39,085 - blueprints.create_bill_of_material - INFO - Retrieved AssetNumber IDs: [3]
+2024-09-24 09:45:39,086 - blueprints.create_bill_of_material - INFO - Excluding positions with NULL location_id.
+2024-09-24 09:45:39,088 - blueprints.create_bill_of_material - INFO - Found 1 matching positions for the general search.
+2024-09-24 09:45:39,093 - blueprints.create_bill_of_material - INFO - Serialized general search results and stored them in session.
+2024-09-24 09:45:39,125 - blueprints.create_bill_of_material - ERROR - An error occurred: clear_bom_results() takes 0 positional arguments but 1 was given
+2024-09-24 09:47:15,015 - blueprints.create_bill_of_material - ERROR - An error occurred during general search: clear_bom_results() takes 0 positional arguments but 1 was given
+2024-09-24 09:47:51,698 - blueprints.create_bill_of_material - INFO - General Search initiated with Asset Number: AER50400 and Location: 
+2024-09-24 09:47:51,700 - blueprints.create_bill_of_material - INFO - Retrieved AssetNumber IDs: [3]
+2024-09-24 09:47:51,700 - blueprints.create_bill_of_material - INFO - Excluding positions with NULL location_id.
+2024-09-24 09:47:51,701 - blueprints.create_bill_of_material - INFO - Found 1 matching positions for the general search.
+2024-09-24 09:47:51,706 - blueprints.create_bill_of_material - INFO - Serialized general search results and stored them in session.
+2024-09-24 09:53:55,742 - blueprints.create_bill_of_material - INFO - General Search initiated with Asset Number: AER50400 and Location: 
+2024-09-24 09:53:55,743 - blueprints.create_bill_of_material - INFO - Retrieved AssetNumber IDs: [3]
+2024-09-24 09:53:55,743 - blueprints.create_bill_of_material - INFO - Excluding positions with NULL location_id.
+2024-09-24 09:53:55,745 - blueprints.create_bill_of_material - INFO - Found 1 matching positions for the general search.
+2024-09-24 09:53:55,748 - blueprints.create_bill_of_material - INFO - Serialized general search results and stored them in session.
+2024-09-25 10:20:34,022 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-25 10:20:34,023 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-09-25 10:20:34,030 - blueprints.create_bill_of_material - INFO - Found 15 matching positions.
+2024-09-25 10:20:35,558 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-25 10:52:36,192 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-25 10:52:36,193 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=21, asset_number_id=, location_id=
+2024-09-25 10:52:36,198 - blueprints.create_bill_of_material - INFO - Found 8 matching positions.
+2024-09-25 10:52:44,738 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-25 11:05:10,436 - blueprints.create_bill_of_material - INFO - General Search initiated with Asset Number: AER50400 and Location: 
+2024-09-25 11:05:10,440 - blueprints.create_bill_of_material - INFO - Retrieved AssetNumber IDs: [3]
+2024-09-25 11:05:10,441 - blueprints.create_bill_of_material - INFO - Excluding positions with NULL location_id.
+2024-09-25 11:05:10,447 - blueprints.create_bill_of_material - INFO - Found 1 matching positions for the general search.
+2024-09-25 11:05:10,465 - blueprints.create_bill_of_material - INFO - Serialized general search results and stored them in session.
+2024-09-25 11:05:22,293 - blueprints.create_bill_of_material - INFO - General Search initiated with Asset Number: AFL31600 and Location: 
+2024-09-25 11:05:22,294 - blueprints.create_bill_of_material - INFO - Retrieved AssetNumber IDs: [127]
+2024-09-25 11:05:22,295 - blueprints.create_bill_of_material - INFO - Excluding positions with NULL location_id.
+2024-09-25 11:05:22,302 - blueprints.create_bill_of_material - WARNING - No matching positions found for the general search.
+2024-09-25 11:05:27,422 - blueprints.create_bill_of_material - INFO - General Search initiated with Asset Number: AER50400 and Location: 
+2024-09-25 11:05:27,424 - blueprints.create_bill_of_material - INFO - Retrieved AssetNumber IDs: [3]
+2024-09-25 11:05:27,424 - blueprints.create_bill_of_material - INFO - Excluding positions with NULL location_id.
+2024-09-25 11:05:27,431 - blueprints.create_bill_of_material - INFO - Found 1 matching positions for the general search.
+2024-09-25 11:05:27,447 - blueprints.create_bill_of_material - INFO - Serialized general search results and stored them in session.
+2024-09-25 11:05:37,495 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-25 11:05:37,496 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=, asset_number_id=, location_id=
+2024-09-25 11:05:37,499 - blueprints.create_bill_of_material - INFO - Found 8 matching positions.
+2024-09-25 11:05:46,065 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-09-26 02:45:42,182 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-09-26 02:45:42,182 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=, asset_number_id=, location_id=
+2024-09-26 02:45:42,190 - blueprints.create_bill_of_material - INFO - Found 8 matching positions.
+2024-09-26 02:45:43,803 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-10-07 07:00:50,426 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-10-07 07:00:50,427 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=21, asset_number_id=, location_id=
+2024-10-07 07:00:50,431 - blueprints.create_bill_of_material - INFO - Found 8 matching positions.
+2024-10-07 07:00:58,961 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-10-07 14:15:49,543 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-10-07 14:15:49,544 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=21, asset_number_id=, location_id=
+2024-10-07 14:15:49,549 - blueprints.create_bill_of_material - INFO - Found 8 matching positions.
+2024-10-07 14:15:51,075 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-10-09 05:21:38,123 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-10-09 05:21:38,124 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-10-09 05:21:38,127 - blueprints.create_bill_of_material - INFO - Found 17 matching positions.
+2024-10-09 05:21:39,518 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-10-14 11:34:53,457 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-10-14 11:34:53,458 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=1, equipment_group_id=, model_id=, asset_number_id=, location_id=
+2024-10-14 11:34:53,463 - blueprints.create_bill_of_material - INFO - Found 3 matching positions.
+2024-10-14 11:34:53,471 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-10-14 11:35:16,830 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-10-14 11:35:16,831 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=1, equipment_group_id=6, model_id=36, asset_number_id=, location_id=
+2024-10-14 11:35:16,835 - blueprints.create_bill_of_material - WARNING - No matching positions found.
+2024-10-16 03:36:30,078 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-10-16 03:36:30,080 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=3, equipment_group_id=4, model_id=21, asset_number_id=, location_id=
+2024-10-16 03:36:30,083 - blueprints.create_bill_of_material - INFO - Found 8 matching positions.
+2024-10-16 03:36:31,611 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
+2024-10-17 07:28:18,797 - blueprints.create_bill_of_material - INFO - Received request to create Bill of Material.
+2024-10-17 07:28:18,798 - blueprints.create_bill_of_material - DEBUG - Received form data: area_id=11, equipment_group_id=16, model_id=, asset_number_id=, location_id=
+2024-10-17 07:28:18,803 - blueprints.create_bill_of_material - INFO - Found 1 matching positions.
+2024-10-17 07:28:18,808 - blueprints.create_bill_of_material - INFO - Serialized results and stored them in session.
