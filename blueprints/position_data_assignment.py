@@ -232,8 +232,6 @@ def get_site_locations():
 
 @position_data_assignment_bp.route('/get_positions', methods=['GET'])
 def get_positions():
-    # Existing imports and configurations...
-
     try:
         # Get filter parameters from the request
         site_location_id = request.args.get('site_location_id')
@@ -300,6 +298,11 @@ def get_positions():
                     'name': position.location.name if position.location else None,
                     'description': position.location.description if position.location else None
                 },
+                'site_location': {
+                    'id': position.site_location.id if position.site_location else None,
+                    'title': position.site_location.title if position.site_location else None,
+                    'room_number': position.site_location.room_number if position.site_location else None
+                },
                 'parts': [],
                 'documents': [],
                 'drawings': [],
@@ -320,7 +323,7 @@ def get_positions():
                         'name': part.name
                     })
 
-            # Fetch drawings with drw_number
+            # Fetch drawings
             drawing_associations = db_session.query(DrawingPositionAssociation).filter_by(position_id=position.id).all()
             drawing_ids = [assoc.drawing_id for assoc in drawing_associations]
             if drawing_ids:
@@ -329,9 +332,38 @@ def get_positions():
                     position_data['drawings'].append({
                         'drawing_id': drawing.id,
                         'drw_name': drawing.drw_name,
-                        'drw_number': drawing.drw_number  # Ensure 'drw_number' is used
-                        # 'drw_revision': drawing.drw_revision  # Include if needed
+                        'drw_number': drawing.drw_number
+                        # Include other fields if necessary
                     })
+
+            # Fetch documents
+            document_associations = db_session.query(CompletedDocumentPositionAssociation).filter_by(position_id=position.id).all()
+            document_ids = [assoc.complete_document_id for assoc in document_associations]
+            if document_ids:
+                documents = db_session.query(CompleteDocument).filter(CompleteDocument.id.in_(document_ids)).all()
+                for doc in documents:
+                    position_data['documents'].append({
+                        'document_id': doc.id,
+                        'title': doc.title,
+                        'rev': doc.rev,
+                        'file_path': doc.file_path,
+                        'content': doc.content  # Include if necessary
+                    })
+                logger.info(f"Added {len(documents)} documents to Position ID {position.id}")
+
+            # Fetch images
+            image_associations = db_session.query(ImagePositionAssociation).filter_by(position_id=position.id).all()
+            image_ids = [assoc.image_id for assoc in image_associations]
+            if image_ids:
+                images = db_session.query(Image).filter(Image.id.in_(image_ids)).all()
+                for image in images:
+                    position_data['images'].append({
+                        'image_id': image.id,
+                        'title': image.title,
+                        'description': image.description,
+                        'file_path': image.file_path,
+                    })
+                logger.info(f"Added {len(images)} images to Position ID {position.id}")
 
             # Append the position data to the result list
             result_data.append(position_data)
@@ -783,8 +815,6 @@ def remove_image_from_position():
         logging.error(f"Error removing image from position: {e}", exc_info=True)
         return jsonify({'message': 'Failed to remove image from position'}), 500
 
-from sqlalchemy import or_
-
 @position_data_assignment_bp.route('/pda_search_drawings', methods=['GET'])
 def search_drawings():
     try:
@@ -829,56 +859,58 @@ def search_drawings():
         logging.error(f"Error during drawing search: {e}", exc_info=True)
         return jsonify({"message": "Error occurred during drawing search"}), 500
 
-@position_data_assignment_bp.route('/pda_create_and_add_drawing', methods=['POST'])
-def create_and_add_drawing():
+@position_data_assignment_bp.route('/pda_create_and_add_document', methods=['POST'])
+def pda_create_and_add_document():
+    db_session = db_config.get_main_session()
     try:
         title = request.form.get('title')
         description = request.form.get('description', '')
         position_id = request.form.get('position_id')
-
-        # Handle file upload
         file = request.files.get('file')
-        if not file:
-            return jsonify({'message': 'File is required'}), 400
 
-        # Save the file
+        if not title or not file or not position_id:
+            return jsonify({'message': 'Title, file, and position ID are required.'}), 400
+
+        if not allowed_file(file.filename):
+            return jsonify({'message': 'File type not allowed.'}), 400
+
         filename = secure_filename(file.filename)
-        file_path = os.path.join(app.config['DRAWINGS_UPLOAD_FOLDER'], filename)
+        file_path = os.path.join('static/uploads/documents/', filename)
         file.save(file_path)
 
-        if not title or not position_id:
-            return jsonify({'message': 'Drawing title and Position ID are required'}), 400
+        # Create a new CompleteDocument
+        new_document = CompleteDocument(
+            title=title,
+            description=description,
+            rev='1.0',  # Or determine the revision as needed
+            file_path=file_path,
+            content=''  # Populate if necessary
+        )
+        db_session.add(new_document)
+        db_session.flush()  # Get the new document's ID
 
-        with db_config.get_main_session() as session:
-            # Create a new Drawing
-            drawing = Drawing(title=title, description=description, file_path=file_path)
-            session.add(drawing)
-            session.flush()  # Get the new drawing's ID
+        # Associate the document with the position
+        new_association = CompletedDocumentPositionAssociation(
+            complete_document_id=new_document.id,
+            position_id=position_id
+        )
+        db_session.add(new_association)
+        db_session.commit()
 
-            # Verify that the position exists
-            position = session.query(Position).filter_by(id=position_id).first()
-            if not position:
-                return jsonify({'message': 'Position not found'}), 404
-
-            # Create a new association
-            new_association = DrawingPositionAssociation(
-                drawing_id=drawing.id, position_id=position_id
-            )
-            session.add(new_association)
-            session.commit()
-
-            logging.info(f"Created Drawing ID {drawing.id} and added to Position ID {position_id}")
-            return jsonify({
-                'message': 'Drawing successfully created and added to position',
-                'drawing_id': drawing.id,
-                'drw_name': drawing.drw_name,
-                'drw_number': drawing.drw_number,  # Include drw_number
-                'file_path': drawing.file_path
-            }), 200
+        return jsonify({
+            'message': 'Document successfully created and added to position',
+            'document_id': new_document.id,
+            'title': new_document.title,
+            'rev': new_document.rev
+        }), 200
 
     except Exception as e:
-        logging.error(f"Error creating and adding drawing to position: {e}", exc_info=True)
-        return jsonify({'message': 'Failed to create and add drawing to position'}), 500
+        db_session.rollback()
+        logger.error(f"Error creating and adding document to position: {e}", exc_info=True)
+        return jsonify({'message': 'Failed to create and add document to position'}), 500
+
+    finally:
+        db_session.close()
 
 @position_data_assignment_bp.route('/pda_add_drawing_to_position', methods=['POST'])
 def add_drawing_to_position():
@@ -959,3 +991,171 @@ def remove_drawing_from_position():
     except Exception as e:
         logging.error(f"Error removing drawing from position: {e}", exc_info=True)
         return jsonify({'message': 'Failed to remove drawing from position'}), 500
+
+@position_data_assignment_bp.route('/pda_search_documents', methods=['GET'])
+def search_documents():
+    try:
+        search_term = request.args.get('query', '').strip()
+        logger.info(f"Received search_term: '{search_term}' in position_data_assignment_bp for documents")
+
+        if not search_term:
+            logger.warning("Search term is empty.")
+            return jsonify([]), 200  # Return an empty list if no search term provided
+
+        like_pattern = f"%{search_term}%"
+        logger.info(f"Using like_pattern: '{like_pattern}'")
+
+        with db_config.get_main_session() as session:
+            documents = session.query(CompleteDocument).filter(
+                or_(
+                    CompleteDocument.title.ilike(like_pattern),
+                    CompleteDocument.content.ilike(like_pattern),
+                    CompleteDocument.rev.ilike(like_pattern)
+                )
+            ).limit(10).all()
+
+            logger.info(f"Found {len(documents)} documents matching the search term.")
+
+            result = []
+            for doc in documents:
+                logger.debug(f"Document found: ID={doc.id}, Title='{doc.title}'")
+                result.append({
+                    'id': doc.id,
+                    'title': doc.title,
+                    'rev': doc.rev,
+                    'file_path': doc.file_path,
+                    'content': doc.content  # Include if necessary
+                })
+
+        return jsonify(result), 200
+    except Exception as e:
+        logging.error(f"Error during document search: {e}", exc_info=True)
+        return jsonify({"message": "Error occurred during document search"}), 500
+
+@position_data_assignment_bp.route('/pda_add_document_to_position', methods=['POST'])
+def add_document_to_position():
+    try:
+        # Extract JSON data
+        data = request.get_json()
+        logger.debug(f"Received data: {data}")
+
+        document_id = data.get('document_id')
+        position_id = data.get('position_id')
+
+        logger.debug(f"document_id: {document_id}, position_id: {position_id}")
+
+        if not document_id or not position_id:
+            logger.warning("Missing document_id or position_id in the request.")
+            return jsonify({'message': 'Document ID and Position ID are required'}), 400
+
+        with db_config.get_main_session() as session:
+            # Verify that the document and position exist
+            document = session.query(CompleteDocument).filter_by(id=document_id).first()
+            if not document:
+                logger.warning(f"Document with ID {document_id} not found.")
+                return jsonify({'message': 'Document not found'}), 404
+
+            position = session.query(Position).filter_by(id=position_id).first()
+            if not position:
+                logger.warning(f"Position with ID {position_id} not found.")
+                return jsonify({'message': 'Position not found'}), 404
+
+            # Check if the association already exists
+            existing_association = session.query(CompletedDocumentPositionAssociation).filter_by(
+                complete_document_id=document_id, position_id=position_id
+            ).first()
+            if existing_association:
+                logger.info(f"Association already exists between Document ID {document_id} and Position ID {position_id}.")
+                return jsonify({'message': 'Document is already associated with this position'}), 409
+
+            # Create a new association
+            new_association = CompletedDocumentPositionAssociation(
+                complete_document_id=document_id,
+                position_id=position_id
+            )
+            session.add(new_association)
+            session.commit()
+
+            logger.info(f"Added Document ID {document_id} to Position ID {position_id}")
+            return jsonify({
+                'message': 'Document successfully added to position',
+                'document_id': document.id,
+                'title': document.title,
+                'rev': document.rev
+            }), 200
+
+    except Exception as e:
+        logger.error(f"Error adding document to position: {e}", exc_info=True)
+        return jsonify({'message': 'Failed to add document to position'}), 500
+
+
+@position_data_assignment_bp.route('/pda_remove_document_from_position', methods=['POST'])
+def remove_document_from_position():
+    try:
+        document_id = request.json.get('document_id')
+        position_id = request.json.get('position_id')
+
+        if not document_id or not position_id:
+            return jsonify({'message': 'Document ID and Position ID are required'}), 400
+
+        with db_config.get_main_session() as session:
+            # Find the association
+            association = session.query(CompletedDocumentPositionAssociation).filter_by(
+                complete_document_id=document_id,
+                position_id=position_id
+            ).first()
+            if not association:
+                return jsonify({'message': 'Document is not associated with this position'}), 404
+
+            # Remove the association
+            session.delete(association)
+            session.commit()
+
+            logger.info(f"Removed Document ID {document_id} from Position ID {position_id}")
+            return jsonify({'message': 'Document successfully removed from position'}), 200
+    except Exception as e:
+        logger.error(f"Error removing document from position: {e}", exc_info=True)
+        return jsonify({'message': 'Failed to remove document from position'}), 500
+
+@position_data_assignment_bp.route('/pda_get_documents_by_position', methods=['GET'])
+def pda_get_documents_by_position():
+    try:
+        position_id = request.args.get('position_id', '').strip()
+        if not position_id:
+            logger.warning("Position ID is missing in the request.")
+            return jsonify({'message': 'Position ID is required.'}), 400
+
+        db_session = db_config.get_main_session()
+
+        # Verify that the position exists
+        position = db_session.query(Position).filter_by(id=position_id).first()
+        if not position:
+            logger.warning(f"Position with ID {position_id} not found.")
+            return jsonify({'message': 'Position not found.'}), 404
+
+        # Fetch associated documents
+        associations = db_session.query(CompletedDocumentPositionAssociation).filter_by(position_id=position_id).all()
+        document_ids = [assoc.complete_document_id for assoc in associations]
+
+        documents = db_session.query(CompleteDocument).filter(CompleteDocument.id.in_(document_ids)).all()
+
+        # Prepare the response data
+        result = []
+        for doc in documents:
+            result.append({
+                'id': doc.id,
+                'title': doc.title,
+                'rev': doc.rev,
+                'file_path': doc.file_path,
+                'content': doc.content  # Include if necessary
+            })
+
+        logger.info(f"Fetched {len(result)} documents for Position ID {position_id}.")
+        return jsonify({'documents': result}), 200
+
+    except Exception as e:
+        logger.error(f"Error fetching documents by position: {e}", exc_info=True)
+        return jsonify({'message': 'Failed to fetch documents by position.'}), 500
+
+    finally:
+        db_session.close()

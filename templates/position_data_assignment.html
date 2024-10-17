@@ -279,7 +279,7 @@
 </details>
 
 <!-- Update Section (Collapsible) -->
-<details id="updateSection" open>
+<details id="updateSection">
     <summary>Update Position Data</summary>
 
     <form id="updatePositionForm" action="{{ url_for('position_data_assignment_bp.update_position') }}" method="post" enctype="multipart/form-data">
@@ -432,13 +432,19 @@
 
 
 <!-- Document Section -->
-<details>
+<details id="documents-section">
     <summary>Manage Documents</summary>
 
+    <!-- Hidden Field for Position ID -->
+    <input type="hidden" id="position_id" name="position_id">
+
+
     <!-- Search Bar for Filtering Documents -->
-    <div>
+    <div style="position: relative;">
         <label for="search-documents">Search Documents:</label>
-        <input type="text" id="search-documents" placeholder="Search documents..." oninput="filterDocuments()">
+        <input type="text" id="search-documents" placeholder="Search documents...">
+        <!-- Suggestion Box -->
+        <div id="document-suggestion-box" class="suggestion-box" style="display:none;"></div>
     </div>
 
     <!-- Dynamically populated section for displaying existing documents -->
@@ -448,6 +454,7 @@
     <!-- Pagination Controls -->
     <div id="documents-pagination" class="pagination-controls"></div>
 </details>
+
 
 <details>
     <summary>Manage Parts</summary>
@@ -505,19 +512,23 @@
     <div id="images-container">
         <h4>Existing Images:</h4>
         <div id="existing-images-list" class="scrollable-list">
+            <!-- Existing images will be appended here by JavaScript -->
             {% for image in existing_images %}
-                <div class="existing-image">
-                    <span>Image Name: {{ image.image_name }}</span>
+                <div class="existing-image" id="image-{{ image.id }}">
+                    <span>Title: {{ image.title }}, Description: {{ image.description }}</span>
                     <button type="button" class="remove-existing-image-button" data-image-id="{{ image.id }}">Remove</button>
                 </div>
             {% endfor %}
         </div>
     </div>
 
+    <!-- Pagination Controls -->
+    <div id="images-pagination" class="pagination-controls"></div>
+
     <!-- Add New Images -->
     <h4>Add New Images:</h4>
     <div id="new-images-container">
-        <!-- New image entries will be appended here -->
+        <!-- New image entries will be dynamically added here -->
     </div>
     <button type="button" id="add-image-button">Add Another Image</button>
     <button type="button" id="submit-images-button">Submit New Images</button>
@@ -525,6 +536,8 @@
     <!-- Hidden Input for Position ID -->
     <input type="hidden" id="position_id" value="{{ position.id }}">
 </details>
+
+
 
 <!-- Drawings Section -->
 <details>
@@ -591,6 +604,8 @@
 <!-- Include jQuery from a CDN -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
+<!-- Toastr JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script
 <!-- Include Select2 JS -->
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
@@ -600,6 +615,7 @@
 <script src="{{ url_for('static', filename= 'js/get_position_data_assignment_data_part.js')}}"></script>
 <script src="{{ url_for('static', filename='js/get_position_data_assignment_data_image.js') }}"></script>
 <script src="{{ url_for('static', filename='js/get_position_data_assignment_data_drawing.js') }}"></script>
+<script src="{{ url_for('static', filename='js/get_position_data_assignment_data_document.js')}}"></script>
 <script>
     var getEquipmentGroupsUrl = "{{ url_for('position_data_assignment_bp.get_equipment_groups') }}";
     var getModelsUrl = "{{ url_for('position_data_assignment_bp.get_models') }}";

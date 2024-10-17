@@ -11,7 +11,7 @@ body {
     background-color: rgba(0, 0, 0, 0.8);
     padding: 30px;
     border-radius: 10px;
-    color: yellow; /* Changed the text color to yellow for better visibility */
+    color: yellow;
     margin-top: 20px;
 }
 
@@ -23,6 +23,11 @@ body {
     background-color: rgba(255, 255, 255, 0.9);
     color: black;
     border: 1px solid #ccc;
+    padding: 8px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 /* Ensure labels and text are yellow */
@@ -30,17 +35,18 @@ body {
 #updatePositionForm label,
 details summary,
 .details-content {
-    color: yellow; /* Ensure all form text, labels, and summary headings are yellow */
+    color: yellow;
 }
 
 /* Styling for collapsible sections */
 details summary {
     font-weight: bold;
-    color: yellow; /* Make summary text yellow */
+    color: yellow;
+    font-size: 18px;
 }
 
 details[open] summary {
-    color: yellow; /* Ensure the open state of details keeps the text yellow */
+    color: yellow;
 }
 
 details summary:hover {
@@ -53,93 +59,105 @@ details div,
 details p,
 details ul,
 details li,
-details label {
-    color: BLUE; /* Ensure all text inside the collapsible sections is yellow */
+details label,
+.details-content span,
+.details-content a {
+    color: yellow;
 }
 
 /* Adjust button styles for better contrast */
 button {
     background-color: #333;
-    color: yellow; /* Button text color */
-    border: 2px solid yellow; /* Button border to match text color */
+    color: yellow;
+    border: 2px solid yellow;
     padding: 8px 16px;
     cursor: pointer;
+    border-radius: 4px;
+    transition: background-color 0.3s, color 0.3s;
 }
 
 button:hover {
     background-color: yellow;
-    color: black; /* Change text to black on hover */
+    color: black;
 }
 
 /* Modify the color for the main content */
 .content {
-    color: yellow; /* All text in the content area will be yellow */
+    color: yellow;
 }
 
 /* Modify the color for the h1 (Position Data Assignment heading) */
 .content h1 {
-    color: #39FF14; /* Set a bright green color for the heading */
+    color: #39FF14;
+    text-align: center;
+    margin-bottom: 20px;
 }
 
-/* Styling for the existing parts section (associated with a position) */
+/* Styling for the existing parts section */
 #parts-container {
-    background-color: rgba(0, 0, 0, 0.8); /* Dark background for contrast */
+    background-color: rgba(0, 0, 0, 0.8);
     padding: 20px;
     border-radius: 8px;
     margin-top: 15px;
 }
 
 #parts-container h4 {
-    color: #FFD700; /* A bright yellow for the "Existing Parts" heading */
+    color: #FFD700;
     font-size: 18px;
     margin-bottom: 10px;
 }
 
 /* Styling for the existing parts list */
 #existing-parts-list {
-    background-color: rgba(255, 255, 255, 0.1); /* Semi-transparent background for better visibility */
-    border: 1px solid #FFD700; /* Yellow border to match the heading */
-    max-height: 300px; /* Limit the height to make it scrollable */
-    overflow-y: auto; /* Scrollable for long lists */
+    background-color: rgba(255, 255, 255, 0.1);
+    border: 1px solid #FFD700;
+    max-height: 300px;
+    overflow-y: auto;
     padding: 10px;
     margin-top: 10px;
-    color: yellow; /* Text color for the parts in the list */
+    color: yellow;
+    border-radius: 4px;
 }
 
 /* Styling for each part entry in the list */
 .existing-part {
     padding: 8px;
-    border-bottom: 1px solid #FFD700; /* Divider between parts */
+    border-bottom: 1px solid #FFD700;
     display: flex;
     justify-content: space-between;
     align-items: center;
 }
 
+.existing-part:last-child {
+    border-bottom: none;
+}
+
 .existing-part span {
-    color: yellow; /* Ensure part numbers are visible */
+    color: yellow;
 }
 
 /* Styling for the remove button next to each part */
 .existing-part button {
     background-color: #333;
-    color: yellow; /* Button text color */
+    color: yellow;
     border: 1px solid yellow;
-    padding: 5px;
+    padding: 5px 10px;
     cursor: pointer;
+    border-radius: 4px;
+    transition: background-color 0.3s, color 0.3s;
 }
 
 .existing-part button:hover {
     background-color: yellow;
-    color: black; /* Invert colors on hover */
+    color: black;
 }
 
 /* Styling for the scrollable area */
 .scrollable-list {
     scrollbar-width: thin;
-    scrollbar-color: yellow #333; /* Custom scrollbar colors */
+    scrollbar-color: yellow #333;
 }
 
-/* Scrollbar customization for WebKit browsers */
 .scrollable-list::-webkit-scrollbar {
     width: 8px;
 }
@@ -153,7 +171,7 @@ button:hover {
     background-color: #333;
 }
 
-/* Pagination controls for existing parts */
+/* Pagination controls */
 .pagination-controls {
     margin-top: 10px;
     text-align: center;
@@ -163,17 +181,35 @@ button:hover {
     margin: 0 5px;
     padding: 5px 10px;
     cursor: pointer;
+    background-color: #333;
+    color: yellow;
+    border: 1px solid yellow;
+    border-radius: 4px;
+    transition: background-color 0.3s, color 0.3s;
 }
 
-/* Suggestion box styling for any autocomplete features */
+.pagination-controls button:hover {
+    background-color: yellow;
+    color: black;
+}
+
+.pagination-controls button:disabled {
+    background-color: #555;
+    color: #ccc;
+    cursor: not-allowed;
+}
+
+/* Suggestion box styling */
 .suggestion-box {
     border: 1px solid #ccc;
     background-color: #fff;
     max-height: 200px;
     overflow-y: auto;
     position: absolute;
-    width: 200px;
+    width: 300px;
     z-index: 1000;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
 
 .suggestion-item {
@@ -184,3 +220,409 @@ button:hover {
 .suggestion-item:hover {
     background-color: #f0f0f0;
 }
+
+/* Styling for the existing documents section */
+#documents-container {
+    background-color: rgba(0, 0, 0, 0.8);
+    padding: 20px;
+    border-radius: 8px;
+    margin-top: 15px;
+}
+
+#documents-container h4 {
+    color: #FFD700;
+    font-size: 18px;
+    margin-bottom: 10px;
+}
+
+/* Styling for the existing documents list */
+#existing-documents-list {
+    background-color: rgba(255, 255, 255, 0.1);
+    border: 1px solid #FFD700;
+    max-height: 300px;
+    overflow-y: auto;
+    padding: 10px;
+    margin-top: 10px;
+    color: yellow;
+    border-radius: 4px;
+}
+
+/* Styling for each document entry in the list */
+.existing-document {
+    padding: 8px;
+    border-bottom: 1px solid #FFD700;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.existing-document:last-child {
+    border-bottom: none;
+}
+
+.existing-document span {
+    color: yellow;
+}
+
+/* Styling for the remove button next to each document */
+.existing-document button {
+    background-color: #333;
+    color: yellow;
+    border: 1px solid yellow;
+    padding: 5px 10px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+.existing-document button:hover {
+    background-color: yellow;
+    color: black;
+}
+
+/* Pagination controls for existing documents */
+#documents-pagination {
+    margin-top: 10px;
+    text-align: center;
+}
+
+#documents-pagination button {
+    margin: 0 5px;
+    padding: 5px 10px;
+    cursor: pointer;
+    background-color: #333;
+    color: yellow;
+    border: 1px solid yellow;
+    border-radius: 4px;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+#documents-pagination button:hover {
+    background-color: yellow;
+    color: black;
+}
+
+#documents-pagination button:disabled {
+    background-color: #555;
+    color: #ccc;
+    cursor: not-allowed;
+}
+
+/* Upload Document Section Styling */
+#upload-document-section {
+    background-color: rgba(0, 0, 0, 0.8);
+    padding: 20px;
+    border-radius: 8px;
+    margin-top: 20px;
+}
+
+#upload-document-section h4 {
+    color: #FFD700;
+    font-size: 18px;
+    margin-bottom: 10px;
+}
+
+#upload-document-section label {
+    display: block;
+    margin-bottom: 5px;
+    color: yellow;
+}
+
+#upload-document-section input[type="text"],
+#upload-document-section textarea,
+#upload-document-section input[type="file"] {
+    width: 100%;
+    padding: 8px;
+    margin-bottom: 15px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+    background-color: rgba(255, 255, 255, 0.9);
+    color: black;
+}
+
+#upload-document-section button {
+    background-color: #333;
+    color: yellow;
+    border: 2px solid yellow;
+    padding: 10px 20px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+#upload-document-section button:hover {
+    background-color: yellow;
+    color: black;
+}
+
+/* General Styling for Tables */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+}
+
+table, th, td {
+    border: 1px solid #FFD700;
+}
+
+th, td {
+    padding: 10px;
+    text-align: left;
+    color: yellow;
+}
+
+th {
+    background-color: rgba(255, 215, 0, 0.2);
+}
+
+/* Responsive Design Adjustments */
+@media (max-width: 768px) {
+    .position-data-container {
+        padding: 20px;
+    }
+
+    #upload-document-section,
+    #parts-container,
+    #documents-container,
+    #images-container {
+        padding: 15px;
+    }
+
+    button, .existing-part button, .existing-document button, .existing-image button {
+        padding: 5px 10px;
+    }
+
+    .suggestion-box {
+        width: 90%;
+    }
+}
+
+/* --- Added Styles for Images Section --- */
+
+/* Styling for the existing images section */
+#images-container {
+    background-color: rgba(0, 0, 0, 0.8);
+    padding: 20px;
+    border-radius: 8px;
+    margin-top: 15px;
+}
+
+#images-container h4 {
+    color: #FFD700;
+    font-size: 18px;
+    margin-bottom: 10px;
+}
+
+/* Styling for the existing images list */
+#existing-images-list {
+    background-color: rgba(255, 255, 255, 0.1);
+    border: 1px solid #FFD700;
+    max-height: 300px; /* Set a fixed height for the container */
+    overflow-y: auto;  /* Enable vertical scrolling when content overflows */
+    padding: 10px;
+    margin-top: 10px;
+    color: yellow;
+    border-radius: 4px;
+}
+
+/* Styling for each image entry in the list */
+.existing-image {
+    padding: 8px;
+    border-bottom: 1px solid #FFD700;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.existing-image:last-child {
+    border-bottom: none;
+}
+
+.existing-image span {
+    color: yellow;
+}
+
+/* Styling for the remove button next to each image */
+.existing-image button {
+    background-color: #333;
+    color: yellow;
+    border: 1px solid yellow;
+    padding: 5px 10px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+.existing-image button:hover {
+    background-color: yellow;
+    color: black;
+}
+
+/* Pagination controls for existing images */
+#images-pagination {
+    margin-top: 10px;
+    text-align: center;
+}
+
+#images-pagination button {
+    margin: 0 5px;
+    padding: 5px 10px;
+    cursor: pointer;
+    background-color: #333;
+    color: yellow;
+    border: 1px solid yellow;
+    border-radius: 4px;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+#images-pagination button:hover {
+    background-color: yellow;
+    color: black;
+}
+
+#images-pagination button:disabled {
+    background-color: #555;
+    color: #ccc;
+    cursor: not-allowed;
+}
+
+/* --- End of Added Styles for Images Section --- */
+
+/* Upload Image Section Styling */
+#upload-image-section {
+    background-color: rgba(0, 0, 0, 0.8);
+    padding: 20px;
+    border-radius: 8px;
+    margin-top: 20px;
+}
+
+#upload-image-section h4 {
+    color: #FFD700;
+    font-size: 18px;
+    margin-bottom: 10px;
+}
+
+#upload-image-section label {
+    display: block;
+    margin-bottom: 5px;
+    color: yellow;
+}
+
+#upload-image-section input[type="text"],
+#upload-image-section textarea,
+#upload-image-section input[type="file"] {
+    width: 100%;
+    padding: 8px;
+    margin-bottom: 15px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+    background-color: rgba(255, 255, 255, 0.9);
+    color: black;
+}
+
+#upload-image-section button {
+    background-color: #333;
+    color: yellow;
+    border: 2px solid yellow;
+    padding: 10px 20px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+#upload-image-section button:hover {
+    background-color: yellow;
+    color: black;
+}
+
+/* Styling for the existing drawings section */
+#drawings-container {
+    background-color: rgba(0, 0, 0, 0.8); /* Dark background for contrast */
+    padding: 20px;
+    border-radius: 8px;
+    margin-top: 15px;
+}
+
+#drawings-container h4 {
+    color: #FFD700; /* A bright yellow for the "Existing Drawings" heading */
+    font-size: 18px;
+    margin-bottom: 10px;
+}
+
+/* Styling for the existing drawings list */
+#existing-drawings-list {
+    background-color: rgba(255, 255, 255, 0.1); /* Semi-transparent background */
+    border: 1px solid #FFD700; /* Yellow border */
+    max-height: 300px; /* Fixed height for the container */
+    overflow-y: auto; /* Enable vertical scrolling when content overflows */
+    padding: 10px;
+    margin-top: 10px;
+    color: yellow;
+    border-radius: 4px;
+}
+
+/* Styling for each drawing entry in the list */
+.existing-drawing {
+    padding: 8px;
+    border-bottom: 1px solid #FFD700; /* Divider between drawings */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.existing-drawing:last-child {
+    border-bottom: none; /* Remove border for the last item */
+}
+
+.existing-drawing span {
+    color: yellow; /* Ensure drawing details are visible */
+}
+
+/* Styling for the remove button next to each drawing */
+.existing-drawing button {
+    background-color: #333;
+    color: yellow; /* Button text color */
+    border: 1px solid yellow;
+    padding: 5px 10px;
+    cursor: pointer;
+    border-radius: 4px; /* Rounded corners */
+    transition: background-color 0.3s, color 0.3s;
+}
+
+.existing-drawing button:hover {
+    background-color: yellow;
+    color: black; /* Invert colors on hover */
+}
+
+/* Pagination controls for existing drawings */
+#drawings-pagination {
+    margin-top: 10px;
+    text-align: center;
+}
+
+#drawings-pagination button {
+    margin: 0 5px;
+    padding: 5px 10px;
+    cursor: pointer;
+    background-color: #333;
+    color: yellow;
+    border: 1px solid yellow;
+    border-radius: 4px;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+#drawings-pagination button:hover {
+    background-color: yellow;
+    color: black;
+}
+
+#drawings-pagination button:disabled {
+    background-color: #555;
+    color: #ccc;
+    cursor: not-allowed;
+}
+
+/* --- End of Added Styles for Drawings Section --- */

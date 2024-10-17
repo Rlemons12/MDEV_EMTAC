@@ -364,9 +364,17 @@ $('#searchPositionBtn').click(function() {
                 }
 
                 // Render images
-                if (position.images.length > 0) {
+                if (position.images && position.images.length > 0) {
                     position.images.forEach(function(image) {
-                        $('#existing-images-list').append(`<p>Image Title: ${image.image_title}, Description: ${image.description || 'No description available'}</p>`);
+                        const safeTitle = image.title ? escapeHtml(image.title) : 'N/A';
+                        const safeDescription = image.description ? escapeHtml(image.description) : 'No description available';
+
+                        $('#existing-images-list').append(`
+                            <div class="existing-image" id="image-${image.image_id}">
+                                <span>Title: ${safeTitle}, Description: ${safeDescription}</span>
+                                <button type="button" class="remove-existing-image-button" data-image-id="${image.image_id}">Remove</button>
+                            </div>
+                        `);
                     });
                     console.log(`Rendered ${position.images.length} images`);
                 } else {
@@ -374,16 +382,43 @@ $('#searchPositionBtn').click(function() {
                     console.log('No images available for this position');
                 }
 
+
+                // Render documents
+                if (position.documents && position.documents.length > 0) {
+                    position.documents.forEach(function(doc) {
+                        const safeTitle = doc.title ? escapeHtml(doc.title) : 'N/A';
+                        const safeRev = doc.rev ? escapeHtml(doc.rev) : 'N/A';
+
+                        $('#existing-documents-list').append(`
+                            <div class="existing-document" id="document-${doc.document_id}">
+                                <span>Title: ${safeTitle}, Revision: ${safeRev}</span>
+                                <button type="button" class="remove-existing-document-button" data-document-id="${doc.document_id}">Remove</button>
+                            </div>
+                        `);
+                    });
+                    console.log(`Rendered ${position.documents.length} documents`);
+                } else {
+                    $('#existing-documents-list').append('<p>No documents available.</p>');
+                    console.log('No documents available for this position');
+                }
+
+
                 // Render drawings
                 if (position.drawings.length > 0) {
                     position.drawings.forEach(function(drawing) {
-                        $('#existing-drawings-list').append(`<p>Drawing Name: ${drawing.drawing_name}, Revision: ${drawing.drawing_revision}</p>`);
+                        $('#existing-drawings-list').append(`
+                            <div class="existing-drawing">
+                                <span>Drawing Name: ${drawing.drw_name}, Number: ${drawing.drw_number}</span>
+                                <button type="button" class="remove-existing-drawing-button" data-drawing-id="${drawing.drawing_id}">Remove</button>
+                            </div>
+                        `);
                     });
                     console.log(`Rendered ${position.drawings.length} drawings`);
                 } else {
                     $('#existing-drawings-list').append('<p>No drawings available.</p>');
                     console.log('No drawings available for this position');
                 }
+
             });
         },
         error: function(xhr, status, error) {
@@ -393,14 +428,11 @@ $('#searchPositionBtn').click(function() {
     });
 });
 
-
-
-
-
     // Functions to paginate and filter parts, images, and drawings
-    let allParts = [], allImages = [], allDrawings = [];
-    let currentPartsPage = 1, currentImagesPage = 1, currentDrawingsPage = 1;
-    const partsPerPage = 10, imagesPerPage = 10, drawingsPerPage = 10;
+    let allParts = [], allImages = [], allDrawings = [], allDocuments = [];
+    let currentPartsPage = 1, currentImagesPage = 1, currentDrawingsPage = 1, currentDocumentsPage = 1;
+    const partsPerPage = 10, imagesPerPage = 10, drawingsPerPage = 10, documentsPerPage = 10;
+
 
     // Function to render parts for the current page
     function renderPartsPage(page = 1) {
@@ -447,6 +479,50 @@ $('#searchPositionBtn').click(function() {
         renderPartsPage(1);
     }
 
+    // Function to render documents for the current page
+function renderDocumentsPage(page = 1) {
+    const startIndex = (page - 1) * documentsPerPage;
+    const endIndex = startIndex + documentsPerPage;
+    const currentDocuments = allDocuments.slice(startIndex, endIndex);
+
+    const documentsList = document.getElementById('existing-documents-list');
+    documentsList.innerHTML = '';  // Clear the list
+
+    currentDocuments.forEach(doc => {
+        const safeTitle = doc.title ? escapeHtml(doc.title) : 'N/A';
+        const safeRev = doc.rev ? escapeHtml(doc.rev) : 'N/A';
+
+        const docEntry = document.createElement('div');
+        docEntry.className = 'existing-document';
+        docEntry.id = `document-${doc.document_id}`;
+        docEntry.innerHTML = `
+            <span>Title: ${safeTitle}, Revision: ${safeRev}</span>
+            <button type="button" class="remove-existing-document-button" data-document-id="${doc.document_id}">Remove</button>
+        `;
+        documentsList.appendChild(docEntry);
+    });
+
+    renderDocumentsPagination(page);
+}
+
+// Function to render pagination controls for documents
+function renderDocumentsPagination(page) {
+    const totalPages = Math.ceil(allDocuments.length / documentsPerPage);
+    const paginationContainer = document.getElementById('documents-pagination');
+    paginationContainer.innerHTML = '';
+
+    if (totalPages > 1) {
+        for (let i = 1; i <= totalPages; i++) {
+            const pageButton = document.createElement('button');
+            pageButton.textContent = i;
+            pageButton.disabled = i === page;
+            pageButton.onclick = () => renderDocumentsPage(i);
+            paginationContainer.appendChild(pageButton);
+        }
+    }
+}
+
+
     // Similar functions for Images and Drawings...
 
     // Simulate loading of parts, images, and drawings (replace this with actual AJAX request)
@@ -464,3 +540,30 @@ $('#searchPositionBtn').click(function() {
         renderDrawingsPage(1);
     });
 });
+
+function escapeHtml(text) {
+    return $('<div>').text(text).html();
+}
+
+// Event delegation for removing existing images
+$('#existing-images-list').on('click', '.remove-existing-image-button', function() {
+    const imageId = $(this).data('image-id');
+    const positionId = $('#position_id').val();
+
+    $.ajax({
+        url: removeImageFromPositionUrl, // Replace with your actual URL
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ image_id: imageId, position_id: positionId }),
+        success: function(response) {
+            // Remove the image element from the DOM
+            $(`#image-${imageId}`).remove();
+            console.log(`Removed image ID ${imageId} from position ID ${positionId}`);
+        },
+        error: function(xhr, status, error) {
+            console.error(`Error removing image ID ${imageId}:`, error);
+            alert('An error occurred while removing the image.');
+        }
+    });
+});
+
