@@ -4,6 +4,8 @@ body {
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
+    margin: 0; /* Ensure there's no default margin */
+    /* Remove min-height to let body expand with content */
 }
 
 /* Custom styling for the content on this page */
@@ -84,6 +86,10 @@ button:hover {
 /* Modify the color for the main content */
 .content {
     color: yellow;
+    /* Ensure content area expands with content */
+    min-height: 100%;
+    /* Remove overflow property to prevent extra scrollbars */
+    overflow: visible;
 }
 
 /* Modify the color for the h1 (Position Data Assignment heading) */
@@ -107,12 +113,12 @@ button:hover {
     margin-bottom: 10px;
 }
 
-/* Styling for the existing parts list */
+/* Remove max-height and overflow-y from existing parts list */
 #existing-parts-list {
     background-color: rgba(255, 255, 255, 0.1);
     border: 1px solid #FFD700;
-    max-height: 300px;
-    overflow-y: auto;
+    /* Remove max-height: 300px; */
+    /* Remove overflow-y: auto; */
     padding: 10px;
     margin-top: 10px;
     color: yellow;
@@ -152,23 +158,12 @@ button:hover {
     color: black;
 }
 
-/* Styling for the scrollable area */
+/* Remove overflow properties from scrollable areas */
 .scrollable-list {
     scrollbar-width: thin;
     scrollbar-color: yellow #333;
-}
-
-.scrollable-list::-webkit-scrollbar {
-    width: 8px;
-}
-
-.scrollable-list::-webkit-scrollbar-thumb {
-    background-color: yellow;
-    border-radius: 5px;
-}
-
-.scrollable-list::-webkit-scrollbar-track {
-    background-color: #333;
+    /* Remove any overflow properties */
+    overflow: visible;
 }
 
 /* Pagination controls */
@@ -203,8 +198,9 @@ button:hover {
 .suggestion-box {
     border: 1px solid #ccc;
     background-color: #fff;
-    max-height: 200px;
-    overflow-y: auto;
+    /* Remove max-height and overflow to prevent internal scrollbars */
+    /* max-height: 200px; */
+    /* overflow-y: auto; */
     position: absolute;
     width: 300px;
     z-index: 1000;
@@ -235,12 +231,12 @@ button:hover {
     margin-bottom: 10px;
 }
 
-/* Styling for the existing documents list */
+/* Remove max-height and overflow-y from existing documents list */
 #existing-documents-list {
     background-color: rgba(255, 255, 255, 0.1);
     border: 1px solid #FFD700;
-    max-height: 300px;
-    overflow-y: auto;
+    /* Remove max-height: 300px; */
+    /* Remove overflow-y: auto; */
     padding: 10px;
     margin-top: 10px;
     color: yellow;
@@ -278,34 +274,6 @@ button:hover {
 .existing-document button:hover {
     background-color: yellow;
     color: black;
-}
-
-/* Pagination controls for existing documents */
-#documents-pagination {
-    margin-top: 10px;
-    text-align: center;
-}
-
-#documents-pagination button {
-    margin: 0 5px;
-    padding: 5px 10px;
-    cursor: pointer;
-    background-color: #333;
-    color: yellow;
-    border: 1px solid yellow;
-    border-radius: 4px;
-    transition: background-color 0.3s, color 0.3s;
-}
-
-#documents-pagination button:hover {
-    background-color: yellow;
-    color: black;
-}
-
-#documents-pagination button:disabled {
-    background-color: #555;
-    color: #ccc;
-    cursor: not-allowed;
 }
 
 /* Upload Document Section Styling */
@@ -415,12 +383,12 @@ th {
     margin-bottom: 10px;
 }
 
-/* Styling for the existing images list */
+/* Remove max-height and overflow-y from existing images list */
 #existing-images-list {
     background-color: rgba(255, 255, 255, 0.1);
     border: 1px solid #FFD700;
-    max-height: 300px; /* Set a fixed height for the container */
-    overflow-y: auto;  /* Enable vertical scrolling when content overflows */
+    /* Remove max-height: 300px; */
+    /* Remove overflow-y: auto; */
     padding: 10px;
     margin-top: 10px;
     color: yellow;
@@ -459,36 +427,6 @@ th {
     background-color: yellow;
     color: black;
 }
-
-/* Pagination controls for existing images */
-#images-pagination {
-    margin-top: 10px;
-    text-align: center;
-}
-
-#images-pagination button {
-    margin: 0 5px;
-    padding: 5px 10px;
-    cursor: pointer;
-    background-color: #333;
-    color: yellow;
-    border: 1px solid yellow;
-    border-radius: 4px;
-    transition: background-color 0.3s, color 0.3s;
-}
-
-#images-pagination button:hover {
-    background-color: yellow;
-    color: black;
-}
-
-#images-pagination button:disabled {
-    background-color: #555;
-    color: #ccc;
-    cursor: not-allowed;
-}
-
-/* --- End of Added Styles for Images Section --- */
 
 /* Upload Image Section Styling */
 #upload-image-section {
@@ -540,24 +478,24 @@ th {
 
 /* Styling for the existing drawings section */
 #drawings-container {
-    background-color: rgba(0, 0, 0, 0.8); /* Dark background for contrast */
+    background-color: rgba(0, 0, 0, 0.8);
     padding: 20px;
     border-radius: 8px;
     margin-top: 15px;
 }
 
 #drawings-container h4 {
-    color: #FFD700; /* A bright yellow for the "Existing Drawings" heading */
+    color: #FFD700;
     font-size: 18px;
     margin-bottom: 10px;
 }
 
-/* Styling for the existing drawings list */
+/* Remove max-height and overflow-y from existing drawings list */
 #existing-drawings-list {
-    background-color: rgba(255, 255, 255, 0.1); /* Semi-transparent background */
-    border: 1px solid #FFD700; /* Yellow border */
-    max-height: 300px; /* Fixed height for the container */
-    overflow-y: auto; /* Enable vertical scrolling when content overflows */
+    background-color: rgba(255, 255, 255, 0.1);
+    border: 1px solid #FFD700;
+    /* Remove max-height: 300px; */
+    /* Remove overflow-y: auto; */
     padding: 10px;
     margin-top: 10px;
     color: yellow;
@@ -567,62 +505,98 @@ th {
 /* Styling for each drawing entry in the list */
 .existing-drawing {
     padding: 8px;
-    border-bottom: 1px solid #FFD700; /* Divider between drawings */
+    border-bottom: 1px solid #FFD700;
     display: flex;
     justify-content: space-between;
     align-items: center;
 }
 
 .existing-drawing:last-child {
-    border-bottom: none; /* Remove border for the last item */
+    border-bottom: none;
 }
 
 .existing-drawing span {
-    color: yellow; /* Ensure drawing details are visible */
+    color: yellow;
 }
 
 /* Styling for the remove button next to each drawing */
 .existing-drawing button {
     background-color: #333;
-    color: yellow; /* Button text color */
+    color: yellow;
     border: 1px solid yellow;
     padding: 5px 10px;
     cursor: pointer;
-    border-radius: 4px; /* Rounded corners */
+    border-radius: 4px;
     transition: background-color 0.3s, color 0.3s;
 }
 
 .existing-drawing button:hover {
     background-color: yellow;
-    color: black; /* Invert colors on hover */
+    color: black;
 }
 
-/* Pagination controls for existing drawings */
-#drawings-pagination {
-    margin-top: 10px;
-    text-align: center;
+/* Tab Navigation Styles */
+.tab-container {
+    margin-top: 20px;
 }
 
-#drawings-pagination button {
-    margin: 0 5px;
-    padding: 5px 10px;
+/* Ensure the main container expands with content */
+.main-container {
+    /* Remove min-height and overflow to let content expand naturally */
+    /* min-height: 100vh; */
+    /* overflow: auto; */
+}
+
+/* Clearfix to clear floated elements */
+.clearfix::after {
+    content: "";
+    display: table;
+    clear: both;
+}
+
+.tab-list {
+    display: flex;
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+    border-bottom: 2px solid yellow;
+}
+
+.tab-item {
+    padding: 10px 20px;
     cursor: pointer;
     background-color: #333;
     color: yellow;
     border: 1px solid yellow;
-    border-radius: 4px;
+    border-bottom: none;
+    margin-right: 5px;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
     transition: background-color 0.3s, color 0.3s;
 }
 
-#drawings-pagination button:hover {
+.tab-item:hover {
     background-color: yellow;
     color: black;
 }
 
-#drawings-pagination button:disabled {
-    background-color: #555;
-    color: #ccc;
-    cursor: not-allowed;
+.tab-item.active {
+    background-color: yellow;
+    color: black;
+    font-weight: bold;
 }
 
-/* --- End of Added Styles for Drawings Section --- */
+.tab-content {
+    display: none;
+    padding: 20px;
+    background-color: rgba(0, 0, 0, 0.8);
+    border: 1px solid yellow;
+    border-top: none;
+    color: yellow;
+    /* Remove overflow property to prevent extra scrollbars */
+    overflow: visible;
+}
+
+.tab-content.active {
+    display: block;
+}

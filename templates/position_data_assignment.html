@@ -29,9 +29,23 @@
     <div class="content">
         <h1>Position Data Assignment</h1>
 
-        <!-- Search Section (Collapsible) -->
-        <details>
-            <summary>Search Position</summary>
+        <!-- Tab Navigation -->
+        <div class="tab-container">
+            <ul class="tab-list">
+                <li class="tab-item active" data-tab="search-tab">Search Position</li>
+                <li class="tab-item" data-tab="add-dependencies-tab">Add Position Dependencies</li>
+                <li class="tab-item" data-tab="update-tab">Update Position Data</li>
+                <li class="tab-item" data-tab="documents-tab">Manage Documents</li>
+                <li class="tab-item" data-tab="parts-tab">Manage Parts</li>
+                <li class="tab-item" data-tab="images-tab">Manage Images</li>
+                <li class="tab-item" data-tab="drawings-tab">Manage Drawings</li>
+            </ul>
+        </div>
+
+        <!-- Tab Content Sections -->
+
+        <!-- Search Position Form -->
+        <div id="search-tab" class="tab-content active">
             <form id="searchPositionForm" method="get">
                 <!-- Area Dropdown -->
                 <div>
@@ -89,512 +103,491 @@
                 <!-- Search Button -->
                 <button type="button" id="searchPositionBtn">Search Position</button>
             </form>
-        </details>
-
-<details id="addPositionDependencies">
-    <summary>Add Position Dependencies</summary>
-
-    <form id="addPositionDependenciesForm" action="{{ url_for('position_data_assignment_data_add_dependencies_bp.add_position') }}" method="post" enctype="multipart/form-data">
-        <!-- Display the position information -->
-        <div>
-            <h3>Adding Position Dependencies for: {{ position.id }} - {{ position.name }}</h3>
         </div>
 
-        <!-- Hidden field for Position ID -->
-        <input type="hidden" id="position_id" name="position_id" value="{{ position.id }}">
+        <!-- Add Position Dependencies Form -->
+        <div id="add-dependencies-tab" class="tab-content">
+            <form id="addPositionDependenciesForm" action="{{ url_for('position_data_assignment_data_add_dependencies_bp.add_position') }}" method="post" enctype="multipart/form-data">
+                <!-- Display the position information -->
+                <div>
+                    <h3>Adding Position Dependencies for: {{ position.id }} - {{ position.name }}</h3>
+                </div>
 
-        <!-- Add Area Section -->
-        <details>
-            <summary>Select or Add Area</summary>
-            <div id="areaContainer">
-                <div id="areaFieldsWrapper">
-                    <!-- Loop for adding multiple areas -->
-                    <div class="areaFields">
-                        <label for="new_areaDropdown">Select Area:</label>
-                        <select name="area_id[]" id="new_areaDropdown">
+                <!-- Hidden field for Position ID -->
+                <input type="hidden" id="position_id" name="position_id" value="{{ position.id }}">
+
+                <!-- Add Area Section -->
+                <div class="collapsible-section">
+                    <h4>Select or Add Area</h4>
+                    <div id="areaContainer">
+                        <div id="areaFieldsWrapper">
+                            <!-- Loop for adding multiple areas -->
+                            <div class="areaFields">
+                                <label for="new_areaDropdown">Select Area:</label>
+                                <select name="area_id[]" id="new_areaDropdown">
+                                    <option value="">Select Area</option>
+                                    {% for area in areas %}
+                                        <option value="{{ area.id }}">{{ area.name }}</option>
+                                    {% endfor %}
+                                    <option value="new">New Area...</option>
+                                </select>
+
+                                <div id="newAreaFields" style="display:none;">
+                                    <h4>New Area</h4>
+                                    <label for="new_area_name">New Area Name:</label>
+                                    <input type="text" id="new_area_name" name="new_area_name[]">
+                                    <label for="new_area_description">New Area Description:</label>
+                                    <textarea id="new_area_description" name="new_area_description[]"></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Button to add another Area -->
+                        <button type="button" id="addAnotherAreaBtn">Add Another Area</button>
+                    </div>
+                </div>
+
+                <!-- Add Equipment Group Section -->
+                <div class="collapsible-section">
+                    <h4>Select or Add Equipment Group</h4>
+                    <div id="equipmentGroupContainer">
+                        <div id="equipmentGroupFieldsWrapper">
+                            <!-- Loop for adding multiple equipment groups -->
+                            <div class="equipmentGroupFields">
+                                <label for="new_equipmentGroupDropdown">Select Equipment Group:</label>
+                                <select name="equipment_group_id[]" id="new_equipmentGroupDropdown" disabled>
+                                    <option value="">Select Equipment Group</option>
+                                    <option value="new">New Equipment Group...</option>
+                                </select>
+
+                                <div id="newEquipmentGroupFields" style="display:none;">
+                                    <h4>New Equipment Group</h4>
+                                    <label for="new_equipmentGroup_name">New Equipment Group Name:</label>
+                                    <input type="text" id="new_equipmentGroup_name" name="new_equipmentGroup_name[]">
+                                    <label for="new_equipmentGroup_description">New Equipment Group Description:</label>
+                                    <textarea id="new_equipmentGroup_description" name="new_equipmentGroup_description[]"></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Button to add another Equipment Group -->
+                        <button type="button" id="addAnotherEquipmentGroupBtn">Add Another Equipment Group</button>
+                    </div>
+                </div>
+
+                <!-- Add Model Section -->
+                <div class="collapsible-section">
+                    <h4>Select or Add Model</h4>
+                    <div id="modelContainer">
+                        <div id="modelFieldsWrapper">
+                            <!-- Loop for adding multiple models -->
+                            <div class="modelFields">
+                                <label for="new_modelDropdown">Select Model:</label>
+                                <select name="model_id[]" id="new_modelDropdown" disabled>
+                                    <option value="">Select Model</option>
+                                    <option value="new">New Model...</option>
+                                </select>
+
+                                <div id="newModelFields" style="display:none;">
+                                    <h4>New Model</h4>
+                                    <label for="new_model_name">New Model Name:</label>
+                                    <input type="text" id="new_model_name" name="new_model_name[]">
+                                    <label for="new_model_description">New Model Description:</label>
+                                    <textarea id="new_model_description" name="new_model_description[]"></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Button to add another Model -->
+                        <button type="button" id="addAnotherModelBtn">Add Another Model</button>
+                    </div>
+                </div>
+
+                <!-- Add Asset Numbers Section -->
+                <div class="collapsible-section">
+                    <h4>Select or Add Asset Numbers</h4>
+                    <div id="assetNumberContainer">
+                        <div id="assetNumberFieldsWrapper">
+                            <!-- Loop for adding multiple asset numbers -->
+                            <div class="assetNumberFields">
+                                <label for="new_assetNumberDropdown">Select Asset Number:</label>
+                                <select name="asset_number_id[]" id="new_assetNumberDropdown" disabled>
+                                    <option value="">Select Asset Number</option>
+                                    <option value="new">New Asset Number...</option>
+                                </select>
+
+                                <div id="newAssetNumberFields" style="display:none;">
+                                    <h4>New Asset Number</h4>
+                                    <label for="new_assetNumber">New Asset Number:</label>
+                                    <input type="text" id="new_assetNumber" name="new_assetNumber[]">
+                                    <label for="new_assetNumber_description">New Asset Number Description:</label>
+                                    <textarea id="new_assetNumber_description" name="new_assetNumber_description[]"></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Button to add another Asset Number -->
+                        <button type="button" id="addAnotherAssetNumberBtn">Add Another Asset Number</button>
+                    </div>
+                </div>
+
+                <!-- Add Locations Section -->
+                <div class="collapsible-section">
+                    <h4>Select or Add Locations</h4>
+                    <div id="locationContainer">
+                        <div id="locationFieldsWrapper">
+                            <!-- Loop for adding multiple locations -->
+                            <div class="locationFields">
+                                <label for="new_locationDropdown">Select Location:</label>
+                                <select name="location_id[]" id="new_locationDropdown" disabled>
+                                    <option value="">Select Location</option>
+                                    <option value="new">New Location...</option>
+                                </select>
+
+                                <div id="newLocationFields" style="display:none;">
+                                    <h4>New Location</h4>
+                                    <label for="new_location_name">New Location Name:</label>
+                                    <input type="text" id="new_location_name" name="new_location_name[]">
+                                    <label for="new_location_description">New Location Description:</label>
+                                    <textarea id="new_location_description" name="new_location_description[]"></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Button to add another Location -->
+                        <button type="button" id="addAnotherLocationBtn">Add Another Location</button>
+                    </div>
+                </div>
+
+                <!-- Add Site Locations Section -->
+                <div class="collapsible-section">
+                    <h4>Select or Add Site Locations</h4>
+                    <div id="siteLocationContainer">
+                        <div id="siteLocationFieldsWrapper">
+                            <!-- Loop for adding multiple site locations -->
+                            <div class="siteLocationFields">
+                                <label for="new_siteLocationDropdown">Select Site Location:</label>
+                                <!-- Searchable dropdown using Select2 -->
+                                <select name="site_location_id[]" id="new_siteLocationDropdown" class="site-location-search">
+                                    <option value="">Select Site Location</option>
+                                    <option value="new">New Site Location...</option>
+                                </select>
+
+                                <!-- Fields for new site location input -->
+                                <div id="newSiteLocationFields" style="display:none;">
+                                    <h4>New Site Location</h4>
+                                    <label for="new_siteLocation_title">New Site Location Title:</label>
+                                    <input type="text" id="new_siteLocation_title" name="new_siteLocation_title[]">
+                                    <label for="new_siteLocation_roomNumber">Room Number:</label>
+                                    <input type="text" id="new_siteLocation_roomNumber" name="new_siteLocation_room_number[]">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
+                <button type="submit">Add Position Dependencies</button>
+            </form>
+        </div>
+
+        <!-- Update Position Data Form -->
+        <div id="update-tab" class="tab-content">
+            <form id="updatePositionForm" action="{{ url_for('position_data_assignment_bp.update_position') }}" method="post" enctype="multipart/form-data">
+                <!-- Display the position information -->
+                <div>
+                    <h3>Editing Position: {{ position.id }} - {{ position.name }}</h3>
+                </div>
+
+                <!-- Hidden field for Position ID -->
+                <input type="hidden" id="position_id" name="position_id" value="{{ position.id }}">
+
+                <!-- Visible field for Position ID -->
+                <div>
+                    <label for="position_display">Position ID:</label>
+                    <input type="text" id="position_display" name="position_display" value="{{ position.id }}" readonly>
+                </div>
+
+                <!-- Update Area Section -->
+                <div class="collapsible-section">
+                    <h4>Update Area</h4>
+                    <div>
+                        <label for="edit_areaDropdown">Edit Area:</label>
+                        <select name="area_id" id="edit_areaDropdown">
                             <option value="">Select Area</option>
                             {% for area in areas %}
-                                <option value="{{ area.id }}">{{ area.name }}</option>
+                                <option value="{{ area.id }}" {% if position and area.id == position.area_id %}selected{% endif %}>{{ area.name }}</option>
                             {% endfor %}
-                            <option value="new">New Area...</option>
                         </select>
 
-                        <div id="newAreaFields" style="display:none;">
-                            <h4>New Area</h4>
-                            <label for="new_area_name">New Area Name:</label>
-                            <input type="text" id="new_area_name" name="new_area_name[]">
-                            <label for="new_area_description">New Area Description:</label>
-                            <textarea id="new_area_description" name="new_area_description[]"></textarea>
-                        </div>
+                        <!-- Name and Description for Area -->
+                        <label for="edit_area_name">Area Name:</label>
+                        <input type="text" id="edit_area_name" name="area_name" value="{{ position.area.name if position.area else '' }}">
+
+                        <label for="edit_area_description">Area Description:</label>
+                        <textarea id="edit_area_description" name="area_description">{{ position.area.description if position.area else '' }}</textarea>
                     </div>
                 </div>
 
-                <!-- Button to add another Area -->
-                <button type="button" id="addAnotherAreaBtn">Add Another Area</button>
-            </div>
-        </details>
-
-        <!-- Add Equipment Group Section -->
-        <details>
-            <summary>Select or Add Equipment Group</summary>
-            <div id="equipmentGroupContainer">
-                <div id="equipmentGroupFieldsWrapper">
-                    <!-- Loop for adding multiple equipment groups -->
-                    <div class="equipmentGroupFields">
-                        <label for="new_equipmentGroupDropdown">Select Equipment Group:</label>
-                        <select name="equipment_group_id[]" id="new_equipmentGroupDropdown" disabled>
+                <!-- Update Equipment Group Section -->
+                <div class="collapsible-section">
+                    <h4>Update Equipment Group</h4>
+                    <div>
+                        <label for="edit_equipmentGroupDropdown">Edit Equipment Group:</label>
+                        <select name="equipment_group_id" id="edit_equipmentGroupDropdown">
                             <option value="">Select Equipment Group</option>
-                            <option value="new">New Equipment Group...</option>
+                            {% for group in equipment_groups %}
+                                <option value="{{ group.id }}" {% if position and group.id == position.equipment_group_id %}selected{% endif %}>{{ group.name }}</option>
+                            {% endfor %}
                         </select>
 
-                        <div id="newEquipmentGroupFields" style="display:none;">
-                            <h4>New Equipment Group</h4>
-                            <label for="new_equipmentGroup_name">New Equipment Group Name:</label>
-                            <input type="text" id="new_equipmentGroup_name" name="new_equipmentGroup_name[]">
-                            <label for="new_equipmentGroup_description">New Equipment Group Description:</label>
-                            <textarea id="new_equipmentGroup_description" name="new_equipmentGroup_description[]"></textarea>
-                        </div>
+                        <!-- Name and Description for Equipment Group -->
+                        <label for="edit_equipmentGroup_name">Equipment Group Name:</label>
+                        <input type="text" id="edit_equipmentGroup_name" name="equipment_group_name" value="{{ position.equipment_group.name if position.equipment_group else '' }}">
+
+                        <label for="edit_equipmentGroup_description">Equipment Group Description:</label>
+                        <textarea id="edit_equipmentGroup_description" name="equipment_group_description">{{ position.equipment_group.description if position.equipment_group else '' }}</textarea>
                     </div>
                 </div>
 
-                <!-- Button to add another Equipment Group -->
-                <button type="button" id="addAnotherEquipmentGroupBtn">Add Another Equipment Group</button>
-            </div>
-        </details>
-
-        <!-- Add Model Section -->
-        <details>
-            <summary>Select or Add Model</summary>
-            <div id="modelContainer">
-                <div id="modelFieldsWrapper">
-                    <!-- Loop for adding multiple models -->
-                    <div class="modelFields">
-                        <label for="new_modelDropdown">Select Model:</label>
-                        <select name="model_id[]" id="new_modelDropdown" disabled>
+                <!-- Update Model Section -->
+                <div class="collapsible-section">
+                    <h4>Update Model</h4>
+                    <div>
+                        <label for="edit_modelDropdown">Edit Model:</label>
+                        <select name="model_id" id="edit_modelDropdown">
                             <option value="">Select Model</option>
-                            <option value="new">New Model...</option>
+                            {% for model in models %}
+                                <option value="{{ model.id }}" {% if position and model.id == position.model_id %}selected{% endif %}>{{ model.name }}</option>
+                            {% endfor %}
                         </select>
 
-                        <div id="newModelFields" style="display:none;">
-                            <h4>New Model</h4>
-                            <label for="new_model_name">New Model Name:</label>
-                            <input type="text" id="new_model_name" name="new_model_name[]">
-                            <label for="new_model_description">New Model Description:</label>
-                            <textarea id="new_model_description" name="new_model_description[]"></textarea>
-                        </div>
+                        <!-- Name and Description for Model -->
+                        <label for="edit_model_name">Model Name:</label>
+                        <input type="text" id="edit_model_name" name="model_name" value="{{ position.model.name if position.model else '' }}">
+
+                        <label for="edit_model_description">Model Description:</label>
+                        <textarea id="edit_model_description" name="model_description">{{ position.model.description if position.model else '' }}</textarea>
                     </div>
                 </div>
 
-                <!-- Button to add another Model -->
-                <button type="button" id="addAnotherModelBtn">Add Another Model</button>
-            </div>
-        </details>
-
-        <!-- Add Asset Numbers Section (allow multiple asset numbers) -->
-        <details>
-            <summary>Select or Add Asset Numbers</summary>
-            <div id="assetNumberContainer">
-                <div id="assetNumberFieldsWrapper">
-                    <!-- Loop for adding multiple asset numbers -->
-                    <div class="assetNumberFields">
-                        <label for="new_assetNumberDropdown">Select Asset Number:</label>
-                        <select name="asset_number_id[]" id="new_assetNumberDropdown" disabled>
+                <!-- Update Asset Number Section -->
+                <div class="collapsible-section">
+                    <h4>Update Asset Number</h4>
+                    <div>
+                        <label for="edit_assetNumberDropdown">Edit Asset Number:</label>
+                        <select name="asset_number_id" id="edit_assetNumberDropdown">
                             <option value="">Select Asset Number</option>
-                            <option value="new">New Asset Number...</option>
+                            {% for asset in asset_numbers %}
+                                <option value="{{ asset.id }}" {% if position and asset.id == position.asset_number_id %}selected{% endif %}>{{ asset.number }}</option>
+                            {% endfor %}
                         </select>
 
-                        <div id="newAssetNumberFields" style="display:none;">
-                            <h4>New Asset Number</h4>
-                            <label for="new_assetNumber">New Asset Number:</label>
-                            <input type="text" id="new_assetNumber" name="new_assetNumber[]">
-                            <label for="new_assetNumber_description">New Asset Number Description:</label>
-                            <textarea id="new_assetNumber_description" name="new_assetNumber_description[]"></textarea>
-                        </div>
+                        <!-- Number and Description for Asset Number -->
+                        <label for="edit_assetNumber">Asset Number:</label>
+                        <input type="text" id="edit_assetNumber" name="asset_number" value="{{ position.asset_number.number if position.asset_number else '' }}">
+
+                        <label for="edit_assetNumber_description">Asset Number Description:</label>
+                        <textarea id="edit_assetNumber_description" name="asset_number_description">{{ position.asset_number.description if position.asset_number else '' }}</textarea>
                     </div>
                 </div>
 
-                <!-- Button to add another Asset Number -->
-                <button type="button" id="addAnotherAssetNumberBtn">Add Another Asset Number</button>
-            </div>
-        </details>
-
-        <!-- Add Locations Section (allow multiple locations) -->
-        <details>
-            <summary>Select or Add Locations</summary>
-            <div id="locationContainer">
-                <div id="locationFieldsWrapper">
-                    <!-- Loop for adding multiple locations -->
-                    <div class="locationFields">
-                        <label for="new_locationDropdown">Select Location:</label>
-                        <select name="location_id[]" id="new_locationDropdown" disabled>
+                <!-- Update Location Section -->
+                <div class="collapsible-section">
+                    <h4>Update Location</h4>
+                    <div>
+                        <label for="edit_locationDropdown">Edit Location:</label>
+                        <select name="location_id" id="edit_locationDropdown">
                             <option value="">Select Location</option>
-                            <option value="new">New Location...</option>
+                            {% for location in locations %}
+                                <option value="{{ location.id }}" {% if position and location.id == position.location_id %}selected{% endif %}>{{ location.name }}</option>
+                            {% endfor %}
                         </select>
 
-                        <div id="newLocationFields" style="display:none;">
-                            <h4>New Location</h4>
-                            <label for="new_location_name">New Location Name:</label>
-                            <input type="text" id="new_location_name" name="new_location_name[]">
-                            <label for="new_location_description">New Location Description:</label>
-                            <textarea id="new_location_description" name="new_location_description[]"></textarea>
-                        </div>
+                        <!-- Name and Description for Location -->
+                        <label for="edit_location_name">Location Name:</label>
+                        <input type="text" id="edit_location_name" name="location_name" value="{{ position.location.name if position.location else '' }}">
+
+                        <label for="edit_location_description">Location Description:</label>
+                        <textarea id="edit_location_description" name="location_description">{{ position.location.description if position.location else '' }}</textarea>
                     </div>
                 </div>
 
-                <!-- Button to add another Location -->
-                <button type="button" id="addAnotherLocationBtn">Add Another Location</button>
-            </div>
-        </details>
-
-        <!-- Add Site Locations Section (allow multiple site locations) -->
-        <details>
-            <summary>Select or Add Site Locations</summary>
-            <div id="siteLocationContainer">
-                <div id="siteLocationFieldsWrapper">
-                    <!-- Loop for adding multiple site locations -->
-                    <div class="siteLocationFields">
-                        <label for="new_siteLocationDropdown">Select Site Location:</label>
-                        <!-- Searchable dropdown using Select2 -->
-                        <select name="site_location_id[]" id="new_siteLocationDropdown" class="site-location-search">
+                <!-- Update Site Location Section -->
+                <div class="collapsible-section">
+                    <h4>Update Site Location</h4>
+                    <div>
+                        <label for="edit_siteLocationDropdown">Edit Site Location:</label>
+                        <select name="site_location_id" id="edit_siteLocationDropdown">
                             <option value="">Select Site Location</option>
-                            <option value="new">New Site Location...</option>
+                            {% for site in site_locations %}
+                                <option value="{{ site.id }}" {% if position and site.id == position.site_location_id %}selected{% endif %}>{{ site.title }}</option>
+                            {% endfor %}
                         </select>
 
-                        <!-- Fields for new site location input -->
-                        <div id="newSiteLocationFields" style="display:none;">
-                            <h4>New Site Location</h4>
-                            <label for="new_siteLocation_title">New Site Location Title:</label>
-                            <input type="text" id="new_siteLocation_title" name="new_siteLocation_title[]">
-                            <label for="new_siteLocation_roomNumber">Room Number:</label>
-                            <input type="text" id="new_siteLocation_roomNumber" name="new_siteLocation_room_number[]">
-                        </div>
+                        <!-- Title and Room Number for Site Location -->
+                        <label for="edit_siteLocation_title">Site Location Title:</label>
+                        <input type="text" id="edit_siteLocation_title" name="site_location_title" value="{{ position.site_location.title if position.site_location else '' }}">
+
+                        <label for="edit_siteLocation_roomNumber">Room Number:</label>
+                        <input type="text" id="edit_siteLocation_roomNumber" name="site_location_room_number" value="{{ position.site_location.room_number if position.site_location else '' }}">
                     </div>
                 </div>
-            </div>
-        </details>
 
-        <!-- Submit Button -->
-        <button type="submit">Add Position Dependencies</button>
-    </form>
-</details>
-
-<!-- Update Section (Collapsible) -->
-<details id="updateSection">
-    <summary>Update Position Data</summary>
-
-    <form id="updatePositionForm" action="{{ url_for('position_data_assignment_bp.update_position') }}" method="post" enctype="multipart/form-data">
-        <!-- Display the position information (ID and Name, for example) -->
-        <div>
-            <h3>Editing Position: {{ position.id }} - {{ position.name }}</h3>
+                <!-- Submit Button -->
+                <button type="submit">Update Position</button>
+            </form>
         </div>
 
-        <!-- Hidden field for Position ID (make it visible for debugging) -->
-        <input type="hidden" id="position_id" name="position_id" value="{{ position.id }}">
+        <!-- Manage Documents Section -->
+        <div id="documents-tab" class="tab-content">
+            <!-- Hidden Field for Position ID -->
+            <input type="hidden" id="position_id" name="position_id">
 
-        <!-- Visible field for Position ID (for display purposes) -->
-        <div>
-            <label for="position_display">Position ID:</label>
-            <input type="text" id="position_display" name="position_display" value="{{ position.id }}" readonly>
+            <!-- Search Bar for Filtering Documents -->
+            <div style="position: relative;">
+                <label for="search-documents">Search Documents:</label>
+                <input type="text" id="search-documents" placeholder="Search documents...">
+                <!-- Suggestion Box -->
+                <div id="document-suggestion-box" class="suggestion-box" style="display:none;"></div>
+            </div>
+
+            <!-- Existing Documents List -->
+            <h4>Existing Documents:</h4>
+            <div id="existing-documents-list" class="scrollable-list"></div>
+
+            <!-- Pagination Controls -->
+            <div id="documents-pagination" class="pagination-controls"></div>
         </div>
 
-        <!-- Update Area (Collapsible Section) -->
-        <details>
-            <summary>Update Area</summary>
+        <!-- Manage Parts Section -->
+        <div id="parts-tab" class="tab-content">
+            <!-- Parts Search Functionality -->
             <div>
-                <label for="edit_areaDropdown">Edit Area:</label>
-                <select name="area_id" id="edit_areaDropdown">
-                    <option value="">Select Area</option>
-                    {% for area in areas %}
-                        <option value="{{ area.id }}" {% if position and area.id == position.area_id %}selected{% endif %}>{{ area.name }}</option>
-                    {% endfor %}
-                </select>
-
-                <!-- Name and Description for Area -->
-                <label for="edit_area_name">Area Name:</label>
-                <input type="text" id="edit_area_name" name="area_name" value="{{ position.area.name if position.area else '' }}">
-
-                <label for="edit_area_description">Area Description:</label>
-                <textarea id="edit_area_description" name="area_description">{{ position.area.description if position.area else '' }}</textarea>
+                <label for="parts-search">Parts Search:</label>
+                <input type="text" id="parts-search" placeholder="Search parts...">
+                <div id="suggestion-box" class="suggestion-box" style="display: none;"></div>
             </div>
-        </details>
 
-        <!-- Update Equipment Group (Collapsible Section) -->
-        <details>
-            <summary>Update Equipment Group</summary>
-            <div>
-                <label for="edit_equipmentGroupDropdown">Edit Equipment Group:</label>
-                <select name="equipment_group_id" id="edit_equipmentGroupDropdown">
-                    <option value="">Select Equipment Group</option>
-                    {% for group in equipment_groups %}
-                        <option value="{{ group.id }}" {% if position and group.id == position.equipment_group_id %}selected{% endif %}>{{ group.name }}</option>
+            <!-- Existing Parts List -->
+            <div id="parts-container">
+                <h4>Existing Parts:</h4>
+                <div id="existing-parts-list" class="scrollable-list">
+                    {% for part in existing_parts %}
+                        <div class="existing-part">
+                            <span>Part Number: {{ part.part_number }} - {{ part.name }}</span>
+                            <button type="button" onclick="removeExistingPart(this, '{{ part.id }}', '{{ position.id }}')">Remove</button>
+                        </div>
                     {% endfor %}
-                </select>
-
-                <!-- Name for Equipment Group -->
-                <label for="edit_equipmentGroup_name">Equipment Group Name:</label>
-                <input type="text" id="edit_equipmentGroup_name" name="equipment_group_name" value="{{ position.equipment_group.name if position.equipment_group else '' }}">
-
-                <!-- Description for Equipment Group -->
-                <label for="edit_equipmentGroup_description">Equipment Group Description:</label>
-                <textarea id="edit_equipmentGroup_description" name="equipment_group_description">{{ position.equipment_group.description if position.equipment_group else '' }}</textarea>
-            </div>
-        </details>
-
-        <!-- Update Model (Collapsible Section) -->
-        <details>
-            <summary>Update Model</summary>
-            <div>
-                <label for="edit_modelDropdown">Edit Model:</label>
-                <select name="model_id" id="edit_modelDropdown">
-                    <option value="">Select Model</option>
-                    {% for model in models %}
-                        <option value="{{ model.id }}" {% if position and model.id == position.model_id %}selected{% endif %}>{{ model.name }}</option>
-                    {% endfor %}
-                </select>
-
-                <!-- Name and Description for Model -->
-                <label for="edit_model_name">Model Name:</label>
-                <input type="text" id="edit_model_name" name="model_name" value="{{ position.model.name if position.model else '' }}">
-
-                <label for="edit_model_description">Model Description:</label>
-                <textarea id="edit_model_description" name="model_description">{{ position.model.description if position.model else '' }}</textarea>
-            </div>
-        </details>
-
-        <!-- Update Asset Number (Collapsible Section) -->
-        <details>
-            <summary>Update Asset Number</summary>
-            <div>
-                <label for="edit_assetNumberDropdown">Edit Asset Number:</label>
-                <select name="asset_number_id" id="edit_assetNumberDropdown">
-                    <option value="">Select Asset Number</option>
-                    {% for asset in asset_numbers %}
-                        <option value="{{ asset.id }}" {% if position and asset.id == position.asset_number_id %}selected{% endif %}>{{ asset.number }}</option>
-                    {% endfor %}
-                </select>
-
-                <!-- Number and Description for Asset Number -->
-                <label for="edit_assetNumber">Asset Number:</label>
-                <input type="text" id="edit_assetNumber" name="asset_number" value="{{ position.asset_number.number if position.asset_number else '' }}">
-
-                <label for="edit_assetNumber_description">Asset Number Description:</label>
-                <textarea id="edit_assetNumber_description" name="asset_number_description">{{ position.asset_number.description if position.asset_number else '' }}</textarea>
-            </div>
-        </details>
-
-        <!-- Update Location (Collapsible Section) -->
-        <details>
-            <summary>Update Location</summary>
-            <div>
-                <label for="edit_locationDropdown">Edit Location:</label>
-                <select name="location_id" id="edit_locationDropdown">
-                    <option value="">Select Location</option>
-                    {% for location in locations %}
-                        <option value="{{ location.id }}" {% if position and location.id == position.location_id %}selected{% endif %}>{{ location.name }}</option>
-                    {% endfor %}
-                </select>
-
-                <!-- Name for Location -->
-                <label for="edit_location_name">Location Name:</label>
-                <input type="text" id="edit_location_name" name="location_name" value="{{ position.location.name if position.location else '' }}">
-
-                <!-- Description for Location -->
-                <label for="edit_location_description">Location Description:</label>
-                <textarea id="edit_location_description" name="location_description">{{ position.location.description if position.location else '' }}</textarea>
-            </div>
-        </details>
-
-        <!-- Update Site Location (Collapsible Section) -->
-        <details>
-            <summary>Update Site Location</summary>
-            <div>
-                <label for="edit_siteLocationDropdown">Edit Site Location:</label>
-                <select name="site_location_id" id="edit_siteLocationDropdown">
-                    <option value="">Select Site Location</option>
-                    {% for site in site_locations %}
-                        <option value="{{ site.id }}" {% if position and site.id == position.site_location_id %}selected{% endif %}>{{ site.title }}</option>
-                    {% endfor %}
-                </select>
-
-                <!-- Title and Room Number for Site Location -->
-                <label for="edit_siteLocation_title">Site Location Title:</label>
-                <input type="text" id="edit_siteLocation_title" name="site_location_title" value="{{ position.site_location.title if position.site_location else '' }}">
-
-                <label for="edit_siteLocation_roomNumber">Room Number:</label>
-                <input type="text" id="edit_siteLocation_roomNumber" name="site_location_room_number" value="{{ position.site_location.room_number if position.site_location else '' }}">
-            </div>
-        </details>
-
-        <!-- Submit Button -->
-        <button type="submit">Update Position</button>
-    </form>
-</details>
-
-
-<!-- Document Section -->
-<details id="documents-section">
-    <summary>Manage Documents</summary>
-
-    <!-- Hidden Field for Position ID -->
-    <input type="hidden" id="position_id" name="position_id">
-
-
-    <!-- Search Bar for Filtering Documents -->
-    <div style="position: relative;">
-        <label for="search-documents">Search Documents:</label>
-        <input type="text" id="search-documents" placeholder="Search documents...">
-        <!-- Suggestion Box -->
-        <div id="document-suggestion-box" class="suggestion-box" style="display:none;"></div>
-    </div>
-
-    <!-- Dynamically populated section for displaying existing documents -->
-    <h4>Existing Documents:</h4>
-    <div id="existing-documents-list" class="scrollable-list"></div>
-
-    <!-- Pagination Controls -->
-    <div id="documents-pagination" class="pagination-controls"></div>
-</details>
-
-
-<details>
-    <summary>Manage Parts</summary>
-
-    <!-- Parts Search Functionality -->
-    <div>
-        <label for="parts-search">Parts Search:</label>
-        <input type="text" id="parts-search" placeholder="Search parts...">
-        <div id="suggestion-box" class="suggestion-box" style="display: none;"></div>
-    </div>
-
-    <!-- Display Existing Parts -->
-    <div id="parts-container">
-        <h4>Existing Parts:</h4>
-        <div id="existing-parts-list" class="scrollable-list">
-            {% for part in existing_parts %}
-                <div class="existing-part">
-                    <span>Part Number: {{ part.part_number }} - {{ part.name }}</span>
-                    <button type="button" onclick="removeExistingPart(this, '{{ part.id }}', '{{ position.id }}')">Remove</button>
                 </div>
-            {% endfor %}
+            </div>
+
+            <!-- Add New Parts Section -->
+            <h4>Add New Parts:</h4>
+            <div id="new-parts-container">
+                <!-- New part entries will be dynamically added here -->
+            </div>
+
+            <!-- Hidden Field for Position ID -->
+            <input type="hidden" id="position_id" name="position_id" value="{{ position.id }}">
+
+            <!-- Button to Add More Parts -->
+            <button type="button" id="add-part-button">Add Another Part</button>
+
+            <!-- Button to Submit New Parts -->
+            <button type="button" id="submit-parts-button">Submit New Parts</button>
         </div>
-    </div>
 
-    <!-- Add New Parts Section -->
-    <h4>Add New Parts:</h4>
-    <div id="new-parts-container">
-        <!-- New part entries will be dynamically added here -->
-    </div>
+        <!-- Manage Images Section -->
+        <div id="images-tab" class="tab-content">
+            <!-- Search Images -->
+            <div>
+                <label for="images-search">Search Images:</label>
+                <input type="text" id="images-search" placeholder="Search images...">
+                <div id="image-suggestion-box" class="suggestion-box"></div>
+            </div>
 
-    <!-- Hidden Field for Position ID -->
-    <input type="hidden" id="position_id" name="position_id" value="{{ position.id }}">
-
-    <!-- Button to Add More Parts -->
-    <button type="button" id="add-part-button">Add Another Part</button>
-
-    <!-- Button to Submit New Parts -->
-    <button type="button" id="submit-parts-button">Submit New Parts</button>
-
-</details>
-
-
-<!-- Images Section -->
-<details>
-    <summary>Manage Images</summary>
-
-    <!-- Search Images -->
-    <div>
-        <label for="images-search">Search Images:</label>
-        <input type="text" id="images-search" placeholder="Search images...">
-        <div id="image-suggestion-box" class="suggestion-box"></div>
-    </div>
-
-    <!-- Existing Images List -->
-    <div id="images-container">
-        <h4>Existing Images:</h4>
-        <div id="existing-images-list" class="scrollable-list">
-            <!-- Existing images will be appended here by JavaScript -->
-            {% for image in existing_images %}
-                <div class="existing-image" id="image-{{ image.id }}">
-                    <span>Title: {{ image.title }}, Description: {{ image.description }}</span>
-                    <button type="button" class="remove-existing-image-button" data-image-id="{{ image.id }}">Remove</button>
+            <!-- Existing Images List -->
+            <div id="images-container">
+                <h4>Existing Images:</h4>
+                <div id="existing-images-list" class="scrollable-list">
+                    {% for image in existing_images %}
+                        <div class="existing-image" id="image-{{ image.id }}">
+                            <span>Title: {{ image.title }}, Description: {{ image.description }}</span>
+                            <button type="button" class="remove-existing-image-button" data-image-id="{{ image.id }}">Remove</button>
+                        </div>
+                    {% endfor %}
                 </div>
-            {% endfor %}
+            </div>
+
+            <!-- Pagination Controls -->
+            <div id="images-pagination" class="pagination-controls"></div>
+
+            <!-- Add New Images -->
+            <h4>Add New Images:</h4>
+            <div id="new-images-container">
+                <!-- New image entries will be dynamically added here -->
+            </div>
+            <button type="button" id="add-image-button">Add Another Image</button>
+            <button type="button" id="submit-images-button">Submit New Images</button>
+
+            <!-- Hidden Input for Position ID -->
+            <input type="hidden" id="position_id" value="{{ position.id }}">
         </div>
-    </div>
 
-    <!-- Pagination Controls -->
-    <div id="images-pagination" class="pagination-controls"></div>
+        <!-- Manage Drawings Section -->
+        <div id="drawings-tab" class="tab-content">
+            <!-- Search Drawings -->
+            <div>
+                <label for="search-drawings">Search Drawings:</label>
+                <input type="text" id="search-drawings" placeholder="Search drawings...">
+                <div id="drawing-suggestion-box" class="suggestion-box"></div>
+            </div>
 
-    <!-- Add New Images -->
-    <h4>Add New Images:</h4>
-    <div id="new-images-container">
-        <!-- New image entries will be dynamically added here -->
-    </div>
-    <button type="button" id="add-image-button">Add Another Image</button>
-    <button type="button" id="submit-images-button">Submit New Images</button>
-
-    <!-- Hidden Input for Position ID -->
-    <input type="hidden" id="position_id" value="{{ position.id }}">
-</details>
-
-
-
-<!-- Drawings Section -->
-<details>
-    <summary>Manage Drawings</summary>
-
-    <!-- Search Drawings -->
-    <div>
-        <label for="search-drawings">Search Drawings:</label>
-        <input type="text" id="search-drawings" placeholder="Search drawings...">
-        <div id="drawing-suggestion-box" class="suggestion-box"></div>
-    </div>
-
-    <!-- Existing Drawings List -->
-    <div id="drawings-container">
-        <h4>Existing Drawings:</h4>
-        <div id="existing-drawings-list" class="scrollable-list">
-            <!-- Existing drawings will be appended here -->
-            {% for drawing in existing_drawings %}
-                <div class="existing-drawing">
-                    <span>Name: {{ drawing.drw_name }} Number: {{ drawing.drw_number }},</span>
-                    <button type="button" class="remove-existing-drawing-button" data-drawing-id="{{ drawing.id }}">Remove</button>
+            <!-- Existing Drawings List -->
+            <div id="drawings-container">
+                <h4>Existing Drawings:</h4>
+                <div id="existing-drawings-list" class="scrollable-list">
+                    {% for drawing in existing_drawings %}
+                        <div class="existing-drawing">
+                            <span>Name: {{ drawing.drw_name }}, Number: {{ drawing.drw_number }}</span>
+                            <button type="button" class="remove-existing-drawing-button" data-drawing-id="{{ drawing.id }}">Remove</button>
+                        </div>
+                    {% endfor %}
                 </div>
-            {% endfor %}
+            </div>
+
+            <!-- Upload New Drawings -->
+            <h4>Upload New Drawings:</h4>
+            <div>
+                <!-- Input fields for drawing attributes -->
+                <label for="drw_equipment_name">Equipment Name:</label>
+                <input type="text" id="drw_equipment_name"><br>
+
+                <label for="drw_number">Drawing Number:</label>
+                <input type="text" id="drw_number"><br>
+
+                <label for="drw_name">Drawing Name:</label>
+                <input type="text" id="drw_name" required><br>
+
+                <label for="drw_revision">Revision:</label>
+                <input type="text" id="drw_revision"><br>
+
+                <label for="drw_spare_part_number">Spare Part Number:</label>
+                <input type="text" id="drw_spare_part_number"><br>
+
+                <label for="drawings-upload">Upload Drawing:</label>
+                <input type="file" id="drawings-upload" accept=".pdf,.jpg,.jpeg,.png"><br>
+
+                <button type="button" id="upload-drawing-button">Upload Drawing</button>
+            </div>
+
+            <!-- Hidden Input for Position ID -->
+            <input type="hidden" id="position_id" value="{{ position.id }}">
         </div>
+
     </div>
-
-    <!-- Upload New Drawings -->
-    <h4>Upload New Drawings:</h4>
-    <div>
-        <!-- Input fields for drawing attributes -->
-        <label for="drw_equipment_name">Equipment Name:</label>
-        <input type="text" id="drw_equipment_name"><br>
-
-        <label for="drw_number">Drawing Number:</label>
-        <input type="text" id="drw_number"><br>
-
-        <label for="drw_name">Drawing Name:</label>
-        <input type="text" id="drw_name" required><br>
-
-        <label for="drw_revision">Revision:</label>
-        <input type="text" id="drw_revision"><br>
-
-        <label for="drw_spare_part_number">Spare Part Number:</label>
-        <input type="text" id="drw_spare_part_number"><br>
-
-        <label for="drawings-upload">Upload Drawing:</label>
-        <input type="file" id="drawings-upload" accept=".pdf,.jpg,.jpeg,.png"><br>
-
-        <button type="button" id="upload-drawing-button">Upload Drawing</button>
-    </div>
-
-    <!-- Hidden Input for Position ID -->
-<input type="hidden" id="position_id" value="{{ position.id }}">
-
-</details>
-
-
+</div>
 {% endblock %}
 
 {% block extra_scripts %}
@@ -605,17 +598,42 @@
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
 <!-- Toastr JS -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script
+<script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
 <!-- Include Select2 JS -->
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
+<!-- Your custom scripts -->
 <script src="{{ url_for('static', filename='js/position_data_assignment_data_add_dependencies.js') }}"></script>
 <script src="{{ url_for('static', filename='js/get_position_data_assignment_data.js') }}"></script>
 <script src="{{ url_for('static', filename='js/base_sidebar.js') }}"></script>
-<script src="{{ url_for('static', filename= 'js/get_position_data_assignment_data_part.js')}}"></script>
+<script src="{{ url_for('static', filename='js/get_position_data_assignment_data_part.js') }}"></script>
 <script src="{{ url_for('static', filename='js/get_position_data_assignment_data_image.js') }}"></script>
 <script src="{{ url_for('static', filename='js/get_position_data_assignment_data_drawing.js') }}"></script>
-<script src="{{ url_for('static', filename='js/get_position_data_assignment_data_document.js')}}"></script>
+<script src="{{ url_for('static', filename='js/get_position_data_assignment_data_document.js') }}"></script>
+
+<!-- Tab Functionality Script -->
+<script>
+    // Tab functionality
+    document.addEventListener('DOMContentLoaded', function() {
+        const tabs = document.querySelectorAll('.tab-item');
+        const contents = document.querySelectorAll('.tab-content');
+
+        tabs.forEach(tab => {
+            tab.addEventListener('click', function() {
+                // Remove 'active' class from all tabs and contents
+                tabs.forEach(item => item.classList.remove('active'));
+                contents.forEach(content => content.classList.remove('active'));
+
+                // Add 'active' class to the clicked tab and corresponding content
+                this.classList.add('active');
+                const tabContent = document.getElementById(this.getAttribute('data-tab'));
+                tabContent.classList.add('active');
+            });
+        });
+    });
+</script>
+
+<!-- Script for handling AJAX calls -->
 <script>
     var getEquipmentGroupsUrl = "{{ url_for('position_data_assignment_bp.get_equipment_groups') }}";
     var getModelsUrl = "{{ url_for('position_data_assignment_bp.get_models') }}";
@@ -625,22 +643,19 @@
     var getPositionsUrl = "{{ url_for('position_data_assignment_bp.get_positions') }}";
 
     $('#searchPositionBtn').click(function() {
-    $.ajax({
-        url: getPositionsUrl,
-        method: 'GET',
-        data: $('#searchPositionForm').serialize(),
-        success: function(data) {
-            console.log('Positions data:', data); // Check the data structure
-            // Here, render or debug the data to ensure it's being received correctly.
-        },
-        error: function(xhr, status, error) {
-            console.error("Error fetching positions:", error);
-            alert("An error occurred while fetching positions.");
-        }
+        $.ajax({
+            url: getPositionsUrl,
+            method: 'GET',
+            data: $('#searchPositionForm').serialize(),
+            success: function(data) {
+                console.log('Positions data:', data); // Check the data structure
+                // Here, render or debug the data to ensure it's being received correctly.
+            },
+            error: function(xhr, status, error) {
+                console.error("Error fetching positions:", error);
+                alert("An error occurred while fetching positions.");
+            }
+        });
     });
-});
-
-
-
 </script>
 {% endblock %}
