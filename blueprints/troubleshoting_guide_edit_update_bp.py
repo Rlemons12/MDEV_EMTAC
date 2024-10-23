@@ -3,7 +3,7 @@ from flask import (Blueprint, request, redirect, url_for,
                    jsonify, flash, render_template)
 import logging
 from config_env import DatabaseConfig  # Ensure this path is correct
-from emtacdb_fts import (ImagePositionAssociation,DrawingPositionAssociation,Drawing, Problem, Solution, ImageProblemAssociation,
+from emtacdb_fts import (CompletedDocumentPositionAssociation, ImagePositionAssociation,DrawingPositionAssociation,Drawing, Problem, Solution, ImageProblemAssociation,
                          ImageSolutionAssociation, CompleteDocumentProblemAssociation,
                          Part, PartProblemAssociation, DrawingProblemAssociation,
                          PartsPositionImageAssociation, ProblemPositionAssociation)
