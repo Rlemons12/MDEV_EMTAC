@@ -83,7 +83,7 @@ def update_problem_solution():
     logger.info(f"Selected Drawing IDs: {selected_drawing_ids}")
 
     # Check required fields
-    if not (problem_name and tsg_model_id and tsg_location_id and problem_description and solution_description):
+    if not (problem_name and tsg_area_id and tsg_equipment_group_id and problem_description and solution_description):
         return jsonify({'error': 'All required fields are not provided'}), 400
 
     # Convert lists to integers
