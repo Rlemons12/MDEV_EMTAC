@@ -4,6 +4,8 @@
     <!-- Include base and custom styles for this page -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/position_data_assignment.css') }}">
+    <!-- Toastr CSS -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css" rel="stylesheet" />
 {% endblock %}
 
 {% block title %}Position Data Assignment{% endblock %}
@@ -440,66 +442,75 @@
         </div>
 
         <!-- Manage Documents Section -->
-        <div id="documents-tab" class="tab-content">
-            <!-- Hidden Field for Position ID -->
-            <input type="hidden" id="position_id" name="position_id">
+<div id="documents-tab" class="tab-content">
+    <!-- Hidden Field for Position ID -->
+    <input type="hidden" id="position_id" name="position_id" value="{{ position.id }}">
 
-            <!-- Search Bar for Filtering Documents -->
-            <div style="position: relative;">
-                <label for="search-documents">Search Documents:</label>
-                <input type="text" id="search-documents" placeholder="Search documents...">
-                <!-- Suggestion Box -->
-                <div id="document-suggestion-box" class="suggestion-box" style="display:none;"></div>
-            </div>
+    <!-- Search Bar for Filtering Documents -->
+    <div style="position: relative;">
+        <label for="search-documents">Search Documents:</label>
+        <input type="text" id="search-documents" placeholder="Search documents...">
+        <!-- Suggestion Box -->
+        <div id="document-suggestion-box" class="suggestion-box" style="display: none;"></div>
+    </div>
 
-            <!-- Existing Documents List -->
-            <h4>Existing Documents:</h4>
-            <div id="existing-documents-list" class="scrollable-list"></div>
+    <!-- Existing Documents List -->
+    <h4>Existing Documents:</h4>
+    <div id="existing-documents-list" class="scrollable-list">
+        <!-- Existing documents will be rendered here -->
+    </div>
 
-            <!-- Pagination Controls -->
-            <div id="documents-pagination" class="pagination-controls"></div>
-        </div>
+    <!-- Pagination Controls -->
+    <div id="documents-pagination" class="pagination-controls"></div>
+</div>
 
-        <!-- Manage Parts Section -->
-        <div id="parts-tab" class="tab-content">
-            <!-- Parts Search Functionality -->
-            <div>
-                <label for="parts-search">Parts Search:</label>
-                <input type="text" id="parts-search" placeholder="Search parts...">
-                <div id="suggestion-box" class="suggestion-box" style="display: none;"></div>
-            </div>
+<!-- Manage Parts Section -->
+<div id="parts-tab" class="tab-content">
+<!-- Updated Hidden Input for Position ID in Manage Parts -->
+<input type="hidden" id="position_id" name="position_id" value="{{ position.id }}">
 
-            <!-- Existing Parts List -->
-            <div id="parts-container">
-                <h4>Existing Parts:</h4>
-                <div id="existing-parts-list" class="scrollable-list">
-                    {% for part in existing_parts %}
-                        <div class="existing-part">
-                            <span>Part Number: {{ part.part_number }} - {{ part.name }}</span>
-                            <button type="button" onclick="removeExistingPart(this, '{{ part.id }}', '{{ position.id }}')">Remove</button>
-                        </div>
-                    {% endfor %}
+
+    <!-- Parts Search -->
+    <div style="position: relative;">
+        <label for="parts-search">Search Parts:</label>
+        <input type="text" id="parts-search" placeholder="Search parts...">
+        <div id="parts-suggestion-box" class="suggestion-box" style="display: none;"></div>
+    </div>
+
+    <!-- Existing Parts List -->
+    <div id="parts-container">
+        <h4>Existing Parts:</h4>
+        <div id="existing-parts-list" class="scrollable-list">
+            {% for part in existing_parts %}
+                <div class="existing-part" id="part-{{ part.id }}">
+                    <span>Part Number: {{ part.part_number }}, Name: {{ part.name }}</span>
+                    <button type="button" class="remove-existing-part-button"
+                            data-part-id="{{ part.id }}" data-position-id="{{ position.position_id }}">Remove</button>
                 </div>
-            </div>
-
-            <!-- Add New Parts Section -->
-            <h4>Add New Parts:</h4>
-            <div id="new-parts-container">
-                <!-- New part entries will be dynamically added here -->
-            </div>
-
-            <!-- Hidden Field for Position ID -->
-            <input type="hidden" id="position_id" name="position_id" value="{{ position.id }}">
-
-            <!-- Button to Add More Parts -->
-            <button type="button" id="add-part-button">Add Another Part</button>
-
-            <!-- Button to Submit New Parts -->
-            <button type="button" id="submit-parts-button">Submit New Parts</button>
+            {% endfor %}
         </div>
+    </div>
+
+    <!-- Pagination Controls -->
+    <div id="parts-pagination" class="pagination-controls"></div>
+
+    <!-- Add New Parts Section -->
+    <h4>Add New Parts:</h4>
+    <div id="new-parts-container">
+        <!-- Dynamically added part entries will appear here -->
+    </div>
+
+    <!-- Button to Add More Parts -->
+    <button type="button" id="add-part-button">Add Another Part</button>
+
+    <!-- Button to Submit New Parts -->
+    <button type="button" id="submit-parts-button">Submit New Parts</button>
+</div>
 
         <!-- Manage Images Section -->
         <div id="images-tab" class="tab-content">
+        <!-- Hidden Field for Position ID -->
+        <input type="hidden" id="position_id" name="position_id" value="{{ position.id }}">
             <!-- Search Images -->
             <div>
                 <label for="images-search">Search Images:</label>
@@ -531,8 +542,7 @@
             <button type="button" id="add-image-button">Add Another Image</button>
             <button type="button" id="submit-images-button">Submit New Images</button>
 
-            <!-- Hidden Input for Position ID -->
-            <input type="hidden" id="position_id" value="{{ position.id }}">
+
         </div>
 
         <!-- Manage Drawings Section -->
@@ -641,6 +651,7 @@
     var getLocationsUrl = "{{ url_for('position_data_assignment_bp.get_locations') }}";
     var getSiteLocationsUrl = "{{ url_for('position_data_assignment_bp.get_site_locations') }}";
     var getPositionsUrl = "{{ url_for('position_data_assignment_bp.get_positions') }}";
+    var removeImageFromPositionUrl = "{{ url_for('position_data_assignment_bp.remove_image_from_position') }}";
 
     $('#searchPositionBtn').click(function() {
         $.ajax({

@@ -550,7 +550,12 @@ def remove_part_from_position():
             session.commit()
 
             logger.info(f"Removed Part ID {part_id} from Position ID {position_id}")
-            return jsonify({'message': 'Part successfully removed from position'}), 200
+            return jsonify({
+                'success': True,
+                'message': 'Part successfully added to position',
+                'part_id': part_id
+
+            }), 200
     except Exception as e:
         logger.error(f"Error removing part from position: {e}")
         return jsonify({'message': 'Failed to remove part from position'}), 500
@@ -788,7 +793,6 @@ def add_image_to_position():
     except Exception as e:
         logging.error(f"Error adding image to position: {e}", exc_info=True)
         return jsonify({'message': 'Failed to add image to position'}), 500
-
 
 @position_data_assignment_bp.route('/remove_image_from_position', methods=['POST'])
 def remove_image_from_position():

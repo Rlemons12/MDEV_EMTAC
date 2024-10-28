@@ -240,193 +240,174 @@ $(document).ready(function() {
     function removePartEntry(button) {
         button.parentElement.remove();
     }
-// Function to fetch and display parts, images, drawings, and other position details
-$('#searchPositionBtn').click(function() {
+$('#searchPositionBtn').click(function () {
     $.ajax({
         url: getPositionsUrl,
         method: 'GET',
         data: $('#searchPositionForm').serialize(),
-        success: function(data) {
-            // Clear existing data in sections
-            $('#existing-parts-list').empty();
-            $('#existing-images-list').empty();
-            $('#existing-drawings-list').empty();
-            $('#position_display').val('');  // Clear position display
-            $('#edit_areaDropdown').val('');
-            $('#edit_equipmentGroupDropdown').val('');
-            $('#edit_modelDropdown').val('');
-            $('#edit_assetNumberDropdown').val('');
-            $('#edit_locationDropdown').val('');
-            $('#edit_area_name').val('');
-            $('#edit_area_description').val('');
-            $('#edit_model_name').val('');
-            $('#edit_model_description').val('');
-            $('#edit_assetNumber').val('');
-            $('#edit_assetNumber_description').val('');
-            $('#edit_siteLocationDropdown').val('');  // Clear site location dropdown
-            $('#edit_siteLocation_title').val('');  // Clear site location title
-            $('#edit_siteLocation_roomNumber').val('');  // Clear site location room number
+        success: function (data) {
+            clearAllSections();
 
-            // Assuming 'data' is an array of positions
-            data.forEach(function(position) {
-                // Log the position data for debugging
+            data.forEach(function (position) {
                 console.log('Position Data:', position);
 
-                // Set position ID in the position display (visible field)
-                if (position.position_id) {
-                    $('#position_display').val(position.position_id); // Display the position ID
-                    console.log('Position ID set to display:', position.position_id);
-                }
-
-                // Set position ID in the hidden field as well (for form submission)
-                if (position.position_id) {
-                    $('#position_id').val(position.position_id); // Hidden field for form submission
-                    console.log('Position ID set to hidden field:', position.position_id);
-                }
-
-                // Set area
-                if (position.area && position.area.id) {
-                    $('#edit_areaDropdown').val(position.area.id);
-                    $('#edit_area_name').val(position.area.name); // Set area name
-                    $('#edit_area_description').val(position.area.description); // Set area description
-                    console.log('Area set to:', position.area.id);
-                }
-
-                // Set equipment group
-                if (position.equipment_group && position.equipment_group.id) {
-                    $('#edit_equipmentGroupDropdown').val(position.equipment_group.id);
-                    console.log('Equipment Group set to:', position.equipment_group.id);
-                }
-
-                // Set model
-                if (position.model && position.model.id) {
-                    $('#edit_modelDropdown').val(position.model.id);
-                    $('#edit_model_name').val(position.model.name); // Set model name
-                    $('#edit_model_description').val(position.model.description); // Set model description
-                    console.log('Model set to:', position.model.id);
-                }
-
-                // Set asset number
-                if (position.asset_number && position.asset_number.id) {
-                    $('#edit_assetNumberDropdown').val(position.asset_number.id);
-                    $('#edit_assetNumber').val(position.asset_number.number); // Set asset number
-                    $('#edit_assetNumber_description').val(position.asset_number.description); // Set asset number description
-                    console.log('Asset Number set to:', position.asset_number.id);
-                }
-
-                // Set location
-                if (position.location && position.location.id) {
-                    // Set the location ID in the dropdown
-                    $('#edit_locationDropdown').val(position.location.id);
-                    console.log('Location set to:', position.location.id);
-
-                    // Set the location name
-                    if (position.location.name) {
-                        $('#edit_location_name').val(position.location.name);
-                        console.log('Location name set to:', position.location.name);
-                    }
-
-                    // Set the location description
-                    if (position.location.description) {
-                        $('#edit_location_description').val(position.location.description);
-                        console.log('Location description set to:', position.location.description);
-                    } else {
-                        $('#edit_location_description').val('');  // Clear the description if not available
-                        console.log('Location description cleared');
-                    }
-                }
-
-                // Set site location
-                if (position.site_location && position.site_location.id) {
-                    $('#edit_siteLocationDropdown').val(position.site_location.id);  // Set site location in dropdown
-                    $('#edit_siteLocation_title').val(position.site_location.title);  // Set site location title
-                    $('#edit_siteLocation_roomNumber').val(position.site_location.room_number);  // Set site location room number
-                    console.log('Site Location set to:', position.site_location.id);
-                    console.log('Site Location title set to:', position.site_location.title);
-                    console.log('Site Location room number set to:', position.site_location.room_number);
-                } else {
-                    // Clear fields if site location is not available
-                    $('#edit_siteLocationDropdown').val('');
-                    $('#edit_siteLocation_title').val('');
-                    $('#edit_siteLocation_roomNumber').val('');
-                    console.log('Site Location cleared');
-                }
-
-                // Render parts
-                if (position.parts.length > 0) {
-                    position.parts.forEach(function(part) {
-                        $('#existing-parts-list').append(`<p>Part Number: ${part.part_number}, Name: ${part.name}</p>`);
-                    });
-                    console.log(`Rendered ${position.parts.length} parts`);
-                } else {
-                    $('#existing-parts-list').append('<p>No parts available.</p>');
-                    console.log('No parts available for this position');
-                }
-
-                // Render images
-                if (position.images && position.images.length > 0) {
-                    position.images.forEach(function(image) {
-                        const safeTitle = image.title ? escapeHtml(image.title) : 'N/A';
-                        const safeDescription = image.description ? escapeHtml(image.description) : 'No description available';
-
-                        $('#existing-images-list').append(`
-                            <div class="existing-image" id="image-${image.image_id}">
-                                <span>Title: ${safeTitle}, Description: ${safeDescription}</span>
-                                <button type="button" class="remove-existing-image-button" data-image-id="${image.image_id}">Remove</button>
-                            </div>
-                        `);
-                    });
-                    console.log(`Rendered ${position.images.length} images`);
-                } else {
-                    $('#existing-images-list').append('<p>No images available.</p>');
-                    console.log('No images available for this position');
-                }
-
-
-                // Render documents
-                if (position.documents && position.documents.length > 0) {
-                    position.documents.forEach(function(doc) {
-                        const safeTitle = doc.title ? escapeHtml(doc.title) : 'N/A';
-                        const safeRev = doc.rev ? escapeHtml(doc.rev) : 'N/A';
-
-                        $('#existing-documents-list').append(`
-                            <div class="existing-document" id="document-${doc.document_id}">
-                                <span>Title: ${safeTitle}, Revision: ${safeRev}</span>
-                                <button type="button" class="remove-existing-document-button" data-document-id="${doc.document_id}">Remove</button>
-                            </div>
-                        `);
-                    });
-                    console.log(`Rendered ${position.documents.length} documents`);
-                } else {
-                    $('#existing-documents-list').append('<p>No documents available.</p>');
-                    console.log('No documents available for this position');
-                }
-
-
-                // Render drawings
-                if (position.drawings.length > 0) {
-                    position.drawings.forEach(function(drawing) {
-                        $('#existing-drawings-list').append(`
-                            <div class="existing-drawing">
-                                <span>Drawing Name: ${drawing.drw_name}, Number: ${drawing.drw_number}</span>
-                                <button type="button" class="remove-existing-drawing-button" data-drawing-id="${drawing.drawing_id}">Remove</button>
-                            </div>
-                        `);
-                    });
-                    console.log(`Rendered ${position.drawings.length} drawings`);
-                } else {
-                    $('#existing-drawings-list').append('<p>No drawings available.</p>');
-                    console.log('No drawings available for this position');
-                }
-
+                setPositionDetails(position);
+                renderParts(position.parts);
+                renderImages(position.images);
+                renderDocuments(position.documents);
+                renderDrawings(position.drawings);
             });
         },
-        error: function(xhr, status, error) {
+        error: function (xhr, status, error) {
             console.error("Error fetching positions:", error);
             alert("An error occurred while fetching positions.");
         }
     });
 });
+
+// Function to clear all sections before rendering
+function clearAllSections() {
+    $('#existing-parts-list, #existing-images-list, #existing-documents-list, #existing-drawings-list').empty();
+    $('#position_display, #edit_areaDropdown, #edit_equipmentGroupDropdown, #edit_modelDropdown, #edit_assetNumberDropdown, #edit_locationDropdown, #edit_area_name, #edit_area_description, #edit_model_name, #edit_model_description, #edit_assetNumber, #edit_assetNumber_description, #edit_siteLocationDropdown, #edit_siteLocation_title, #edit_siteLocation_roomNumber').val('');
+}
+
+// Function to set position details
+function setPositionDetails(position) {
+    const positionId = position.position_id || position.id;
+    if (positionId) {
+        $('#position_display, #position_id').val(positionId);
+        console.log('Position ID set:', positionId);
+    }
+
+    if (position.area) {
+        $('#edit_areaDropdown').val(position.area.id);
+        $('#edit_area_name').val(position.area.name);
+        $('#edit_area_description').val(position.area.description);
+    }
+
+    if (position.equipment_group) {
+        $('#edit_equipmentGroupDropdown').val(position.equipment_group.id);
+    }
+
+    if (position.model) {
+        $('#edit_modelDropdown').val(position.model.id);
+        $('#edit_model_name').val(position.model.name);
+        $('#edit_model_description').val(position.model.description);
+    }
+
+    if (position.asset_number) {
+        $('#edit_assetNumberDropdown').val(position.asset_number.id);
+        $('#edit_assetNumber').val(position.asset_number.number);
+        $('#edit_assetNumber_description').val(position.asset_number.description);
+    }
+
+    if (position.location) {
+        $('#edit_locationDropdown').val(position.location.id);
+        $('#edit_location_name').val(position.location.name);
+        $('#edit_location_description').val(position.location.description || '');
+    }
+
+    if (position.site_location) {
+        $('#edit_siteLocationDropdown').val(position.site_location.id);
+        $('#edit_siteLocation_title').val(position.site_location.title);
+        $('#edit_siteLocation_roomNumber').val(position.site_location.room_number);
+    }
+}
+
+function renderParts(parts) {
+    const partsList = $('#existing-parts-list');
+    partsList.empty();
+
+    if (!parts || parts.length === 0) {
+        partsList.append('<p>No parts available.</p>');
+        return;
+    }
+
+    parts.forEach(function (part) {
+        console.log('Rendering part:', part); // Debugging log
+        const partEntry = $(`
+            <div class="existing-part" id="part-${part.part_id}">
+                <span>Part Number: ${escapeHtml(part.part_number)}, Name: ${escapeHtml(part.name)}</span>
+                <button type="button" class="remove-existing-part-button" data-part-id="${part.part_id}">Remove</button>
+            </div>
+        `);
+        partsList.append(partEntry);
+    });
+}
+
+
+
+// Function to render images
+function renderImages(images) {
+    const imagesList = $('#existing-images-list');
+    imagesList.empty();
+
+    if (!images || images.length === 0) {
+        imagesList.append('<p>No images available.</p>');
+        return;
+    }
+
+    images.forEach(function (image) {
+        const safeTitle = escapeHtml(image.title || 'N/A');
+        const safeDescription = escapeHtml(image.description || 'No description available');
+
+        imagesList.append(`
+            <div class="existing-image" id="image-${image.image_id}">
+                <span>Title: ${safeTitle}, Description: ${safeDescription}</span>
+                <button type="button" class="remove-existing-image-button" data-image-id="${image.image_id}">Remove</button>
+            </div>
+        `);
+    });
+}
+
+// Function to render documents
+function renderDocuments(documents) {
+    const documentsList = $('#existing-documents-list');
+    documentsList.empty();
+
+    if (!documents || documents.length === 0) {
+        documentsList.append('<p>No documents available.</p>');
+        return;
+    }
+
+    documents.forEach(function (doc) {
+        const safeTitle = escapeHtml(doc.title || 'N/A');
+        const safeRev = escapeHtml(doc.rev || 'N/A');
+
+        documentsList.append(`
+            <div class="existing-document" id="document-${doc.document_id}">
+                <span>Title: ${safeTitle}, Revision: ${safeRev}</span>
+                <button type="button" class="remove-existing-document-button" data-document-id="${doc.document_id}">Remove</button>
+            </div>
+        `);
+    });
+}
+
+// Function to render drawings
+function renderDrawings(drawings) {
+    const drawingsList = $('#existing-drawings-list');
+    drawingsList.empty();
+
+    if (!drawings || drawings.length === 0) {
+        drawingsList.append('<p>No drawings available.</p>');
+        return;
+    }
+
+    drawings.forEach(function (drawing) {
+        drawingsList.append(`
+            <div class="existing-drawing">
+                <span>Drawing Name: ${drawing.drw_name}, Number: ${drawing.drw_number}</span>
+                <button type="button" class="remove-existing-drawing-button" data-drawing-id="${drawing.drawing_id}">Remove</button>
+            </div>
+        `);
+    });
+}
+
+// Utility function to escape HTML to prevent XSS
+function escapeHtml(text) {
+    return $('<div>').text(text).html();
+}
+
 
     // Functions to paginate and filter parts, images, and drawings
     let allParts = [], allImages = [], allDrawings = [], allDocuments = [];
@@ -566,4 +547,5 @@ $('#existing-images-list').on('click', '.remove-existing-image-button', function
         }
     });
 });
+
 

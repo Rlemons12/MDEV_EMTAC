@@ -85,9 +85,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     const removeButton = document.createElement('button');
                     removeButton.type = 'button';
                     removeButton.textContent = 'Remove';
-                    removeButton.addEventListener('click', function () {
-                        removeDrawingFromPosition(drawingId, positionId, drawingEntry);
-                    });
+                    removeButton.className = 'remove-existing-drawing-button';
+                    removeButton.setAttribute('data-drawing-id', drawingId);
 
                     drawingEntry.appendChild(drawingNameSpan);
                     drawingEntry.appendChild(removeButton);
@@ -177,9 +176,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     const removeButton = document.createElement('button');
                     removeButton.type = 'button';
                     removeButton.textContent = 'Remove';
-                    removeButton.addEventListener('click', function () {
-                        removeDrawingFromPosition(data.drawing_id, positionId, drawingEntry);
-                    });
+                    removeButton.className = 'remove-existing-drawing-button';
+                    removeButton.setAttribute('data-drawing-id', data.drawing_id);
 
                     drawingEntry.appendChild(drawingNameSpan);
                     drawingEntry.appendChild(removeButton);
@@ -217,20 +215,15 @@ document.addEventListener('DOMContentLoaded', function () {
         console.error('Upload button with id "upload-drawing-button" not found.');
     }
 
-    // Attach event listeners to remove buttons for existing drawings
-    function attachRemoveDrawingListeners() {
-        const removeButtons = document.querySelectorAll('.remove-existing-drawing-button');
-        removeButtons.forEach(button => {
-            button.addEventListener('click', function () {
-                const drawingId = this.getAttribute('data-drawing-id');
-                const positionIdElement = document.getElementById('position_id');
-                const positionId = positionIdElement ? positionIdElement.value.trim() : null;
-                removeDrawingFromPosition(drawingId, positionId, this.parentNode);
-            });
-        });
-    }
-
-    // Call the function after the DOM is loaded
-    attachRemoveDrawingListeners();
+    // Use event delegation for remove buttons
+    const existingDrawingsList = document.getElementById('existing-drawings-list');
+    existingDrawingsList.addEventListener('click', function(event) {
+        if (event.target && event.target.matches('button.remove-existing-drawing-button')) {
+            const drawingId = event.target.getAttribute('data-drawing-id');
+            const positionIdElement = document.getElementById('position_id');
+            const positionId = positionIdElement ? positionIdElement.value.trim() : null;
+            removeDrawingFromPosition(drawingId, positionId, event.target.parentNode);
+        }
+    });
 
 });
