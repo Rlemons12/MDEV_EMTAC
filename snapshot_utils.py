@@ -8,12 +8,12 @@ from emtac_revision_control_db import (
     VersionInfo, RevisionControlBase, revision_control_engine, 
     SiteLocationSnapshot, PositionSnapshot, AreaSnapshot, EquipmentGroupSnapshot, ModelSnapshot, 
     AssetNumberSnapshot, LocationSnapshot ,PartSnapshot, ImageSnapshot, ImageEmbeddingSnapshot, DrawingSnapshot, 
-    DocumentSnapshot, CompleteDocumentSnapshot, ProblemSnapshot, SolutionSnapshot, 
-    DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot, PartSolutionAssociationSnapshot, 
-    PartsPositionImageAssociationSnapshot, DrawingProblemAssociationSnapshot, DrawingSolutionAssociationSnapshot, 
+    DocumentSnapshot, CompleteDocumentSnapshot, ProblemSnapshot, TaskSnapshot,
+    DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot, PartTaskAssociationSnapshot,
+    PartsPositionImageAssociationSnapshot, DrawingProblemAssociationSnapshot, DrawingTaskAssociationSnapshot,
     ProblemPositionAssociationSnapshot, CompleteDocumentProblemAssociationSnapshot, 
-    CompleteDocumentSolutionAssociationSnapshot, ImageProblemAssociationSnapshot, 
-    ImageSolutionAssociationSnapshot, ImagePositionAssociationSnapshot, DrawingPositionAssociationSnapshot, 
+    CompleteDocumentTaskAssociationSnapshot, ImageProblemAssociationSnapshot,
+    ImageTaskAssociationSnapshot, ImagePositionAssociationSnapshot, DrawingPositionAssociationSnapshot,
     CompletedDocumentPositionAssociationSnapshot, ImageCompletedDocumentAssociationSnapshot, VersionInfo
 )
 from config import DATABASE_DIR, REVISION_CONTROL_DB_PATH 
@@ -127,9 +127,9 @@ def create_problem_snapshot(instance, session):
     logger.info(f"Creating snapshot for Problem: {instance.id}")
     create_snapshot(instance, session, ProblemSnapshot)
 
-def create_solution_snapshot(instance, session):
-    logger.info(f"Creating snapshot for Solution: {instance.id}")
-    create_snapshot(instance, session, SolutionSnapshot)
+def create_task_snapshot(instance, session):
+    logger.info(f"Creating snapshot for Task: {instance.id}")
+    create_snapshot(instance, session, TaskSnapshot)
 
 # Snapshot creation functions for junction tables
 def create_drawing_part_association_snapshot(instance, session):
@@ -144,17 +144,17 @@ def create_part_problem_association_snapshot(instance, session):
     logger.info(f"Creating snapshot for PartProblemAssociation: {instance.id}")
     create_snapshot(instance, session, PartProblemAssociationSnapshot)
 
-def create_part_solution_association_snapshot(instance, session):
-    logger.info(f"Creating snapshot for PartSolutionAssociation: {instance.id}")
-    create_snapshot(instance, session, PartSolutionAssociationSnapshot)
+def create_part_task_association_snapshot(instance, session):
+    logger.info(f"Creating snapshot for PartTaskAssociation: {instance.id}")
+    create_snapshot(instance, session, PartTaskAssociationSnapshot)
 
 def create_drawing_problem_association_snapshot(instance, session):
     logger.info(f"Creating snapshot for DrawingProblemAssociation: {instance.id}")
     create_snapshot(instance, session, DrawingProblemAssociationSnapshot)
 
-def create_drawing_solution_association_snapshot(instance, session):
-    logger.info(f"Creating snapshot for DrawingSolutionAssociation: {instance.id}")
-    create_snapshot(instance, session, DrawingSolutionAssociationSnapshot)
+def create_drawing_task_association_snapshot(instance, session):
+    logger.info(f"Creating snapshot for DrawingTaskAssociation: {instance.id}")
+    create_snapshot(instance, session, DrawingTaskAssociationSnapshot)
 
 def create_problem_position_association_snapshot(instance, session):
     logger.info(f"Creating snapshot for ProblemPositionAssociation: {instance.id}")
@@ -164,17 +164,17 @@ def create_complete_document_problem_association_snapshot(instance, session):
     logger.info(f"Creating snapshot for CompleteDocumentProblemAssociation: {instance.id}")
     create_snapshot(instance, session, CompleteDocumentProblemAssociationSnapshot)
 
-def create_complete_document_solution_association_snapshot(instance, session):
-    logger.info(f"Creating snapshot for CompleteDocumentSolutionAssociation: {instance.id}")
-    create_snapshot(instance, session, CompleteDocumentSolutionAssociationSnapshot)
+def create_complete_document_task_association_snapshot(instance, session):
+    logger.info(f"Creating snapshot for CompleteDocumentTaskAssociation: {instance.id}")
+    create_snapshot(instance, session, CompleteDocumentTaskAssociationSnapshot)
 
 def create_image_problem_association_snapshot(instance, session):
     logger.info(f"Creating snapshot for ImageProblemAssociation: {instance.id}")
     create_snapshot(instance, session, ImageProblemAssociationSnapshot)
 
-def create_image_solution_association_snapshot(instance, session):
-    logger.info(f"Creating snapshot for ImageSolutionAssociation: {instance.id}")
-    create_snapshot(instance, session, ImageSolutionAssociationSnapshot)
+def create_image_task_association_snapshot(instance, session):
+    logger.info(f"Creating snapshot for ImageTaskAssociation: {instance.id}")
+    create_snapshot(instance, session, ImageTaskAssociationSnapshot)
 
 def create_image_position_association_snapshot(instance, session):
     logger.info(f"Creating snapshot for ImagePositionAssociation: {instance.id}")

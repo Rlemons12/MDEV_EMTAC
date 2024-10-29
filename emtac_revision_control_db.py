@@ -185,8 +185,8 @@ class ProblemSnapshot(RevisionControlBase):
     version_id = Column(Integer, ForeignKey('version_info.id'), nullable=False)
     version = relationship("VersionInfo")
 
-class SolutionSnapshot(RevisionControlBase):
-    __tablename__ = 'solution_snapshot'
+class TaskSnapshot(RevisionControlBase):
+    __tablename__ = 'task_snapshot'
     snapshot_id = Column(Integer, primary_key=True, autoincrement=True)
     id = Column(Integer, nullable=False)
     description = Column(String, nullable=False)
@@ -226,12 +226,12 @@ class PartProblemAssociationSnapshot(RevisionControlBase):
     version_id = Column(Integer, ForeignKey('version_info.id'), nullable=False)
     version = relationship("VersionInfo")
 
-class PartSolutionAssociationSnapshot(RevisionControlBase):
-    __tablename__ = 'part_solution_association_snapshot'
+class PartTaskAssociationSnapshot(RevisionControlBase):
+    __tablename__ = 'part_task_association_snapshot'
     snapshot_id = Column(Integer, primary_key=True, autoincrement=True)
     id = Column(Integer, nullable=False)
     part_id = Column(Integer, nullable=False)
-    solution_id = Column(Integer, nullable=False)
+    task_id = Column(Integer, nullable=False)
     version_id = Column(Integer, ForeignKey('version_info.id'), nullable=False)
     version = relationship("VersionInfo")
 
@@ -244,12 +244,12 @@ class DrawingProblemAssociationSnapshot(RevisionControlBase):
     version_id = Column(Integer, ForeignKey('version_info.id'), nullable=False)
     version = relationship("VersionInfo")
 
-class DrawingSolutionAssociationSnapshot(RevisionControlBase):
-    __tablename__ = 'drawing_solution_association_snapshot'
+class DrawingTaskAssociationSnapshot(RevisionControlBase):
+    __tablename__ = 'drawing_task_association_snapshot'
     snapshot_id = Column(Integer, primary_key=True, autoincrement=True)
     id = Column(Integer, nullable=False)
     drawing_id = Column(Integer, nullable=False)
-    solution_id = Column(Integer, nullable=False)
+    task_id = Column(Integer, nullable=False)
     version_id = Column(Integer, ForeignKey('version_info.id'), nullable=False)
     version = relationship("VersionInfo")
 
@@ -283,12 +283,12 @@ class CompleteDocumentProblemAssociationSnapshot(RevisionControlBase):
     version_id = Column(Integer, ForeignKey('version_info.id'), nullable=False)
     version = relationship("VersionInfo")
 
-class CompleteDocumentSolutionAssociationSnapshot(RevisionControlBase):
-    __tablename__ = 'complete_document_solution_association_snapshot'
+class CompleteDocumentTaskAssociationSnapshot(RevisionControlBase):
+    __tablename__ = 'complete_document_task_association_snapshot'
     snapshot_id = Column(Integer, primary_key=True, autoincrement=True)
     id = Column(Integer, nullable=False)
     complete_document_id = Column(Integer, nullable=False)
-    solution_id = Column(Integer, nullable=False)
+    task_id = Column(Integer, nullable=False)
     version_id = Column(Integer, ForeignKey('version_info.id'), nullable=False)
     version = relationship("VersionInfo")
 
@@ -301,12 +301,12 @@ class ImageProblemAssociationSnapshot(RevisionControlBase):
     version_id = Column(Integer, ForeignKey('version_info.id'), nullable=False)
     version = relationship("VersionInfo")
 
-class ImageSolutionAssociationSnapshot(RevisionControlBase):
-    __tablename__ = 'image_solution_association_snapshot'
+class ImageTaskAssociationSnapshot(RevisionControlBase):
+    __tablename__ = 'image_task_association_snapshot'
     snapshot_id = Column(Integer, primary_key=True, autoincrement=True)
     id = Column(Integer, nullable=False)
     image_id = Column(Integer, nullable=False)
-    solution_id = Column(Integer, nullable=False)
+    task_id = Column(Integer, nullable=False)
     version_id = Column(Integer, ForeignKey('version_info.id'), nullable=False)
     version = relationship("VersionInfo")
 

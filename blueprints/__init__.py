@@ -4,10 +4,10 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from emtac_revision_control_db import (VersionInfo, RevisionControlBase, SiteLocationSnapshot, PositionSnapshot, AreaSnapshot,
     EquipmentGroupSnapshot, ModelSnapshot, AssetNumberSnapshot, PartSnapshot, ImageSnapshot,
     ImageEmbeddingSnapshot, DrawingSnapshot, DocumentSnapshot, CompleteDocumentSnapshot,
-    ProblemSnapshot, SolutionSnapshot, DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot,
-    PartSolutionAssociationSnapshot, DrawingProblemAssociationSnapshot, DrawingSolutionAssociationSnapshot,
+    ProblemSnapshot, TaskSnapshot, DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot,
+    PartTaskAssociationSnapshot, DrawingProblemAssociationSnapshot, DrawingTaskAssociationSnapshot,
     ProblemPositionAssociationSnapshot, CompleteDocumentProblemAssociationSnapshot,
-    CompleteDocumentSolutionAssociationSnapshot, ImageProblemAssociationSnapshot, ImageSolutionAssociationSnapshot,
+    CompleteDocumentTaskAssociationSnapshot, ImageProblemAssociationSnapshot, ImageTaskAssociationSnapshot,
     ImagePositionAssociationSnapshot, DrawingPositionAssociationSnapshot, CompletedDocumentPositionAssociationSnapshot,
     ImageCompletedDocumentAssociationSnapshot
 )
@@ -19,17 +19,17 @@ from emtacdb_fts import (split_text_into_chunks, AIModelConfig, ImageEmbedding, 
                          PartsPositionImageAssociation, ImagePositionAssociation, DrawingPositionAssociation,
                          CompletedDocumentPositionAssociation, ImageCompletedDocumentAssociation,
                          ProblemPositionAssociation, ImageProblemAssociation, CompleteDocumentProblemAssociation,
-                         ImageSolutionAssociation, UserLevel, User, AIModelConfig, load_config_from_db, load_image_model_config_from_db)
+                         ImageTaskAssociation, UserLevel, User, AIModelConfig, load_config_from_db, load_image_model_config_from_db)
 
 from snapshot_utils import(
     create_sitlocation_snapshot, create_position_snapshot,create_snapshot,
     create_area_snapshot, create_equipment_group_snapshot, create_model_snapshot, create_asset_number_snapshot,
     create_part_snapshot, create_image_snapshot, create_image_embedding_snapshot, create_drawing_snapshot,
-    create_document_snapshot, create_complete_document_snapshot, create_problem_snapshot, create_solution_snapshot,
-    create_drawing_part_association_snapshot, create_part_problem_association_snapshot, create_part_solution_association_snapshot,
-    create_drawing_problem_association_snapshot, create_drawing_solution_association_snapshot, create_problem_position_association_snapshot,
-    create_complete_document_problem_association_snapshot, create_complete_document_solution_association_snapshot,
-    create_image_problem_association_snapshot, create_image_solution_association_snapshot, create_image_position_association_snapshot,
+    create_document_snapshot, create_complete_document_snapshot, create_problem_snapshot, create_task_snapshot,
+    create_drawing_part_association_snapshot, create_part_problem_association_snapshot, create_part_task_association_snapshot,
+    create_drawing_problem_association_snapshot, create_drawing_task_association_snapshot, create_problem_position_association_snapshot,
+    create_complete_document_problem_association_snapshot, create_complete_document_task_association_snapshot,
+    create_image_problem_association_snapshot, create_image_task_association_snapshot, create_image_position_association_snapshot,
     create_drawing_position_association_snapshot, create_completed_document_position_association_snapshot, create_image_completed_document_association_snapshot,
     create_parts_position_association_snapshot)
 

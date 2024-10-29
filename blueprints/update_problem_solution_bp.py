@@ -6,8 +6,8 @@ from sqlalchemy.ext.declarative import declarative_base
 from blueprints import DATABASE_URL
 from emtacdb_fts import (
     Problem, Task, Area, EquipmentGroup, Model, AssetNumber, Location, Image,
-    ImageProblemAssociation, create_position, ImageSolutionAssociation, Document, CompleteDocument, Part, Drawing,
-    PartProblemAssociation, PartTaskAssociation, DrawingProblemAssociation, DrawingSolutionAssociation,
+    ImageProblemAssociation, create_position, ImageTaskAssociation, Document, CompleteDocument, Part, Drawing,
+    PartProblemAssociation, PartTaskAssociation, DrawingProblemAssociation, DrawingPositionAssociation,
     ProblemPositionAssociation
 )
 

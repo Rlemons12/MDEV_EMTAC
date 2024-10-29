@@ -44,12 +44,12 @@ from emtac_revision_control_db import (
     VersionInfo, RevisionControlBase, revision_control_engine, LocationSnapshot, 
     SiteLocationSnapshot, PositionSnapshot, AreaSnapshot, EquipmentGroupSnapshot, ModelSnapshot, 
     AssetNumberSnapshot, PartSnapshot, ImageSnapshot, ImageEmbeddingSnapshot, DrawingSnapshot, 
-    DocumentSnapshot, CompleteDocumentSnapshot, ProblemSnapshot, taskSnapshot, 
-    DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot, ParttaskAssociationSnapshot, 
-    PartsPositionImageAssociationSnapshot, DrawingProblemAssociationSnapshot, DrawingtaskAssociationSnapshot, 
+    DocumentSnapshot, CompleteDocumentSnapshot, ProblemSnapshot, TaskSnapshot,
+    DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot, PartTaskAssociationSnapshot,
+    PartsPositionImageAssociationSnapshot, DrawingProblemAssociationSnapshot, DrawingTaskAssociationSnapshot,
     ProblemPositionAssociationSnapshot, CompleteDocumentProblemAssociationSnapshot, 
-    CompleteDocumenttaskAssociationSnapshot, ImageProblemAssociationSnapshot, 
-    ImagetaskAssociationSnapshot, ImagePositionAssociationSnapshot, DrawingPositionAssociationSnapshot, 
+    CompleteDocumentTaskAssociationSnapshot, ImageProblemAssociationSnapshot,
+    ImageTaskAssociationSnapshot, ImagePositionAssociationSnapshot, DrawingPositionAssociationSnapshot,
     CompletedDocumentPositionAssociationSnapshot, ImageCompletedDocumentAssociationSnapshot 
 )
 from auditlog import AuditLog, log_event_listeners, log_insert, log_update, log_delete  # Ensure this is the correct module for these functions
