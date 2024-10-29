@@ -1,8 +1,8 @@
 from flask import Blueprint, request, flash, jsonify, url_for
 from emtacdb_fts import (
-    ImageProblemAssociation, ImageSolutionAssociation, CompleteDocument, get_total_images_count, create_thumbnail,
+    ImageProblemAssociation, ImageTaskAssociation, CompleteDocument, get_total_images_count, create_thumbnail,
     Image, serve_image, Problem, Task, Document, Position, ProblemPositionAssociation, SiteLocation, CompleteDocumentProblemAssociation,
-    Area, EquipmentGroup, Model, AssetNumber, Location, BillOfMaterial, Part, Drawing, DrawingProblemAssociation, DrawingSolutionAssociation,
+    Area, EquipmentGroup, Model, AssetNumber, Location, BillOfMaterial, Part, Drawing, DrawingProblemAssociation, DrawingTaskAssociation,
     PartProblemAssociation, PartTaskAssociation, PartsPositionImageAssociation
 )
 from blueprints import DATABASE_URL
@@ -88,7 +88,7 @@ def search_problem_solution():
         all_parts = []
         all_drawings = []
 
-        # Construct response containing the problems and associated solutions
+        # Construct response containing the problems and associated Tasks
         response = []
         for problem in problems:
             position = problem.problem_position[0].position if problem.problem_position else None
@@ -149,7 +149,7 @@ def search_problem_solution():
                 }
 
                 # Fetch drawings related to this solution
-                drawing_solution_associations = session.query(DrawingSolutionAssociation).filter_by(
+                drawing_solution_associations = session.query(DrawingTaskAssociation).filter_by(
                     solution_id=solution.id).all()
                 logger.info(f"Drawing associations for solution {solution.id}: {drawing_solution_associations}")
                 for drawing_association in drawing_solution_associations:
@@ -184,7 +184,7 @@ def search_problem_solution():
                 problem_info['solutions'].append(solution_info)
 
                 # Query and add images associated with the solution
-                image_solution_associations = session.query(ImageSolutionAssociation).filter_by(
+                image_solution_associations = session.query(ImageTaskAssociation).filter_by(
                     solution_id=solution.id).all()
                 logger.info(f"Image associations for solution {solution.id}: {image_solution_associations}")
                 for association in image_solution_associations:

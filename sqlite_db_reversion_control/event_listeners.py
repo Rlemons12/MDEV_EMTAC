@@ -8,21 +8,21 @@ from sqlalchemy.ext.declarative import declarative_base
 from emtacdb_fts import (
     SiteLocation, Position, Area, EquipmentGroup, Model, AssetNumber, Location, Part, Image,
     ImageEmbedding, Drawing, Document, CompleteDocument, Problem, Task, PowerPoint, DrawingPartAssociation,
-    PartProblemAssociation, PartTaskAssociation, DrawingProblemAssociation, DrawingSolutionAssociation,
-    BillOfMaterial, ProblemPositionAssociation, CompleteDocumentProblemAssociation, CompleteDocumentSolutionAssociation, ImageProblemAssociation,
-    ImageSolutionAssociation, PartsPositionImageAssociation, ImagePositionAssociation, DrawingPositionAssociation,
+    PartProblemAssociation, PartTaskAssociation, DrawingProblemAssociation, DrawingTaskAssociation,
+    BillOfMaterial, ProblemPositionAssociation, CompleteDocumentProblemAssociation, CompleteDocumentTaskAssociation, ImageProblemAssociation,
+    ImageTaskAssociation, PartsPositionImageAssociation, ImagePositionAssociation, DrawingPositionAssociation,
     CompletedDocumentPositionAssociation, ImageCompletedDocumentAssociation
 )
 from emtac_revision_control_db import (AssetNumberSnapshot,
-    AreaSnapshot, PositionSnapshot, SiteLocationSnapshot, CompleteDocumentSnapshot,
-    DocumentSnapshot, ModelSnapshot, LocationSnapshot, PartSnapshot, ImageSnapshot,
-    ImageEmbeddingSnapshot, DrawingSnapshot, SolutionSnapshot, ProblemSnapshot, EquipmentGroupSnapshot,
-    PowerPointSnapshot, DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot, PartSolutionAssociationSnapshot,
-    DrawingProblemAssociationSnapshot, DrawingSolutionAssociationSnapshot, BillOfMaterialSnapshot,
-    ProblemPositionAssociationSnapshot, CompleteDocumentProblemAssociationSnapshot, CompleteDocumentSolutionAssociationSnapshot,
-    ImageProblemAssociationSnapshot, ImageSolutionAssociationSnapshot, PartsPositionImageAssociationSnapshot, ImagePositionAssociationSnapshot,
-    DrawingPositionAssociationSnapshot, CompletedDocumentPositionAssociationSnapshot, ImageCompletedDocumentAssociationSnapshot
-)
+                                       AreaSnapshot, PositionSnapshot, SiteLocationSnapshot, CompleteDocumentSnapshot,
+                                       DocumentSnapshot, ModelSnapshot, LocationSnapshot, PartSnapshot, ImageSnapshot,
+                                       ImageEmbeddingSnapshot, DrawingSnapshot, TaskSnapshot, ProblemSnapshot, EquipmentGroupSnapshot,
+                                       PowerPointSnapshot, DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot, PartTaskAssociationSnapshot,
+                                       DrawingProblemAssociationSnapshot, DrawingTaskAssociationSnapshot, BillOfMaterialSnapshot,
+                                       ProblemPositionAssociationSnapshot, CompleteDocumentProblemAssociationSnapshot, CompleteDocumentTaskAssociationSnapshot,
+                                       ImageProblemAssociationSnapshot, ImageTaskAssociationSnapshot, PartsPositionImageAssociationSnapshot, ImagePositionAssociationSnapshot,
+                                       DrawingPositionAssociationSnapshot, CompletedDocumentPositionAssociationSnapshot, ImageCompletedDocumentAssociationSnapshot
+                                       )
 from auditlog import log_insert, log_update, log_delete, log_event_listeners, AuditLog
 from sqlalchemy.orm import sessionmaker
 import logging
@@ -170,11 +170,11 @@ def register_event_listeners():
 
     # Solution events
     log_event_listeners('Solution')
-    event.listen(Task, 'after_insert', lambda m, c, t: log_insert(m, c, t, SolutionSnapshot, RevisionControlSession()))
+    event.listen(Task, 'after_insert', lambda m, c, t: log_insert(m, c, t, TaskSnapshot, RevisionControlSession()))
     logger.info("Event listener for 'after_insert' on Solution has been set up.")
-    event.listen(Task, 'after_update', lambda m, c, t: log_update(m, c, t, SolutionSnapshot, RevisionControlSession()))
+    event.listen(Task, 'after_update', lambda m, c, t: log_update(m, c, t, TaskSnapshot, RevisionControlSession()))
     logger.info("Event listener for 'after_update' on Solution has been set up.")
-    event.listen(Task, 'after_delete', lambda m, c, t: log_delete(m, c, t, SolutionSnapshot, RevisionControlSession()))
+    event.listen(Task, 'after_delete', lambda m, c, t: log_delete(m, c, t, TaskSnapshot, RevisionControlSession()))
     logger.info("Event listener for 'after_delete' on Solution has been set up.")
 
     # PowerPoint events
@@ -207,11 +207,11 @@ def register_event_listeners():
 
     # PartSolutionAssociation events
     log_event_listeners('PartSolutionAssociation')
-    event.listen(PartTaskAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, PartSolutionAssociationSnapshot, RevisionControlSession()))
+    event.listen(PartTaskAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, PartTaskAssociationSnapshot, RevisionControlSession()))
     logger.info("Event listener for 'after_insert' on PartSolutionAssociation has been set up.")
-    event.listen(PartTaskAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, PartSolutionAssociationSnapshot, RevisionControlSession()))
+    event.listen(PartTaskAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, PartTaskAssociationSnapshot, RevisionControlSession()))
     logger.info("Event listener for 'after_update' on PartSolutionAssociation has been set up.")
-    event.listen(PartTaskAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, PartSolutionAssociationSnapshot, RevisionControlSession()))
+    event.listen(PartTaskAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, PartTaskAssociationSnapshot, RevisionControlSession()))
     logger.info("Event listener for 'after_delete' on PartSolutionAssociation has been set up.")
 
     # DrawingProblemAssociation events
@@ -225,11 +225,11 @@ def register_event_listeners():
 
     # DrawingSolutionAssociation events
     log_event_listeners('DrawingSolutionAssociation')
-    event.listen(DrawingSolutionAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, DrawingSolutionAssociationSnapshot  , RevisionControlSession()))
+    event.listen(DrawingTaskAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, DrawingTaskAssociationSnapshot, RevisionControlSession()))
     logger.info("Event listener for 'after_insert' on DrawingSolutionAssociation has been set up.")
-    event.listen(DrawingSolutionAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, DrawingSolutionAssociationSnapshot  , RevisionControlSession()))
+    event.listen(DrawingTaskAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, DrawingTaskAssociationSnapshot, RevisionControlSession()))
     logger.info("Event listener for 'after_update' on DrawingSolutionAssociation has been set up.")
-    event.listen(DrawingSolutionAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, DrawingSolutionAssociationSnapshot  , RevisionControlSession()))
+    event.listen(DrawingTaskAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, DrawingTaskAssociationSnapshot, RevisionControlSession()))
     logger.info("Event listener for 'after_delete' on DrawingSolutionAssociation has been set up.")
 
     # BillOfMaterial events
@@ -261,11 +261,11 @@ def register_event_listeners():
 
     # CompleteDocumentSolutionAssociation events
     log_event_listeners('CompleteDocumentSolutionAssociation')
-    event.listen(CompleteDocumentSolutionAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, CompleteDocumentSolutionAssociationSnapshot  , RevisionControlSession()))
+    event.listen(CompleteDocumentTaskAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, CompleteDocumentTaskAssociationSnapshot, RevisionControlSession()))
     logger.info("Event listener for 'after_insert' on CompleteDocumentSolutionAssociation has been set up.")
-    event.listen(CompleteDocumentSolutionAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, CompleteDocumentSolutionAssociationSnapshot  , RevisionControlSession()))
+    event.listen(CompleteDocumentTaskAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, CompleteDocumentTaskAssociationSnapshot, RevisionControlSession()))
     logger.info("Event listener for 'after_update' on CompleteDocumentSolutionAssociation has been set up.")
-    event.listen(CompleteDocumentSolutionAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, CompleteDocumentSolutionAssociationSnapshot  , RevisionControlSession()))
+    event.listen(CompleteDocumentTaskAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, CompleteDocumentTaskAssociationSnapshot, RevisionControlSession()))
     logger.info("Event listener for 'after_delete' on CompleteDocumentSolutionAssociation has been set up.")
 
     # ImageProblemAssociation events
@@ -279,11 +279,11 @@ def register_event_listeners():
 
     # ImageSolutionAssociation events
     log_event_listeners('ImageSolutionAssociation')
-    event.listen(ImageSolutionAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, ImageSolutionAssociationSnapshot  , RevisionControlSession()))
+    event.listen(ImageTaskAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, ImageTaskAssociationSnapshot, RevisionControlSession()))
     logger.info("Event listener for 'after_insert' on ImageSolutionAssociation has been set up.")
-    event.listen(ImageSolutionAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, ImageSolutionAssociationSnapshot  , RevisionControlSession()))
+    event.listen(ImageTaskAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, ImageTaskAssociationSnapshot, RevisionControlSession()))
     logger.info("Event listener for 'after_update' on ImageSolutionAssociation has been set up.")
-    event.listen(ImageSolutionAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, ImageSolutionAssociationSnapshot  , RevisionControlSession()))
+    event.listen(ImageTaskAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, ImageTaskAssociationSnapshot, RevisionControlSession()))
     logger.info("Event listener for 'after_delete' on ImageSolutionAssociation has been set up.")
 
     # PartsPositionImageAssociation events

@@ -2,15 +2,15 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from emtac_revision_control_db import (VersionInfo, RevisionControlBase, SiteLocationSnapshot, PositionSnapshot, AreaSnapshot,
-    EquipmentGroupSnapshot, ModelSnapshot, AssetNumberSnapshot, PartSnapshot, ImageSnapshot,
-    ImageEmbeddingSnapshot, DrawingSnapshot, DocumentSnapshot, CompleteDocumentSnapshot,
-    ProblemSnapshot, TaskSnapshot, DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot,
-    PartTaskAssociationSnapshot, DrawingProblemAssociationSnapshot, DrawingTaskAssociationSnapshot,
-    ProblemPositionAssociationSnapshot, CompleteDocumentProblemAssociationSnapshot,
-    CompleteDocumentTaskAssociationSnapshot, ImageProblemAssociationSnapshot, ImageTaskAssociationSnapshot,
-    ImagePositionAssociationSnapshot, DrawingPositionAssociationSnapshot, CompletedDocumentPositionAssociationSnapshot,
-    ImageCompletedDocumentAssociationSnapshot
-)
+                                       EquipmentGroupSnapshot, ModelSnapshot, AssetNumberSnapshot, PartSnapshot, ImageSnapshot,
+                                       ImageEmbeddingSnapshot, DrawingSnapshot, DocumentSnapshot, CompleteDocumentSnapshot,
+                                       ProblemSnapshot, TaskSnapshot, DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot,
+                                       PartTaskAssociationSnapshot, DrawingProblemAssociationSnapshot, DrawingTaskAssociationSnapshot,
+                                       ProblemPositionAssociationSnapshot, CompleteDocumentProblemAssociationSnapshot,
+                                       CompleteDocumentTaskAssociationSnapshot, ImageProblemAssociationSnapshot, ImageTaskAssociationSnapshot,
+                                       ImagePositionAssociationSnapshot, DrawingPositionAssociationSnapshot, CompletedDocumentPositionAssociationSnapshot,
+                                       ImageCompletedDocumentAssociationSnapshot
+                                       )
 from emtacdb_fts import (split_text_into_chunks, AIModelConfig, ImageEmbedding, ImageModelConfig, ChatSession, User, engine, search_documents_fts, search_images_by_keyword, find_keyword_and_extract_detail,
                          load_keywords_to_db, perform_action_based_on_keyword, load_keywords_and_patterns,
                          find_most_relevant_document, create_session, update_session, get_session, QandA,
@@ -22,7 +22,7 @@ from emtacdb_fts import (split_text_into_chunks, AIModelConfig, ImageEmbedding, 
                          ImageTaskAssociation, UserLevel, User, AIModelConfig, load_config_from_db, load_image_model_config_from_db)
 
 from snapshot_utils import(
-    create_sitlocation_snapshot, create_position_snapshot,create_snapshot,
+    create_sitlocation_snapshot, create_position_snapshot, create_snapshot,
     create_area_snapshot, create_equipment_group_snapshot, create_model_snapshot, create_asset_number_snapshot,
     create_part_snapshot, create_image_snapshot, create_image_embedding_snapshot, create_drawing_snapshot,
     create_document_snapshot, create_complete_document_snapshot, create_problem_snapshot, create_task_snapshot,

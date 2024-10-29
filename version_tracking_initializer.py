@@ -11,38 +11,38 @@ from emtacdb_fts import (
     EquipmentGroup, EquipmentGroupSnapshot, Model, ModelSnapshot, AssetNumber, AssetNumberSnapshot,
     Part, PartSnapshot, Image, ImageSnapshot, ImageEmbedding, ImageEmbeddingSnapshot, Drawing, DrawingSnapshot,
     Document, DocumentSnapshot, CompleteDocument, CompleteDocumentSnapshot, Problem, ProblemSnapshot,
-    Task, SolutionSnapshot, DrawingPartAssociation, DrawingPartAssociationSnapshot,
-    PartProblemAssociation, PartProblemAssociationSnapshot, PartTaskAssociation, PartSolutionAssociationSnapshot,
-    DrawingProblemAssociation, DrawingProblemAssociationSnapshot, DrawingSolutionAssociation, DrawingSolutionAssociationSnapshot,
+    Task, TaskSnapshot, DrawingPartAssociation, DrawingPartAssociationSnapshot,
+    PartProblemAssociation, PartProblemAssociationSnapshot, PartTaskAssociation, PartTaskAssociationSnapshot,
+    DrawingProblemAssociation, DrawingProblemAssociationSnapshot, DrawingTaskAssociation, DrawingTaskAssociationSnapshot,
     ProblemPositionAssociation, ProblemPositionAssociationSnapshot, CompleteDocumentProblemAssociation,
-    CompleteDocumentProblemAssociationSnapshot, CompleteDocumentSolutionAssociation, CompleteDocumentSolutionAssociationSnapshot,
-    ImageProblemAssociation, ImageProblemAssociationSnapshot, ImageSolutionAssociation, ImageSolutionAssociationSnapshot,
+    CompleteDocumentProblemAssociationSnapshot, CompleteDocumentTaskAssociation, CompleteDocumentTaskAssociationSnapshot,
+    ImageProblemAssociation, ImageProblemAssociationSnapshot, ImageTaskAssociation, ImageTaskAssociationSnapshot,
     ImagePositionAssociation, ImagePositionAssociationSnapshot, DrawingPositionAssociation, DrawingPositionAssociationSnapshot,
     CompletedDocumentPositionAssociation, CompletedDocumentPositionAssociationSnapshot, ImageCompletedDocumentAssociation,
     ImageCompletedDocumentAssociationSnapshot, PartsPositionImageAssociation
 )
 
 from emtac_revision_control_db import (
-    VersionInfo, RevisionControlBase, revision_control_engine, 
-    SiteLocationSnapshot, PositionSnapshot, AreaSnapshot, EquipmentGroupSnapshot, ModelSnapshot, 
-    AssetNumberSnapshot, PartSnapshot, ImageSnapshot, ImageEmbeddingSnapshot, DrawingSnapshot, 
-    DocumentSnapshot, CompleteDocumentSnapshot, ProblemSnapshot, SolutionSnapshot, 
-    DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot, PartSolutionAssociationSnapshot, 
-    PartsPositionImageAssociationSnapshot, DrawingProblemAssociationSnapshot, DrawingSolutionAssociationSnapshot, 
-    ProblemPositionAssociationSnapshot, CompleteDocumentProblemAssociationSnapshot, 
-    CompleteDocumentSolutionAssociationSnapshot, ImageProblemAssociationSnapshot, 
-    ImageSolutionAssociationSnapshot, ImagePositionAssociationSnapshot, DrawingPositionAssociationSnapshot, 
+    VersionInfo, RevisionControlBase, revision_control_engine,
+    SiteLocationSnapshot, PositionSnapshot, AreaSnapshot, EquipmentGroupSnapshot, ModelSnapshot,
+    AssetNumberSnapshot, PartSnapshot, ImageSnapshot, ImageEmbeddingSnapshot, DrawingSnapshot,
+    DocumentSnapshot, CompleteDocumentSnapshot, ProblemSnapshot, TaskSnapshot,
+    DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot, PartTaskAssociationSnapshot,
+    PartsPositionImageAssociationSnapshot, DrawingProblemAssociationSnapshot, DrawingTaskAssociationSnapshot,
+    ProblemPositionAssociationSnapshot, CompleteDocumentProblemAssociationSnapshot,
+    CompleteDocumentTaskAssociationSnapshot, ImageProblemAssociationSnapshot,
+    ImageTaskAssociationSnapshot, ImagePositionAssociationSnapshot, DrawingPositionAssociationSnapshot,
     CompletedDocumentPositionAssociationSnapshot, ImageCompletedDocumentAssociationSnapshot
 )
 from snapshot_utils import (
-    create_sitlocation_snapshot, create_position_snapshot,create_snapshot,
+    create_sitlocation_snapshot, create_position_snapshot, create_snapshot,
     create_area_snapshot, create_equipment_group_snapshot, create_model_snapshot, create_asset_number_snapshot,
     create_part_snapshot, create_image_snapshot, create_image_embedding_snapshot, create_drawing_snapshot,
-    create_document_snapshot, create_complete_document_snapshot, create_problem_snapshot, create_solution_snapshot,
-    create_drawing_part_association_snapshot, create_part_problem_association_snapshot, create_part_solution_association_snapshot,
-    create_drawing_problem_association_snapshot, create_drawing_solution_association_snapshot, create_problem_position_association_snapshot,
-    create_complete_document_problem_association_snapshot, create_complete_document_solution_association_snapshot,
-    create_image_problem_association_snapshot, create_image_solution_association_snapshot, create_image_position_association_snapshot,
+    create_document_snapshot, create_complete_document_snapshot, create_problem_snapshot, create_task_snapshot,
+    create_drawing_part_association_snapshot, create_part_problem_association_snapshot, create_part_task_association_snapshot,
+    create_drawing_problem_association_snapshot, create_drawing_task_association_snapshot, create_problem_position_association_snapshot,
+    create_complete_document_problem_association_snapshot, create_complete_document_task_association_snapshot,
+    create_image_problem_association_snapshot, create_image_task_association_snapshot, create_image_position_association_snapshot,
     create_drawing_position_association_snapshot, create_completed_document_position_association_snapshot, create_image_completed_document_association_snapshot,
     create_parts_position_association_snapshot
 )
@@ -104,17 +104,17 @@ def initialize_snapshots(main_session, revision_control_session):
             (Document, DocumentSnapshot),
             (CompleteDocument, CompleteDocumentSnapshot),
             (Problem, ProblemSnapshot),
-            (Task, SolutionSnapshot),
+            (Task, TaskSnapshot),
             (DrawingPartAssociation, DrawingPartAssociationSnapshot),
             (PartProblemAssociation, PartProblemAssociationSnapshot),
-            (PartTaskAssociation, PartSolutionAssociationSnapshot),
+            (PartTaskAssociation, PartTaskAssociationSnapshot),
             (DrawingProblemAssociation, DrawingProblemAssociationSnapshot),
-            (DrawingSolutionAssociation, DrawingSolutionAssociationSnapshot),
+            (DrawingTaskAssociation, DrawingTaskAssociationSnapshot),
             (ProblemPositionAssociation, ProblemPositionAssociationSnapshot),
             (CompleteDocumentProblemAssociation, CompleteDocumentProblemAssociationSnapshot),
-            (CompleteDocumentSolutionAssociation, CompleteDocumentSolutionAssociationSnapshot),
+            (CompleteDocumentTaskAssociation, CompleteDocumentTaskAssociationSnapshot),
             (ImageProblemAssociation, ImageProblemAssociationSnapshot),
-            (ImageSolutionAssociation, ImageSolutionAssociationSnapshot),
+            (ImageTaskAssociation, ImageTaskAssociationSnapshot),
             (ImagePositionAssociation, ImagePositionAssociationSnapshot),
             (DrawingPositionAssociation, DrawingPositionAssociationSnapshot),
             (CompletedDocumentPositionAssociation, CompletedDocumentPositionAssociationSnapshot),
@@ -207,7 +207,7 @@ def create_all_snapshots(main_session, revision_control_session):
             create_problem_snapshot(instance, revision_control_session)
         
         for instance in main_session.query(Task).all():
-            create_solution_snapshot(instance, revision_control_session)
+            create_task_snapshot(instance, revision_control_session)
         
         for instance in main_session.query(DrawingPartAssociation).all():
             create_drawing_part_association_snapshot(instance, revision_control_session)
@@ -219,13 +219,13 @@ def create_all_snapshots(main_session, revision_control_session):
             create_part_problem_association_snapshot(instance, revision_control_session)
         
         for instance in main_session.query(PartTaskAssociation).all():
-            create_part_solution_association_snapshot(instance, revision_control_session)
+            create_part_task_association_snapshot(instance, revision_control_session)
         
         for instance in main_session.query(DrawingProblemAssociation).all():
             create_drawing_problem_association_snapshot(instance, revision_control_session)
         
-        for instance in main_session.query(DrawingSolutionAssociation).all():
-            create_drawing_solution_association_snapshot(instance, revision_control_session)
+        for instance in main_session.query(DrawingTaskAssociation).all():
+            create_drawing_task_association_snapshot(instance, revision_control_session)
         
         for instance in main_session.query(ProblemPositionAssociation).all():
             create_problem_position_association_snapshot(instance, revision_control_session)
@@ -233,14 +233,14 @@ def create_all_snapshots(main_session, revision_control_session):
         for instance in main_session.query(CompleteDocumentProblemAssociation).all():
             create_complete_document_problem_association_snapshot(instance, revision_control_session)
         
-        for instance in main_session.query(CompleteDocumentSolutionAssociation).all():
-            create_complete_document_solution_association_snapshot(instance, revision_control_session)
+        for instance in main_session.query(CompleteDocumentTaskAssociation).all():
+            create_complete_document_task_association_snapshot(instance, revision_control_session)
         
         for instance in main_session.query(ImageProblemAssociation).all():
             create_image_problem_association_snapshot(instance, revision_control_session)
         
-        for instance in main_session.query(ImageSolutionAssociation).all():
-            create_image_solution_association_snapshot(instance, revision_control_session)
+        for instance in main_session.query(ImageTaskAssociation).all():
+            create_image_task_association_snapshot(instance, revision_control_session)
         
         for instance in main_session.query(PartsPositionImageAssociation).all():
             create_parts_position_association_snapshot(instance, revision_control_session)

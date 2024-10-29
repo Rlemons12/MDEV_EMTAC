@@ -41,13 +41,13 @@ from config import (CURRENT_EMBEDDING_MODEL, OPENAI_API_KEY, BASE_DIR, COPY_FILE
                     TEMPORARY_UPLOAD_FILES, UPLOAD_FOLDER,DATABASE_PATH_IMAGES_FOLDER, REVISION_CONTROL_DB_PATH)
 
 from emtac_revision_control_db import (
-    VersionInfo, RevisionControlBase, revision_control_engine, LocationSnapshot, 
-    SiteLocationSnapshot, PositionSnapshot, AreaSnapshot, EquipmentGroupSnapshot, ModelSnapshot, 
-    AssetNumberSnapshot, PartSnapshot, ImageSnapshot, ImageEmbeddingSnapshot, DrawingSnapshot, 
+    VersionInfo, RevisionControlBase, revision_control_engine, LocationSnapshot,
+    SiteLocationSnapshot, PositionSnapshot, AreaSnapshot, EquipmentGroupSnapshot, ModelSnapshot,
+    AssetNumberSnapshot, PartSnapshot, ImageSnapshot, ImageEmbeddingSnapshot, DrawingSnapshot,
     DocumentSnapshot, CompleteDocumentSnapshot, ProblemSnapshot, TaskSnapshot,
     DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot, PartTaskAssociationSnapshot,
     PartsPositionImageAssociationSnapshot, DrawingProblemAssociationSnapshot, DrawingTaskAssociationSnapshot,
-    ProblemPositionAssociationSnapshot, CompleteDocumentProblemAssociationSnapshot, 
+    ProblemPositionAssociationSnapshot, CompleteDocumentProblemAssociationSnapshot,
     CompleteDocumentTaskAssociationSnapshot, ImageProblemAssociationSnapshot,
     ImageTaskAssociationSnapshot, ImagePositionAssociationSnapshot, DrawingPositionAssociationSnapshot,
     CompletedDocumentPositionAssociationSnapshot, ImageCompletedDocumentAssociationSnapshot 

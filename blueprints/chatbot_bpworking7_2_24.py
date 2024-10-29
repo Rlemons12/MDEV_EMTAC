@@ -12,7 +12,7 @@ from emtacdb_fts import (
     PartsPositionImageAssociation, ImagePositionAssociation, DrawingPositionAssociation,
     CompletedDocumentPositionAssociation, ImageCompletedDocumentAssociation,
     ProblemPositionAssociation, ImageProblemAssociation, CompleteDocumentProblemAssociation,
-    CompleteDocumentProblemAssociation, ImageSolutionAssociation
+    CompleteDocumentProblemAssociation, ImageTaskAssociation
 )
 from datetime import datetime
 import logging

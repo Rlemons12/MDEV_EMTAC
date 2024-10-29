@@ -8,12 +8,12 @@ from emtacdb_fts import (
     EquipmentGroup, EquipmentGroupSnapshot, Model, ModelSnapshot, AssetNumber, AssetNumberSnapshot,
     Part, PartSnapshot, Image, ImageSnapshot, ImageEmbedding, ImageEmbeddingSnapshot, Drawing, DrawingSnapshot,
     Document, DocumentSnapshot, CompleteDocument, CompleteDocumentSnapshot, Problem, ProblemSnapshot,
-    Task, SolutionSnapshot, DrawingPartAssociation, DrawingPartAssociationSnapshot,
-    PartProblemAssociation, PartProblemAssociationSnapshot, PartTaskAssociation, PartSolutionAssociationSnapshot,
-    DrawingProblemAssociation, DrawingProblemAssociationSnapshot, DrawingSolutionAssociation, DrawingSolutionAssociationSnapshot,
+    Task, TaskSnapshot, DrawingPartAssociation, DrawingPartAssociationSnapshot,
+    PartProblemAssociation, PartProblemAssociationSnapshot, PartTaskAssociation, PartTaskAssociationSnapshot,
+    DrawingProblemAssociation, DrawingProblemAssociationSnapshot, DrawingTaskAssociation, DrawingTaskAssociationSnapshot,
     ProblemPositionAssociation, ProblemPositionAssociationSnapshot, CompleteDocumentProblemAssociation,
-    CompleteDocumentProblemAssociationSnapshot, CompleteDocumentSolutionAssociation, CompleteDocumentSolutionAssociationSnapshot,
-    ImageProblemAssociation, ImageProblemAssociationSnapshot, ImageSolutionAssociation, ImageSolutionAssociationSnapshot,
+    CompleteDocumentProblemAssociationSnapshot, CompleteDocumentTaskAssociation, CompleteDocumentTaskAssociationSnapshot,
+    ImageProblemAssociation, ImageProblemAssociationSnapshot, ImageTaskAssociation, ImageTaskAssociationSnapshot,
     ImagePositionAssociation, ImagePositionAssociationSnapshot, DrawingPositionAssociation, DrawingPositionAssociationSnapshot,
     CompletedDocumentPositionAssociation, CompletedDocumentPositionAssociationSnapshot, ImageCompletedDocumentAssociation,
     ImageCompletedDocumentAssociationSnapshot, PartsPositionImageAssociation
@@ -76,17 +76,17 @@ def initialize_snapshots(main_session, revision_control_session):
             (Document, DocumentSnapshot),
             (CompleteDocument, CompleteDocumentSnapshot),
             (Problem, ProblemSnapshot),
-            (Task, SolutionSnapshot),
+            (Task, TaskSnapshot),
             (DrawingPartAssociation, DrawingPartAssociationSnapshot),
             (PartProblemAssociation, PartProblemAssociationSnapshot),
-            (PartTaskAssociation, PartSolutionAssociationSnapshot),
+            (PartTaskAssociation, PartTaskAssociationSnapshot),
             (DrawingProblemAssociation, DrawingProblemAssociationSnapshot),
-            (DrawingSolutionAssociation, DrawingSolutionAssociationSnapshot),
+            (DrawingTaskAssociation, DrawingTaskAssociationSnapshot),
             (ProblemPositionAssociation, ProblemPositionAssociationSnapshot),
             (CompleteDocumentProblemAssociation, CompleteDocumentProblemAssociationSnapshot),
-            (CompleteDocumentSolutionAssociation, CompleteDocumentSolutionAssociationSnapshot),
+            (CompleteDocumentTaskAssociation, CompleteDocumentTaskAssociationSnapshot),
             (ImageProblemAssociation, ImageProblemAssociationSnapshot),
-            (ImageSolutionAssociation, ImageSolutionAssociationSnapshot),
+            (ImageTaskAssociation, ImageTaskAssociationSnapshot),
             (ImagePositionAssociation, ImagePositionAssociationSnapshot),
             (DrawingPositionAssociation, DrawingPositionAssociationSnapshot),
             (CompletedDocumentPositionAssociation, CompletedDocumentPositionAssociationSnapshot),
@@ -196,7 +196,7 @@ def create_all_snapshots(main_session, revision_control_session):
         for instance in main_session.query(DrawingProblemAssociation).all():
             create_drawing_problem_association_snapshot(instance, revision_control_session)
         
-        for instance in main_session.query(DrawingSolutionAssociation).all():
+        for instance in main_session.query(DrawingTaskAssociation).all():
             create_drawing_solution_association_snapshot(instance, revision_control_session)
         
         for instance in main_session.query(ProblemPositionAssociation).all():
@@ -205,13 +205,13 @@ def create_all_snapshots(main_session, revision_control_session):
         for instance in main_session.query(CompleteDocumentProblemAssociation).all():
             create_complete_document_problem_association_snapshot(instance, revision_control_session)
         
-        for instance in main_session.query(CompleteDocumentSolutionAssociation).all():
+        for instance in main_session.query(CompleteDocumentTaskAssociation).all():
             create_complete_document_solution_association_snapshot(instance, revision_control_session)
         
         for instance in main_session.query(ImageProblemAssociation).all():
             create_image_problem_association_snapshot(instance, revision_control_session)
         
-        for instance in main_session.query(ImageSolutionAssociation).all():
+        for instance in main_session.query(ImageTaskAssociation).all():
             create_image_solution_association_snapshot(instance, revision_control_session)
         
         for instance in main_session.query(PartsPositionImageAssociation).all():

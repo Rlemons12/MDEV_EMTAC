@@ -5,32 +5,32 @@ from sqlalchemy import create_engine, Column, Integer, String, JSON, DateTime,in
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import scoped_session, sessionmaker
 from snapshot_utils import (
-    get_latest_version_info, add_version_info, create_sitlocation_snapshot, 
-    create_position_snapshot, create_area_snapshot, create_equipment_group_snapshot, 
-    create_model_snapshot, create_asset_number_snapshot, create_part_snapshot, 
-    create_image_snapshot, create_image_embedding_snapshot, create_drawing_snapshot, 
-    create_document_snapshot, create_complete_document_snapshot, create_problem_snapshot, 
-    create_solution_snapshot, create_drawing_part_association_snapshot, 
-    create_part_problem_association_snapshot, create_part_solution_association_snapshot, 
-    create_drawing_problem_association_snapshot, create_drawing_solution_association_snapshot, 
-    create_problem_position_association_snapshot, create_complete_document_problem_association_snapshot, 
-    create_complete_document_solution_association_snapshot, create_image_problem_association_snapshot, 
-    create_image_solution_association_snapshot, create_image_position_association_snapshot, 
-    create_drawing_position_association_snapshot, create_completed_document_position_association_snapshot, 
-    create_image_completed_document_association_snapshot, create_snapshot, 
+    get_latest_version_info, add_version_info, create_sitlocation_snapshot,
+    create_position_snapshot, create_area_snapshot, create_equipment_group_snapshot,
+    create_model_snapshot, create_asset_number_snapshot, create_part_snapshot,
+    create_image_snapshot, create_image_embedding_snapshot, create_drawing_snapshot,
+    create_document_snapshot, create_complete_document_snapshot, create_problem_snapshot,
+    create_task_snapshot, create_drawing_part_association_snapshot,
+    create_part_problem_association_snapshot, create_part_task_association_snapshot,
+    create_drawing_problem_association_snapshot, create_drawing_task_association_snapshot,
+    create_problem_position_association_snapshot, create_complete_document_problem_association_snapshot,
+    create_complete_document_task_association_snapshot, create_image_problem_association_snapshot,
+    create_image_task_association_snapshot, create_image_position_association_snapshot,
+    create_drawing_position_association_snapshot, create_completed_document_position_association_snapshot,
+    create_image_completed_document_association_snapshot, create_snapshot,
     create_parts_position_association_snapshot
 )
 from config import DATABASE_DIR, REVISION_CONTROL_DB_PATH 
 from emtac_revision_control_db import (
-    VersionInfo, RevisionControlBase, revision_control_engine, LocationSnapshot, 
-    SiteLocationSnapshot, PositionSnapshot, AreaSnapshot, EquipmentGroupSnapshot, ModelSnapshot, 
-    AssetNumberSnapshot, PartSnapshot, ImageSnapshot, ImageEmbeddingSnapshot, DrawingSnapshot, 
-    DocumentSnapshot, CompleteDocumentSnapshot, ProblemSnapshot, SolutionSnapshot, 
-    DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot, PartSolutionAssociationSnapshot, 
-    PartsPositionImageAssociationSnapshot, DrawingProblemAssociationSnapshot, DrawingSolutionAssociationSnapshot, 
-    ProblemPositionAssociationSnapshot, CompleteDocumentProblemAssociationSnapshot, 
-    CompleteDocumentSolutionAssociationSnapshot, ImageProblemAssociationSnapshot, 
-    ImageSolutionAssociationSnapshot, ImagePositionAssociationSnapshot, DrawingPositionAssociationSnapshot, 
+    VersionInfo, RevisionControlBase, revision_control_engine, LocationSnapshot,
+    SiteLocationSnapshot, PositionSnapshot, AreaSnapshot, EquipmentGroupSnapshot, ModelSnapshot,
+    AssetNumberSnapshot, PartSnapshot, ImageSnapshot, ImageEmbeddingSnapshot, DrawingSnapshot,
+    DocumentSnapshot, CompleteDocumentSnapshot, ProblemSnapshot, TaskSnapshot,
+    DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot, PartTaskAssociationSnapshot,
+    PartsPositionImageAssociationSnapshot, DrawingProblemAssociationSnapshot, DrawingTaskAssociationSnapshot,
+    ProblemPositionAssociationSnapshot, CompleteDocumentProblemAssociationSnapshot,
+    CompleteDocumentTaskAssociationSnapshot, ImageProblemAssociationSnapshot,
+    ImageTaskAssociationSnapshot, ImagePositionAssociationSnapshot, DrawingPositionAssociationSnapshot,
     CompletedDocumentPositionAssociationSnapshot, ImageCompletedDocumentAssociationSnapshot
 )
 import traceback

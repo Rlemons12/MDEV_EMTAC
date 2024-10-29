@@ -6,7 +6,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from blueprints import DATABASE_URL
 from emtacdb_fts import (Area, EquipmentGroup, Model, AssetNumber, Location, Image, CompleteDocument, Part,
                          Drawing, Position, SiteLocation, Problem, Task,
-                         ImageProblemAssociation, ImageSolutionAssociation, CompleteDocumentProblemAssociation,
+                         ImageProblemAssociation, ImageTaskAssociation, CompleteDocumentProblemAssociation,
                          PartProblemAssociation, DrawingProblemAssociation)
 
 logging.basicConfig(level=logging.INFO)
@@ -94,7 +94,7 @@ def get_problem_solution_data(problem_id):
         problem_image_data = [{'id': img.image.id, 'title': img.image.title, 'file_path': img.image.file_path} for img in problem_images]
 
         # Fetch associated solution images
-        solution_images = session.query(ImageSolutionAssociation).filter_by(solution_id=solution.id).all() if solution else []
+        solution_images = session.query(ImageTaskAssociation).filter_by(solution_id=solution.id).all() if solution else []
         solution_image_data = [{'id': img.image.id, 'title': img.image.title, 'file_path': img.image.file_path} for img in solution_images]
 
         # Fetch associated documents

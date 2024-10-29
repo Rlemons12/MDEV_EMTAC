@@ -8,21 +8,21 @@ from sqlalchemy.ext.declarative import declarative_base
 from emtacdb_fts import (
     SiteLocation, Position, Area, EquipmentGroup, Model, AssetNumber, Location, Part, Image,
     ImageEmbedding, Drawing, Document, CompleteDocument, Problem, Task, PowerPoint, DrawingPartAssociation,
-    PartProblemAssociation, PartTaskAssociation, DrawingProblemAssociation, DrawingSolutionAssociation,
-    BillOfMaterial, ProblemPositionAssociation, CompleteDocumentProblemAssociation, CompleteDocumentSolutionAssociation, ImageProblemAssociation,
-    ImageSolutionAssociation, PartsPositionImageAssociation, ImagePositionAssociation, DrawingPositionAssociation,
+    PartProblemAssociation, PartTaskAssociation, DrawingProblemAssociation, DrawingTaskAssociation,
+    BillOfMaterial, ProblemPositionAssociation, CompleteDocumentProblemAssociation, CompleteDocumentTaskAssociation, ImageProblemAssociation,
+    ImageTaskAssociation, PartsPositionImageAssociation, ImagePositionAssociation, DrawingPositionAssociation,
     CompletedDocumentPositionAssociation, ImageCompletedDocumentAssociation
 )
 from emtac_revision_control_db import (AssetNumberSnapshot,
-    AreaSnapshot, PositionSnapshot, SiteLocationSnapshot, CompleteDocumentSnapshot,
-    DocumentSnapshot, ModelSnapshot, LocationSnapshot, PartSnapshot, ImageSnapshot,
-    ImageEmbeddingSnapshot, DrawingSnapshot, SolutionSnapshot, ProblemSnapshot, EquipmentGroupSnapshot,
-    PowerPointSnapshot, DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot, PartSolutionAssociationSnapshot,
-    DrawingProblemAssociationSnapshot, DrawingSolutionAssociationSnapshot, BillOfMaterialSnapshot,
-    ProblemPositionAssociationSnapshot, CompleteDocumentProblemAssociationSnapshot, CompleteDocumentSolutionAssociationSnapshot,
-    ImageProblemAssociationSnapshot, ImageSolutionAssociationSnapshot, PartsPositionImageAssociationSnapshot, ImagePositionAssociationSnapshot,
-    DrawingPositionAssociationSnapshot, CompletedDocumentPositionAssociationSnapshot, ImageCompletedDocumentAssociationSnapshot
-)
+                                       AreaSnapshot, PositionSnapshot, SiteLocationSnapshot, CompleteDocumentSnapshot,
+                                       DocumentSnapshot, ModelSnapshot, LocationSnapshot, PartSnapshot, ImageSnapshot,
+                                       ImageEmbeddingSnapshot, DrawingSnapshot, TaskSnapshot, ProblemSnapshot, EquipmentGroupSnapshot,
+                                       PowerPointSnapshot, DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot, PartTaskAssociationSnapshot,
+                                       DrawingProblemAssociationSnapshot, DrawingTaskAssociationSnapshot, BillOfMaterialSnapshot,
+                                       ProblemPositionAssociationSnapshot, CompleteDocumentProblemAssociationSnapshot, CompleteDocumentTaskAssociationSnapshot,
+                                       ImageProblemAssociationSnapshot, ImageTaskAssociationSnapshot, PartsPositionImageAssociationSnapshot, ImagePositionAssociationSnapshot,
+                                       DrawingPositionAssociationSnapshot, CompletedDocumentPositionAssociationSnapshot, ImageCompletedDocumentAssociationSnapshot
+                                       )
 from auditlog import log_insert, log_update, log_delete, log_event_listeners, AuditLog
 from sqlalchemy.orm import sessionmaker
 import logging

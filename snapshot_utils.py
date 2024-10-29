@@ -5,13 +5,13 @@ from sqlalchemy import create_engine, Column, Integer, String, JSON, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import scoped_session, sessionmaker
 from emtac_revision_control_db import (
-    VersionInfo, RevisionControlBase, revision_control_engine, 
-    SiteLocationSnapshot, PositionSnapshot, AreaSnapshot, EquipmentGroupSnapshot, ModelSnapshot, 
-    AssetNumberSnapshot, LocationSnapshot ,PartSnapshot, ImageSnapshot, ImageEmbeddingSnapshot, DrawingSnapshot, 
+    VersionInfo, RevisionControlBase, revision_control_engine,
+    SiteLocationSnapshot, PositionSnapshot, AreaSnapshot, EquipmentGroupSnapshot, ModelSnapshot,
+    AssetNumberSnapshot, LocationSnapshot , PartSnapshot, ImageSnapshot, ImageEmbeddingSnapshot, DrawingSnapshot,
     DocumentSnapshot, CompleteDocumentSnapshot, ProblemSnapshot, TaskSnapshot,
     DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot, PartTaskAssociationSnapshot,
     PartsPositionImageAssociationSnapshot, DrawingProblemAssociationSnapshot, DrawingTaskAssociationSnapshot,
-    ProblemPositionAssociationSnapshot, CompleteDocumentProblemAssociationSnapshot, 
+    ProblemPositionAssociationSnapshot, CompleteDocumentProblemAssociationSnapshot,
     CompleteDocumentTaskAssociationSnapshot, ImageProblemAssociationSnapshot,
     ImageTaskAssociationSnapshot, ImagePositionAssociationSnapshot, DrawingPositionAssociationSnapshot,
     CompletedDocumentPositionAssociationSnapshot, ImageCompletedDocumentAssociationSnapshot, VersionInfo

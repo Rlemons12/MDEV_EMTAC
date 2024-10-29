@@ -4,7 +4,7 @@ from flask import (Blueprint, request, redirect, url_for,
 import logging
 from config_env import DatabaseConfig  # Ensure this path is correct
 from emtacdb_fts import (CompletedDocumentPositionAssociation, ImagePositionAssociation, DrawingPositionAssociation, Drawing, Problem, Task, ImageProblemAssociation,
-                         ImageSolutionAssociation, CompleteDocumentProblemAssociation,
+                         ImageTaskAssociation, CompleteDocumentProblemAssociation,
                          Part, PartProblemAssociation, DrawingProblemAssociation,
                          PartsPositionImageAssociation, ProblemPositionAssociation)
 import traceback
@@ -346,7 +346,7 @@ def edit_update_problem_solution():
 
         # Update ImageSolutionAssociation
         update_associations(
-            ImageSolutionAssociation,
+            ImageTaskAssociation,
             'solution_id',
             solution_id,
             lambda sid, iid: {'solution_id': sid, 'image_id': iid},

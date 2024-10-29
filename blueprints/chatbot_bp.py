@@ -14,7 +14,7 @@ from emtacdb_fts import (
     PartsPositionImageAssociation, ImagePositionAssociation, DrawingPositionAssociation,
     CompletedDocumentPositionAssociation, ImageCompletedDocumentAssociation,
     ProblemPositionAssociation, ImageProblemAssociation, CompleteDocumentProblemAssociation,
-    ImageSolutionAssociation, AIModelConfig
+    ImageTaskAssociation, AIModelConfig
 )
 from datetime import datetime
 import sqlalchemy

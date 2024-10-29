@@ -4,10 +4,10 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy import create_engine
 from emtacdb_fts import (
     Problem, Task, Position, Part, Drawing,
-    ImageProblemAssociation, ImageSolutionAssociation,
-    CompleteDocumentProblemAssociation, CompleteDocumentSolutionAssociation,
+    ImageProblemAssociation, ImageTaskAssociation,
+    CompleteDocumentProblemAssociation, CompleteDocumentTaskAssociation,
     PartProblemAssociation, PartTaskAssociation, DrawingProblemAssociation,
-    DrawingSolutionAssociation, ProblemPositionAssociation, PartsPositionImageAssociation,
+    DrawingTaskAssociation, ProblemPositionAssociation, PartsPositionImageAssociation,
     DrawingPositionAssociation
 )
 from blueprints import DATABASE_URL
@@ -134,7 +134,7 @@ def update_problem_solution():
 
         # Associate Documents with Solution
         for doc_id in selected_document_ids:
-            document_association = CompleteDocumentSolutionAssociation(
+            document_association = CompleteDocumentTaskAssociation(
                 solution_id=solution.id,
                 complete_document_id=doc_id
             )
@@ -150,7 +150,7 @@ def update_problem_solution():
 
         # Associate Solution with Images
         for img_id in selected_solution_image_ids:
-            image_solution_association = ImageSolutionAssociation(
+            image_solution_association = ImageTaskAssociation(
                 image_id=img_id,
                 solution_id=solution.id
             )

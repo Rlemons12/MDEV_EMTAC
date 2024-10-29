@@ -21,7 +21,7 @@ from emtacdb_fts import (
     PartsPositionImageAssociation, ImagePositionAssociation, DrawingPositionAssociation,
     CompletedDocumentPositionAssociation, ImageCompletedDocumentAssociation,
     ProblemPositionAssociation, ImageProblemAssociation, CompleteDocumentProblemAssociation,
-    ImageSolutionAssociation, serve_image, UserLevel, load_config_from_db
+    ImageTaskAssociation, serve_image, UserLevel, load_config_from_db
 )
 from emtac_revision_control_db import AreaSnapshot
 from blueprints import register_blueprints
