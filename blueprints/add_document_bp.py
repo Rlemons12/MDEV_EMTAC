@@ -1,16 +1,16 @@
 import psutil
 from flask import Blueprint, request, jsonify, redirect, url_for
 from emtacdb_fts import (add_docx_to_db,
-    create_position, SiteLocation, extract_text_from_pdf, extract_text_from_txt, 
-    CompleteDocument, Document, split_text_into_chunks, generate_embedding, 
-    store_embedding, CURRENT_EMBEDDING_MODEL, Area, EquipmentGroup, AssetNumber, 
-    Model, Location, ChatSession, Position, Image, Drawing, Problem, Solution, 
-    Part, ImageEmbedding, PowerPoint, PartsPositionImageAssociation, 
-    ImagePositionAssociation, DrawingPositionAssociation, 
-    CompletedDocumentPositionAssociation, ImageCompletedDocumentAssociation, 
-    ProblemPositionAssociation, ImageProblemAssociation, 
-    CompleteDocumentProblemAssociation, ImageSolutionAssociation
-)
+                         create_position, SiteLocation, extract_text_from_pdf, extract_text_from_txt,
+                         CompleteDocument, Document, split_text_into_chunks, generate_embedding,
+                         store_embedding, CURRENT_EMBEDDING_MODEL, Area, EquipmentGroup, AssetNumber,
+                         Model, Location, ChatSession, Position, Image, Drawing, Problem, Task,
+                         Part, ImageEmbedding, PowerPoint, PartsPositionImageAssociation,
+                         ImagePositionAssociation, DrawingPositionAssociation,
+                         CompletedDocumentPositionAssociation, ImageCompletedDocumentAssociation,
+                         ProblemPositionAssociation, ImageProblemAssociation,
+                         CompleteDocumentProblemAssociation, ImageSolutionAssociation
+                         )
 from config import DATABASE_URL, DATABASE_DOC, DATABASE_DIR, TEMPORARY_UPLOAD_FILES, REVISION_CONTROL_DB_PATH
 import os
 from werkzeug.utils import secure_filename

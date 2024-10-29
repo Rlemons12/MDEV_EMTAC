@@ -5,7 +5,7 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
 from blueprints import DATABASE_URL
 from emtacdb_fts import (Area, EquipmentGroup, Model, AssetNumber, Location, Image, CompleteDocument, Part,
-                         Drawing, Position, SiteLocation, Problem, Solution,
+                         Drawing, Position, SiteLocation, Problem, Task,
                          ImageProblemAssociation, ImageSolutionAssociation, CompleteDocumentProblemAssociation,
                          PartProblemAssociation, DrawingProblemAssociation)
 
@@ -87,7 +87,7 @@ def get_problem_solution_data(problem_id):
         if not problem:
             return jsonify({'error': 'Problem not found'}), 404
 
-        solution = session.query(Solution).filter_by(problem_id=problem_id).first()
+        solution = session.query(Task).filter_by(problem_id=problem_id).first()
 
         # Fetch associated problem images
         problem_images = session.query(ImageProblemAssociation).filter_by(problem_id=problem_id).all()

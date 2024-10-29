@@ -3,7 +3,7 @@ from sqlalchemy import create_engine, and_
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
 from blueprints import DATABASE_URL
-from emtacdb_fts import Problem, Solution, ProblemPositionAssociation, PartProblemAssociation, PartSolutionAssociation, DrawingProblemAssociation, DrawingSolutionAssociation, Position
+from emtacdb_fts import Problem, Task, ProblemPositionAssociation, PartProblemAssociation, PartTaskAssociation, DrawingProblemAssociation, DrawingSolutionAssociation, Position
 import logging
 
 # Configure logging

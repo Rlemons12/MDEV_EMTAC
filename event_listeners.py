@@ -7,8 +7,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.declarative import declarative_base
 from emtacdb_fts import (
     SiteLocation, Position, Area, EquipmentGroup, Model, AssetNumber, Location, Part, Image,
-    ImageEmbedding, Drawing, Document, CompleteDocument, Problem, Solution, PowerPoint, DrawingPartAssociation,
-    PartProblemAssociation, PartSolutionAssociation, DrawingProblemAssociation, DrawingSolutionAssociation,
+    ImageEmbedding, Drawing, Document, CompleteDocument, Problem, Task, PowerPoint, DrawingPartAssociation,
+    PartProblemAssociation, PartTaskAssociation, DrawingProblemAssociation, DrawingSolutionAssociation,
     BillOfMaterial, ProblemPositionAssociation, CompleteDocumentProblemAssociation, CompleteDocumentSolutionAssociation, ImageProblemAssociation,
     ImageSolutionAssociation, PartsPositionImageAssociation, ImagePositionAssociation, DrawingPositionAssociation,
     CompletedDocumentPositionAssociation, ImageCompletedDocumentAssociation

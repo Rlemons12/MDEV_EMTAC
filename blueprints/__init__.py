@@ -12,14 +12,14 @@ from emtac_revision_control_db import (VersionInfo, RevisionControlBase, SiteLoc
     ImageCompletedDocumentAssociationSnapshot
 )
 from emtacdb_fts import (split_text_into_chunks, AIModelConfig, ImageEmbedding, ImageModelConfig, ChatSession, User, engine, search_documents_fts, search_images_by_keyword, find_keyword_and_extract_detail,
-    load_keywords_to_db, perform_action_based_on_keyword, load_keywords_and_patterns,
-    find_most_relevant_document, create_session, update_session, get_session, QandA,
-    ChatSession, Area, EquipmentGroup, Model, AssetNumber, Location, SiteLocation, Position,
-    Document, Image, Drawing, Problem, Solution, CompleteDocument, PowerPoint,
-    PartsPositionImageAssociation, ImagePositionAssociation, DrawingPositionAssociation,
-    CompletedDocumentPositionAssociation, ImageCompletedDocumentAssociation,
-    ProblemPositionAssociation, ImageProblemAssociation, CompleteDocumentProblemAssociation,
-    ImageSolutionAssociation, UserLevel, User, AIModelConfig, load_config_from_db, load_image_model_config_from_db)
+                         load_keywords_to_db, perform_action_based_on_keyword, load_keywords_and_patterns,
+                         find_most_relevant_document, create_session, update_session, get_session, QandA,
+                         ChatSession, Area, EquipmentGroup, Model, AssetNumber, Location, SiteLocation, Position,
+                         Document, Image, Drawing, Problem, Task, CompleteDocument, PowerPoint,
+                         PartsPositionImageAssociation, ImagePositionAssociation, DrawingPositionAssociation,
+                         CompletedDocumentPositionAssociation, ImageCompletedDocumentAssociation,
+                         ProblemPositionAssociation, ImageProblemAssociation, CompleteDocumentProblemAssociation,
+                         ImageSolutionAssociation, UserLevel, User, AIModelConfig, load_config_from_db, load_image_model_config_from_db)
 
 from snapshot_utils import(
     create_sitlocation_snapshot, create_position_snapshot,create_snapshot,

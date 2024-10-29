@@ -3,7 +3,7 @@ from flask import (Blueprint, request, redirect, url_for,
                    jsonify, flash, render_template)
 import logging
 from config_env import DatabaseConfig  # Ensure this path is correct
-from emtacdb_fts import (CompletedDocumentPositionAssociation, ImagePositionAssociation,DrawingPositionAssociation,Drawing, Problem, Solution, ImageProblemAssociation,
+from emtacdb_fts import (CompletedDocumentPositionAssociation, ImagePositionAssociation, DrawingPositionAssociation, Drawing, Problem, Task, ImageProblemAssociation,
                          ImageSolutionAssociation, CompleteDocumentProblemAssociation,
                          Part, PartProblemAssociation, DrawingProblemAssociation,
                          PartsPositionImageAssociation, ProblemPositionAssociation)
@@ -285,7 +285,7 @@ def edit_update_problem_solution():
             return render_template('troubleshooting_guide.html'), 404  # Not Found
 
         # Retrieve and update the solution record
-        solution = session.query(Solution).filter_by(id=solution_id).first()
+        solution = session.query(Task).filter_by(id=solution_id).first()
         if solution:
             logger.debug(f"Found Solution: ID={solution.id}")
             solution.description = solution_description

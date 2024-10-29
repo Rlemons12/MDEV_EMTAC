@@ -1,5 +1,5 @@
 from flask import Blueprint, request, render_template, flash, jsonify, url_for
-from emtacdb_fts import get_images_by_description, get_total_images_count, create_thumbnail, Image, serve_image, Problem, Solution, ImageProblemAssociation, ImageSolutionAssociation, CompleteDocument,ProblemCompleteDocumentAssociation, drawing_part_image_model_location_association
+from emtacdb_fts import get_images_by_description, get_total_images_count, create_thumbnail, Image, serve_image, Problem, Task, ImageProblemAssociation, ImageSolutionAssociation, CompleteDocument,ProblemCompleteDocumentAssociation, drawing_part_image_model_location_association
 from blueprints import DATABASE_URL
 from emtacdb_fts import Image
 from sqlalchemy import create_engine

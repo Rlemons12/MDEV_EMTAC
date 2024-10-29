@@ -5,9 +5,9 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
 from blueprints import DATABASE_URL
 from emtacdb_fts import (
-    Problem, Solution, Area, EquipmentGroup, Model, AssetNumber, Location, Image,
+    Problem, Task, Area, EquipmentGroup, Model, AssetNumber, Location, Image,
     ImageProblemAssociation, create_position, ImageSolutionAssociation, Document, CompleteDocument, Part, Drawing,
-    PartProblemAssociation, PartSolutionAssociation, DrawingProblemAssociation, DrawingSolutionAssociation,
+    PartProblemAssociation, PartTaskAssociation, DrawingProblemAssociation, DrawingSolutionAssociation,
     ProblemPositionAssociation
 )
 

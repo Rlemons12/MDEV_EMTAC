@@ -4,18 +4,18 @@ from concurrent.futures import ThreadPoolExecutor
 from sqlalchemy import inspect
 from auditlog import AuditLog
 from emtacdb_fts import (
-    SiteLocation, SiteLocationSnapshot, Position, PositionSnapshot, Area, AreaSnapshot, 
-    EquipmentGroup, EquipmentGroupSnapshot, Model, ModelSnapshot, AssetNumber, AssetNumberSnapshot, 
-    Part, PartSnapshot, Image, ImageSnapshot, ImageEmbedding, ImageEmbeddingSnapshot, Drawing, DrawingSnapshot, 
-    Document, DocumentSnapshot, CompleteDocument, CompleteDocumentSnapshot, Problem, ProblemSnapshot, 
-    Solution, SolutionSnapshot, DrawingPartAssociation, DrawingPartAssociationSnapshot, 
-    PartProblemAssociation, PartProblemAssociationSnapshot, PartSolutionAssociation, PartSolutionAssociationSnapshot, 
-    DrawingProblemAssociation, DrawingProblemAssociationSnapshot, DrawingSolutionAssociation, DrawingSolutionAssociationSnapshot, 
-    ProblemPositionAssociation, ProblemPositionAssociationSnapshot, CompleteDocumentProblemAssociation, 
-    CompleteDocumentProblemAssociationSnapshot, CompleteDocumentSolutionAssociation, CompleteDocumentSolutionAssociationSnapshot, 
-    ImageProblemAssociation, ImageProblemAssociationSnapshot, ImageSolutionAssociation, ImageSolutionAssociationSnapshot, 
-    ImagePositionAssociation, ImagePositionAssociationSnapshot, DrawingPositionAssociation, DrawingPositionAssociationSnapshot, 
-    CompletedDocumentPositionAssociation, CompletedDocumentPositionAssociationSnapshot, ImageCompletedDocumentAssociation, 
+    SiteLocation, SiteLocationSnapshot, Position, PositionSnapshot, Area, AreaSnapshot,
+    EquipmentGroup, EquipmentGroupSnapshot, Model, ModelSnapshot, AssetNumber, AssetNumberSnapshot,
+    Part, PartSnapshot, Image, ImageSnapshot, ImageEmbedding, ImageEmbeddingSnapshot, Drawing, DrawingSnapshot,
+    Document, DocumentSnapshot, CompleteDocument, CompleteDocumentSnapshot, Problem, ProblemSnapshot,
+    Task, SolutionSnapshot, DrawingPartAssociation, DrawingPartAssociationSnapshot,
+    PartProblemAssociation, PartProblemAssociationSnapshot, PartTaskAssociation, PartSolutionAssociationSnapshot,
+    DrawingProblemAssociation, DrawingProblemAssociationSnapshot, DrawingSolutionAssociation, DrawingSolutionAssociationSnapshot,
+    ProblemPositionAssociation, ProblemPositionAssociationSnapshot, CompleteDocumentProblemAssociation,
+    CompleteDocumentProblemAssociationSnapshot, CompleteDocumentSolutionAssociation, CompleteDocumentSolutionAssociationSnapshot,
+    ImageProblemAssociation, ImageProblemAssociationSnapshot, ImageSolutionAssociation, ImageSolutionAssociationSnapshot,
+    ImagePositionAssociation, ImagePositionAssociationSnapshot, DrawingPositionAssociation, DrawingPositionAssociationSnapshot,
+    CompletedDocumentPositionAssociation, CompletedDocumentPositionAssociationSnapshot, ImageCompletedDocumentAssociation,
     ImageCompletedDocumentAssociationSnapshot, PartsPositionImageAssociation
 )
 from emtac_revision_control_db import (
@@ -76,10 +76,10 @@ def initialize_snapshots(main_session, revision_control_session):
             (Document, DocumentSnapshot),
             (CompleteDocument, CompleteDocumentSnapshot),
             (Problem, ProblemSnapshot),
-            (Solution, SolutionSnapshot),
+            (Task, SolutionSnapshot),
             (DrawingPartAssociation, DrawingPartAssociationSnapshot),
             (PartProblemAssociation, PartProblemAssociationSnapshot),
-            (PartSolutionAssociation, PartSolutionAssociationSnapshot),
+            (PartTaskAssociation, PartSolutionAssociationSnapshot),
             (DrawingProblemAssociation, DrawingProblemAssociationSnapshot),
             (DrawingSolutionAssociation, DrawingSolutionAssociationSnapshot),
             (ProblemPositionAssociation, ProblemPositionAssociationSnapshot),
@@ -178,7 +178,7 @@ def create_all_snapshots(main_session, revision_control_session):
         for instance in main_session.query(Problem).all():
             create_problem_snapshot(instance, revision_control_session)
         
-        for instance in main_session.query(Solution).all():
+        for instance in main_session.query(Task).all():
             create_solution_snapshot(instance, revision_control_session)
         
         for instance in main_session.query(DrawingPartAssociation).all():
@@ -190,7 +190,7 @@ def create_all_snapshots(main_session, revision_control_session):
         for instance in main_session.query(PartProblemAssociation).all():
             create_part_problem_association_snapshot(instance, revision_control_session)
         
-        for instance in main_session.query(PartSolutionAssociation).all():
+        for instance in main_session.query(PartTaskAssociation).all():
             create_part_solution_association_snapshot(instance, revision_control_session)
         
         for instance in main_session.query(DrawingProblemAssociation).all():

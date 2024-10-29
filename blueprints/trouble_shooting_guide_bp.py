@@ -3,10 +3,10 @@ from flask import Blueprint, request, jsonify, render_template
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy import create_engine
 from emtacdb_fts import (
-    Problem, Solution, Position, Part, Drawing,
+    Problem, Task, Position, Part, Drawing,
     ImageProblemAssociation, ImageSolutionAssociation,
     CompleteDocumentProblemAssociation, CompleteDocumentSolutionAssociation,
-    PartProblemAssociation, PartSolutionAssociation, DrawingProblemAssociation,
+    PartProblemAssociation, PartTaskAssociation, DrawingProblemAssociation,
     DrawingSolutionAssociation, ProblemPositionAssociation, PartsPositionImageAssociation,
     DrawingPositionAssociation
 )
@@ -128,7 +128,7 @@ def update_problem_solution():
             session.add(document_association)
 
         # Create the Solution entity
-        solution = Solution(description=solution_description, problem=problem)
+        solution = Task(description=solution_description, problem=problem)
         session.add(solution)
         session.commit()
 
@@ -168,7 +168,7 @@ def update_problem_solution():
         # Associate Parts with Solution
         for part_id in selected_part_ids:
             logger.info(f"Associating part_id {part_id} with solution_id {solution.id}")
-            part_solution_association = PartSolutionAssociation(
+            part_solution_association = PartTaskAssociation(
                 part_id=part_id,
                 solution_id=solution.id
             )

@@ -44,12 +44,12 @@ from emtac_revision_control_db import (
     VersionInfo, RevisionControlBase, revision_control_engine, LocationSnapshot, 
     SiteLocationSnapshot, PositionSnapshot, AreaSnapshot, EquipmentGroupSnapshot, ModelSnapshot, 
     AssetNumberSnapshot, PartSnapshot, ImageSnapshot, ImageEmbeddingSnapshot, DrawingSnapshot, 
-    DocumentSnapshot, CompleteDocumentSnapshot, ProblemSnapshot, SolutionSnapshot, 
-    DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot, PartSolutionAssociationSnapshot, 
-    PartsPositionImageAssociationSnapshot, DrawingProblemAssociationSnapshot, DrawingSolutionAssociationSnapshot, 
+    DocumentSnapshot, CompleteDocumentSnapshot, ProblemSnapshot, taskSnapshot, 
+    DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot, ParttaskAssociationSnapshot, 
+    PartsPositionImageAssociationSnapshot, DrawingProblemAssociationSnapshot, DrawingtaskAssociationSnapshot, 
     ProblemPositionAssociationSnapshot, CompleteDocumentProblemAssociationSnapshot, 
-    CompleteDocumentSolutionAssociationSnapshot, ImageProblemAssociationSnapshot, 
-    ImageSolutionAssociationSnapshot, ImagePositionAssociationSnapshot, DrawingPositionAssociationSnapshot, 
+    CompleteDocumenttaskAssociationSnapshot, ImageProblemAssociationSnapshot, 
+    ImagetaskAssociationSnapshot, ImagePositionAssociationSnapshot, DrawingPositionAssociationSnapshot, 
     CompletedDocumentPositionAssociationSnapshot, ImageCompletedDocumentAssociationSnapshot 
 )
 from auditlog import AuditLog, log_event_listeners, log_insert, log_update, log_delete  # Ensure this is the correct module for these functions
@@ -57,11 +57,11 @@ from snapshot_utils import (
     create_sitlocation_snapshot, create_position_snapshot,
     create_area_snapshot, create_equipment_group_snapshot, create_model_snapshot, create_asset_number_snapshot,
     create_part_snapshot, create_image_snapshot, create_image_embedding_snapshot, create_drawing_snapshot,
-    create_document_snapshot, create_complete_document_snapshot, create_problem_snapshot, create_solution_snapshot,
-    create_drawing_part_association_snapshot, create_part_problem_association_snapshot, create_part_solution_association_snapshot,
-    create_drawing_problem_association_snapshot, create_drawing_solution_association_snapshot, create_problem_position_association_snapshot,
-    create_complete_document_problem_association_snapshot, create_complete_document_solution_association_snapshot,
-    create_image_problem_association_snapshot, create_image_solution_association_snapshot, create_image_position_association_snapshot,
+    create_document_snapshot, create_complete_document_snapshot, create_problem_snapshot, create_task_snapshot,
+    create_drawing_part_association_snapshot, create_part_problem_association_snapshot, create_part_task_association_snapshot,
+    create_drawing_problem_association_snapshot, create_drawing_task_association_snapshot, create_problem_position_association_snapshot,
+    create_complete_document_problem_association_snapshot, create_complete_document_task_association_snapshot,
+    create_image_problem_association_snapshot, create_image_task_association_snapshot, create_image_position_association_snapshot,
     create_drawing_position_association_snapshot, create_completed_document_position_association_snapshot, create_image_completed_document_association_snapshot,
     create_parts_position_association_snapshot, create_snapshot)
 
@@ -84,7 +84,7 @@ MODEL_NAME = "text-embedding-ada-002"
 
 # Constants for the database directory and path
 DATABASE_DIR = os.path.join(BASE_DIR, 'Database')
-DATABASE_PATH = os.path.join(DATABASE_DIR, 'emtac_db.db')
+DATABASE_PATH = os.path.join(DATABASE_DIR, 'emtac_dbR1.db')
 
 # Check if the database file exists in the specified directory and create it if not
 if not os.path.exists(DATABASE_PATH):
@@ -228,9 +228,8 @@ class Part(Base):
     documentation = Column(String)  # MP2=Specifications
 
     part_position_image = relationship("PartsPositionImageAssociation", back_populates="part")
-    """bill_of_material = relationship("BillOfMaterial", back_populates="part")"""
     part_problem = relationship("PartProblemAssociation", back_populates="part")
-    part_solution = relationship("PartSolutionAssociation", back_populates="part")
+    part_task = relationship("PartTaskAssociation", back_populates="part")
     drawing_part = relationship("DrawingPartAssociation", back_populates="part")
 
     __table_args__ = (UniqueConstraint('part_number', name='_part_number_uc'),)
@@ -245,7 +244,7 @@ class Image(Base):
 
     parts_position_image = relationship("PartsPositionImageAssociation", back_populates="image")
     image_problem = relationship("ImageProblemAssociation", back_populates="image")
-    image_solution = relationship("ImageSolutionAssociation", back_populates="image")
+    image_task = relationship("ImageTaskAssociation", back_populates="image")
     """bill_of_material = relationship("BillOfMaterial", back_populates="image")"""
     image_completed_document_association = relationship("ImageCompletedDocumentAssociation", back_populates="image")
     image_embedding = relationship("ImageEmbedding", back_populates="image")
@@ -274,7 +273,7 @@ class Drawing(Base):
     
     drawing_position = relationship("DrawingPositionAssociation", back_populates="drawing")
     drawing_problem = relationship("DrawingProblemAssociation", back_populates="drawing")
-    drawing_solution = relationship("DrawingSolutionAssociation", back_populates="drawing")
+    drawing_task = relationship("DrawingTaskAssociation", back_populates="drawing")
     drawing_part = relationship("DrawingPartAssociation", back_populates="drawing")
 
 class Document(Base):
@@ -317,7 +316,7 @@ class CompleteDocument(Base):
     powerpoint = relationship("PowerPoint", back_populates="complete_document")
     image_completed_document_association = relationship("ImageCompletedDocumentAssociation", back_populates="complete_document")
     complete_document_problem = relationship("CompleteDocumentProblemAssociation", back_populates="complete_document")
-    complete_document_solution = relationship("CompleteDocumentSolutionAssociation", back_populates="complete_document")
+    complete_document_task = relationship("CompleteDocumentTaskAssociation", back_populates="complete_document")
 
 class Problem(Base):
     __tablename__ = 'problem'
@@ -325,8 +324,10 @@ class Problem(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
     description = Column(String, nullable=False)
-    
-    solution = relationship("Solution", back_populates="problem")
+
+    # Relationships
+    solutions = relationship("Solution", back_populates="problem")  # One-to-many with solutions
+    tasks = relationship("Task", back_populates="problem")
     problem_position = relationship("ProblemPositionAssociation", back_populates="problem")
     image_problem = relationship("ImageProblemAssociation", back_populates="problem")
     complete_document_problem = relationship("CompleteDocumentProblemAssociation", back_populates="problem")
@@ -337,14 +338,30 @@ class Solution(Base):
     __tablename__ = 'solution'
 
     id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)  # Solution name
     description = Column(String, nullable=False)
     problem_id = Column(Integer, ForeignKey('problem.id'))
-    
-    problem = relationship("Problem", back_populates="solution")
-    image_solution = relationship("ImageSolutionAssociation", back_populates="solution")
-    complete_document_solution = relationship("CompleteDocumentSolutionAssociation", back_populates="solution")
-    drawing_solution = relationship("DrawingSolutionAssociation", back_populates="solution")
-    part_solution = relationship("PartSolutionAssociation", back_populates="solution")
+
+    # Relationships
+    problem = relationship("Problem", back_populates="solutions")
+    tasks = relationship("Task", back_populates="solution")  # One-to-many with tasks
+
+class Task(Base):
+    __tablename__ = 'task'
+
+    id = Column(Integer, primary_key=True)
+    description = Column(String, nullable=False)
+    problem_id = Column(Integer, ForeignKey('problem.id'))
+    solution_id = Column(Integer, ForeignKey('solution.id'))  # Foreign key to solution
+
+    # Relationships
+    problem = relationship("Problem", back_populates="tasks")
+    solution = relationship("Solution", back_populates="tasks")  # Many-to-one with solution
+    image_task = relationship("ImageTaskAssociation", back_populates="task")
+    complete_document_task = relationship("CompleteDocumentTaskAssociation", back_populates="task")
+    drawing_task = relationship("DrawingTaskAssociation", back_populates="task")
+    part_task = relationship("PartTaskAssociation", back_populates="task")
+
 
 # Class representing PowerPoint presentations in the database
 class PowerPoint(Base):
@@ -386,14 +403,16 @@ class PartProblemAssociation(Base):
     part = relationship("Part", back_populates="part_problem")
     problem = relationship("Problem", back_populates="part_problem")
 
-class PartSolutionAssociation(Base):
-    __tablename__ = 'part_solution'
+class PartTaskAssociation(Base):
+    __tablename__ = 'part_task'
+
     id = Column(Integer, primary_key=True)
     part_id = Column(Integer, ForeignKey('part.id'))
-    solution_id = Column(Integer, ForeignKey('solution.id'))
-    
-    part = relationship("Part", back_populates="part_solution")
-    solution = relationship("Solution", back_populates="part_solution")
+    task_id = Column(Integer, ForeignKey('task.id'))  # Corrected foreign key
+
+    part = relationship("Part", back_populates="part_task")
+    task = relationship("Task", back_populates="part_task")
+
    
 class DrawingProblemAssociation(Base):
     __tablename__ = 'drawing_problem'
@@ -404,14 +423,14 @@ class DrawingProblemAssociation(Base):
     drawing = relationship("Drawing", back_populates="drawing_problem")
     problem = relationship("Problem", back_populates="drawing_problem")
 
-class DrawingSolutionAssociation(Base):
-    __tablename__ = 'drawing_solution'
+class DrawingTaskAssociation(Base):
+    __tablename__ = 'drawing_task'
     id = Column(Integer, primary_key=True)
     drawing_id = Column(Integer, ForeignKey('drawing.id'))
-    solution_id = Column(Integer, ForeignKey('solution.id'))
+    task_id = Column(Integer, ForeignKey('task.id'))
     
-    drawing = relationship("Drawing", back_populates="drawing_solution")
-    solution = relationship("Solution", back_populates="drawing_solution")
+    drawing = relationship("Drawing", back_populates="drawing_task")
+    task = relationship("Task", back_populates="drawing_task")
     
 class BillOfMaterial(Base):
     __tablename__ = 'bill_of_material'
@@ -446,15 +465,15 @@ class CompleteDocumentProblemAssociation(Base):
     complete_document = relationship("CompleteDocument", back_populates="complete_document_problem")
     problem = relationship("Problem", back_populates="complete_document_problem")
     
-class CompleteDocumentSolutionAssociation(Base):
-    __tablename__ = 'complete_document_solution'
+class CompleteDocumentTaskAssociation(Base):
+    __tablename__ = 'complete_document_task'
     
     id = Column(Integer, primary_key=True)
     complete_document_id = Column(Integer, ForeignKey('complete_document.id'))
-    solution_id = Column(Integer, ForeignKey('solution.id'))
+    task_id = Column(Integer, ForeignKey('task.id'))
     
-    complete_document = relationship("CompleteDocument", back_populates="complete_document_solution")
-    solution = relationship("Solution", back_populates="complete_document_solution")
+    complete_document = relationship("CompleteDocument", back_populates="complete_document_task")
+    task = relationship("Task", back_populates="complete_document_task")
 
 class ImageProblemAssociation(Base):
     __tablename__ = 'image_problem'
@@ -465,14 +484,16 @@ class ImageProblemAssociation(Base):
     image = relationship("Image", back_populates="image_problem")
     problem = relationship("Problem", back_populates="image_problem")
 
-class ImageSolutionAssociation(Base):
-    __tablename__ = 'image_solution'
+class ImageTaskAssociation(Base):
+    __tablename__ = 'image_task'
+
     id = Column(Integer, primary_key=True)
     image_id = Column(Integer, ForeignKey('image.id'))
-    solution_id = Column(Integer, ForeignKey('solution.id'))
-    
-    image = relationship("Image", back_populates="image_solution")
-    solution = relationship("Solution", back_populates="image_solution")
+    task_id = Column(Integer, ForeignKey('task.id'))  # Corrected foreign key
+
+    image = relationship("Image", back_populates="image_task")
+    task = relationship("Task", back_populates="image_task")
+
 
 class PartsPositionImageAssociation(Base):
     __tablename__ = 'part_position_image'
@@ -714,6 +735,7 @@ class BOMResult(Base):
 
     part = relationship('Part', lazy='joined')
     image = relationship('Image', lazy='joined')
+
 
 # Bind the engine to the Base class
 Base.metadata.bind = engine

@@ -10,8 +10,8 @@ import json
 # Ensure the parent directory is in the Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from config import DATABASE_DIR, BASE_DIR, DATABASE_URL, DB_LOADSHEET, DB_LOADSHEETS_BACKUP
-from emtacdb_fts import (Area, EquipmentGroup, Model, AssetNumber, Location, SiteLocation, Problem, Solution, Base, Position, ProblemPositionAssociation,
-    split_text_into_chunks, extract_images_from_pdf, create_position, Document, load_config_from_db)
+from emtacdb_fts import (Area, EquipmentGroup, Model, AssetNumber, Location, SiteLocation, Problem, Task, Base, Position, ProblemPositionAssociation,
+                         split_text_into_chunks, extract_images_from_pdf, create_position, Document, load_config_from_db)
 from plugins.ai_models import generate_embedding
 from config_env import DatabaseConfig
 
@@ -50,7 +50,7 @@ def backup_database():
         asset_number_data = [(asset.number, asset.model_id, asset.description) for asset in session.query(AssetNumber).all()]
         location_data = [(location.name, location.model_id) for location in session.query(Location).all()]
         problem_data = [(problem.name, problem.description) for problem in session.query(Problem).all()]
-        solution_data = [(solution.description, solution.problem_id) for solution in session.query(Solution).all()]
+        solution_data = [(solution.description, solution.problem_id) for solution in session.query(Task).all()]
 
         # Create DataFrames from the extracted data
         df_area = pd.DataFrame(area_data, columns=['name', 'description'])
@@ -169,7 +169,7 @@ def add_tsg_loadsheet_to_document_table_db(file_path, area_data, equipment_group
 
             # Insert solution into Solution table if it exists and is valid
             if solution_desc:
-                new_solution = Solution(description=solution_desc, problem_id=new_problem.id)
+                new_solution = Task(description=solution_desc, problem_id=new_problem.id)
                 session.add(new_solution)
                 session.commit()
             else:
@@ -219,7 +219,7 @@ try:
     asset_number_data = [(asset.number, asset.model_id, asset.description) for asset in session.query(AssetNumber).all()]
     location_data = [(location.name, location.model_id) for location in session.query(Location).all()]
     problem_data = [(problem.name, problem.description) for problem in session.query(Problem).all()]
-    solution_data = [(solution.description, solution.problem_id) for solution in session.query(Solution).all()]
+    solution_data = [(solution.description, solution.problem_id) for solution in session.query(Task).all()]
 finally:
     session.close()  # Ensure the session is closed after the operation
 

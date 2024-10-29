@@ -3,7 +3,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
 from blueprints import DATABASE_URL
-from emtacdb_fts import Area, EquipmentGroup, Model, AssetNumber, Location, CompleteDocument, Image, Solution, Problem
+from emtacdb_fts import Area, EquipmentGroup, Model, AssetNumber, Location, CompleteDocument, Image, Task, Problem
 import logging
 
 get_search_troubleshooting_guide_data_bp = Blueprint('get_search_troubleshooting_guide_data_bp', __name__)
@@ -32,7 +32,7 @@ def get_list_data():
         documents = session.query(CompleteDocument).all()
         images = session.query(Image).all()  # Fetch images from the database
         problems = session.query(Problem).all()
-        solutions = session.query(Solution).all()
+        solutions = session.query(Task).all()
 
         # Convert queried data to a list of dictionaries for JSON serialization
         areas_list = [{'id': area.id, 'name': area.name} for area in areas]

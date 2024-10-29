@@ -7,8 +7,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.declarative import declarative_base
 from emtacdb_fts import (
     SiteLocation, Position, Area, EquipmentGroup, Model, AssetNumber, Location, Part, Image,
-    ImageEmbedding, Drawing, Document, CompleteDocument, Problem, Solution, PowerPoint, DrawingPartAssociation,
-    PartProblemAssociation, PartSolutionAssociation, DrawingProblemAssociation, DrawingSolutionAssociation,
+    ImageEmbedding, Drawing, Document, CompleteDocument, Problem, Task, PowerPoint, DrawingPartAssociation,
+    PartProblemAssociation, PartTaskAssociation, DrawingProblemAssociation, DrawingSolutionAssociation,
     BillOfMaterial, ProblemPositionAssociation, CompleteDocumentProblemAssociation, CompleteDocumentSolutionAssociation, ImageProblemAssociation,
     ImageSolutionAssociation, PartsPositionImageAssociation, ImagePositionAssociation, DrawingPositionAssociation,
     CompletedDocumentPositionAssociation, ImageCompletedDocumentAssociation
@@ -170,11 +170,11 @@ def register_event_listeners():
 
     # Solution events
     log_event_listeners('Solution')
-    event.listen(Solution, 'after_insert', lambda m, c, t: log_insert(m, c, t, SolutionSnapshot  , RevisionControlSession()))
+    event.listen(Task, 'after_insert', lambda m, c, t: log_insert(m, c, t, SolutionSnapshot, RevisionControlSession()))
     logger.info("Event listener for 'after_insert' on Solution has been set up.")
-    event.listen(Solution, 'after_update', lambda m, c, t: log_update(m, c, t, SolutionSnapshot  , RevisionControlSession()))
+    event.listen(Task, 'after_update', lambda m, c, t: log_update(m, c, t, SolutionSnapshot, RevisionControlSession()))
     logger.info("Event listener for 'after_update' on Solution has been set up.")
-    event.listen(Solution, 'after_delete', lambda m, c, t: log_delete(m, c, t, SolutionSnapshot  , RevisionControlSession()))
+    event.listen(Task, 'after_delete', lambda m, c, t: log_delete(m, c, t, SolutionSnapshot, RevisionControlSession()))
     logger.info("Event listener for 'after_delete' on Solution has been set up.")
 
     # PowerPoint events
@@ -207,11 +207,11 @@ def register_event_listeners():
 
     # PartSolutionAssociation events
     log_event_listeners('PartSolutionAssociation')
-    event.listen(PartSolutionAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, PartSolutionAssociationSnapshot  , RevisionControlSession()))
+    event.listen(PartTaskAssociation, 'after_insert', lambda m, c, t: log_insert(m, c, t, PartSolutionAssociationSnapshot, RevisionControlSession()))
     logger.info("Event listener for 'after_insert' on PartSolutionAssociation has been set up.")
-    event.listen(PartSolutionAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, PartSolutionAssociationSnapshot  , RevisionControlSession()))
+    event.listen(PartTaskAssociation, 'after_update', lambda m, c, t: log_update(m, c, t, PartSolutionAssociationSnapshot, RevisionControlSession()))
     logger.info("Event listener for 'after_update' on PartSolutionAssociation has been set up.")
-    event.listen(PartSolutionAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, PartSolutionAssociationSnapshot  , RevisionControlSession()))
+    event.listen(PartTaskAssociation, 'after_delete', lambda m, c, t: log_delete(m, c, t, PartSolutionAssociationSnapshot, RevisionControlSession()))
     logger.info("Event listener for 'after_delete' on PartSolutionAssociation has been set up.")
 
     # DrawingProblemAssociation events

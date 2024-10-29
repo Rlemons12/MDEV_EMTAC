@@ -17,7 +17,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 # Import models, functions, and utilities from your application modules
 from emtacdb_fts import (
     QandA, ChatSession, Area, EquipmentGroup, Model, AssetNumber, Location, SiteLocation, Position,
-    Document, Image, Drawing, Problem, Solution, CompleteDocument, Part, ImageEmbedding, PowerPoint,
+    Document, Image, Drawing, Problem, Task, CompleteDocument, Part, ImageEmbedding, PowerPoint,
     PartsPositionImageAssociation, ImagePositionAssociation, DrawingPositionAssociation,
     CompletedDocumentPositionAssociation, ImageCompletedDocumentAssociation,
     ProblemPositionAssociation, ImageProblemAssociation, CompleteDocumentProblemAssociation,

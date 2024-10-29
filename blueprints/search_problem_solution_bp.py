@@ -1,9 +1,9 @@
 from flask import Blueprint, request, flash, jsonify, url_for
 from emtacdb_fts import (
-    ImageProblemAssociation, ImageSolutionAssociation, CompleteDocument, get_total_images_count, create_thumbnail, 
-    Image, serve_image, Problem, Solution, Document, Position, ProblemPositionAssociation, SiteLocation, CompleteDocumentProblemAssociation,
+    ImageProblemAssociation, ImageSolutionAssociation, CompleteDocument, get_total_images_count, create_thumbnail,
+    Image, serve_image, Problem, Task, Document, Position, ProblemPositionAssociation, SiteLocation, CompleteDocumentProblemAssociation,
     Area, EquipmentGroup, Model, AssetNumber, Location, BillOfMaterial, Part, Drawing, DrawingProblemAssociation, DrawingSolutionAssociation,
-    PartProblemAssociation, PartSolutionAssociation, PartsPositionImageAssociation
+    PartProblemAssociation, PartTaskAssociation, PartsPositionImageAssociation
 )
 from blueprints import DATABASE_URL
 from sqlalchemy import create_engine
@@ -165,7 +165,7 @@ def search_problem_solution():
                         all_drawings.append(drawing_info)
 
                 # Fetch parts related to this solution
-                part_solution_associations = session.query(PartSolutionAssociation).filter_by(
+                part_solution_associations = session.query(PartTaskAssociation).filter_by(
                     solution_id=solution.id).all()
                 logger.info(f"Part associations for solution {solution.id}: {part_solution_associations}")
                 for part_association in part_solution_associations:
