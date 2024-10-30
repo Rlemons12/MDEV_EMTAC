@@ -7,7 +7,7 @@ from datetime import datetime
 
 from config import BASE_DIR, DATABASE_URL, DB_LOADSHEET, DB_LOADSHEETS_BACKUP, REVISION_CONTROL_DB_PATH
 from emtacdb_fts import Area, EquipmentGroup, Model, AssetNumber, Location, Base
-from auditlog import AuditLog, log_delete, log_insert, log_update
+"""from auditlog import AuditLog, log_delete, log_insert, log_update
 from emtac_revision_control_db import (
     VersionInfo, revision_control_engine, RevisionControlSession, SiteLocationSnapshot, PositionSnapshot, AreaSnapshot, EquipmentGroupSnapshot, ModelSnapshot,
     AssetNumberSnapshot, PartSnapshot, ImageSnapshot, ImageEmbeddingSnapshot, DrawingSnapshot,
@@ -33,7 +33,7 @@ from snapshot_utils import (
     create_image_position_association_snapshot, create_drawing_position_association_snapshot,
     create_completed_document_position_association_snapshot, create_image_completed_document_association_snapshot,
     create_parts_position_association_snapshot
-)
+)"""
 
 # Initialize logging
 import logging
@@ -47,7 +47,7 @@ session = Session()
 
 # Attach event listeners for logging and snapshots
 from sqlalchemy.event import listen
-listen(Area, 'after_insert', log_insert, retval=False)
+"""listen(Area, 'after_insert', log_insert, retval=False)
 listen(Area, 'after_update', log_update, retval=False)
 listen(Area, 'after_delete', log_delete, retval=False)
 listen(EquipmentGroup, 'after_insert', log_insert, retval=False)
@@ -65,7 +65,7 @@ listen(Location, 'after_delete', log_delete, retval=False)
 
 # Create SQLAlchemy engine for revision control session
 revision_control_engine = create_engine(f'sqlite:///{REVISION_CONTROL_DB_PATH}')
-RevisionControlSession = scoped_session(sessionmaker(bind=revision_control_engine))
+RevisionControlSession = scoped_session(sessionmaker(bind=revision_control_engine))"""
 
 def delete_duplicates(session, model, attribute):
     # Find duplicate records based on the specified attribute

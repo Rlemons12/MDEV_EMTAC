@@ -17,7 +17,7 @@ COMMENT_IMAGES_FOLDER = os.path.join(BASE_DIR,'static', 'comment_images')
 UPLOAD_FOLDER = os.path.join(BASE_DIR,"static", "uploads")
 IMAGES_FOLDER = os.path.join(BASE_DIR,"static", "images")
 DATABASE_PATH_IMAGES_FOLDER = os.path.join(DATABASE_DIR, 'DB_IMAGES')
-PDF_FOR_EXTRATION_FOLDER = os.path.join("static", "image_extraction")
+PDF_FOR_EXTRACTION_FOLDER = os.path.join("static", "image_extraction")
 IMAGES_EXTRACTED = os.path.join("static","extracted_pdf_images")
 COPY_FILES = False
 ALLOWED_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif'}  # Allowed image file extensions
@@ -54,7 +54,7 @@ directories_to_check = [
     UPLOAD_FOLDER,
     IMAGES_FOLDER,
     DATABASE_PATH_IMAGES_FOLDER,
-    PDF_FOR_EXTRATION_FOLDER,
+    PDF_FOR_EXTRACTION_FOLDER,
     IMAGES_EXTRACTED,
     TEMPORARY_FILES,
     PPT2PDF_PPT_FILES_PROCESS,

@@ -1,6 +1,6 @@
 import fitz
 import os
-from config import PDF_FOR_EXTRATION_FOLDER, IMAGES_EXTRACTED
+from config import PDF_FOR_EXTRACTION_FOLDER, IMAGES_EXTRACTED
 
 
 def extract_images_from_pdf(pdf_path, output_folder):
@@ -60,7 +60,7 @@ def process_folder(pdf_folder, output_folder):
     print("PDF image extraction for the entire folder is complete.")
 
 # Using the configuration variables for folder paths
-pdf_folder = PDF_FOR_EXTRATION_FOLDER
+pdf_folder = PDF_FOR_EXTRACTION_FOLDER
 image_output_folder = IMAGES_EXTRACTED
 
 

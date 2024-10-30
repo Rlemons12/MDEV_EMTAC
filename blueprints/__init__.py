@@ -50,6 +50,7 @@ from flask import Flask, Blueprint, request, jsonify, current_app, url_for, redi
 logger.info("Starting the Flask application")
 
 # Import blueprints
+from blueprints.pst_troubleshooting_bp import pst_troubleshooting_bp
 from blueprints.tsg_search_parts_bp import tsg_search_parts_bp
 from blueprints.search_drawing_by_number_bp import search_drawing_by_number_bp
 from blueprints.tsg_search_drawing_bp import tsg_search_drawing_bp
@@ -121,6 +122,7 @@ ai_model = load_ai_model(current_ai_model)
 embedding_model = load_embedding_model(current_embedding_model)
 
 def register_blueprints(app):
+    app.register_blueprint(pst_troubleshooting_bp, url_prefix='/pst_troubleshooting')
     app.register_blueprint(chatbot_bp, url_prefix='/chatbot')
     app.register_blueprint(image_bp, url_prefix='/image')
     app.register_blueprint(add_document_bp, url_prefix='/documents')

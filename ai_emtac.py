@@ -162,6 +162,11 @@ def create_app():
         logger.debug("Rendering position_data_assignment page.")
         return render_template('position_data_assignment.html')
 
+    """@app.route('/pst_troubleshooting')
+    def pst_troubleshooting_page():
+        session.permanent = False
+        logger.debug("Rendering pst Troubleshooting page.")
+        return render_template('pst_troubleshooting.html')"""
 
     @app.errorhandler(403)
     def forbidden(e):

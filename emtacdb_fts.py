@@ -362,7 +362,6 @@ class Task(Base):
     drawing_task = relationship("DrawingTaskAssociation", back_populates="task")
     part_task = relationship("PartTaskAssociation", back_populates="task")
 
-
 # Class representing PowerPoint presentations in the database
 class PowerPoint(Base):
     __tablename__ = 'powerpoint'
@@ -413,7 +412,6 @@ class PartTaskAssociation(Base):
     part = relationship("Part", back_populates="part_task")
     task = relationship("Task", back_populates="part_task")
 
-   
 class DrawingProblemAssociation(Base):
     __tablename__ = 'drawing_problem'
     id = Column(Integer, primary_key=True)
@@ -493,7 +491,6 @@ class ImageTaskAssociation(Base):
 
     image = relationship("Image", back_populates="image_task")
     task = relationship("Task", back_populates="image_task")
-
 
 class PartsPositionImageAssociation(Base):
     __tablename__ = 'part_position_image'
