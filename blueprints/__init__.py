@@ -50,6 +50,9 @@ from flask import Flask, Blueprint, request, jsonify, current_app, url_for, redi
 logger.info("Starting the Flask application")
 
 # Import blueprints
+from pst_troubleshooting_solution_bp import pst_troubleshooting_solution_bp
+from blueprints.pst_troubleshooting_position_update_bp import pst_troubleshooting_position_update_bp
+from blueprints.pst_troubleshooting_new_entry import pst_troubleshoot_new_entry_bp
 from blueprints.pst_troubleshooting_bp import pst_troubleshooting_bp
 from blueprints.tsg_search_parts_bp import tsg_search_parts_bp
 from blueprints.search_drawing_by_number_bp import search_drawing_by_number_bp
@@ -122,6 +125,9 @@ ai_model = load_ai_model(current_ai_model)
 embedding_model = load_embedding_model(current_embedding_model)
 
 def register_blueprints(app):
+    app.register_blueprint(pst_troubleshooting_solution_bp, url_prefix='/pst_troubleshooting_solution')
+    app.register_blueprint(pst_troubleshooting_position_update_bp, url_prefix='/pst_troubleshooting_position_update')
+    app.register_blueprint(pst_troubleshoot_new_entry_bp, url_prefix='/pst_troubleshoot_new_entry')
     app.register_blueprint(pst_troubleshooting_bp, url_prefix='/pst_troubleshooting')
     app.register_blueprint(chatbot_bp, url_prefix='/chatbot')
     app.register_blueprint(image_bp, url_prefix='/image')
@@ -169,7 +175,6 @@ def register_blueprints(app):
     app.register_blueprint(comment_pop_up_bp)
     app.register_blueprint(update_part_bp)
     app.register_blueprint(position_data_assignment_bp)
-
     app.register_blueprint(position_data_assignment_data_add_dependencies_bp)
 
 

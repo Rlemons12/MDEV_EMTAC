@@ -42,7 +42,6 @@ def get_equipment_groups():
     finally:
         session.close()
 
-
 @pst_troubleshooting_bp.route('/get_models', methods=['GET'])
 def get_models():
     equipment_group_id = request.args.get('equipment_group_id')
@@ -59,7 +58,6 @@ def get_models():
         return jsonify({"error": "Internal server error"}), 500
     finally:
         session.close()
-
 
 @pst_troubleshooting_bp.route('/get_asset_numbers', methods=['GET'])
 def get_asset_numbers():
@@ -397,3 +395,4 @@ def pst_troubleshooting_page(problem_id=None):
         return redirect(url_for('pst_troubleshooting_bp.pst_troubleshooting_page'))
     finally:
         session.close()
+

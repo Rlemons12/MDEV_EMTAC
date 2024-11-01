@@ -331,114 +331,113 @@
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <!-- Solutions Tab Pane -->
-                <div class="tab-pane fade" id="solution" role="tabpanel" aria-labelledby="solution-tab">
-                    <h4 class="mt-3" id="selected-problem-name">Problem Solutions</h4>
-                    <div class="mb-3">
-                        <label for="existing_solutions" class="form-label">Related Solutions</label>
-                        <select class="form-select" id="existing_solutions" size="5" multiple>
-                            <!-- Solutions populated by JavaScript -->
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label for="new_solution_name" class="form-label">New Solution Name</label>
-                        <input type="text" class="form-control" id="new_solution_name" name="new_solution_name" placeholder="Enter New Solution Name">
-                    </div>
-                    <div class="mb-3">
-                        <label for="new_solution_description" class="form-label">New Solution Description</label>
-                        <input type="text" class="form-control" id="new_solution_description" name="new_solution_description" placeholder="Enter New Solution Description">
-                    </div>
-                    <button type="button" id="addSolutionBtn" class="btn btn-success mt-2">Add Solution</button>
-                    <button type="button" id="removeSolutionsBtn" class="btn btn-danger mt-2">Remove Selected Solutions</button>
+            <!-- Solutions Tab Pane -->
+            <div class="tab-pane fade" id="solution" role="tabpanel" aria-labelledby="solution-tab">
+                <h4 class="mt-3" id="selected-problem-name">Problem Solutions</h4>
+                <div class="mb-3">
+                    <label for="existing_solutions" class="form-label">Related Solutions</label>
+                    <select class="form-select" id="existing_solutions" size="5" multiple>
+                        <!-- Solutions populated by JavaScript -->
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="new_solution_name" class="form-label">New Solution Name</label>
+                    <input type="text" class="form-control" id="new_solution_name" name="new_solution_name" placeholder="Enter New Solution Name">
+                </div>
+                <div class="mb-3">
+                    <label for="new_solution_description" class="form-label">New Solution Description</label>
+                    <input type="text" class="form-control" id="new_solution_description" name="new_solution_description" placeholder="Enter New Solution Description">
+                </div>
+                <button type="button" id="addSolutionBtn" class="btn btn-success mt-2">Add Solution</button>
+                <button type="button" id="removeSolutionsBtn" class="btn btn-danger mt-2">Remove Selected Solutions</button>
+            </div>
+
+            <!-- Tasks Tab Pane -->
+            <div class="tab-pane fade" id="task" role="tabpanel" aria-labelledby="task-tab">
+                <h4 class="mt-3" id="selected-solution-name">Selected Solution: </h4>
+
+                <!-- Existing Tasks Selection -->
+                <div class="mb-3">
+                    <label for="existing_tasks" class="form-label">Existing Tasks</label>
+                    <select class="form-select" id="existing_tasks" size="5" multiple>
+                        <!-- Existing tasks will be populated based on the selected solution -->
+                    </select>
                 </div>
 
-                <!-- Tasks Tab Pane -->
-                <div class="tab-pane fade" id="task" role="tabpanel" aria-labelledby="task-tab">
-                    <h4 class="mt-3" id="selected-solution-name">Selected Solution: </h4>
-
-                    <!-- Existing Tasks Selection -->
-                    <div class="mb-3">
-                        <label for="existing_tasks" class="form-label">Existing Tasks</label>
-                        <select class="form-select" id="existing_tasks" size="5" multiple>
-                            <!-- Existing tasks will be populated based on the selected solution -->
-                        </select>
+                <!-- New Task Description -->
+                <div class="mb-3">
+                    <label for="new_task_description" class="form-label">New Task Description</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="new_task_description" name="new_task_description" placeholder="Enter Task Description">
+                        <button class="btn btn-outline-secondary" type="button" onclick="addNewTask()">Add Task</button>
                     </div>
-
-                    <!-- New Task Description -->
-                    <div class="mb-3">
-                        <label for="new_task_description" class="form-label">New Task Description</label>
-                        <div class="input-group">
-                            <input type="text" class="form-control" id="new_task_description" name="new_task_description" placeholder="Enter Task Description">
-                            <button class="btn btn-outline-secondary" type="button" onclick="addNewTask()">Add Task</button>
-                        </div>
-                    </div>
-
-                    <!-- Container for New Tasks -->
-                    <div id="new-tasks-container" class="mt-3"></div>
                 </div>
 
-                <!-- Edit Task Tab Pane -->
-                <div class="tab-pane fade" id="edit-task" role="tabpanel" aria-labelledby="edit-task-tab">
-                    <!-- Task Name -->
-                    <div class="mb-3">
-                        <label for="edit_task_name" class="form-label">Task Name</label>
-                        <input type="text" class="form-control" id="edit_task_name" name="edit_task_name" placeholder="Enter Task Name">
-                    </div>
+                <!-- Container for New Tasks -->
+                <div id="new-tasks-container" class="mt-3"></div>
+            </div>
 
-                    <!-- Task Description -->
-                    <div class="mb-3">
-                        <label for="edit_task_description" class="form-label">Task Description</label>
-                        <textarea class="form-control" id="edit_task_description" name="edit_task_description" rows="3" placeholder="Enter Task Description"></textarea>
-                    </div>
+            <!-- Edit Task Tab Pane -->
+            <div class="tab-pane fade" id="edit-task" role="tabpanel" aria-labelledby="edit-task-tab">
+                <!-- Task Name -->
+                <div class="mb-3">
+                    <label for="edit_task_name" class="form-label">Task Name</label>
+                    <input type="text" class="form-control" id="edit_task_name" name="edit_task_name" placeholder="Enter Task Name">
+                </div>
 
-                    <!-- Task Documents Upload -->
-                    <div class="mb-3">
-                        <label for="task_documents" class="form-label">Documents</label>
-                        <input type="file" class="form-control" id="task_documents" name="task_documents" multiple>
-                    </div>
+                <!-- Task Description -->
+                <div class="mb-3">
+                    <label for="edit_task_description" class="form-label">Task Description</label>
+                    <textarea class="form-control" id="edit_task_description" name="edit_task_description" rows="3" placeholder="Enter Task Description"></textarea>
+                </div>
 
-                    <!-- Task Images Upload -->
-                    <div class="mb-3">
-                        <label for="task_images" class="form-label">Images</label>
-                        <input type="file" class="form-control" id="task_images" name="task_images" multiple accept="image/*">
-                    </div>
+                <!-- Task Documents Upload -->
+                <div class="mb-3">
+                    <label for="task_documents" class="form-label">Documents</label>
+                    <input type="file" class="form-control" id="task_documents" name="task_documents" multiple>
+                </div>
 
-                    <!-- Task Parts Selection -->
-                    <div class="mb-3">
-                        <label for="task_parts" class="form-label">Parts</label>
-                        <select class="form-select" id="task_parts" name="task_parts" multiple>
-                            {% for part in parts %}
-                                <option value="{{ part.id }}">{{ part.name }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
+                <!-- Task Images Upload -->
+                <div class="mb-3">
+                    <label for="task_images" class="form-label">Images</label>
+                    <input type="file" class="form-control" id="task_images" name="task_images" multiple accept="image/*">
+                </div>
 
-                    <!-- Task Drawings Selection -->
-                    <div class="mb-3">
-                        <label for="task_drawings" class="form-label">Drawings</label>
-                        <select class="form-select" id="task_drawings" name="task_drawings" multiple>
-                            {% for drawing in drawings %}
-                                <option value="{{ drawing.id }}">{{ drawing.drw_name }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
+                <!-- Task Parts Selection -->
+                <div class="mb-3">
+                    <label for="task_parts" class="form-label">Parts</label>
+                    <select class="form-select" id="task_parts" name="task_parts" multiple>
+                        {% for part in parts %}
+                            <option value="{{ part.id }}">{{ part.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Task Drawings Selection -->
+                <div class="mb-3">
+                    <label for="task_drawings" class="form-label">Drawings</label>
+                    <select class="form-select" id="task_drawings" name="task_drawings" multiple>
+                        {% for drawing in drawings %}
+                            <option value="{{ drawing.id }}">{{ drawing.drw_name }}</option>
+                        {% endfor %}
+                    </select>
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- Bootstrap JS Bundle (Includes Popper) -->
-        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-        <!-- jQuery and Select2 JS -->
-        <script src="https://code.jquery.com/jquery-3.6.0.min.js" crossorigin="anonymous"></script>
-        <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <!-- Bootstrap JS Bundle (Includes Popper) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- jQuery and Select2 JS -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
-        <!-- Custom JS Files -->
-        <script src="{{ url_for('static', filename='js/pst_troubleshooting_solution.js') }}"></script>
-        <script src="{{ url_for('static', filename='js/pst_troubleshooting.js') }}"></script>
-        <script src="{{ url_for('static', filename='js/pst_troubleshooting_new_entry.js') }}"></script>
-        <script src="{{ url_for('static', filename='js/pst_troubleshooting_position_update.js') }}"></script>
-    </body>
-    </html>
-
-
+    <!-- Custom JS Files -->
+    <script src="{{ url_for('static', filename='js/pst_troubleshooting_solution.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/pst_troubleshooting.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/pst_troubleshooting_new_entry.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/pst_troubleshooting_position_update.js') }}"></script>
+</body>
+</html>
