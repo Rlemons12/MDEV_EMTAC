@@ -50,9 +50,11 @@ from flask import Flask, Blueprint, request, jsonify, current_app, url_for, redi
 logger.info("Starting the Flask application")
 
 # Import blueprints
+from pst_troubleshooting_task_bp import pst_troubleshooting_task_bp
+from pst_troubleshooting_guide_edit_update_bp import pst_troubleshooting_guide_edit_update_bp
 from pst_troubleshooting_solution_bp import pst_troubleshooting_solution_bp
 from blueprints.pst_troubleshooting_position_update_bp import pst_troubleshooting_position_update_bp
-from blueprints.pst_troubleshooting_new_entry import pst_troubleshoot_new_entry_bp
+from blueprints.pst_troubleshooting_new_entry_bp import pst_troubleshoot_new_entry_bp
 from blueprints.pst_troubleshooting_bp import pst_troubleshooting_bp
 from blueprints.tsg_search_parts_bp import tsg_search_parts_bp
 from blueprints.search_drawing_by_number_bp import search_drawing_by_number_bp
@@ -96,7 +98,6 @@ from blueprints.get_bill_of_material_query_data import get_bill_of_material_quer
 from blueprints.create_bill_of_material import create_bill_of_material_bp
 from blueprints.enter_new_part import enter_new_part_bp
 from blueprints.get_troubleshooting_guide_edit_data_bp import get_troubleshooting_guide_edit_data_bp
-from blueprints.troubleshoting_guide_edit_update_bp import troubleshooting_guide_edit_update_bp
 from blueprints.comment_pop_up_bp import comment_pop_up_bp
 from blueprints.update_part_bp import update_part_bp
 from blueprints.position_data_assignment import position_data_assignment_bp
@@ -125,6 +126,8 @@ ai_model = load_ai_model(current_ai_model)
 embedding_model = load_embedding_model(current_embedding_model)
 
 def register_blueprints(app):
+    app.register_blueprint(pst_troubleshooting_guide_edit_update_bp, url_prefix='/pst_troubleshooting_guide_edit_update')
+    app.register_blueprint(pst_troubleshooting_task_bp,url_prefix='/pst_troubleshooting_task')
     app.register_blueprint(pst_troubleshooting_solution_bp, url_prefix='/pst_troubleshooting_solution')
     app.register_blueprint(pst_troubleshooting_position_update_bp, url_prefix='/pst_troubleshooting_position_update')
     app.register_blueprint(pst_troubleshoot_new_entry_bp, url_prefix='/pst_troubleshoot_new_entry')
@@ -170,8 +173,6 @@ def register_blueprints(app):
     app.register_blueprint(get_bill_of_material_query_data_bp)
     app.register_blueprint(create_bill_of_material_bp)
     app.register_blueprint(enter_new_part_bp)
-    app.register_blueprint(get_troubleshooting_guide_edit_data_bp)
-    app.register_blueprint(troubleshooting_guide_edit_update_bp)
     app.register_blueprint(comment_pop_up_bp)
     app.register_blueprint(update_part_bp)
     app.register_blueprint(position_data_assignment_bp)

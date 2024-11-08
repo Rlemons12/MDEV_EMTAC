@@ -172,6 +172,8 @@ def create_app():
     def forbidden(e):
         return render_template('403.html'), 403
 
+    for rule in app.url_map.iter_rules():
+        print(rule)
 
     return app
 

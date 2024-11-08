@@ -1,30 +1,129 @@
-# blueprints/pst_troubleshooting_bp.py
+# blueprints/pst_troubleshoot_new_entry_bp.py
 
-from flask import Blueprint, request, jsonify, render_template, redirect, url_for, flash, abort
-from sqlalchemy.orm import joinedload
-import logging
-from config_env import DatabaseConfig  # Import your DatabaseConfig class
+from flask import Blueprint, render_template, request, jsonify, flash
+from config_env import DatabaseConfig
 from emtacdb_fts import (
-    Area, EquipmentGroup, Model, AssetNumber, Location, SiteLocation, Position,
-    Part, Drawing, CompleteDocument, Image, PartsPositionImageAssociation,
-    DrawingPositionAssociation, CompletedDocumentPositionAssociation, ImagePositionAssociation,
-    Problem, Solution  # Ensure all models are imported
+    Problem, Area, EquipmentGroup, Model, AssetNumber, Location, SiteLocation,
+    Part, Solution
 )
+from sqlalchemy.exc import SQLAlchemyError
+import logging
 
-# Define the blueprint once
-pst_troubleshooting_bp = Blueprint('pst_troubleshooting_bp', __name__)
+# Configure logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize DatabaseConfig
+# Initialize Blueprint
+pst_troubleshoot_new_entry_bp = Blueprint('pst_troubleshoot_new_entry_bp', __name__,)
+
+# Initialize Database Config
 db_config = DatabaseConfig()
 
+@pst_troubleshoot_new_entry_bp.route('/', methods=['GET'])
+def new_entry_form():
+    """
+    Render the New Problem Entry Form.
+    """
+    session = db_config.get_main_session()
+    try:
+        areas = session.query(Area).all()
+        parts = session.query(Part).all()
+        drawings = session.query(Drawing).all()
+        return render_template('pst_troubleshoot_new_entry.html', areas=areas, parts=parts, drawings=drawings)
+    except SQLAlchemyError as e:
+        logger.error(f"Database error: {e}")
+        flash('An error occurred while loading the new entry form.', 'danger')
+        return render_template('error.html'), 500
+    finally:
+        session.close()
 
-def allowed_file(filename, extensions={'png', 'jpg', 'jpeg', 'gif', 'pdf'}):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in extensions
+@pst_troubleshoot_new_entry_bp.route('/create_problem', methods=['POST'])
+def create_new_problem():
+    """
+    Handle the creation of a new problem via AJAX.
+    """
+    session = db_config.get_main_session()
+    try:
+        # Extract form data
+        problem_name = request.form.get('name')  # Updated key to match form input 'name'
+        problem_description = request.form.get('description')  # Updated key to match form input 'description'
+        area_id = request.form.get('area_id')
+        equipment_group_id = request.form.get('equipment_group_id')
+        model_id = request.form.get('model_id')
+        asset_number_input = request.form.get('asset_number')  # Assuming 'asset_number' is the name
+        location_input = request.form.get('location')          # Assuming 'location' is the name
+        site_location_id = request.form.get('site_location_id')
 
-# Helper Routes without redundant prefix
+        # Validation: Ensure all required fields are present
+        required_fields = [problem_name, problem_description, area_id, equipment_group_id, model_id, asset_number_input, location_input, site_location_id]
+        if not all(required_fields):
+            return jsonify({'success': False, 'message': 'All fields are required.'}), 400
 
-@pst_troubleshooting_bp.route('/get_equipment_groups', methods=['GET'])
+        # Handle Asset Number: Check if it exists; if not, create it
+        asset_number = session.query(AssetNumber).filter_by(number=asset_number_input, model_id=model_id).first()
+        if not asset_number:
+            asset_number = AssetNumber(number=asset_number_input, model_id=model_id)
+            session.add(asset_number)
+            session.commit()
+            logger.info(f"Created new Asset Number: {asset_number_input}")
+
+        # Handle Location: Check if it exists; if not, create it
+        location = session.query(Location).filter_by(name=location_input, model_id=model_id).first()
+        if not location:
+            location = Location(name=location_input, model_id=model_id)
+            session.add(location)
+            session.commit()
+            logger.info(f"Created new Location: {location_input}")
+
+        # Handle Site Location: If 'new', create a new Site Location
+        if site_location_id == 'new':
+            new_site_location_title = request.form.get('new_siteLocation_title')
+            new_site_location_room_number = request.form.get('new_siteLocation_room_number')
+
+            if not all([new_site_location_title, new_site_location_room_number]):
+                return jsonify({'success': False, 'message': 'New Site Location title and room number are required.'}), 400
+
+            site_location = SiteLocation(
+                title=new_site_location_title,
+                room_number=new_site_location_room_number
+            )
+            session.add(site_location)
+            session.commit()
+            logger.info(f"Created new Site Location: {new_site_location_title}")
+        else:
+            site_location = session.query(SiteLocation).filter_by(id=site_location_id).first()
+            if not site_location:
+                return jsonify({'success': False, 'message': 'Selected Site Location does not exist.'}), 400
+
+        # Create the new Problem
+        new_problem = Problem(
+            name=problem_name,
+            description=problem_description,
+            area_id=area_id,
+            equipment_group_id=equipment_group_id,
+            model_id=model_id,
+            asset_number_id=asset_number.id,
+            location_id=location.id,
+            site_location_id=site_location.id
+        )
+        session.add(new_problem)
+        session.commit()
+        logger.info(f"Created new Problem: {problem_name}")
+
+        return jsonify({'success': True, 'message': 'Problem created successfully!', 'problem_id': new_problem.id}), 200
+
+    except SQLAlchemyError as e:
+        session.rollback()
+        logger.error(f"Database error during problem creation: {e}")
+        return jsonify({'success': False, 'message': 'An error occurred while creating the problem.'}), 500
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Unexpected error during problem creation: {e}")
+        return jsonify({'success': False, 'message': 'An unexpected error occurred.'}), 500
+    finally:
+        session.close()
+
+@pst_troubleshoot_new_entry_bp.route('/get_equipment_groups', methods=['GET'])
 def get_equipment_groups():
     area_id = request.args.get('area_id')
     if not area_id:
@@ -41,7 +140,7 @@ def get_equipment_groups():
     finally:
         session.close()
 
-@pst_troubleshooting_bp.route('/get_models', methods=['GET'])
+@pst_troubleshoot_new_entry_bp.route('/get_models', methods=['GET'])
 def get_models():
     equipment_group_id = request.args.get('equipment_group_id')
     if not equipment_group_id:
@@ -58,7 +157,7 @@ def get_models():
     finally:
         session.close()
 
-@pst_troubleshooting_bp.route('/get_asset_numbers', methods=['GET'])
+@pst_troubleshoot_new_entry_bp.route('/get_asset_numbers', methods=['GET'])
 def get_asset_numbers():
     model_id = request.args.get('model_id')
     if not model_id:
@@ -76,7 +175,7 @@ def get_asset_numbers():
         session.close()
 
 
-@pst_troubleshooting_bp.route('/get_locations', methods=['GET'])
+@pst_troubleshoot_new_entry_bp.route('/get_locations', methods=['GET'])
 def get_locations():
     model_id = request.args.get('model_id')
     if not model_id:
@@ -93,7 +192,8 @@ def get_locations():
     finally:
         session.close()
 
-@pst_troubleshooting_bp.route('/get_site_locations', methods=['GET'])
+
+@pst_troubleshoot_new_entry_bp.route('/get_site_locations', methods=['GET'])
 def get_site_locations():
     """
     Fetch all Site Locations with detailed logging for debugging.
@@ -139,7 +239,8 @@ def get_site_locations():
             logger.info("Database session closed after fetching site locations.")
 
 
-@pst_troubleshooting_bp.route('/get_positions', methods=['GET'])
+
+@pst_troubleshoot_new_entry_bp.route('/get_positions', methods=['GET'])
 def get_positions():
     try:
         # Get filter parameters from the request
@@ -289,121 +390,3 @@ def get_positions():
     finally:
         session.close()
         logger.info("Database session closed for /get_positions.")
-
-# Main Route Definitions
-@pst_troubleshooting_bp.route('/', methods=['GET', 'POST'])
-@pst_troubleshooting_bp.route('/<int:problem_id>', methods=['GET', 'POST'])
-def pst_troubleshooting_page(problem_id=None):
-    session = db_config.get_main_session()
-    try:
-        if problem_id:
-            # Fetch the existing problem from the database
-            problem = session.query(Problem).filter_by(id=problem_id).first()
-            if not problem:
-                abort(404, description="Problem not found")
-        else:
-            # Initialize an empty problem for creation
-            problem = None
-
-        # Fetch additional data needed for the template
-        areas = session.query(Area).all()  # Retrieve areas from the database
-        parts = session.query(Part).all()  # Retrieve parts
-        drawings = session.query(Drawing).all()  # Retrieve drawings
-
-        if request.method == 'POST':
-            try:
-                # Extract form data
-                problem_name = request.form.get('problem_name')
-                problem_description = request.form.get('problem_description')
-                area_id = request.form.get('area_id')
-                equipment_group_id = request.form.get('equipment_group_id')
-                model_id = request.form.get('model_id')
-                asset_number_id = request.form.get('asset_number_id')
-                asset_number_input = request.form.get('asset_number_input')
-                location_id = request.form.get('location_id')
-                location_input = request.form.get('location_input')
-                site_location_id = request.form.get('site_location_id')
-                part_numbers = request.form.getlist('parts[]')  # Adjust if different
-                new_solution_name = request.form.get('new_solution_name')
-
-                # Handle manual input for Asset Number
-                if not asset_number_id and asset_number_input:
-                    new_asset = AssetNumber(number=asset_number_input, model_id=model_id)
-                    session.add(new_asset)
-                    session.commit()
-                    asset_number_id = new_asset.id
-
-                # Handle manual input for Location
-                if not location_id and location_input:
-                    new_location = Location(name=location_input, model_id=model_id)
-                    session.add(new_location)
-                    session.commit()
-                    location_id = new_location.id
-
-                if problem:
-                    # Update existing problem
-                    problem.name = problem_name
-                    problem.description = problem_description
-                    problem.area_id = area_id
-                    problem.equipment_group_id = equipment_group_id
-                    problem.model_id = model_id
-                    problem.asset_number_id = asset_number_id
-                    problem.location_id = location_id
-                    problem.site_location_id = site_location_id
-                    # Update parts if necessary
-                    problem.parts = part_numbers  # Assuming a relationship exists
-
-                    # Handle new solution
-                    if new_solution_name:
-                        new_solution = Solution(name=new_solution_name, problem_id=problem.id)
-                        session.add(new_solution)
-
-                    session.commit()
-                    flash('Problem updated successfully!', 'success')
-                else:
-                    # Create new problem
-                    new_problem = Problem(
-                        name=problem_name,
-                        description=problem_description,
-                        area_id=area_id,
-                        equipment_group_id=equipment_group_id,
-                        model_id=model_id,
-                        asset_number_id=asset_number_id,
-                        location_id=location_id,
-                        site_location_id=site_location_id
-                    )
-                    session.add(new_problem)
-                    session.commit()
-
-                    # Handle new solution
-                    if new_solution_name:
-                        new_solution = Solution(name=new_solution_name, problem_id=new_problem.id)
-                        session.add(new_solution)
-                        session.commit()
-
-                    flash('Problem created successfully!', 'success')
-                    return redirect(
-                        url_for('pst_troubleshooting_bp.pst_troubleshooting_page', problem_id=new_problem.id))
-
-                return redirect(url_for('pst_troubleshooting_bp.pst_troubleshooting_page', problem_id=problem_id))
-            except Exception as e:
-                session.rollback()
-                logger.error(f"Error processing PST Troubleshooting form: {e}", exc_info=True)
-                flash('An error occurred while processing your request.', 'danger')
-                return redirect(url_for('pst_troubleshooting_bp.pst_troubleshooting_page', problem_id=problem_id))
-        else:
-            # Handle GET request
-            return render_template(
-                'pst_troubleshooting.html',
-                problem=problem,
-                areas=areas,
-                parts=parts,
-                drawings=drawings
-            )
-    except Exception as e:
-        logger.error(f"Error loading the troubleshooting page: {e}", exc_info=True)
-        flash('Error loading the form.', 'danger')
-        return redirect(url_for('pst_troubleshooting_bp.pst_troubleshooting_page'))
-    finally:
-        session.close()
-

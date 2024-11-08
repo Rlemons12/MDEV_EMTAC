@@ -1,4 +1,4 @@
-// static/js/pst_troubleshooting.js
+// static/js/pst_troubleshooting_position_update.js
 
 document.addEventListener('DOMContentLoaded', () => {
     'use strict';

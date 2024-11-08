@@ -14,8 +14,8 @@ document.addEventListener('DOMContentLoaded', () => {
         area: document.getElementById('pst_areaDropdown'),
         equipmentGroup: document.getElementById('pst_equipmentGroupDropdown'),
         model: document.getElementById('pst_modelDropdown'),
-        assetNumberInput: document.getElementById('pst_assetNumberInput'),
-        locationInput: document.getElementById('pst_locationInput'),
+        assetNumber: document.getElementById('pst_assetNumberDropdown'),
+        location: document.getElementById('pst_locationDropdown'),
         siteLocation: document.getElementById('pst_siteLocationDropdown')
     };
 
@@ -25,8 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
     dropdowns.area.addEventListener('change', () => {
         const areaId = dropdowns.area.value;
         if (areaId) {
-            fetch(`${GET_EQUIPMENT_GROUPS_URL}?area_id=${areaId}`)
-                .then(response => response.json())
+            fetchData(`${GET_EQUIPMENT_GROUPS_URL}?area_id=${areaId}`)
                 .then(data => populateDropdown(dropdowns.equipmentGroup, data, 'Select Equipment Group'))
                 .catch(error => console.error('Error fetching equipment groups:', error));
         } else {
@@ -37,8 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
     dropdowns.equipmentGroup.addEventListener('change', () => {
         const equipmentGroupId = dropdowns.equipmentGroup.value;
         if (equipmentGroupId) {
-            fetch(`${GET_MODELS_URL}?equipment_group_id=${equipmentGroupId}`)
-                .then(response => response.json())
+            fetchData(`${GET_MODELS_URL}?equipment_group_id=${equipmentGroupId}`)
                 .then(data => populateDropdown(dropdowns.model, data, 'Select Model'))
                 .catch(error => console.error('Error fetching models:', error));
         } else {
@@ -50,16 +48,15 @@ document.addEventListener('DOMContentLoaded', () => {
     dropdowns.model.addEventListener('change', () => {
         const modelId = dropdowns.model.value;
         if (modelId) {
-            fetch(`${GET_ASSET_NUMBERS_URL}?model_id=${modelId}`)
-                .then(response => response.json())
-                .then(data => console.log("Asset numbers loaded:", data))
+            fetchData(`${GET_ASSET_NUMBERS_URL}?model_id=${modelId}`)
+                .then(data => populateDropdown(dropdowns.assetNumber, data, 'Select Asset Number'))
                 .catch(error => console.error('Error fetching asset numbers:', error));
 
-            fetch(`${GET_LOCATIONS_URL}?model_id=${modelId}`)
-                .then(response => response.json())
+            fetchData(`${GET_LOCATIONS_URL}?model_id=${modelId}`)
                 .then(data => populateDropdown(dropdowns.siteLocation, data, 'Select Site Location'))
                 .catch(error => console.error('Error fetching locations:', error));
         } else {
+            resetDropdown(dropdowns.assetNumber, 'Select Asset Number');
             resetDropdown(dropdowns.siteLocation, 'Select Site Location');
         }
     });
@@ -70,8 +67,8 @@ document.addEventListener('DOMContentLoaded', () => {
             area_id: dropdowns.area.value,
             equipment_group_id: dropdowns.equipmentGroup.value,
             model_id: dropdowns.model.value,
-            asset_number: dropdowns.assetNumberInput.value.trim(),
-            location: dropdowns.locationInput.value.trim(),
+            asset_number: dropdowns.assetNumber.value.trim(),
+            location: dropdowns.location.value.trim(),
             site_location_id: dropdowns.siteLocation.value
         };
 
@@ -126,108 +123,83 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Fetch and display problem details in the update form
     function fetchProblemDetails(problemId) {
-        fetch(`${GET_PROBLEM_DETAILS_URL}${problemId}`)
-            .then(response => response.json())
+        fetchData(`${GET_PROBLEM_DETAILS_URL}${problemId}`)
             .then(data => populateUpdateForm(data))
             .catch(error => console.error('Error fetching problem details:', error));
     }
 
     function populateUpdateForm(data) {
-    if (!data || !data.problem || !data.position) {
-        console.error('Invalid data received for problem details:', data);
-        alert('Error loading problem details.');
-        return;
+        if (!data || !data.problem || !data.position) {
+            console.error('Invalid data received for problem details:', data);
+            alert('Error loading problem details.');
+            return;
+        }
+
+        document.getElementById('update_problem_id').value = data.problem.id || '';
+        document.getElementById('update_problem_name').value = data.problem.name || '';
+        document.getElementById('update_problem_description').value = data.problem.description || '';
+
+        const updateDropdowns = {
+            area: document.getElementById('update_pst_areaDropdown'),
+            equipmentGroup: document.getElementById('update_pst_equipmentGroupDropdown'),
+            model: document.getElementById('update_pst_modelDropdown'),
+            assetNumber: document.getElementById('update_pst_assetNumberInput'),
+            location: document.getElementById('update_pst_locationInput'),
+            siteLocation: document.getElementById('update_pst_siteLocationDropdown')
+        };
+
+        if (updateDropdowns.area && data.position.area_id) {
+            updateDropdowns.area.value = data.position.area_id;
+            updateDropdowns.area.disabled = false;
+
+            fetchData(`${GET_EQUIPMENT_GROUPS_URL}?area_id=${encodeURIComponent(data.position.area_id)}`)
+                .then(equipmentGroups => {
+                    populateDropdown(updateDropdowns.equipmentGroup, equipmentGroups, 'Select Equipment Group');
+                    updateDropdowns.equipmentGroup.value = data.position.equipment_group_id || '';
+
+                    return fetchData(`${GET_MODELS_URL}?equipment_group_id=${encodeURIComponent(data.position.equipment_group_id)}`);
+                })
+                .then(models => {
+                    populateDropdown(updateDropdowns.model, models, 'Select Model');
+                    updateDropdowns.model.value = data.position.model_id || '';
+
+                    updateDropdowns.equipmentGroup.disabled = false;
+                    updateDropdowns.model.disabled = false;
+
+                    updateDropdowns.assetNumber.value = data.position.asset_number || '';
+                    updateDropdowns.location.value = data.position.location || '';
+
+                    return fetchData(GET_SITE_LOCATIONS_URL);
+                })
+                .then(siteLocations => {
+                    populateDropdown(updateDropdowns.siteLocation, siteLocations, 'Select Site Location');
+                    updateDropdowns.siteLocation.value = data.position.site_location_id || '';
+                    updateDropdowns.siteLocation.disabled = false;
+                })
+                .catch(error => console.error('Error fetching equipment groups or models:', error));
+        } else {
+            console.error('Area ID is missing in position data.');
+            alert('Area information is missing in problem details.');
+        }
+
+        const updateSection = document.getElementById('pst_updateProblemSection');
+        if (updateSection) {
+            updateSection.style.display = 'block';
+        }
     }
 
-    // Set problem details
-    document.getElementById('update_problem_id').value = data.problem.id || '';
-    document.getElementById('update_problem_name').value = data.problem.name || '';
-    document.getElementById('update_problem_description').value = data.problem.description || '';
-
-    // References to update form elements
-    const updateDropdowns = {
-        area: document.getElementById('update_pst_areaDropdown'),
-        equipmentGroup: document.getElementById('update_pst_equipmentGroupDropdown'),
-        model: document.getElementById('update_pst_modelDropdown'),
-        assetNumberInput: document.getElementById('update_pst_assetNumberInput'),
-        locationInput: document.getElementById('update_pst_locationInput'),
-        siteLocation: document.getElementById('update_pst_siteLocationDropdown')
-    };
-
-    // Populate and set the Area dropdown
-    if (updateDropdowns.area && data.position.area_id) {
-        updateDropdowns.area.value = data.position.area_id;
-        updateDropdowns.area.disabled = false;
-
-        // Fetch equipment groups based on the area
-        fetchData(`${GET_EQUIPMENT_GROUPS_URL}?area_id=${encodeURIComponent(data.position.area_id)}`)
-            .then(equipmentGroups => {
-                populateDropdown(updateDropdowns.equipmentGroup, equipmentGroups, 'Select Equipment Group');
-                updateDropdowns.equipmentGroup.value = data.position.equipment_group_id || '';
-
-                // Fetch and populate Models based on the Equipment Group
-                return fetchData(`${GET_MODELS_URL}?equipment_group_id=${encodeURIComponent(data.position.equipment_group_id)}`);
-            })
-            .then(models => {
-                populateDropdown(updateDropdowns.model, models, 'Select Model');
-                updateDropdowns.model.value = data.position.model_id || '';
-
-                // Enable the dropdowns
-                updateDropdowns.equipmentGroup.disabled = false;
-                updateDropdowns.model.disabled = false;
-
-                // Set Asset Number and Location
-                if (updateDropdowns.assetNumberInput) {
-                    updateDropdowns.assetNumberInput.value = data.position.asset_number || '';
-                }
-                if (updateDropdowns.locationInput) {
-                    updateDropdowns.locationInput.value = data.position.location || '';
-                }
-
-                // Fetch and populate Site Locations
-                if (updateDropdowns.siteLocation) {
-                    fetchData(GET_SITE_LOCATIONS_URL)
-                        .then(siteLocations => {
-                            if (Array.isArray(siteLocations)) {
-                                populateDropdown(updateDropdowns.siteLocation, siteLocations, 'Select Site Location');
-                                updateDropdowns.siteLocation.value = data.position.site_location_id || '';
-                                updateDropdowns.siteLocation.disabled = false;
-                            } else {
-                                console.error('Invalid site locations data format.');
-                            }
-                        })
-                        .catch(error => console.error('Error fetching site locations:', error));
-                }
-            })
-            .catch(error => console.error('Error fetching equipment groups or models:', error));
-    } else {
-        console.error('Area ID is missing in position data.');
-        alert('Area information is missing in problem details.');
-    }
-
-    // Show the update problem section
-    const updateSection = document.getElementById('pst_updateProblemSection');
-    if (updateSection) {
-        updateSection.style.display = 'block';
-    }
-}
-
-
-    // Fetch and populate Solutions Tab with related solutions for the selected problem
     function editRelatedSolutions(problemId) {
-        fetch(`${GET_SOLUTIONS_URL}${problemId}`)
-            .then(response => response.json())
+        fetchData(`${GET_SOLUTIONS_URL}${problemId}`)
             .then(data => {
                 populateSolutionsTab(data);
-                document.getElementById('solution-tab').click(); // Activate the Solutions tab
+                document.getElementById('solution-tab').click();
             })
             .catch(error => console.error('Error fetching related solutions:', error));
     }
 
-    // Populate Solutions Tab
     function populateSolutionsTab(solutions) {
         const solutionsDropdown = document.getElementById('existing_solutions');
-        solutionsDropdown.innerHTML = ''; // Clear previous options
+        solutionsDropdown.innerHTML = '';
         solutions.forEach(solution => {
             solutionsDropdown.innerHTML += `<option value="${solution.id}">${solution.name} - ${solution.description}</option>`;
         });
@@ -237,7 +209,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function populateDropdown(dropdown, data, placeholder) {
         dropdown.innerHTML = `<option value="">${placeholder}</option>`;
         data.forEach(item => {
-            let displayText = item.name || `${item.title} - Room ${item.room_number}`;
+            const displayText = item.name || `${item.title} - Room ${item.room_number}`;
             dropdown.innerHTML += `<option value="${item.id}">${displayText}</option>`;
         });
         dropdown.disabled = false;
@@ -251,9 +223,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function resetAllDropdowns() {
         resetDropdown(dropdowns.equipmentGroup, 'Select Equipment Group');
         resetDropdown(dropdowns.model, 'Select Model');
+        resetDropdown(dropdowns.assetNumber, 'Select Asset Number');
         resetDropdown(dropdowns.siteLocation, 'Select Site Location');
     }
 });
+
 function fetchData(url) {
     return fetch(url)
         .then(response => {

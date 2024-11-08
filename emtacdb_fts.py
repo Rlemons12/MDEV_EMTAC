@@ -155,6 +155,7 @@ class Position(Base):
     problem_position = relationship("ProblemPositionAssociation", back_populates="position")
     completed_document_position_association = relationship("CompletedDocumentPositionAssociation", back_populates="position")
     site_location = relationship("SiteLocation", back_populates="position")
+    position_tasks = relationship("TaskPositionAssociation", back_populates="position", cascade="all, delete-orphan")
 
 class Area(Base):
     __tablename__ = 'area'
@@ -327,7 +328,6 @@ class Problem(Base):
 
     # Relationships
     solutions = relationship("Solution", back_populates="problem")  # One-to-many with solutions
-    tasks = relationship("Task", back_populates="problem")
     problem_position = relationship("ProblemPositionAssociation", back_populates="problem")
     image_problem = relationship("ImageProblemAssociation", back_populates="problem")
     complete_document_problem = relationship("CompleteDocumentProblemAssociation", back_populates="problem")
@@ -344,23 +344,34 @@ class Solution(Base):
 
     # Relationships
     problem = relationship("Problem", back_populates="solutions")
-    tasks = relationship("Task", back_populates="solution")  # One-to-many with tasks
+    task_solutions = relationship("TaskSolutionAssociation", back_populates="solution", cascade="all, delete-orphan")
 
 class Task(Base):
     __tablename__ = 'task'
 
     id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
     description = Column(String, nullable=False)
-    problem_id = Column(Integer, ForeignKey('problem.id'))
-    solution_id = Column(Integer, ForeignKey('solution.id'))  # Foreign key to solution
 
     # Relationships
-    problem = relationship("Problem", back_populates="tasks")
-    solution = relationship("Solution", back_populates="tasks")  # Many-to-one with solution
+    task_positions = relationship("TaskPositionAssociation", back_populates="task", cascade="all, delete-orphan")
+    task_solutions = relationship("TaskSolutionAssociation", back_populates="task", cascade="all, delete-orphan")
     image_task = relationship("ImageTaskAssociation", back_populates="task")
     complete_document_task = relationship("CompleteDocumentTaskAssociation", back_populates="task")
     drawing_task = relationship("DrawingTaskAssociation", back_populates="task")
     part_task = relationship("PartTaskAssociation", back_populates="task")
+
+class TaskSolutionAssociation(Base):
+    __tablename__ = 'task_solution_association'
+
+    id = Column(Integer, primary_key=True)
+    task_id = Column(Integer, ForeignKey('task.id'))
+    solution_id = Column(Integer, ForeignKey('solution.id'))
+
+    # Relationships
+    task = relationship("Task", back_populates="task_solutions")
+    solution = relationship("Solution", back_populates="task_solutions")
+
 
 # Class representing PowerPoint presentations in the database
 class PowerPoint(Base):
@@ -402,6 +413,18 @@ class PartProblemAssociation(Base):
     part = relationship("Part", back_populates="part_problem")
     problem = relationship("Problem", back_populates="part_problem")
 
+class TaskPositionAssociation(Base):
+    __tablename__ = 'task_position'
+
+    id = Column(Integer, primary_key=True)
+    task_id = Column(Integer, ForeignKey('task.id'), nullable=False)
+    position_id = Column(Integer, ForeignKey('position.id'), nullable=False)
+
+    # Define relationships
+    task = relationship("Task", back_populates="task_positions")
+    position = relationship("Position", back_populates="position_tasks")
+
+
 class PartTaskAssociation(Base):
     __tablename__ = 'part_task'
 
@@ -412,6 +435,25 @@ class PartTaskAssociation(Base):
     part = relationship("Part", back_populates="part_task")
     task = relationship("Task", back_populates="part_task")
 
+class DrawingTaskAssociation(Base):
+    __tablename__ = 'drawing_task'
+    id = Column(Integer, primary_key=True)
+    drawing_id = Column(Integer, ForeignKey('drawing.id'))
+    task_id = Column(Integer, ForeignKey('task.id'))
+
+    drawing = relationship("Drawing", back_populates="drawing_task")
+    task = relationship("Task", back_populates="drawing_task")
+
+class ImageTaskAssociation(Base):
+    __tablename__ = 'image_task'
+
+    id = Column(Integer, primary_key=True)
+    image_id = Column(Integer, ForeignKey('image.id'))
+    task_id = Column(Integer, ForeignKey('task.id'))  # Corrected foreign key
+
+    image = relationship("Image", back_populates="image_task")
+    task = relationship("Task", back_populates="image_task")
+
 class DrawingProblemAssociation(Base):
     __tablename__ = 'drawing_problem'
     id = Column(Integer, primary_key=True)
@@ -421,15 +463,6 @@ class DrawingProblemAssociation(Base):
     drawing = relationship("Drawing", back_populates="drawing_problem")
     problem = relationship("Problem", back_populates="drawing_problem")
 
-class DrawingTaskAssociation(Base):
-    __tablename__ = 'drawing_task'
-    id = Column(Integer, primary_key=True)
-    drawing_id = Column(Integer, ForeignKey('drawing.id'))
-    task_id = Column(Integer, ForeignKey('task.id'))
-    
-    drawing = relationship("Drawing", back_populates="drawing_task")
-    task = relationship("Task", back_populates="drawing_task")
-    
 class BillOfMaterial(Base):
     __tablename__ = 'bill_of_material'
     id = Column(Integer, primary_key=True)
@@ -481,16 +514,6 @@ class ImageProblemAssociation(Base):
     
     image = relationship("Image", back_populates="image_problem")
     problem = relationship("Problem", back_populates="image_problem")
-
-class ImageTaskAssociation(Base):
-    __tablename__ = 'image_task'
-
-    id = Column(Integer, primary_key=True)
-    image_id = Column(Integer, ForeignKey('image.id'))
-    task_id = Column(Integer, ForeignKey('task.id'))  # Corrected foreign key
-
-    image = relationship("Image", back_populates="image_task")
-    task = relationship("Task", back_populates="image_task")
 
 class PartsPositionImageAssociation(Base):
     __tablename__ = 'part_position_image'
