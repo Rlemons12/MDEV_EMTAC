@@ -25,7 +25,8 @@ def get_solutions(problem_id):
         solutions = session.query(Solution).filter_by(problem_id=problem_id).all()
 
         if not solutions:
-            return jsonify({'error': 'No solutions found for this problem'}), 404
+            # Return a message indicating there are no solutions yet
+            return jsonify({'message': 'No solutions added yet for this problem.'}), 200
 
         # Format the solutions data including id, name, and description
         solutions_data = [{'id': solution.id, 'name': solution.name, 'description': solution.description} for solution

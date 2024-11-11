@@ -4,7 +4,7 @@ from flask import Blueprint, render_template, request, jsonify, flash
 from config_env import DatabaseConfig
 from emtacdb_fts import (
     Problem, Area, EquipmentGroup, Model, AssetNumber, Location, SiteLocation,
-    Part, Solution
+    Part, Solution, Position,ProblemPositionAssociation
 )
 from sqlalchemy.exc import SQLAlchemyError
 import logging
@@ -40,57 +40,58 @@ def new_entry_form():
 @pst_troubleshoot_new_entry_bp.route('/create_problem', methods=['POST'])
 def create_new_problem():
     """
-    Handle the creation of a new problem via AJAX.
+    Handle the creation of a new problem via AJAX, including position handling and association.
     """
     session = db_config.get_main_session()
     try:
         # Extract form data
-        problem_name = request.form.get('name')  # Updated key to match form input 'name'
-        problem_description = request.form.get('description')  # Updated key to match form input 'description'
+        problem_name = request.form.get('name')
+        problem_description = request.form.get('description')
         area_id = request.form.get('area_id')
         equipment_group_id = request.form.get('equipment_group_id')
         model_id = request.form.get('model_id')
-        asset_number_input = request.form.get('asset_number')  # Assuming 'asset_number' is the name
-        location_input = request.form.get('location')          # Assuming 'location' is the name
+        asset_number_input = request.form.get('asset_number')
+        location_input = request.form.get('location')
         site_location_id = request.form.get('site_location_id')
 
-        # Validation: Ensure all required fields are present
-        required_fields = [problem_name, problem_description, area_id, equipment_group_id, model_id, asset_number_input, location_input, site_location_id]
-        if not all(required_fields):
-            return jsonify({'success': False, 'message': 'All fields are required.'}), 400
+        logger.info(f"Form Data - Name: {problem_name}, Description: {problem_description}, Area: {area_id}, "
+                    f"Equipment Group: {equipment_group_id}, Model: {model_id}, Asset Number: {asset_number_input}, "
+                    f"Location: {location_input}, Site Location: {site_location_id}")
 
-        # Handle Asset Number: Check if it exists; if not, create it
-        asset_number = session.query(AssetNumber).filter_by(number=asset_number_input, model_id=model_id).first()
-        if not asset_number:
-            asset_number = AssetNumber(number=asset_number_input, model_id=model_id)
-            session.add(asset_number)
-            session.commit()
-            logger.info(f"Created new Asset Number: {asset_number_input}")
+        # Validate required fields
+        if not all([problem_name, problem_description, area_id, equipment_group_id, model_id]):
+            return jsonify({'success': False, 'message': 'All required fields must be filled out.'}), 400
 
-        # Handle Location: Check if it exists; if not, create it
-        location = session.query(Location).filter_by(name=location_input, model_id=model_id).first()
-        if not location:
-            location = Location(name=location_input, model_id=model_id)
-            session.add(location)
-            session.commit()
-            logger.info(f"Created new Location: {location_input}")
+        # Handle optional fields and database operations
+        asset_number = None
+        if asset_number_input:
+            asset_number = session.query(AssetNumber).filter_by(number=asset_number_input, model_id=model_id).first()
+            if not asset_number:
+                asset_number = AssetNumber(number=asset_number_input, model_id=model_id)
+                session.add(asset_number)
+                session.commit()
+                logger.info(f"Created new Asset Number: {asset_number_input}")
 
-        # Handle Site Location: If 'new', create a new Site Location
+        location = None
+        if location_input:
+            location = session.query(Location).filter_by(name=location_input, model_id=model_id).first()
+            if not location:
+                location = Location(name=location_input, model_id=model_id)
+                session.add(location)
+                session.commit()
+                logger.info(f"Created new Location: {location_input}")
+
+        site_location = None
         if site_location_id == 'new':
             new_site_location_title = request.form.get('new_siteLocation_title')
             new_site_location_room_number = request.form.get('new_siteLocation_room_number')
-
             if not all([new_site_location_title, new_site_location_room_number]):
                 return jsonify({'success': False, 'message': 'New Site Location title and room number are required.'}), 400
-
-            site_location = SiteLocation(
-                title=new_site_location_title,
-                room_number=new_site_location_room_number
-            )
+            site_location = SiteLocation(title=new_site_location_title, room_number=new_site_location_room_number)
             session.add(site_location)
             session.commit()
             logger.info(f"Created new Site Location: {new_site_location_title}")
-        else:
+        elif site_location_id:
             site_location = session.query(SiteLocation).filter_by(id=site_location_id).first()
             if not site_location:
                 return jsonify({'success': False, 'message': 'Selected Site Location does not exist.'}), 400
@@ -98,17 +99,43 @@ def create_new_problem():
         # Create the new Problem
         new_problem = Problem(
             name=problem_name,
-            description=problem_description,
-            area_id=area_id,
-            equipment_group_id=equipment_group_id,
-            model_id=model_id,
-            asset_number_id=asset_number.id,
-            location_id=location.id,
-            site_location_id=site_location.id
+            description=problem_description
         )
         session.add(new_problem)
         session.commit()
-        logger.info(f"Created new Problem: {problem_name}")
+        logger.info(f"Created new Problem: {problem_name} with ID {new_problem.id}")
+
+        # Check if a matching Position exists, otherwise create a new Position
+        position = session.query(Position).filter_by(
+            area_id=area_id,
+            equipment_group_id=equipment_group_id,
+            model_id=model_id,
+            asset_number_id=asset_number.id if asset_number else None,
+            location_id=location.id if location else None,
+            site_location_id=site_location.id if site_location else None
+        ).first()
+
+        if not position:
+            position = Position(
+                area_id=area_id,
+                equipment_group_id=equipment_group_id,
+                model_id=model_id,
+                asset_number_id=asset_number.id if asset_number else None,
+                location_id=location.id if location else None,
+                site_location_id=site_location.id if site_location else None
+            )
+            session.add(position)
+            session.commit()
+            logger.info(f"Created new Position with ID {position.id}")
+
+        # Create an entry in ProblemPositionAssociation to associate Problem and Position
+        problem_position_association = ProblemPositionAssociation(
+            problem_id=new_problem.id,
+            position_id=position.id
+        )
+        session.add(problem_position_association)
+        session.commit()
+        logger.info(f"Created association between Problem ID {new_problem.id} and Position ID {position.id}")
 
         return jsonify({'success': True, 'message': 'Problem created successfully!', 'problem_id': new_problem.id}), 200
 
@@ -122,6 +149,8 @@ def create_new_problem():
         return jsonify({'success': False, 'message': 'An unexpected error occurred.'}), 500
     finally:
         session.close()
+
+
 
 @pst_troubleshoot_new_entry_bp.route('/get_equipment_groups', methods=['GET'])
 def get_equipment_groups():

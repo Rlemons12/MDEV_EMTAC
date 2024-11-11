@@ -4,7 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
     'use strict';
 
     // Explicitly set each endpoint URL
-     const GET_EQUIPMENT_GROUPS_URL = '/pst_troubleshooting/get_equipment_groups';
+    const GET_EQUIPMENT_GROUPS_URL = '/pst_troubleshooting/get_equipment_groups';
     const GET_MODELS_URL = '/pst_troubleshooting/get_models';
     const GET_ASSET_NUMBERS_URL = '/pst_troubleshooting/get_asset_numbers';
     const GET_LOCATIONS_URL = '/pst_troubleshooting/get_locations';

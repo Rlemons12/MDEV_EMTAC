@@ -197,7 +197,7 @@ $(document).ready(function () {
         }
     });
 
-        function fetchSiteLocations() {
+    function fetchSiteLocations() {
         console.log('Fetching all Site Locations on page load.');
 
         $.ajax({
@@ -237,43 +237,54 @@ $(document).ready(function () {
         });
     }
 
-
     // Handle Form Submission via AJAX
-    $('#newProblemForm').on('submit', function (e) {
-        e.preventDefault(); // Prevent default form submission
-        console.log('New Problem Form submitted.');
+$('#newProblemForm').on('submit', function (e) {
+    e.preventDefault(); // Prevent default form submission
+    console.log('New Problem Form submitted.');
 
-        // Show loading spinner or disable submit button if desired
+    // Validate required fields before submission
+    var problemName = $('#problemName').val(); // Corrected ID
+    var problemDescription = $('#problemDescription').val(); // Corrected ID
+    var areaId = $('#new_pst_areaDropdown').val();
+    var equipmentGroupId = $('#new_pst_equipmentGroupDropdown').val();
+    var modelId = $('#new_pst_modelDropdown').val();
 
-        var formData = $(this).serialize(); // Serialize form data
-        console.log('Form Data:', formData);
+    if (!problemName || !problemDescription || !areaId || !equipmentGroupId || !modelId) {
+        showAlert('Name, Description, Area, Equipment Group, and Model are required.', 'warning');
+        return;
+    }
 
-        $.ajax({
-            type: 'POST',
-            url: '/pst_troubleshoot_new_entry/create_problem',
-            data: formData,
-            success: function (response) {
-                console.log('Create Problem Response:', response);
-                if (response.success) {
-                    showAlert(response.message, 'success');
-                    // Optionally, redirect to the new problem's page after a delay
-                    setTimeout(function () {
-                        window.location.href = '/pst_troubleshoot_new_entry/' + response.problem_id;
-                    }, 2000);
-                } else {
-                    showAlert(response.message, 'warning');
-                }
-            },
-            error: function (xhr, status, error) {
-                console.error('Error creating Problem:', error);
-                var errorMessage = 'An error occurred while creating the problem.';
-                if (xhr.responseJSON && xhr.responseJSON.message) {
-                    errorMessage = xhr.responseJSON.message;
-                }
-                showAlert('Error: ' + errorMessage, 'danger');
+    // Proceed with AJAX submission since all required fields are filled
+    var formData = $(this).serialize(); // Serialize form data
+    console.log('Form Data:', formData);
+
+    $.ajax({
+        type: 'POST',
+        url: '/pst_troubleshoot_new_entry/create_problem', // Update this to your actual route if different
+        data: formData,
+        success: function (response) {
+            console.log('Create Problem Response:', response);
+            if (response.success) {
+                showAlert(response.message, 'success');
+                // Optionally, redirect to the new problem's page after a delay
+                setTimeout(function () {
+                    window.location.href = '/pst_troubleshoot_new_entry/' + response.problem_id;
+                }, 2000);
+            } else {
+                showAlert(response.message, 'warning');
             }
-        });
+        },
+        error: function (xhr, status, error) {
+            console.error('Error creating Problem:', error);
+            var errorMessage = 'An error occurred while creating the problem.';
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+                errorMessage = xhr.responseJSON.message;
+            }
+            showAlert('Error: ' + errorMessage, 'danger');
+        }
     });
+});
+
 
     // Utility Function to Reset Dropdowns (if you prefer to use this)
     function resetDropdown(dropdown, placeholder) {

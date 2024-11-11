@@ -1,3 +1,5 @@
+// Consolidated Script: pst_troubleshooting.js
+
 document.addEventListener('DOMContentLoaded', () => {
     // Explicitly set each endpoint URL
     const GET_EQUIPMENT_GROUPS_URL = '/pst_troubleshooting/get_equipment_groups';
@@ -21,13 +23,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     console.log("JavaScript loaded and ready");
 
+    // Fetch and populate Site Locations when the page loads
+    fetchData(GET_SITE_LOCATIONS_URL)
+        .then(data => populateDropdown(dropdowns.siteLocation, data, 'Select Site Location', item => `${item.title} - Room ${item.room_number}`))
+        .catch(error => console.error('Error fetching site locations:', error));
+
     // Event listeners for dropdowns
     dropdowns.area.addEventListener('change', () => {
         const areaId = dropdowns.area.value;
         if (areaId) {
             fetchData(`${GET_EQUIPMENT_GROUPS_URL}?area_id=${areaId}`)
-                .then(data => populateDropdown(dropdowns.equipmentGroup, data, 'Select Equipment Group'))
+                .then(data => populateDropdown(dropdowns.equipmentGroup, data, 'Select Equipment Group', item => item.name))
                 .catch(error => console.error('Error fetching equipment groups:', error));
+
+            // Reset dependent dropdowns
+            resetDropdown(dropdowns.model, 'Select Model');
+            resetDropdown(dropdowns.assetNumber, 'Select Asset Number');
+            resetDropdown(dropdowns.location, 'Select Location');
         } else {
             resetAllDropdowns();
         }
@@ -37,11 +49,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const equipmentGroupId = dropdowns.equipmentGroup.value;
         if (equipmentGroupId) {
             fetchData(`${GET_MODELS_URL}?equipment_group_id=${equipmentGroupId}`)
-                .then(data => populateDropdown(dropdowns.model, data, 'Select Model'))
+                .then(data => populateDropdown(dropdowns.model, data, 'Select Model', item => item.name))
                 .catch(error => console.error('Error fetching models:', error));
+
+            // Reset dependent dropdowns
+            resetDropdown(dropdowns.assetNumber, 'Select Asset Number');
+            resetDropdown(dropdowns.location, 'Select Location');
         } else {
             resetDropdown(dropdowns.model, 'Select Model');
-            resetDropdown(dropdowns.siteLocation, 'Select Site Location');
+            resetDropdown(dropdowns.assetNumber, 'Select Asset Number');
+            resetDropdown(dropdowns.location, 'Select Location');
         }
     });
 
@@ -49,15 +66,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const modelId = dropdowns.model.value;
         if (modelId) {
             fetchData(`${GET_ASSET_NUMBERS_URL}?model_id=${modelId}`)
-                .then(data => populateDropdown(dropdowns.assetNumber, data, 'Select Asset Number'))
+                .then(data => populateDropdown(dropdowns.assetNumber, data, 'Select Asset Number', item => item.number))
                 .catch(error => console.error('Error fetching asset numbers:', error));
 
             fetchData(`${GET_LOCATIONS_URL}?model_id=${modelId}`)
-                .then(data => populateDropdown(dropdowns.siteLocation, data, 'Select Site Location'))
+                .then(data => populateDropdown(dropdowns.location, data, 'Select Location', item => item.name))
                 .catch(error => console.error('Error fetching locations:', error));
+
+            // Do not touch the siteLocation dropdown here
         } else {
             resetDropdown(dropdowns.assetNumber, 'Select Asset Number');
-            resetDropdown(dropdowns.siteLocation, 'Select Site Location');
+            resetDropdown(dropdowns.location, 'Select Location');
         }
     });
 
@@ -154,13 +173,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
             fetchData(`${GET_EQUIPMENT_GROUPS_URL}?area_id=${encodeURIComponent(data.position.area_id)}`)
                 .then(equipmentGroups => {
-                    populateDropdown(updateDropdowns.equipmentGroup, equipmentGroups, 'Select Equipment Group');
+                    populateDropdown(updateDropdowns.equipmentGroup, equipmentGroups, 'Select Equipment Group', item => item.name);
                     updateDropdowns.equipmentGroup.value = data.position.equipment_group_id || '';
 
                     return fetchData(`${GET_MODELS_URL}?equipment_group_id=${encodeURIComponent(data.position.equipment_group_id)}`);
                 })
                 .then(models => {
-                    populateDropdown(updateDropdowns.model, models, 'Select Model');
+                    populateDropdown(updateDropdowns.model, models, 'Select Model', item => item.name);
                     updateDropdowns.model.value = data.position.model_id || '';
 
                     updateDropdowns.equipmentGroup.disabled = false;
@@ -169,12 +188,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     updateDropdowns.assetNumber.value = data.position.asset_number || '';
                     updateDropdowns.location.value = data.position.location || '';
 
-                    return fetchData(GET_SITE_LOCATIONS_URL);
-                })
-                .then(siteLocations => {
-                    populateDropdown(updateDropdowns.siteLocation, siteLocations, 'Select Site Location');
-                    updateDropdowns.siteLocation.value = data.position.site_location_id || '';
-                    updateDropdowns.siteLocation.disabled = false;
+                    // Site Location is independent; it was already fetched on page load
                 })
                 .catch(error => console.error('Error fetching equipment groups or models:', error));
         } else {
@@ -206,25 +220,28 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Utility functions
-    function populateDropdown(dropdown, data, placeholder) {
+    function populateDropdown(dropdown, data, placeholder, displayTextFunc) {
         dropdown.innerHTML = `<option value="">${placeholder}</option>`;
         data.forEach(item => {
-            const displayText = item.name || `${item.title} - Room ${item.room_number}`;
+            const displayText = displayTextFunc(item);
             dropdown.innerHTML += `<option value="${item.id}">${displayText}</option>`;
         });
         dropdown.disabled = false;
     }
 
     function resetDropdown(dropdown, placeholder) {
-        dropdown.innerHTML = `<option value="">${placeholder}</option>`;
-        dropdown.disabled = true;
+        if (dropdown !== dropdowns.siteLocation) { // Do not reset Site Location dropdown
+            dropdown.innerHTML = `<option value="">${placeholder}</option>`;
+            dropdown.disabled = true;
+        }
     }
 
     function resetAllDropdowns() {
         resetDropdown(dropdowns.equipmentGroup, 'Select Equipment Group');
         resetDropdown(dropdowns.model, 'Select Model');
         resetDropdown(dropdowns.assetNumber, 'Select Asset Number');
-        resetDropdown(dropdowns.siteLocation, 'Select Site Location');
+        resetDropdown(dropdowns.location, 'Select Location');
+        // Site Location dropdown is independent; do not reset here
     }
 });
 

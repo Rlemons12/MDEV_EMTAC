@@ -1,4 +1,5 @@
 <!-- templates/pst_troubleshooting.html -->
+<!-- templates/pst_troubleshooting.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -209,7 +210,7 @@
                                     <!-- Asset Number Dropdown -->
                                     <div class="mb-3">
                                         <label for="new_pst_assetNumberDropdown" class="form-label">Asset Number:</label>
-                                        <select class="form-select" id="new_pst_assetNumberDropdown" name="asset_number" required disabled>
+                                        <select class="form-select" id="new_pst_assetNumberDropdown" name="asset_number"
                                             <option value="">Select Asset Number</option>
                                         </select>
                                     </div>
@@ -217,7 +218,7 @@
                                     <!-- Location Dropdown -->
                                     <div class="mb-3">
                                         <label for="new_pst_locationDropdown" class="form-label">Location:</label>
-                                        <select class="form-select" id="new_pst_locationDropdown" name="location" required disabled>
+                                        <select class="form-select" id="new_pst_locationDropdown" name="location" >
                                             <option value="">Select Location</option>
                                         </select>
                                     </div>
@@ -225,7 +226,7 @@
                                     <!-- Site Location Selection -->
                                     <div class="mb-3">
                                         <label for="new_pst_siteLocationDropdown" class="form-label">Site Location:</label>
-                                        <select name="site_location_id" id="new_pst_siteLocationDropdown" class="form-select" required>
+                                        <select name="site_location_id" id="new_pst_siteLocationDropdown" class="form-select">
                                             <option value="">Select Site Location</option>
                                             <option value="new">New Site Location...</option>
                                         </select>
@@ -539,10 +540,12 @@
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
     <!-- Custom JS Files -->
+    <script src="{{ url_for('static', filename='js/pst_troubleshooting_solution_task.js')}}"></script>
     <script src="{{ url_for('static', filename='js/pst_troubleshooting.js') }}"></script>
     <script src="{{ url_for('static', filename='js/pst_troubleshooting_new_entry.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/pst_troubleshooting_position_update.js') }}"></script>
+    <!--<script src="{{ url_for('static', filename='js/pst_troubleshooting_position_update.js') }}"></script>
+        removed due to conflict with pst_troubleshooting.js dropdowns(site location)-->
     <!--<script src="{{ url_for('static', filename='js/pst_troubleshooting_task_edit.js') }}"></script>-->
-    <script src="{{ url_for('static', filename='js/pst_troubleshooting_solution_task.js')}}"></script>
+
 </body>
 </html>

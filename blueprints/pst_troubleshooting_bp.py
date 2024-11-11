@@ -75,7 +75,6 @@ def get_asset_numbers():
     finally:
         session.close()
 
-
 @pst_troubleshooting_bp.route('/get_locations', methods=['GET'])
 def get_locations():
     model_id = request.args.get('model_id')
