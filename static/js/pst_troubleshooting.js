@@ -1,5 +1,6 @@
 // Consolidated Script: pst_troubleshooting.js
-
+// Declare in the global scope
+let currentProblemId = null;
 document.addEventListener('DOMContentLoaded', () => {
     // Explicitly set each endpoint URL
     const GET_EQUIPMENT_GROUPS_URL = '/pst_troubleshooting/get_equipment_groups';
@@ -101,11 +102,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Display search results with Update and Edit Solutions buttons
+    /**
+     * Display search results with Update and Edit Solutions buttons
+     * @param {Array} problems - Array of problem objects
+     */
     function displaySearchResults(problems) {
         const resultsList = document.getElementById('pst_positionResultsList');
         resultsList.innerHTML = '';
         document.getElementById('pst_searchResults').style.display = problems.length ? 'block' : 'none';
+
+        if (problems.length > 0) {
+            currentProblemId = problems[0].id;
+            sessionStorage.setItem('currentProblemId', currentProblemId);  // Store in sessionStorage
+            console.log('Updated Current Problem ID:', currentProblemId);
+        } else {
+            currentProblemId = null;
+            sessionStorage.removeItem('currentProblemId');  // Remove from sessionStorage if null
+            console.log('No problems found. Resetting Current Problem ID:', currentProblemId);
+        }
 
         problems.forEach(problem => {
             const listItem = document.createElement('li');
@@ -125,7 +139,6 @@ document.addEventListener('DOMContentLoaded', () => {
             resultsList.appendChild(listItem);
         });
 
-        // Use event delegation to handle clicks on dynamically generated buttons
         resultsList.addEventListener('click', (event) => {
             if (event.target.classList.contains('update-problem-btn')) {
                 const problemId = event.target.dataset.problemId;
@@ -135,10 +148,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (event.target.classList.contains('edit-solutions-btn')) {
                 const problemId = event.target.dataset.problemId;
                 console.log("Edit Related Solutions button clicked for problem ID:", problemId);
+                currentProblemId = problemId;
+                sessionStorage.setItem('currentProblemId', currentProblemId);  // Update sessionStorage here too
                 editRelatedSolutions(problemId);
             }
         });
     }
+
+
 
     // Fetch and display problem details in the update form
     function fetchProblemDetails(problemId) {
@@ -203,21 +220,42 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function editRelatedSolutions(problemId) {
+        currentProblemId = problemId;  // Set the current problem ID here
+        console.log('Current Problem ID updated to:', currentProblemId);
         fetchData(`${GET_SOLUTIONS_URL}${problemId}`)
             .then(data => {
+                if (!data || !Array.isArray(data) || data.length === 0) {
+                    console.log(`No related solutions found for problem ID: ${problemId}`);
+                }
                 populateSolutionsTab(data);
                 document.getElementById('solution-tab').click();
             })
             .catch(error => console.error('Error fetching related solutions:', error));
     }
 
+
     function populateSolutionsTab(solutions) {
         const solutionsDropdown = document.getElementById('existing_solutions');
         solutionsDropdown.innerHTML = '';
+
+        // Check if solutions is an array, otherwise assign an empty array
+        if (!Array.isArray(solutions)) {
+            solutions = [];
+        }
+
+        // Populate the dropdown with existing solutions
         solutions.forEach(solution => {
             solutionsDropdown.innerHTML += `<option value="${solution.id}">${solution.name} - ${solution.description}</option>`;
         });
+
+        // Optionally, disable the dropdown if there are no solutions
+        if (solutions.length === 0) {
+            solutionsDropdown.disabled = true;
+        } else {
+            solutionsDropdown.disabled = false;
+        }
     }
+
 
     // Utility functions
     function populateDropdown(dropdown, data, placeholder, displayTextFunc) {
@@ -255,4 +293,5 @@ function fetchData(url) {
             }
             return response.json();
         });
+
 }
