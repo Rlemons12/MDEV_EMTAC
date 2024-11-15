@@ -1,10 +1,11 @@
 # pst_troubleshooting_solution.py
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 from sqlalchemy.exc import SQLAlchemyError
 from config_env import DatabaseConfig  # Adjust import based on your project structure
 from emtacdb_fts import Problem, Solution, Task, TaskSolutionAssociation,TaskPositionAssociation
 import logging
+
 
 # Initialize Database Config
 db_config = DatabaseConfig()
@@ -103,32 +104,43 @@ def add_solution():
         data = request.get_json()
         problem_id = data.get('problem_id')
         solution_name = data.get('name')
+        solution_description = data.get('description')  # Assuming description might be part of the payload
 
+        # Validate required fields
         if not problem_id or not solution_name:
             logger.error("Problem ID or Solution Name missing in request.")
             return jsonify({'error': 'Problem ID and Solution Name are required.'}), 400
 
-        # Check if the problem exists
+        # Verify problem exists
         problem = session.query(Problem).filter_by(id=problem_id).first()
         if not problem:
             logger.error(f"Problem with ID {problem_id} not found.")
             return jsonify({'error': 'Problem not found.'}), 404
 
-        # Create and add the new solution
-        new_solution = Solution(name=solution_name, problem_id=problem_id)
+        # Create new solution instance
+        new_solution = Solution(name=solution_name, description=solution_description, problem_id=problem_id)
         session.add(new_solution)
+
+        # Commit the new solution to the database
         session.commit()
 
         logger.info(f"Added new solution '{solution_name}' to problem ID {problem_id}.")
-        return jsonify({'message': 'Solution added successfully.', 'solution': {'id': new_solution.id, 'name': new_solution.name, 'description': new_solution.description}}), 201
+        return jsonify({
+            'message': 'Solution added successfully.',
+            'solution': {
+                'id': new_solution.id,
+                'name': new_solution.name,
+                'description': new_solution.description
+            }
+        }), 201
 
     except SQLAlchemyError as e:
         session.rollback()
-        logger.error(f"Database error while adding solution: {e}")
+        logger.error(f"Database error while adding solution: {e}", exc_info=True)
         return jsonify({'error': 'An error occurred while adding the solution.'}), 500
     except Exception as e:
         session.rollback()
-        logger.error(f"Unexpected error while adding solution: {e}")
+        logger.error(f"Unexpected error while adding solution: {e}", exc_info=True)
         return jsonify({'error': 'An unexpected error occurred.'}), 500
     finally:
         session.close()
@@ -157,8 +169,11 @@ def get_tasks(solution_id):
     finally:
         session.close()
 
-@pst_troubleshooting_solution_bp.route('/pst_troubleshooting_solution/add_task/', methods=['POST'])
+@pst_troubleshooting_solution_bp.route('/add_task/', methods=['POST'])
 def add_task():
+    """
+    Endpoint to add a new task to a solution and create the association.
+    """
     session = db_config.get_main_session()
     try:
         # Extract data from the request
@@ -171,13 +186,16 @@ def add_task():
         if not solution_id or not task_name:
             return jsonify({"error": "Solution ID and task name are required."}), 400
 
-        # Create a new Task instance
+        # Verify the solution exists
+        solution = session.query(Solution).filter_by(id=solution_id).first()
+        if not solution:
+            return jsonify({"error": "Solution not found."}), 404
+
+        # Create the new task
         new_task = Task(
             name=task_name,
             description=task_description
         )
-
-        # Add the new task to the session first
         session.add(new_task)
         session.commit()  # Commit to generate the task ID
 
@@ -189,13 +207,49 @@ def add_task():
         session.add(new_task_solution_association)
         session.commit()  # Commit to save the association
 
-        # Return a success message
-        return jsonify({"status": "success", "message": "Task added successfully"}), 200
+        # Return a success message with new task details
+        return jsonify({
+            "status": "success",
+            "message": "Task added successfully",
+            "task": {
+                "id": new_task.id,
+                "name": new_task.name,
+                "description": new_task.description
+            }
+        }), 201
 
     except Exception as e:
         # Handle any exceptions that may occur
         session.rollback()  # Rollback in case of error
-        logger.error(f"Error adding task: {e}")
-        return jsonify({"error": str(e)}), 500
+        logger.error(f"Error adding task: {e}", exc_info=True)
+        return jsonify({"error": "An error occurred while adding the task."}), 500
     finally:
         session.close()
+
+@pst_troubleshooting_solution_bp.route('/remove_task/', methods=['POST'])
+def remove_task_from_solution():
+    try:
+        data = request.get_json()
+        task_id = data.get('task_id')
+        solution_id = data.get('solution_id')
+
+        if not task_id or not solution_id:
+            return jsonify({'error': 'Missing task_id or solution_id.'}), 400
+
+        # Fetch the association
+        task_solution_association = db.session.query(TaskSolutionAssociation).filter_by(
+            task_id=task_id,
+            solution_id=solution_id
+        ).first()
+
+        if task_solution_association:
+            db.session.delete(task_solution_association)
+            db.session.commit()
+            return jsonify({'status': 'success', 'message': 'Task removed from solution successfully.'}), 200
+        else:
+            return jsonify({'error': 'Association does not exist.'}), 404
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': 'An unexpected error occurred.', 'details': str(e)}), 500
+
