@@ -28,8 +28,16 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // Placeholder for current problem and solution IDs
-    let currentProblemId = null; // Set this to the current problem ID
-    let currentSolutionId = null; // Set this to the current solution ID
+    let currentProblemId = null; // If needed, otherwise remove
+    let currentSolutionId = null; // Holds the ID of the currently selected solution
+    let selectedTaskId = null; // Holds the ID of the currently selected task
+
+    console.log('Current Problem ID:', currentProblemId);
+    console.log('Current Solution ID:', currentSolutionId);
+
+    // Set values
+    window.currentSolutionId = currentSolutionId;
+    window.selectedTaskId = selectedTaskId;
 
     // === 2. Namespace for Common Functions ===
     window.SolutionTaskCommon = {
@@ -235,8 +243,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // === 4. Fetch Functions ===
-
     /**
      * Fetch and display solutions for a specific problem
      * @param {number|string} problemId - The ID of the current problem
@@ -245,22 +251,53 @@ document.addEventListener('DOMContentLoaded', () => {
         SolutionTaskCommon.showAlert('Loading solutions...', 'info');
         try {
             const data = await fetchWithHandling(`${ENDPOINTS.solutions.get}${encodeURIComponent(problemId)}`);
-            populateSolutionsDropdown(data.solutions);
-            updateProblemName(data.problem_name);
+
+            // Verify data structure and solutions array
+            const solutions = data.solutions || data; // Check if solutions are under data.solutions or directly under data
+            if (!Array.isArray(solutions)) {
+                console.error("Expected an array for solutions, but received:", solutions);
+                return; // Exit if solutions is not an array
+            }
+
+            // Populate solutions dropdown
+            populateSolutionsDropdown(solutions);
+
+            // Update problem name if available
+            if (data.problem_name) {
+                updateProblemName(data.problem_name);
+            }
+
+            // Activate the solution tab
             activateTab('solution-tab');
+
+            console.log("Data received from fetchSolutions:", solutions);
         } catch (error) {
+            console.error("Error fetching solutions:", error);
             // Error handling is already managed in fetchWithHandling
         }
     }
 
+
+
+
     /**
-     * Populate solutions dropdown
-     * @param {Array} solutions - Array of solution objects
-     */
-    function populateSolutionsDropdown(solutions) {
-        const solutionsDropdown = document.getElementById('existing_solutions');
-        SolutionTaskCommon.populateDropdown(solutionsDropdown, solutions, 'Select Solution');
+ * Populate solutions dropdown
+ * @param {Array} solutions - Array of solution objects
+ */
+function populateSolutionsDropdown(solutions) {
+    const solutionsDropdown = document.getElementById('existing_solutions');
+
+    // Validate that solutions is an array
+    if (!Array.isArray(solutions)) {
+        console.error("Expected an array for solutions, but received:", solutions);
+        return; // Exit function if data is not in the expected format
     }
+
+    // Use the SolutionTaskCommon helper function to populate the dropdown
+    SolutionTaskCommon.populateDropdown(solutionsDropdown, solutions, 'Select Solution');
+    console.log("Solutions dropdown populated with:", solutions);
+}
+
 
     /**
      * Update problem name header
@@ -299,21 +336,39 @@ document.addEventListener('DOMContentLoaded', () => {
             SolutionTaskCommon.showAlert('No problem selected.', 'warning');
             return;
         }
+
         try {
-            await fetchWithHandling(ENDPOINTS.solutions.add, {
+            // Wait for the server to confirm the solution is added
+            const response = await fetchWithHandling(ENDPOINTS.solutions.add, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ problem_id: problemId, name: solutionName, description: solutionDescription })
             });
-            SolutionTaskCommon.showAlert('Solution added successfully.', 'success');
-            await fetchSolutions(problemId);
-            const nameInput = document.getElementById('new_solution_name');
-            const descInput = document.getElementById('new_solution_description');
-            SolutionTaskCommon.clearInputFields(nameInput, descInput);
+
+            // Confirm that the response is successful and contains the expected data
+            if (response && response.message === 'Solution added successfully.' && response.solution) {
+                SolutionTaskCommon.showAlert('Solution added successfully.', 'success');
+
+                // After confirming the solution is saved, fetch the updated solutions list
+                await fetchSolutions(problemId);
+
+                // Clear input fields after successful addition
+                const nameInput = document.getElementById('new_solution_name');
+                const descInput = document.getElementById('new_solution_description');
+                SolutionTaskCommon.clearInputFields(nameInput, descInput);
+            } else {
+                console.error("Unexpected response format:", response);
+                SolutionTaskCommon.showAlert('Failed to add the solution. Unexpected response from the server.', 'warning');
+            }
+
         } catch (error) {
-            // Error handling is already managed in fetchWithHandling
+            console.error("Error in addNewSolution:", error);
+            SolutionTaskCommon.showAlert('An error occurred while adding the solution.', 'danger');
         }
     }
+
+
+
 
     /**
      * Remove selected solutions from a problem
@@ -365,40 +420,42 @@ document.addEventListener('DOMContentLoaded', () => {
         const tasksDropdown = document.getElementById('existing_tasks');
         SolutionTaskCommon.populateDropdown(tasksDropdown, tasks, 'Select Task');
 
-        if (tasksDropdown) {
-            // Remove existing event listeners by cloning
-            const newTasksDropdown = tasksDropdown.cloneNode(true);
-            tasksDropdown.parentNode.replaceChild(newTasksDropdown, tasksDropdown);
 
-            // Add event listener for task selection to load task details
-            newTasksDropdown.addEventListener('change', () => {
-                const selectedTaskId = newTasksDropdown.value;
-                if (selectedTaskId) {
-                    openTaskDetails(selectedTaskId);
-                } else {
-                    // Clear the edit task form if no task is selected
-                    SolutionTaskCommon.clearEditTaskForm();
-                }
-            });
-        }
     }
 
-    /**
-     * Open and populate the Edit Task form with task details
-     * @param {number|string} taskId - The ID of the selected task
-     */
+
+    // Single-click event listener for selecting a task
+    document.getElementById('existing_tasks').addEventListener('click', (event) => {
+        selectedTaskId = event.target.value; // Set the selected task ID for possible removal
+        console.log(`Task selected with ID: ${selectedTaskId}`);
+    });
+
+    // Double-click event listener for editing a task
+    document.getElementById('existing_tasks').addEventListener('dblclick', (event) => {
+        const taskId = event.target.value; // Get the ID of the double-clicked task
+        if (taskId) {
+            openTaskDetails(taskId); // Call function to open the edit form
+        }
+    });
+
     async function openTaskDetails(taskId) {
+        // Assign the task ID to the global AppState
+        window.AppState.selectedTaskId = taskId;
+        console.log(`openTaskDetails called with taskId: ${window.AppState.selectedTaskId}, solutionId: ${window.AppState.currentSolutionId}`);
         try {
             const data = await fetchWithHandling(`${ENDPOINTS.tasks.details}${encodeURIComponent(taskId)}`);
+
+            // Populate the form with task data if found
             if (data && data.task) {
                 await populateEditTaskForm(data.task);
-                activateTab('edit-task-tab');
+                activateTab('edit-task-tab'); // Switch to the edit tab
+                console.log(`Editing task with ID: ${taskId}`);
             } else {
-                SolutionTaskCommon.clearEditTaskForm();
+                SolutionTaskCommon.clearEditTaskForm(); // Clear form if task is not found
                 SolutionTaskCommon.showAlert('Task not found.', 'warning');
             }
         } catch (error) {
-            // Error handling is already managed in fetchWithHandling
+            console.error(`Error opening task details for task ID ${taskId}:`, error);
         }
     }
 
@@ -815,46 +872,69 @@ document.addEventListener('DOMContentLoaded', () => {
      * Initialize event listeners for the form
      */
     function initializeEventListeners() {
-        // Add Solution Button
-        const addSolutionBtn = document.getElementById('addSolutionBtn');
-        if (addSolutionBtn) {
-            addSolutionBtn.addEventListener('click', () => {
-                const nameInput = document.getElementById('new_solution_name');
-                const descInput = document.getElementById('new_solution_description');
-                const name = nameInput.value.trim();
-                const description = descInput?.value.trim();
+    const addSolutionBtn = document.getElementById('addSolutionBtn');
+    if (addSolutionBtn) {
+        addSolutionBtn.addEventListener('click', () => {
+            const nameInput = document.getElementById('new_solution_name');
+            const descInput = document.getElementById('new_solution_description');
+            const name = nameInput.value.trim();
+            const description = descInput?.value.trim();
 
-                if (name && currentProblemId) {
-                    addNewSolution(currentProblemId, name, description);
-                } else {
-                    SolutionTaskCommon.showAlert('Solution name cannot be empty or no problem selected.', 'warning');
-                }
-            });
-        }
+            // Retrieve currentProblemId from sessionStorage
+            const problemId = parseInt(sessionStorage.getItem('currentProblemId'), 10);
+            console.log('Add Solution Clicked. name:', name, 'currentProblemId:', problemId);
+
+            if (name && problemId) {
+                addNewSolution(problemId, name, description);
+            } else {
+                SolutionTaskCommon.showAlert('Solution name cannot be empty or no problem selected.', 'warning');
+            }
+        });
+    }
+
+    // Adding an event listener for the solution dropdown to set window.AppState.currentSolutionId
+    const existingSolutions = document.getElementById('existing_solutions');
+    if (existingSolutions) {
+        existingSolutions.addEventListener('change', (event) => {
+            const solutionId = parseInt(event.target.value, 10);
+            window.AppState.currentSolutionId = solutionId || null; // Set to integer or null if empty
+            console.log(`Updated Current Solution ID: ${window.AppState.currentSolutionId}`);
+        });
+    }
+}
+
+
 
         // Existing Solutions Dropdown Change
         const existingSolutions = document.getElementById('existing_solutions');
         if (existingSolutions) {
             existingSolutions.addEventListener('change', (event) => {
-                const solutionId = event.target.value;
+                const solutionId = parseInt(event.target.value, 10); // Ensure solutionId is an integer
                 console.log(`Solutions Dropdown changed to: ${solutionId}`);
+
                 if (solutionId) {
-                    currentSolutionId = solutionId; // Update currentSolutionId
-                    fetchTasksForSolution(solutionId);
+                    // Update the globally accessible currentSolutionId in window.AppState
+                    window.AppState.currentSolutionId = solutionId;
+                    fetchTasksForSolution(window.AppState.currentSolutionId);
                 } else {
-                    currentSolutionId = null; // Reset currentSolutionId
-                    // Clear tasks dropdown if no solution is selected
+                    // Reset globally accessible currentSolutionId in window.AppState
+                    window.AppState.currentSolutionId = null;
                     const tasksDropdown = document.getElementById('existing_tasks');
                     if (tasksDropdown) {
                         SolutionTaskCommon.populateDropdown(tasksDropdown, [], 'Select Task');
                         tasksDropdown.disabled = true;
                         console.log(`Cleared Tasks Dropdown`);
                     }
-                    // Clear the edit task form
                     SolutionTaskCommon.clearEditTaskForm();
                 }
+
+                // Log the updated solution ID in window.AppState for verification
+                console.log(`Updated Current Solution ID: ${window.AppState.currentSolutionId}`);
             });
         }
+
+
+
 
         // Add Task Button
         const addTaskBtn = document.getElementById('addTaskBtn');
@@ -865,13 +945,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 const name = nameInput.value.trim();
                 const description = descInput?.value.trim();
 
-                if (name && currentSolutionId) {
-                    addNewTask(currentSolutionId, name, description);
+                // Use window.AppState.currentSolutionId for consistency
+                const solutionId = window.AppState.currentSolutionId;
+                console.log('Task Name:', name, 'Current Solution ID:', solutionId);
+
+                if (name && solutionId) {
+                    addNewTask(solutionId, name, description);
                 } else {
                     SolutionTaskCommon.showAlert('Task name cannot be empty or no solution selected.', 'warning');
                 }
             });
         }
+
+
 
         // Add Position Button
         const addPositionBtn = document.getElementById('addPositionBtn');
@@ -885,7 +971,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Optional: Implement removal of selected solutions or tasks based on UI needs
-    }
+
 
     /**
      * Add a new task to a solution
@@ -893,7 +979,10 @@ document.addEventListener('DOMContentLoaded', () => {
      * @param {string} name - The name of the new task
      * @param {string} description - The description of the new task
      */
-    async function addNewTask(solutionId, name, description) {
+    async function addNewTask(solutionId = window.currentSolutionId, name, description) {
+        // Confirm solution ID is valid
+        console.log("Adding Task:", { solutionId, name, description });
+
         if (!solutionId) {
             SolutionTaskCommon.showAlert('No solution selected.', 'warning');
             return;
@@ -905,12 +994,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({ solution_id: solutionId, name, description })
             });
             SolutionTaskCommon.showAlert('Task added successfully.', 'success');
+
+            // Fetch updated tasks list for this solution
             await fetchTasksForSolution(solutionId);
+
+            // Clear input fields
             const nameInput = document.getElementById('new_task_name');
             const descInput = document.getElementById('new_task_description');
             SolutionTaskCommon.clearInputFields(nameInput, descInput);
         } catch (error) {
-            // Error handling is already managed in fetchWithHandling
+            console.error("Error in addNewTask:", error);
+            SolutionTaskCommon.showAlert('An error occurred while adding the task.', 'danger');
         }
     }
 
@@ -936,6 +1030,45 @@ document.addEventListener('DOMContentLoaded', () => {
             // Error handling is already managed in fetchWithHandling
         }
     }
+    // Event listener for Remove Task button
+    document.getElementById('removeTaskBtn').addEventListener('click', () => {
+        const tasksDropdown = document.getElementById('existing_tasks');
+        const selectedTaskId = tasksDropdown.value;
+
+        // Check if a task is selected
+        if (!selectedTaskId) {
+            SolutionTaskCommon.showAlert('Please select a task to remove.', 'warning');
+            return;
+        }
+
+        // Confirm removal
+        const confirmDelete = confirm('Are you sure you want to remove the selected task?');
+        if (!confirmDelete) return;
+
+        // Call the remove task function
+        removeTask(selectedTaskId);
+    });
+
+    // Function to remove the task
+    function removeTask(taskId) {
+        fetch('/pst_troubleshooting_solution/remove_task/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ task_id: taskId })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                SolutionTaskCommon.showAlert(data.message, 'success');
+                // Optionally, refresh the tasks dropdown to reflect the change
+                fetchTasksForSolution(currentSolutionId);
+            } else {
+                SolutionTaskCommon.showAlert(data.error || "Failed to remove task", 'danger');
+            }
+        })
+        .catch(error => console.error('Error removing task:', error));
+    }
+
 
     // === 7. Initialize Event Listeners ===
     initializeEventListeners();
