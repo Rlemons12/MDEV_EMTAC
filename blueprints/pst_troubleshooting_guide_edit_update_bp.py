@@ -5,11 +5,12 @@ from flask import Blueprint, request, redirect, url_for, jsonify, flash, render_
 import logging
 from config_env import DatabaseConfig
 from emtacdb_fts import (CompletedDocumentPositionAssociation, ImagePositionAssociation, DrawingPositionAssociation,
-                         Drawing, Problem, Task,
-                         ImageProblemAssociation, ImageTaskAssociation, CompleteDocumentProblemAssociation,
-                         Part, PartProblemAssociation, DrawingProblemAssociation,
+                         Drawing, Problem, Task, ImageProblemAssociation, ImageTaskAssociation, CompleteDocumentProblemAssociation,
+                         Part, PartProblemAssociation, DrawingProblemAssociation, Solution, Position, Image,
+                         TaskPositionAssociation, PartTaskAssociation, CompleteDocumentTaskAssociation,
+                         DrawingTaskAssociation,CompleteDocumentTaskAssociation, CompleteDocument,
                          PartsPositionImageAssociation, ProblemPositionAssociation,Area,EquipmentGroup,AssetNumber,
-                         Model, Location, SiteLocation)
+                         Model, Location, SiteLocation, TaskSolutionAssociation)
 from sqlalchemy import or_
 from sqlalchemy.exc import SQLAlchemyError
 from logging.handlers import RotatingFileHandler
@@ -76,6 +77,86 @@ def update_associations(session, model, filter_field, target_id, item_ids, assoc
     except Exception as e:
         logger.error(f"Error updating {assoc_name} associations: {traceback.format_exc()}")
 
+def handle_save_position(session, task_id, solution_id, area_id, equipment_group_id, model_id, asset_number_id, location_id, site_location_id):
+    try:
+        # Fetch the Task instance
+        task = session.query(Task).filter_by(id=task_id).first()
+        if not task:
+            return jsonify({'error': f'Task with ID {task_id} does not exist.'}), 404
+
+        # Fetch the Solution instance
+        solution = session.query(Solution).filter_by(id=solution_id).first()
+        if not solution:
+            return jsonify({'error': f'Solution with ID {solution_id} does not exist.'}), 404
+
+        # Ensure the Task is associated with the Solution
+        existing_task_solution = session.query(TaskSolutionAssociation).filter_by(
+            task_id=task.id,
+            solution_id=solution.id
+        ).first()
+
+        if not existing_task_solution:
+            task_solution_association = TaskSolutionAssociation(
+                task_id=task.id,
+                solution_id=solution.id
+            )
+            session.add(task_solution_association)
+            print(f"Associated Task ID {task.id} with Solution ID {solution.id}")
+
+        # Fetch or create the Position instance
+        position = session.query(Position).filter_by(
+            area_id=area_id,
+            equipment_group_id=equipment_group_id,
+            model_id=model_id,
+            asset_number_id=asset_number_id,
+            location_id=location_id,
+            site_location_id=site_location_id
+        ).first()
+
+        if not position:
+            # Create a new Position instance
+            position = Position(
+                area_id=area_id,
+                equipment_group_id=equipment_group_id,
+                model_id=model_id,
+                asset_number_id=asset_number_id,
+                location_id=location_id,
+                site_location_id=site_location_id
+            )
+            session.add(position)
+            session.flush()  # Flush to get the position ID
+            print(f"Created new Position ID {position.id}")
+
+        # Check if the association between Task and Position already exists
+        existing_task_position = session.query(TaskPositionAssociation).filter_by(
+            task_id=task.id,
+            position_id=position.id
+        ).first()
+
+        if not existing_task_position:
+            # Create the association between the task and the position
+            task_position_association = TaskPositionAssociation(
+                task_id=task.id,
+                position_id=position.id
+            )
+            session.add(task_position_association)
+            print(f"Associated Task ID {task.id} with Position ID {position.id}")
+
+        # Commit the transaction
+        session.commit()
+
+        return jsonify({'status': 'success', 'message': 'Position and associations saved successfully.'}), 200
+
+    except SQLAlchemyError as e:
+        session.rollback()
+        error_msg = str(e.__dict__.get('orig'))  # More detailed error message
+        print(f"Database error: {error_msg}")
+        return jsonify({'error': 'Database error occurred.', 'details': error_msg}), 500
+    except Exception as e:
+        session.rollback()
+        print(f"Unexpected error: {str(e)}")
+        return jsonify({'error': 'An unexpected error occurred.', 'details': str(e)}), 500
+
 # Route for editing/updating a Task
 @pst_troubleshooting_guide_edit_update_bp.route('/troubleshooting_guide/edit_update_task', methods=['POST'])
 def edit_update_task():
@@ -139,24 +220,7 @@ def edit_update_task():
     return redirect(url_for('pst_troubleshooting_guide_edit_update_bp.troubleshooting_guide'))
 
 # Search route for Parts
-@pst_troubleshooting_guide_edit_update_bp.route('/search_parts')
-def search_parts():
-    search_term = request.args.get('q', '')
-    logger.info(f"Searching for parts with term '{search_term}'")
 
-    session = db_config.get_main_session()
-    parts = session.query(Part).filter(
-        or_(
-            Part.part_number.ilike(f'%{search_term}%'),
-            Part.name.ilike(f'%{search_term}%'),
-            Part.oem_mfg.ilike(f'%{search_term}%'),
-            Part.model.ilike(f'%{search_term}%')
-        )
-    ).limit(10).all()
-
-    results = [{'id': part.id, 'name': f"{part.part_number} - {part.name}"} for part in parts]
-    logger.debug(f"Search results: {results}")
-    return jsonify(results)
 
 # Search route for Drawings
 @pst_troubleshooting_guide_edit_update_bp.route('/search_drawings')
@@ -177,7 +241,6 @@ def search_drawings():
     results = [{'id': drawing.id, 'text': f"{drawing.drw_number} - {drawing.drw_name}"} for drawing in drawings]
     logger.debug(f"Search results: {results}")
     return jsonify(results)
-
 
 @pst_troubleshooting_guide_edit_update_bp.route('/search_images')
 def search_images():
@@ -224,7 +287,6 @@ def get_areas():
     finally:
         session.close()
 
-
 @pst_troubleshooting_guide_edit_update_bp.route('/get_equipment_groups', methods=['GET'])
 def get_equipment_groups():
     session = db_config.get_main_session()
@@ -259,38 +321,266 @@ def get_locations():
 
 @pst_troubleshooting_guide_edit_update_bp.route('/get_site_locations', methods=['GET'])
 def get_site_locations():
-    session = db_config.get_main_session()
-    model_id = request.args.get('model_id')
-    asset_number_id = request.args.get('asset_number_id')
-    location_id = request.args.get('location_id')
-    area_id = request.args.get('area_id')  # New parameter for area
-    equipment_group_id = request.args.get('equipment_group_id')  # New parameter for equipment group
+    """
+    Fetch all Site Locations with detailed logging for debugging.
+    """
+    session = None
+    try:
+        # Create a new session
+        session = db_config.get_main_session()
+        logger.info("Database session created successfully for /get_site_locations.")
 
-    logger.info(f"Received request to /get_site_locations with model_id: {model_id}, "
-                f"asset_number_id: {asset_number_id}, location_id: {location_id}, "
-                f"area_id: {area_id}, equipment_group_id: {equipment_group_id}")
+        # Debug log: Starting to fetch site locations
+        logger.info("Starting to fetch site locations from the database.")
+
+        # Query all Site Locations
+        site_locations = session.query(SiteLocation).all()
+
+        # Debug log: Number of entries retrieved
+        if site_locations:
+            logger.info(f"Fetched {len(site_locations)} site locations from the database.")
+        else:
+            logger.warning("No site locations found in the database.")
+
+        # Prepare data for JSON response
+        data = [{'id': loc.id, 'title': loc.title, 'room_number': loc.room_number} for loc in site_locations]
+
+        # Debug log: Data to be returned in JSON response
+        logger.debug(f"Site Location data prepared for response: {data}")
+
+        # Return JSON response
+        return jsonify(data), 200
+
+    except Exception as e:
+        # Log detailed error information
+        logger.error(f"Error fetching site locations: {e}", exc_info=True)
+
+        # Return specific error message
+        return jsonify({"error": "Failed to fetch site locations from database."}), 500
+
+    finally:
+        # Ensure the session is always closed
+        if session:
+            session.close()
+            logger.info("Database session closed after fetching site locations.")
+
+@pst_troubleshooting_guide_edit_update_bp.route('/save_position/', methods=['POST'])
+def save_position():
+    # Obtain the custom session
+    session = db_config.get_main_session()
 
     try:
-        positions = session.query(Position).filter_by(
-            model_id=model_id,
-            asset_number_id=asset_number_id,
-            location_id=location_id,
-            area_id=area_id,
-            equipment_group_id=equipment_group_id
+        # Parse JSON data from the request
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Invalid or missing JSON data.'}), 400
+
+        task_id = data.get('task_id')
+        solution_id = data.get('solution_id')
+        position_data = data.get('position_data')
+
+        # Validate required fields
+        if not task_id or not solution_id or not position_data:
+            return jsonify({'error': 'Missing task_id, solution_id, or position_data.'}), 400
+
+        # Extract position fields
+        area_id = position_data.get('area_id')
+        equipment_group_id = position_data.get('equipment_group_id')
+        model_id = position_data.get('model_id')
+        asset_number_id = position_data.get('asset_number')  # Assuming this is the ID
+        location_id = position_data.get('location')  # Assuming this is the ID
+        site_location_id = position_data.get('site_location_id')
+
+        # Validate required position fields
+        if not all([area_id, equipment_group_id, model_id]):
+            return jsonify({'error': 'Missing required position fields.'}), 400
+
+        # Call helper function to handle saving position
+        return handle_save_position(session, task_id, solution_id, area_id, equipment_group_id, model_id,
+                                    asset_number_id, location_id, site_location_id)
+
+    except Exception as e:
+        session.rollback()
+        return jsonify({'error': 'An unexpected error occurred.', 'details': str(e)}), 500
+
+
+@pst_troubleshooting_guide_edit_update_bp.route('/search_documents', methods=['GET'])
+def search_documents():
+    """Search for documents based on a query term."""
+    search_term = request.args.get('query', '').strip()  # Ensure 'query' matches frontend
+    if not search_term:
+        return jsonify([])  # Return empty list if no query provided
+
+    # Obtain the custom session
+    session = db_config.get_main_session()
+
+    try:
+        # Perform the query on the title or content fields
+        results = session.query(CompleteDocument).filter(
+            or_(
+                CompleteDocument.title.ilike(f'%{search_term}%'),
+                CompleteDocument.content.ilike(f'%{search_term}%')
+            )
         ).all()
 
-        logger.info(f"Found {len(positions)} positions matching the filters.")
-
-        site_locations = [
-            {'id': pos.site_location.id, 'title': pos.site_location.title, 'room_number': pos.site_location.room_number}
-            for pos in positions if pos.site_location
+        # Format the results for JSON response with the title field
+        documents = [
+            {
+                'id': doc.id,
+                'text': doc.title,  # Select2 uses 'text' for display
+                'file_path': doc.file_path,
+                'rev': doc.rev
+            }
+            for doc in results
         ]
-
-        logger.info(f"Extracted {len(site_locations)} site locations.")
-
-        site_locations.append({'id': 'new', 'title': 'New Site Location', 'room_number': ''})
-
-        return jsonify(site_locations)
+        return jsonify(documents)
     except Exception as e:
-        logger.error(f"Error fetching site locations: {e}")
-        return jsonify({"error": "An error occurred while fetching site locations"}), 500
+        print(f"Error searching documents: {e}")
+        return jsonify({'error': 'An error occurred while searching for documents.'}), 500
+    finally:
+        session.close()  # Ensure the session is closed after the request
+
+@pst_troubleshooting_guide_edit_update_bp.route('/save_task_documents', methods=['POST'])
+def save_task_documents():
+    """Save selected documents for a specific task."""
+    data = request.get_json()
+    task_id = data.get('task_id')
+    document_ids = data.get('document_ids', [])
+
+    # Validate inputs
+    if not task_id or not isinstance(document_ids, list):
+        return jsonify({'status': 'error', 'message': 'Invalid input data.'}), 400
+
+    # Obtain the custom session
+    session = db_config.get_main_session()
+
+    try:
+        # Retrieve existing associations for the task
+        existing_associations = session.query(CompleteDocumentTaskAssociation).filter_by(task_id=task_id).all()
+        existing_document_ids = {assoc.complete_document_id for assoc in existing_associations}
+
+        # Determine which associations to add and which to remove
+        new_document_ids = set(map(int, document_ids))
+        to_add = new_document_ids - existing_document_ids
+        to_remove = existing_document_ids - new_document_ids
+
+        # Remove associations that are no longer selected
+        if to_remove:
+            session.query(CompleteDocumentTaskAssociation).filter(
+                CompleteDocumentTaskAssociation.task_id == task_id,
+                CompleteDocumentTaskAssociation.complete_document_id.in_(to_remove)
+            ).delete(synchronize_session='fetch')
+
+        # Add new associations
+        for doc_id in to_add:
+            new_assoc = CompleteDocumentTaskAssociation(task_id=task_id, complete_document_id=doc_id)
+            session.add(new_assoc)
+
+        # Commit the transaction
+        session.commit()
+        logger.info(f"Saved {len(new_document_ids)} document associations for task ID {task_id}")
+        return jsonify({'status': 'success', 'message': 'Documents saved successfully.'})
+
+    except Exception as e:
+        session.rollback()  # Roll back in case of error
+        logger.error(f"Error saving documents for task ID {task_id}: {e}")
+        return jsonify({'status': 'error', 'message': 'An error occurred while saving documents.'}), 500
+    finally:
+        session.close()  # Ensure the session is closed after the request
+
+@pst_troubleshooting_guide_edit_update_bp.route('/save_task_drawings', methods=['POST'])
+def save_task_drawings():
+    data = request.json
+    task_id = data.get('task_id')
+    drawing_ids = data.get('drawing_ids', [])
+
+    session = db_config.get_main_session()
+    try:
+        # Clear any existing associations for this task
+        session.query(DrawingTaskAssociation).filter_by(task_id=task_id).delete()
+
+        # Add new associations based on selected drawing IDs
+        for drawing_id in drawing_ids:
+            association = DrawingTaskAssociation(task_id=task_id, drawing_id=drawing_id)
+            session.add(association)
+
+        session.commit()
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Error saving drawings for task {task_id}: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+    finally:
+        session.close()
+
+@pst_troubleshooting_guide_edit_update_bp.route('/search_parts')
+def search_parts():
+    search_term = request.args.get('q', '')
+    logger.info(f"Searching for parts with term '{search_term}'")
+
+    session = db_config.get_main_session()
+    parts = session.query(Part).filter(
+        or_(
+            Part.part_number.ilike(f'%{search_term}%'),
+            Part.name.ilike(f'%{search_term}%')
+        )
+    ).limit(10).all()
+
+    # Ensure 'text' is correctly formatted as part name
+    results = [{'id': part.id, 'text': f"{part.part_number} - {part.name}"} for part in parts]
+    logger.debug(f"Search results: {results}")
+    return jsonify(results)
+
+@pst_troubleshooting_guide_edit_update_bp.route('/save_task_parts', methods=['POST'])
+def save_task_parts():
+    data = request.json
+    task_id = data.get('task_id')
+    part_ids = data.get('part_ids', [])
+
+    logger.info(f"Saving parts for task ID: {task_id} with part IDs: {part_ids}")
+
+    session = db_config.get_main_session()
+    task = session.query(Task).get(task_id)
+
+    if not task:
+        return jsonify({'status': 'error', 'message': 'Task not found'}), 404
+
+    task.part_task = [PartTaskAssociation(part_id=part_id) for part_id in part_ids]
+
+    session.commit()
+    logger.info(f"Parts saved successfully for task ID: {task_id}")
+    return jsonify({'status': 'success', 'message': 'Parts saved successfully'})
+
+@pst_troubleshooting_guide_edit_update_bp.route('/save_task_images', methods=['POST'])
+def save_task_images():
+    data = request.get_json()
+    task_id = data.get('task_id')
+    image_ids = data.get('image_ids', [])
+
+    logger.info(f"Saving images for task {task_id}: {image_ids}")
+
+    if not task_id or not image_ids:
+        return jsonify({'status': 'error', 'message': 'Task ID and image IDs are required.'}), 400
+
+    session = db_config.get_main_session()
+    try:
+        # Clear existing associations for this task
+        session.query(ImageTaskAssociation).filter_by(task_id=task_id).delete()
+
+        # Create new associations
+        for image_id in image_ids:
+            association = ImageTaskAssociation(task_id=task_id, image_id=image_id)
+            session.add(association)
+
+        session.commit()
+        logger.info(f"Images saved for task {task_id}")
+        return jsonify({'status': 'success', 'message': 'Images saved successfully.'})
+
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Error saving images for task {task_id}: {traceback.format_exc()}")
+        return jsonify({'status': 'error', 'message': 'Failed to save images.'}), 500
+
+    finally:
+        session.close()
+
