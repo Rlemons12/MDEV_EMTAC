@@ -150,8 +150,6 @@ def create_new_problem():
     finally:
         session.close()
 
-
-
 @pst_troubleshoot_new_entry_bp.route('/get_equipment_groups', methods=['GET'])
 def get_equipment_groups():
     area_id = request.args.get('area_id')
