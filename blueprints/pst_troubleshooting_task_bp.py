@@ -106,3 +106,4 @@ def get_task_details(task_id):
     finally:
         session.close()
         logger.info(f"Session closed for task ID {task_id}")
+
