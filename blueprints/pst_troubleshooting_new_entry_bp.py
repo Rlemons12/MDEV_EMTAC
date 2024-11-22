@@ -201,7 +201,6 @@ def get_asset_numbers():
     finally:
         session.close()
 
-
 @pst_troubleshoot_new_entry_bp.route('/get_locations', methods=['GET'])
 def get_locations():
     model_id = request.args.get('model_id')
@@ -218,7 +217,6 @@ def get_locations():
         return jsonify({"error": "Internal server error"}), 500
     finally:
         session.close()
-
 
 @pst_troubleshoot_new_entry_bp.route('/get_site_locations', methods=['GET'])
 def get_site_locations():
@@ -264,8 +262,6 @@ def get_site_locations():
         if session:
             session.close()
             logger.info("Database session closed after fetching site locations.")
-
-
 
 @pst_troubleshoot_new_entry_bp.route('/get_positions', methods=['GET'])
 def get_positions():
