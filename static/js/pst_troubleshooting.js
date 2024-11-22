@@ -1,6 +1,5 @@
 // Consolidated Script: pst_troubleshooting.js
-// Declare in the global scope
-let currentProblemId = null;
+
 document.addEventListener('DOMContentLoaded', () => {
     // Explicitly set each endpoint URL
     const GET_EQUIPMENT_GROUPS_URL = '/pst_troubleshooting/get_equipment_groups';
@@ -21,6 +20,23 @@ document.addEventListener('DOMContentLoaded', () => {
         location: document.getElementById('pst_locationDropdown'),
         siteLocation: document.getElementById('pst_siteLocationDropdown')
     };
+
+    // Initialize AppState if it doesn't already exist
+    window.AppState = window.AppState || {};
+
+    // Ensure properties exist without overwriting existing values
+    if (typeof window.AppState.currentProblemId === 'undefined') {
+        window.AppState.currentProblemId = null;
+    }
+    if (typeof window.AppState.currentSolutionId === 'undefined') {
+        window.AppState.currentSolutionId = null;
+    }
+    if (typeof window.AppState.selectedTaskId === 'undefined') {
+        window.AppState.selectedTaskId = null;
+    }
+
+console.log('Initialized AppState in pst_troubleshooting.js:', window.AppState);
+
 
     console.log("JavaScript loaded and ready");
 
@@ -112,13 +128,13 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('pst_searchResults').style.display = problems.length ? 'block' : 'none';
 
         if (problems.length > 0) {
-            currentProblemId = problems[0].id;
-            sessionStorage.setItem('currentProblemId', currentProblemId);  // Store in sessionStorage
-            console.log('Updated Current Problem ID:', currentProblemId);
+            window.AppState.currentProblemId = problems[0].id;
+            sessionStorage.setItem('window.AppState.currentProblemId', window.AppState.currentProblemId);  // Store in sessionStorage
+            console.log('Updated Current Problem ID:', window.AppState.currentProblemId);
         } else {
-            currentProblemId = null;
-            sessionStorage.removeItem('currentProblemId');  // Remove from sessionStorage if null
-            console.log('No problems found. Resetting Current Problem ID:', currentProblemId);
+            window.AppState.currentProblemId = null;
+            sessionStorage.removeItem('window.AppState.currentProblemId');  // Remove from sessionStorage if null
+            console.log('No problems found. Resetting Current Problem ID:', window.AppState.currentProblemId);
         }
 
         problems.forEach(problem => {
@@ -148,8 +164,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (event.target.classList.contains('edit-solutions-btn')) {
                 const problemId = event.target.dataset.problemId;
                 console.log("Edit Related Solutions button clicked for problem ID:", problemId);
-                currentProblemId = problemId;
-                sessionStorage.setItem('currentProblemId', currentProblemId);  // Update sessionStorage here too
+                window.AppState.currentProblemId = problemId;
+                sessionStorage.setItem('window.AppState.currentProblemId', window.AppState.currentProblemId);  // Update sessionStorage here too
                 editRelatedSolutions(problemId);
             }
         });
@@ -220,8 +236,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function editRelatedSolutions(problemId) {
-        currentProblemId = problemId;  // Set the current problem ID here
-        console.log('Current Problem ID updated to:', currentProblemId);
+        window.AppState.currentProblemId = problemId;  // Set the current problem ID here
+        console.log('Current Problem ID updated to:', window.AppState.currentProblemId);
         fetchData(`${GET_SOLUTIONS_URL}${problemId}`)
             .then(data => {
                 if (!data || !Array.isArray(data) || data.length === 0) {
