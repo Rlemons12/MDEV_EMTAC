@@ -435,6 +435,9 @@
                     <textarea class="form-control" id="pst_task_edit_task_description" rows="3" placeholder="Enter Task Description"></textarea>
                 </div>
 
+                <!-- Add Update Button -->
+                <button type="button" id="updateTaskDetailsBtn" class="btn btn-primary">Update Task Name and Description</button>
+
                 <!-- Main Edit Task Sub-tabs -->
                 <ul class="nav nav-tabs mt-3" id="editTaskSubTabs" role="tablist">
                     <li class="nav-item" role="presentation">
@@ -512,52 +515,67 @@
 
                 <!-- Position Template -->
                 <template id="position-template">
-                    <div class="position-section border p-3 mb-3">
-                        <!-- Hidden fields for taskId and solutionId -->
+                    <div class="position-section border p-3 mb-3" data-position-id="temp-{{uniqueId}}">
+                        <!-- Hidden fields for taskId and solutionId (if needed) -->
                         <input type="hidden" class="TaskId" value="">
                         <input type="hidden" class="SolutionId" value="">
+
+                        <!-- Area Selection -->
                         <div class="mb-3">
                             <label class="form-label">Area:</label>
-                            <select class="form-select areaDropdown" disabled>
+                            <select class="form-select areaDropdown" id="areaDropdown_{{uniqueId}}" disabled>
                                 <option value="">Select Area</option>
-                                <!-- Options populated by JS -->
+                                <!-- Options populated dynamically via JavaScript -->
                             </select>
                         </div>
+
+                        <!-- Equipment Group Selection -->
                         <div class="mb-3">
                             <label class="form-label">Equipment Group:</label>
-                            <select class="form-select equipmentGroupDropdown" disabled>
+                            <select class="form-select equipmentGroupDropdown" id="equipmentGroupDropdown_{{uniqueId}}" disabled>
                                 <option value="">Select Equipment Group</option>
-                                <!-- Options populated by JS -->
+                                <!-- Options populated dynamically via JavaScript -->
                             </select>
                         </div>
+
+                        <!-- Model Selection -->
                         <div class="mb-3">
                             <label class="form-label">Model:</label>
-                            <select class="form-select modelDropdown" disabled>
+                            <select class="form-select modelDropdown" id="modelDropdown_{{uniqueId}}" disabled>
                                 <option value="">Select Model</option>
-                                <!-- Options populated by JS -->
+                                <!-- Options populated dynamically via JavaScript -->
                             </select>
                         </div>
+
+                        <!-- Asset Number Input -->
                         <div class="mb-3">
                             <label class="form-label">Asset Number:</label>
-                            <select class="form-select assetNumberInput" disabled>
-                                <option value="">Select Asset Number</option>
-                                <!-- Options populated by JS -->
-                            </select>
+                            <input type="text" class="form-control assetNumberInput" id="assetNumberInput_{{uniqueId}}" placeholder="Enter Asset Number" disabled>
                         </div>
+
+                        <!-- Location Input -->
                         <div class="mb-3">
                             <label class="form-label">Location:</label>
-                            <select class="form-select locationInput" disabled>
-                                <option value="">Select Location</option>
-                                <!-- Options populated by JS -->
-                            </select>
+                            <input type="text" class="form-control locationInput" id="locationInput_{{uniqueId}}" placeholder="Enter Location" disabled>
                         </div>
+
+                        <!-- Site Location Selection -->
                         <div class="mb-3">
                             <label class="form-label">Site Location:</label>
-                            <select class="form-select siteLocationDropdown" disabled>
+                            <select class="form-select siteLocationDropdown" id="siteLocationDropdown_{{uniqueId}}" disabled>
                                 <option value="">Select Site Location</option>
-                                <!-- Options populated by JS -->
+                                <!-- Options populated dynamically via JavaScript -->
                             </select>
                         </div>
+
+                        <!-- Action Buttons -->
+                        <div class="d-flex justify-content-end">
+                            <button type="button" class="btn btn-primary me-2 savePositionBtn" id="savePositionBtn_{{uniqueId}}">Save Position</button>
+                            <button type="button" class="btn btn-danger removePositionBtn" id="removePositionBtn_{{uniqueId}}">Remove Position</button>
+                        </div>
+                    </div>
+                </template>
+
                         <!-- Buttons -->
                         <button type="button" class="btn btn-danger removePositionBtn">Remove Position</button>
                         <button type="button" class="btn btn-primary savePositionBtn">Save Position</button>
