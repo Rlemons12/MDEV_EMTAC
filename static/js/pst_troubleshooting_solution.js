@@ -60,18 +60,29 @@ document.addEventListener('DOMContentLoaded', () => {
         const newSolutionsDropdown = solutionsDropdown.cloneNode(true);
         solutionsDropdown.parentNode.replaceChild(newSolutionsDropdown, solutionsDropdown);
 
-        // Attach new event listener
-        newSolutionsDropdown.addEventListener('change', (event) => {
-            const selectedSolutionId = event.target.value;
-            if (selectedSolutionId) {
-                currentSolutionId = selectedSolutionId; // Update currentSolutionId
-                fetchTasksForSolution(selectedSolutionId);
+        // Attach single-click event to update selection
+        newSolutionsDropdown.addEventListener('click', (event) => {
+            const selectedOption = newSolutionsDropdown.value;
+            if (selectedOption) {
+                currentSolutionId = selectedOption;
+                showAlert(`Solution "${event.target.selectedOptions[0].text}" selected.`, 'info');
             } else {
                 currentSolutionId = null;
-                clearTasksDropdown();
+            }
+        });
+
+        // Attach double-click event to trigger an action
+        newSolutionsDropdown.addEventListener('dblclick', (event) => {
+            const selectedOption = newSolutionsDropdown.value;
+            if (selectedOption) {
+                currentSolutionId = selectedOption;
+                fetchTasksForSolution(selectedOption); // Fetch tasks related to the double-clicked solution
+                showAlert(`Action triggered for solution "${event.target.selectedOptions[0].text}".`, 'success');
             }
         });
     }
+
+
 
     function updateProblemName(problemName) {
         const header = document.getElementById('selected-problem-name');
