@@ -127,6 +127,9 @@ def handle_save_position(session, task_id, solution_id, area_id, equipment_group
             session.flush()  # Flush to get the position ID
             print(f"Created new Position ID {position.id}")
 
+        # At this point, position.id should be available
+        position_id = position.id
+
         # Check if the association between Task and Position already exists
         existing_task_position = session.query(TaskPositionAssociation).filter_by(
             task_id=task.id,
@@ -145,7 +148,12 @@ def handle_save_position(session, task_id, solution_id, area_id, equipment_group
         # Commit the transaction
         session.commit()
 
-        return jsonify({'status': 'success', 'message': 'Position and associations saved successfully.'}), 200
+        # Return the new position_id in the response
+        return jsonify({
+            'status': 'success',
+            'message': 'Position and associations saved successfully.',
+            'position_id': position_id  # Include the position_id
+        }), 200
 
     except SQLAlchemyError as e:
         session.rollback()
@@ -364,23 +372,39 @@ def get_site_locations():
             session.close()
             logger.info("Database session closed after fetching site locations.")
 
-@pst_troubleshooting_guide_edit_update_bp.route('/save_position/', methods=['POST'])
+@pst_troubleshooting_guide_edit_update_bp.route('/save_position', methods=['POST'])
 def save_position():
-    # Obtain the custom session
-    session = db_config.get_main_session()
+    """
+    Endpoint to save a position associated with a task and solution.
+    Expects JSON data with task_id, solution_id, and position_data.
+    """
+    logger.info("Entered '/save_position/' endpoint.")
 
+    # Obtain the custom session
+    session = None
     try:
+        session = db_config.get_main_session()
+        logger.debug("Database session created successfully.")
+
         # Parse JSON data from the request
         data = request.get_json()
+        logger.debug(f"Received JSON data: {data}")
+
         if not data:
+            logger.warning("No JSON data received in the request.")
             return jsonify({'error': 'Invalid or missing JSON data.'}), 400
 
+        # Extract top-level fields
         task_id = data.get('task_id')
         solution_id = data.get('solution_id')
         position_data = data.get('position_data')
 
-        # Validate required fields
+        logger.debug(f"Parsed task_id: {task_id}, solution_id: {solution_id}")
+        logger.debug(f"Parsed position_data: {position_data}")
+
+        # Validate required top-level fields
         if not task_id or not solution_id or not position_data:
+            logger.warning("Missing task_id, solution_id, or position_data in the request.")
             return jsonify({'error': 'Missing task_id, solution_id, or position_data.'}), 400
 
         # Extract position fields
@@ -391,18 +415,53 @@ def save_position():
         location_id = position_data.get('location')  # Assuming this is the ID
         site_location_id = position_data.get('site_location_id')
 
+        logger.debug(
+            f"Extracted position fields - area_id: {area_id}, "
+            f"equipment_group_id: {equipment_group_id}, model_id: {model_id}, "
+            f"asset_number_id: {asset_number_id}, location_id: {location_id}, "
+            f"site_location_id: {site_location_id}"
+        )
+
         # Validate required position fields
         if not all([area_id, equipment_group_id, model_id]):
+            logger.warning("Missing required position fields: area_id, equipment_group_id, or model_id.")
             return jsonify({'error': 'Missing required position fields.'}), 400
 
+        logger.info(
+            f"Saving position for task_id: {task_id}, solution_id: {solution_id}, "
+            f"area_id: {area_id}, equipment_group_id: {equipment_group_id}, "
+            f"model_id: {model_id}, asset_number_id: {asset_number_id}, "
+            f"location_id: {location_id}, site_location_id: {site_location_id}"
+        )
+
         # Call helper function to handle saving position
-        return handle_save_position(session, task_id, solution_id, area_id, equipment_group_id, model_id,
-                                    asset_number_id, location_id, site_location_id)
+        response = handle_save_position(
+            session=session,
+            task_id=task_id,
+            solution_id=solution_id,
+            area_id=area_id,
+            equipment_group_id=equipment_group_id,
+            model_id=model_id,
+            asset_number_id=asset_number_id,
+            location_id=location_id,
+            site_location_id=site_location_id
+        )
+
+        logger.info("Position saved successfully.")
+        return response
 
     except Exception as e:
-        session.rollback()
+        if session:
+            session.rollback()
+            logger.debug("Database session rolled back due to an error.")
+
+        logger.error(f"An unexpected error occurred in '/save_position/': {e}", exc_info=True)
         return jsonify({'error': 'An unexpected error occurred.', 'details': str(e)}), 500
 
+    finally:
+        if session:
+            session.close()
+            logger.debug("Database session closed.")
 
 @pst_troubleshooting_guide_edit_update_bp.route('/search_documents', methods=['GET'])
 def search_documents():
@@ -583,4 +642,121 @@ def save_task_images():
 
     finally:
         session.close()
+
+@pst_troubleshooting_guide_edit_update_bp.route('/remove_position', methods=['POST'])
+def remove_position():
+    """
+    Endpoint to remove a Tasks position based on .
+    Expects JSON data with position_id.
+    """
+    logger.info("Entered '/remove_position' endpoint.")
+
+    session = None
+    try:
+        session = db_config.get_main_session()
+        logger.debug("Database session created successfully.")
+
+        # Parse JSON data from the request
+        data = request.get_json()
+        logger.debug(f"Received JSON data: {data}")
+
+        if not data:
+            logger.warning("No JSON data received in the request.")
+            return jsonify({'error': 'Invalid or missing JSON data.'}), 400
+
+        # Extract position_id
+        position_id = data.get('position_id')
+        if not position_id:
+            logger.warning("Missing position_id in the request.")
+            return jsonify({'error': 'Missing position_id.'}), 400
+
+        logger.debug(f"Parsed position_id: {position_id}")
+
+        # Fetch the position from the database
+        position = session.query(Position).filter_by(id=position_id).first()
+        if not position:
+            logger.warning(f"Position with ID {position_id} not found.")
+            return jsonify({'error': 'Position not found.'}), 404
+
+        # Delete the position
+        session.delete(position)
+        session.commit()
+        logger.info(f"Position with ID {position_id} removed successfully.")
+
+        return jsonify({'status': 'success', 'message': 'Position removed successfully.'}), 200
+
+    except Exception as e:
+        if session:
+            session.rollback()
+            logger.debug("Database session rolled back due to an error.")
+
+        logger.error(f"An unexpected error occurred in '/remove_position/': {e}", exc_info=True)
+        return jsonify({'error': 'An unexpected error occurred.', 'details': str(e)}), 500
+
+    finally:
+        if session:
+            session.close()
+            logger.debug("Database session closed.")
+
+@pst_troubleshooting_guide_edit_update_bp.route('/update_task', methods=['POST'])
+def update_task():
+    """
+    Endpoint to update task details.
+    Expects JSON data with task_id, name, and description.
+    """
+    logger.info("Entered '/update_task' endpoint.")
+
+    session = None
+    try:
+        session = db_config.get_main_session()
+        logger.debug("Database session created successfully.")
+
+        # Parse JSON data from the request
+        data = request.get_json()
+        logger.debug(f"Received JSON data: {data}")
+
+        if not data:
+            logger.warning("No JSON data received in the request.")
+            return jsonify({'status': 'error', 'message': 'Invalid or missing JSON data.'}), 400
+
+        # Extract fields
+        task_id = data.get('task_id')
+        name = data.get('name')
+        description = data.get('description')
+
+        logger.debug(f"Parsed task_id: {task_id}, name: {name}, description: {description}")
+
+        # Validate inputs
+        if not task_id or not name:
+            logger.warning("Missing task_id or name in the request.")
+            return jsonify({'status': 'error', 'message': 'Missing task_id or name.'}), 400
+
+        # Fetch the Task instance
+        task = session.query(Task).filter_by(id=task_id).first()
+        if not task:
+            logger.warning(f"Task with ID {task_id} not found.")
+            return jsonify({'status': 'error', 'message': f'Task with ID {task_id} not found.'}), 404
+
+        # Update the task
+        task.name = name
+        task.description = description
+
+        # Commit the changes
+        session.commit()
+        logger.info(f"Task ID {task_id} updated successfully.")
+
+        return jsonify({'status': 'success', 'message': 'Task updated successfully.'}), 200
+
+    except Exception as e:
+        if session:
+            session.rollback()
+            logger.debug("Database session rolled back due to an error.")
+
+        logger.error(f"An unexpected error occurred in '/update_task': {e}", exc_info=True)
+        return jsonify({'status': 'error', 'message': 'An unexpected error occurred.', 'error': str(e)}), 500
+
+    finally:
+        if session:
+            session.close()
+            logger.debug("Database session closed.")
 
