@@ -228,6 +228,9 @@ def add_task():
 
 @pst_troubleshooting_solution_bp.route('/remove_task/', methods=['POST'])
 def remove_task_from_solution():
+
+    session = db_config.get_main_session()
+
     try:
         data = request.get_json()
         task_id = data.get('task_id')
@@ -237,19 +240,19 @@ def remove_task_from_solution():
             return jsonify({'error': 'Missing task_id or solution_id.'}), 400
 
         # Fetch the association
-        task_solution_association = db.session.query(TaskSolutionAssociation).filter_by(
+        task_solution_association = session.query(TaskSolutionAssociation).filter_by(
             task_id=task_id,
             solution_id=solution_id
         ).first()
 
         if task_solution_association:
-            db.session.delete(task_solution_association)
-            db.session.commit()
+            session.delete(task_solution_association)
+            session.commit()
             return jsonify({'status': 'success', 'message': 'Task removed from solution successfully.'}), 200
         else:
             return jsonify({'error': 'Association does not exist.'}), 404
 
     except Exception as e:
-        db.session.rollback()
+        session.rollback()
         return jsonify({'error': 'An unexpected error occurred.', 'details': str(e)}), 500
 
