@@ -260,16 +260,16 @@ $('#newProblemForm').on('submit', function (e) {
 
     $.ajax({
         type: 'POST',
-        url: '/pst_troubleshoot_new_entry/create_problem', // Update this to your actual route if different
+        url: '/pst_troubleshoot_new_entry/create_problem', //
         data: formData,
         success: function (response) {
             console.log('Create Problem Response:', response);
             if (response.success) {
                 showAlert(response.message, 'success');
-                // Optionally, redirect to the new problem's page after a delay
-                setTimeout(function () {
-                    window.location.href = '/pst_troubleshoot_new_entry/' + response.problem_id;
-                }, 2000);
+                // Clear the form inputs after successful creation
+                $('#createProblemForm')[0].reset(); // Replace 'createProblemForm' with your form's ID
+                // Optionally clear any dynamically populated elements
+                $('.dynamic-element').empty(); // Update this to match the IDs or classes of dynamic content
             } else {
                 showAlert(response.message, 'warning');
             }
