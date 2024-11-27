@@ -3,22 +3,26 @@ document.addEventListener('DOMContentLoaded', () => {
     'use strict';
 
     // === 1. Define Backend Endpoint URLs ===
-    const ENDPOINTS = {
-        tasks: {
-            details: '/pst_troubleshooting_guide_edit_update/task_details/',
-            update: '/pst_troubleshooting_guide_edit_update/update_task',
-            savePosition: '/pst_troubleshooting_guide_edit_update/save_position',
-            searchDocuments: '/pst_troubleshooting_guide_edit_update/search_documents',
-            saveDocuments: '/pst_troubleshooting_guide_edit_update/save_task_documents',
-            searchDrawings: '/pst_troubleshooting_guide_edit_update/search_drawings',
-            saveDrawings: '/pst_troubleshooting_guide_edit_update/save_task_drawings',
-            searchParts: '/pst_troubleshooting_guide_edit_update/search_parts', // New endpoint for part search
-            saveParts: '/pst_troubleshooting_guide_edit_update/save_task_parts', // Placeholder for saving parts
-            searchImages: '/pst_troubleshooting_guide_edit_update/search_images', // Add this line
-            saveImages: '/pst_troubleshooting_guide_edit_update/save_task_images',
-            removePosition: '/pst_troubleshooting_guide_edit_update/remove_position' // Corrected line
-        }
-    };
+const ENDPOINTS = {
+    tasks: {
+        details: '/pst_troubleshooting_guide_edit_update/task_details/',
+        update: '/pst_troubleshooting_guide_edit_update/update_task',
+        savePosition: '/pst_troubleshooting_guide_edit_update/save_position',
+        searchDocuments: '/pst_troubleshooting_guide_edit_update/search_documents',
+        saveDocuments: '/pst_troubleshooting_guide_edit_update/save_task_documents',
+        searchDrawings: '/pst_troubleshooting_guide_edit_update/search_drawings',
+        saveDrawings: '/pst_troubleshooting_guide_edit_update/save_task_drawings',
+        searchParts: '/pst_troubleshooting_guide_edit_update/search_parts', // New endpoint for part search
+        saveParts: '/pst_troubleshooting_guide_edit_update/save_task_parts', // Placeholder for saving parts
+        searchImages: '/pst_troubleshooting_guide_edit_update/search_images', // Added line for image search
+        saveImages: '/pst_troubleshooting_guide_edit_update/save_task_images',
+        removePosition: '/pst_troubleshooting_guide_edit_update/remove_position', // Corrected line
+        removePart: '/pst_troubleshooting_guide_edit_update/remove_task_part', // New endpoint for removing a part
+        removeDrawing: '/pst_troubleshooting_guide_edit_update/remove_task_drawing', // New endpoint for removing a drawing
+        removeImage: '/pst_troubleshooting_guide_edit_update/remove_task_image', // New endpoint for removing an image
+        removeDocument: '/pst_troubleshooting_guide_edit_update/remove_task_document' // New endpoint for removing a document
+    }
+};
 
     // === 2. Initialize Global State Object ===
     window.AppState = window.AppState || {};
@@ -47,8 +51,6 @@ if (positionsContainer) {
 } else {
     console.warn("Positions container with ID 'pst_task_edit_positions_container' not found.");
 }
-
-
 
     // === 3. Initialize Select2 for Document Search ===
 // Initialize Select2 for Document Search with empty placeholder for selected items
@@ -141,122 +143,7 @@ if (saveDocumentsBtn) {
 } else {
     console.warn("Save Documents button with ID 'saveDocumentsBtn' not found.");
 }
-/**
-    // === 5. Position Handling Functions ===
-    async function addPosition(positionData = null, index = 0) {
-        const container = document.getElementById('pst_task_edit_positions_container');
-        const template = document.getElementById('position-template');
-        if (!container || !template) {
-            console.warn("Positions container or template not found.");
-            return;
-        }
 
-        const clone = template.content.cloneNode(true);
-        const positionSection = clone.querySelector('.position-section');
-
-        // Assign unique IDs based on index for all form elements
-        const elementsToId = ['areaDropdown', 'equipmentGroupDropdown', 'modelDropdown', 'assetNumberInput', 'locationInput', 'siteLocationDropdown'];
-        elementsToId.forEach(elementClass => {
-            const element = positionSection.querySelector(`.${elementClass}`);
-            if (element) {
-                element.id = `${elementClass}_${index}`;
-                console.log(`Assigned ID ${element.id} to ${elementClass}`);
-            }
-        });
-
-        if (positionData) {
-            await populatePositionFields(positionSection, positionData, index);
-        } else {
-            await initializeNewPosition(positionSection, index);
-        }
-        container.appendChild(clone);
-        console.log(`Added new position section with index ${index}`);
-    }
-
-    async function populatePositionFields(positionSection, positionData, index) {
-        const areaDropdown = positionSection.querySelector('.areaDropdown');
-        if (areaDropdown) {
-            const areas = await SolutionTaskCommon.fetchInitialAreas();
-            window.SolutionTaskCommon.populateDropdown(areaDropdown, areas, 'Select Area');
-            areaDropdown.value = positionData.area_id || '';
-            areaDropdown.disabled = false;
-            console.log(`Populated Area Dropdown with ID ${positionData.area_id}`);
-        }
-
-        const equipmentGroupDropdown = positionSection.querySelector('.equipmentGroupDropdown');
-        if (equipmentGroupDropdown && positionData.area_id) {
-            const equipmentGroups = await SolutionTaskCommon.fetchInitialEquipmentGroups(positionData.area_id);
-            SolutionTaskCommon.populateDropdown(equipmentGroupDropdown, equipmentGroups, 'Select Equipment Group');
-            equipmentGroupDropdown.value = positionData.equipment_group_id || '';
-            equipmentGroupDropdown.disabled = false;
-            console.log(`Populated Equipment Group Dropdown with ID ${positionData.equipment_group_id}`);
-        }
-
-        const modelDropdown = positionSection.querySelector('.modelDropdown');
-        if (modelDropdown && positionData.equipment_group_id) {
-            const models = await SolutionTaskCommon.fetchInitialModels(positionData.equipment_group_id);
-            SolutionTaskCommon.populateDropdown(modelDropdown, models, 'Select Model');
-            modelDropdown.value = positionData.model_id || '';
-            modelDropdown.disabled = false;
-            console.log(`Populated Model Dropdown with ID ${positionData.model_id}`);
-        }
-
-        const assetNumberInput = positionSection.querySelector('.assetNumberInput');
-        if (assetNumberInput) {
-            assetNumberInput.value = positionData.asset_number || '';
-            assetNumberInput.disabled = false;
-            console.log(`Set Asset Number to: ${positionData.asset_number}`);
-        }
-
-        const locationInput = positionSection.querySelector('.locationInput');
-        if (locationInput) {
-            locationInput.value = positionData.location || '';
-            locationInput.disabled = false;
-            console.log(`Set Location to: ${positionData.location}`);
-        }
-
-        const siteLocationDropdown = positionSection.querySelector('.siteLocationDropdown');
-        if (siteLocationDropdown) {
-            const siteLocations = await SolutionTaskCommon.fetchInitialSiteLocations();
-            SolutionTaskCommon.populateDropdown(siteLocationDropdown, siteLocations, 'Select Site Location');
-            siteLocationDropdown.value = positionData.site_location_id || '';
-            siteLocationDropdown.disabled = false;
-            console.log(`Populated Site Location Dropdown independently with ID ${positionData.site_location_id}`);
-        }
-    }
-
-    async function initializeNewPosition(positionSection, index) {
-        const areaDropdown = positionSection.querySelector('.areaDropdown');
-        if (areaDropdown) {
-            const areas = await SolutionTaskCommon.fetchInitialAreas();
-            SolutionTaskCommon.populateDropdown(areaDropdown, areas, 'Select Area');
-            areaDropdown.disabled = false;
-            console.log("Initialized Area Dropdown for new position.");
-        }
-
-        const siteLocationDropdown = positionSection.querySelector('.siteLocationDropdown');
-        if (siteLocationDropdown) {
-            const siteLocations = await SolutionTaskCommon.fetchInitialSiteLocations();
-            SolutionTaskCommon.populateDropdown(siteLocationDropdown, siteLocations, 'Select Site Location');
-            siteLocationDropdown.disabled = false;
-            console.log("Initialized Site Location Dropdown independently.");
-        }
-
-        ['equipmentGroupDropdown', 'modelDropdown', 'assetNumberInput', 'locationInput'].forEach(className => {
-            const element = positionSection.querySelector(`.${className}`);
-            if (element) {
-                if (element.tagName.toLowerCase() === 'select') {
-                    SolutionTaskCommon.populateDropdown(element, [], `Select ${SolutionTaskCommon.capitalizeFirstLetter(className.replace('Dropdown', '').replace('Input', ''))}`);
-                } else if (element.tagName.toLowerCase() === 'input') {
-                    element.value = '';
-                }
-                element.disabled = true;
-                console.log(`Initialized and disabled ${className} (ID: ${element.id})`);
-            }
-        });
-        console.log("Initialized new position section with default states.");
-    }
-*/
 async function savePosition(positionSection, index) {
     const areaDropdown = positionSection.querySelector('.areaDropdown');
     const equipmentGroupDropdown = positionSection.querySelector('.equipmentGroupDropdown');
@@ -276,13 +163,14 @@ async function savePosition(positionSection, index) {
     }
 
     const positionData = {
-        area_id: parseInt(areaDropdown.value, 10),
-        equipment_group_id: parseInt(equipmentGroupDropdown.value, 10),
-        model_id: parseInt(modelDropdown.value, 10),
-        asset_number_id: assetNumberInput.value.trim() || null, // Adjusted key to match backend
-        location_id: locationInput.value.trim() || null,       // Adjusted key to match backend
+        area_id: parseInt(areaDropdown.value, 10) || null,
+        equipment_group_id: parseInt(equipmentGroupDropdown.value, 10) || null,
+        model_id: parseInt(modelDropdown.value, 10) || null,
+        asset_number_id: parseInt(assetNumberInput.value.trim(), 10) || null, // Converted to integer
+        location_id: parseInt(locationInput.value.trim(), 10) || null,       // Converted to integer
         site_location_id: parseInt(siteLocationDropdown.value, 10) || null
     };
+
 
     const saveBtn = positionSection.querySelector('.savePositionBtn');
     let originalBtnText = '';
@@ -365,21 +253,53 @@ async function savePosition(positionSection, index) {
         }
     }
 
-    function collectPositionsData() {
-        const positionsContainer = document.getElementById('pst_task_edit_positions_container');
-        const positionsData = [];
-        positionsContainer.querySelectorAll('.position-section').forEach(section => {
-            positionsData.push({
-                area_id: parseInt(section.querySelector('.areaDropdown').value, 10),
-                equipment_group_id: parseInt(section.querySelector('.equipmentGroupDropdown').value, 10),
-                model_id: parseInt(section.querySelector('.modelDropdown').value, 10),
-                asset_number: section.querySelector('.assetNumberInput').value.trim() || null,
-                location: section.querySelector('.locationInput').value.trim() || null,
-                site_location_id: parseInt(section.querySelector('.siteLocationDropdown').value, 10) || null
-            });
-        });
-        return positionsData;
-    }
+function collectPositionsData() {
+    const positionsContainer = document.getElementById('pst_task_edit_positions_container');
+    const positionsData = [];
+
+    positionsContainer.querySelectorAll('.position-section').forEach(section => {
+        // Retrieve dropdown and input elements
+        const areaDropdown = section.querySelector('.areaDropdown');
+        const equipmentGroupDropdown = section.querySelector('.equipmentGroupDropdown');
+        const modelDropdown = section.querySelector('.modelDropdown');
+        const assetNumberInput = section.querySelector('.assetNumberInput');
+        const locationInput = section.querySelector('.locationInput');
+        const siteLocationDropdown = section.querySelector('.siteLocationDropdown');
+
+        // Parse integer values where necessary
+        const areaId = parseInt(areaDropdown.value, 10) || null;
+        const equipmentGroupId = parseInt(equipmentGroupDropdown.value, 10) || null;
+        const modelId = parseInt(modelDropdown.value, 10) || null;
+
+        // Adjust these based on backend expectations
+        const assetNumberId = assetNumberInput.value.trim() ? parseInt(assetNumberInput.value.trim(), 10) : null; // Integer
+        const locationId = locationInput.value.trim() ? parseInt(locationInput.value.trim(), 10) : null;           // Integer
+        const siteLocationId = parseInt(siteLocationDropdown.value, 10) || null;
+
+        // Optional: Validate parsed integers
+        if (assetNumberInput.value.trim() && isNaN(assetNumberId)) {
+            console.warn(`Invalid Asset Number ID in position section.`);
+        }
+        if (locationInput.value.trim() && isNaN(locationId)) {
+            console.warn(`Invalid Location ID in position section.`);
+        }
+
+        const positionData = {
+            area_id: areaId,
+            equipment_group_id: equipmentGroupId,
+            model_id: modelId,
+            asset_number_id: assetNumberId, // Renamed key to match backend
+            location_id: locationId,         // Renamed key to match backend
+            site_location_id: siteLocationId
+        };
+
+        console.log('Collected Position Data:', positionData);
+
+        positionsData.push(positionData);
+    });
+
+    return positionsData;
+}
 
     async function fetchWithHandling(url, options = {}) {
         try {
@@ -562,7 +482,6 @@ function initializeEventListeners() {
         }
     });
 
-
     async function saveSelectedParts() {
         const selectedPartIds = $('#pst_task_edit_task_parts').val();
         const taskId = window.AppState.currentTaskId;
@@ -599,13 +518,12 @@ function initializeEventListeners() {
     }
 
     const savePartsBtn = document.getElementById('savePartsBtn');
-if (savePartsBtn) {
+    if (savePartsBtn) {
     console.log('Save Parts button found.'); // Confirm button existence
     savePartsBtn.addEventListener('click', saveSelectedParts);
 } else {
     console.warn('Save Parts button with ID "savePartsBtn" not found.');
 }
-
 
     $('#pst_task_edit_task_images').select2({
     placeholder: 'Select or search for images',
@@ -667,16 +585,329 @@ if (savePartsBtn) {
     } else {
         console.warn("Save Images button with ID 'saveImagesBtn' not found.");
     }
+
+    //===8
+    // Function to update selected parts display with Remove buttons
+/**
+ * Function to update the selected parts display with Remove buttons
+ */
+function updateSelectedPartsDisplay() {
+    const selectedPartIds = $('#pst_task_edit_task_parts').val();
+    const selectedPartsContainer = $('#pst_task_edit_selected_parts');
+    const taskId = window.AppState.currentTaskId;
+
+    // Clear the container first
+    selectedPartsContainer.empty();
+
+    if (!taskId) {
+        SolutionTaskCommon.showAlert('No task selected to manage parts.', 'warning');
+        return;
+    }
+
+    selectedPartIds.forEach(id => {
+        const partText = $('#pst_task_edit_task_parts option[value="' + id + '"]').text();
+        const partDiv = $('<div class="selected-item d-flex align-items-center"></div>')
+            .text(partText)
+            .append(
+                $('<button type="button" class="btn btn-sm btn-danger ms-2">Remove</button>')
+                    .on('click', function () {
+                        // Confirm removal
+                        const confirmDeletion = confirm('Are you sure you want to remove this part?');
+                        if (!confirmDeletion) return;
+
+                        // Optimistically remove the item from the UI
+                        partDiv.remove();
+
+                        // Call the backend to remove the association
+                        removeTaskPart(taskId, id);
+                    })
+            );
+        selectedPartsContainer.append(partDiv);
+    });
+}
+
+/**
+ * Function to remove a part from a task by calling the backend endpoint
+ * @param {number} taskId - The ID of the task
+ * @param {number} partId - The ID of the part to remove
+ */
+async function removeTaskPart(taskId, partId) {
+    try {
+        console.log(`Attempting to remove Part ID ${partId} from Task ID ${taskId}`);
+        const response = await fetch(ENDPOINTS.tasks.removePart, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ task_id: taskId, part_id: partId })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.status === 'success') {
+            SolutionTaskCommon.showAlert('Part removed successfully.', 'success');
+            console.log(`Part ID ${partId} removed from Task ID ${taskId}.`);
+        } else {
+            // Re-add the part to the UI if removal failed
+            SolutionTaskCommon.showAlert(data.message || 'Failed to remove part.', 'danger');
+            console.error('Failed to remove part:', data.message);
+            updateSelectedPartsDisplay();
+        }
+    } catch (error) {
+        // Re-add the part to the UI if an error occurred
+        SolutionTaskCommon.showAlert('An error occurred while removing the part.', 'danger');
+        console.error('Error removing part:', error);
+        updateSelectedPartsDisplay();
+    }
+}
+
+// Event listener for Select2 change event on parts
+$('#pst_task_edit_task_parts').on('change', updateSelectedPartsDisplay);
+
+
+// Event listener for Select2 change event on parts
+$('#pst_task_edit_task_parts').on('change', updateSelectedPartsDisplay);
+
+/**
+ * Function to update the selected drawings display with Remove buttons
+ */
+function updateSelectedDrawingsDisplay() {
+    const selectedDrawingIds = $('#pst_task_edit_task_drawings').val();
+    const selectedDrawingsContainer = $('#pst_task_edit_selected_drawings');
+    const taskId = window.AppState.currentTaskId;
+
+    // Clear the container first
+    selectedDrawingsContainer.empty();
+
+    if (!taskId) {
+        SolutionTaskCommon.showAlert('No task selected to manage drawings.', 'warning');
+        return;
+    }
+
+    selectedDrawingIds.forEach(id => {
+        const drawingText = $('#pst_task_edit_task_drawings option[value="' + id + '"]').text();
+        const drawingDiv = $('<div class="selected-item d-flex align-items-center"></div>')
+            .text(drawingText)
+            .append(
+                $('<button type="button" class="btn btn-sm btn-danger ms-2">Remove</button>')
+                    .on('click', function () {
+                        // Confirm removal
+                        const confirmDeletion = confirm('Are you sure you want to remove this drawing?');
+                        if (!confirmDeletion) return;
+
+                        // Optimistically remove the item from the UI
+                        drawingDiv.remove();
+
+                        // Call the backend to remove the association
+                        removeTaskDrawing(taskId, id);
+                    })
+            );
+        selectedDrawingsContainer.append(drawingDiv);
+    });
+}
+
+/**
+ * Function to remove a drawing from a task by calling the backend endpoint
+ * @param {number} taskId - The ID of the task
+ * @param {number} drawingId - The ID of the drawing to remove
+ */
+async function removeTaskDrawing(taskId, drawingId) {
+    try {
+        console.log(`Attempting to remove Drawing ID ${drawingId} from Task ID ${taskId}`);
+        const response = await fetch(ENDPOINTS.tasks.removeDrawing, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ task_id: taskId, drawing_id: drawingId })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.status === 'success') {
+            SolutionTaskCommon.showAlert('Drawing removed successfully.', 'success');
+            console.log(`Drawing ID ${drawingId} removed from Task ID ${taskId}.`);
+        } else {
+            // Re-add the drawing to the UI if removal failed
+            SolutionTaskCommon.showAlert(data.message || 'Failed to remove drawing.', 'danger');
+            console.error('Failed to remove drawing:', data.message);
+            updateSelectedDrawingsDisplay();
+        }
+    } catch (error) {
+        // Re-add the drawing to the UI if an error occurred
+        SolutionTaskCommon.showAlert('An error occurred while removing the drawing.', 'danger');
+        console.error('Error removing drawing:', error);
+        updateSelectedDrawingsDisplay();
+    }
+}
+
+// Event listener for Select2 change event on drawings
+$('#pst_task_edit_task_drawings').on('change', updateSelectedDrawingsDisplay);
+
+// Event listener for Select2 change event on drawings
+$('#pst_task_edit_task_drawings').on('change', updateSelectedDrawingsDisplay);
+
+/**
+ * Function to update the selected images display with Remove buttons
+ */
+function updateSelectedImagesDisplay() {
+    const selectedImageIds = $('#pst_task_edit_task_images').val();
+    const selectedImagesContainer = $('#pst_task_edit_selected_images');
+    const taskId = window.AppState.currentTaskId;
+
+    // Clear the container first
+    selectedImagesContainer.empty();
+
+    if (!taskId) {
+        SolutionTaskCommon.showAlert('No task selected to manage images.', 'warning');
+        return;
+    }
+
+    selectedImageIds.forEach(id => {
+        const imageText = $('#pst_task_edit_task_images option[value="' + id + '"]').text();
+        const imageDiv = $('<div class="selected-item d-flex align-items-center"></div>')
+            .text(imageText)
+            .append(
+                $('<button type="button" class="btn btn-sm btn-danger ms-2">Remove</button>')
+                    .on('click', function () {
+                        // Confirm removal
+                        const confirmDeletion = confirm('Are you sure you want to remove this image?');
+                        if (!confirmDeletion) return;
+
+                        // Optimistically remove the item from the UI
+                        imageDiv.remove();
+
+                        // Call the backend to remove the association
+                        removeTaskImage(taskId, id);
+                    })
+            );
+        selectedImagesContainer.append(imageDiv);
+    });
+}
+
+/**
+ * Function to remove an image from a task by calling the backend endpoint
+ * @param {number} taskId - The ID of the task
+ * @param {number} imageId - The ID of the image to remove
+ */
+async function removeTaskImage(taskId, imageId) {
+    try {
+        console.log(`Attempting to remove Image ID ${imageId} from Task ID ${taskId}`);
+        const response = await fetch(ENDPOINTS.tasks.removeImage, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ task_id: taskId, image_id: imageId })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.status === 'success') {
+            SolutionTaskCommon.showAlert('Image removed successfully.', 'success');
+            console.log(`Image ID ${imageId} removed from Task ID ${taskId}.`);
+        } else {
+            // Re-add the image to the UI if removal failed
+            SolutionTaskCommon.showAlert(data.message || 'Failed to remove image.', 'danger');
+            console.error('Failed to remove image:', data.message);
+            // Optionally, you can reload the display to reflect the actual state
+            updateSelectedImagesDisplay();
+        }
+    } catch (error) {
+        // Re-add the image to the UI if an error occurred
+        SolutionTaskCommon.showAlert('An error occurred while removing the image.', 'danger');
+        console.error('Error removing image:', error);
+        updateSelectedImagesDisplay();
+    }
+}
+
+// Event listener for Select2 change event on images
+$('#pst_task_edit_task_images').on('change', updateSelectedImagesDisplay);
+
+
+// Event listener for Select2 change event on images
+$('#pst_task_edit_task_images').on('change', updateSelectedImagesDisplay);
+
+/**
+ * Function to update the selected documents display with Remove buttons
+ */
+function updateSelectedDocumentsDisplay() {
+    const selectedDocumentIds = $('#pst_task_edit_task_documents').val();
+    const selectedDocumentsContainer = $('#pst_task_edit_selected_documents');
+    const taskId = window.AppState.currentTaskId;
+
+    // Clear the container first
+    selectedDocumentsContainer.empty();
+
+    if (!taskId) {
+        SolutionTaskCommon.showAlert('No task selected to manage documents.', 'warning');
+        return;
+    }
+
+    selectedDocumentIds.forEach(id => {
+        const documentText = $('#pst_task_edit_task_documents option[value="' + id + '"]').text();
+        const documentDiv = $('<div class="selected-item d-flex align-items-center"></div>')
+            .text(documentText)
+            .append(
+                $('<button type="button" class="btn btn-sm btn-danger ms-2">Remove</button>')
+                    .on('click', function () {
+                        // Confirm removal
+                        const confirmDeletion = confirm('Are you sure you want to remove this document?');
+                        if (!confirmDeletion) return;
+
+                        // Optimistically remove the item from the UI
+                        documentDiv.remove();
+
+                        // Call the backend to remove the association
+                        removeTaskDocument(taskId, id);
+                    })
+            );
+        selectedDocumentsContainer.append(documentDiv);
+    });
+}
+
+/**
+ * Function to remove a document from a task by calling the backend endpoint
+ * @param {number} taskId - The ID of the task
+ * @param {number} documentId - The ID of the document to remove
+ */
+async function removeTaskDocument(taskId, documentId) {
+    try {
+        console.log(`Attempting to remove Document ID ${documentId} from Task ID ${taskId}`);
+        const response = await fetch(ENDPOINTS.tasks.removeDocument, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ task_id: taskId, document_id: documentId })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.status === 'success') {
+            SolutionTaskCommon.showAlert('Document removed successfully.', 'success');
+            console.log(`Document ID ${documentId} removed from Task ID ${taskId}.`);
+        } else {
+            // Re-add the document to the UI if removal failed
+            SolutionTaskCommon.showAlert(data.message || 'Failed to remove document.', 'danger');
+            console.error('Failed to remove document:', data.message);
+            updateSelectedDocumentsDisplay();
+        }
+    } catch (error) {
+        // Re-add the document to the UI if an error occurred
+        SolutionTaskCommon.showAlert('An error occurred while removing the document.', 'danger');
+        console.error('Error removing document:', error);
+        updateSelectedDocumentsDisplay();
+    }
+}
+
+// Event listener for Select2 change event on documents
+$('#pst_task_edit_task_documents').on('change', updateSelectedDocumentsDisplay);
+
+
 // === 13. Remove Position Function ===
 async function handleRemovePosition(positionSection, index) {
     const positionId = positionSection.getAttribute('data-position-id');
+    const taskId = window.AppState.currentTaskId; // Ensure this is correctly set
     const removeBtn = positionSection.querySelector('.removePositionBtn');
 
     // Confirm deletion with the user
     const confirmDeletion = confirm('Are you sure you want to remove this position?');
     if (!confirmDeletion) return;
 
-    let originalBtnText = ''; // Ensure originalBtnText is accessible
+    let originalBtnText = '';
     if (removeBtn) {
         // Disable the Remove button to prevent multiple clicks
         removeBtn.disabled = true;
@@ -686,15 +917,15 @@ async function handleRemovePosition(positionSection, index) {
 
     // Check if positionId is a temporary ID
     if (positionId && !positionId.startsWith('temp-')) {
-        // The position exists in the backend; proceed to delete from backend
+        // The position exists in the backend; proceed to delete the association
         try {
-            // Make a POST request to remove the position
+            // Make a POST request to remove the position association
             const response = await fetch(ENDPOINTS.tasks.removePosition, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ position_id: positionId })
+                body: JSON.stringify({ task_id: taskId, position_id: positionId })
             });
 
             const data = await response.json();

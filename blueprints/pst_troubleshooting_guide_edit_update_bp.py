@@ -407,12 +407,12 @@ def save_position():
             logger.warning("Missing task_id, solution_id, or position_data in the request.")
             return jsonify({'error': 'Missing task_id, solution_id, or position_data.'}), 400
 
-        # Extract position fields
+        # Extract position fields with updated key names
         area_id = position_data.get('area_id')
         equipment_group_id = position_data.get('equipment_group_id')
         model_id = position_data.get('model_id')
-        asset_number_id = position_data.get('asset_number')  # Assuming this is the ID
-        location_id = position_data.get('location')  # Assuming this is the ID
+        asset_number_id = position_data.get('asset_number_id')  # Updated key
+        location_id = position_data.get('location_id')          # Updated key
         site_location_id = position_data.get('site_location_id')
 
         logger.debug(
@@ -646,8 +646,8 @@ def save_task_images():
 @pst_troubleshooting_guide_edit_update_bp.route('/remove_position', methods=['POST'])
 def remove_position():
     """
-    Endpoint to remove a Tasks position based on .
-    Expects JSON data with position_id.
+    Endpoint to remove a Task's association with a Position.
+    Expects JSON data with task_id and position_id.
     """
     logger.info("Entered '/remove_position' endpoint.")
 
@@ -662,28 +662,35 @@ def remove_position():
 
         if not data:
             logger.warning("No JSON data received in the request.")
-            return jsonify({'error': 'Invalid or missing JSON data.'}), 400
+            return jsonify({'status': 'error', 'error': 'Invalid or missing JSON data.'}), 400
 
-        # Extract position_id
+        # Extract task_id and position_id
+        task_id = data.get('task_id')
         position_id = data.get('position_id')
-        if not position_id:
-            logger.warning("Missing position_id in the request.")
-            return jsonify({'error': 'Missing position_id.'}), 400
 
-        logger.debug(f"Parsed position_id: {position_id}")
+        logger.debug(f"Parsed task_id: {task_id}, position_id: {position_id}")
 
-        # Fetch the position from the database
-        position = session.query(Position).filter_by(id=position_id).first()
-        if not position:
-            logger.warning(f"Position with ID {position_id} not found.")
-            return jsonify({'error': 'Position not found.'}), 404
+        # Validate required fields
+        if not task_id or not position_id:
+            logger.warning("Missing task_id or position_id in the request.")
+            return jsonify({'status': 'error', 'error': 'Missing task_id or position_id.'}), 400
 
-        # Delete the position
-        session.delete(position)
+        # Fetch the TaskPositionAssociation instance
+        association = session.query(TaskPositionAssociation).filter_by(
+            task_id=task_id,
+            position_id=position_id
+        ).first()
+
+        if not association:
+            logger.warning(f"No association found for Task ID {task_id} and Position ID {position_id}.")
+            return jsonify({'status': 'error', 'error': 'Association not found.'}), 404
+
+        # Delete the association
+        session.delete(association)
         session.commit()
-        logger.info(f"Position with ID {position_id} removed successfully.")
+        logger.info(f"Association between Task ID {task_id} and Position ID {position_id} removed successfully.")
 
-        return jsonify({'status': 'success', 'message': 'Position removed successfully.'}), 200
+        return jsonify({'status': 'success', 'message': 'Position association removed successfully.'}), 200
 
     except Exception as e:
         if session:
@@ -691,7 +698,7 @@ def remove_position():
             logger.debug("Database session rolled back due to an error.")
 
         logger.error(f"An unexpected error occurred in '/remove_position/': {e}", exc_info=True)
-        return jsonify({'error': 'An unexpected error occurred.', 'details': str(e)}), 500
+        return jsonify({'status': 'error', 'error': 'An unexpected error occurred.', 'details': str(e)}), 500
 
     finally:
         if session:
@@ -760,3 +767,190 @@ def update_task():
             session.close()
             logger.debug("Database session closed.")
 
+@pst_troubleshooting_guide_edit_update_bp.route('/remove_task_document', methods=['POST'])
+def remove_task_document():
+    data = request.get_json()
+    task_id = data.get('task_id')
+    document_id = data.get('document_id')
+
+    logger.info(f"Attempting to remove document ID: {document_id} from task ID: {task_id}")
+
+    if not task_id or not document_id:
+        logger.error("Task ID and Document ID are required.")
+        return jsonify({'status': 'error', 'message': 'Task ID and Document ID are required.'}), 400
+
+    # Obtain the session
+    session = db_config.get_main_session()
+
+    try:
+        # Fetch the task
+        task = session.query(Task).get(task_id)
+        if not task:
+            logger.error(f"Task with ID {task_id} not found.")
+            return jsonify({'status': 'error', 'message': 'Task not found.'}), 404
+
+        # Fetch the association using the session
+        association = session.query(CompleteDocumentTaskAssociation).filter_by(task_id=task_id, complete_document_id=document_id).first()
+        if not association:
+            logger.error(f"Document ID {document_id} is not associated with Task ID {task_id}.")
+            return jsonify({'status': 'error', 'message': 'Document not associated with the specified task.'}), 404
+
+        # Remove the association
+        session.delete(association)
+        session.commit()
+        logger.info(f"Successfully removed Document ID {document_id} from Task ID {task_id}.")
+        return jsonify({'status': 'success', 'message': 'Document removed successfully.'}), 200
+
+    except SQLAlchemyError as e:
+        session.rollback()
+        logger.exception("Database error occurred while removing document from task.")
+        return jsonify({'status': 'error', 'message': 'Database error occurred.'}), 500
+
+    except Exception as e:
+        session.rollback()
+        logger.exception("An unexpected error occurred while removing document from task.")
+        return jsonify({'status': 'error', 'message': 'An unexpected error occurred.'}), 500
+
+    finally:
+        session.close()
+
+@pst_troubleshooting_guide_edit_update_bp.route('/remove_task_drawing', methods=['POST'])
+def remove_task_drawing():
+    data = request.get_json()
+    task_id = data.get('task_id')
+    drawing_id = data.get('drawing_id')
+
+    logger.info(f"Attempting to remove drawing ID: {drawing_id} from task ID: {task_id}")
+
+    if not task_id or not drawing_id:
+        logger.error("Task ID and Drawing ID are required.")
+        return jsonify({'status': 'error', 'message': 'Task ID and Drawing ID are required.'}), 400
+
+    # Obtain the session
+    session = db_config.get_main_session()
+
+    try:
+        # Fetch the task
+        task = session.query(Task).get(task_id)
+        if not task:
+            logger.error(f"Task with ID {task_id} not found.")
+            return jsonify({'status': 'error', 'message': 'Task not found.'}), 404
+
+        # Fetch the association using the session
+        association = session.query(DrawingTaskAssociation).filter_by(task_id=task_id, drawing_id=drawing_id).first()
+        if not association:
+            logger.error(f"Drawing ID {drawing_id} is not associated with Task ID {task_id}.")
+            return jsonify({'status': 'error', 'message': 'Drawing not associated with the specified task.'}), 404
+
+        # Remove the association
+        session.delete(association)
+        session.commit()
+        logger.info(f"Successfully removed Drawing ID {drawing_id} from Task ID {task_id}.")
+        return jsonify({'status': 'success', 'message': 'Drawing removed successfully.'}), 200
+
+    except SQLAlchemyError as e:
+        session.rollback()
+        logger.exception("Database error occurred while removing drawing from task.")
+        return jsonify({'status': 'error', 'message': 'Database error occurred.'}), 500
+
+    except Exception as e:
+        session.rollback()
+        logger.exception("An unexpected error occurred while removing drawing from task.")
+        return jsonify({'status': 'error', 'message': 'An unexpected error occurred.'}), 500
+
+    finally:
+        session.close()
+
+@pst_troubleshooting_guide_edit_update_bp.route('/remove_task_part', methods=['POST'])
+def remove_task_part():
+    data = request.get_json()
+    task_id = data.get('task_id')
+    part_id = data.get('part_id')
+
+    logger.info(f"Attempting to remove part ID: {part_id} from task ID: {task_id}")
+
+    if not task_id or not part_id:
+        logger.error("Task ID and Part ID are required.")
+        return jsonify({'status': 'error', 'message': 'Task ID and Part ID are required.'}), 400
+
+    # Obtain the session
+    session = db_config.get_main_session()
+
+    try:
+        # Fetch the task
+        task = session.query(Task).get(task_id)
+        if not task:
+            logger.error(f"Task with ID {task_id} not found.")
+            return jsonify({'status': 'error', 'message': 'Task not found.'}), 404
+
+        # Fetch the association using the session
+        association = session.query(PartTaskAssociation).filter_by(task_id=task_id, part_id=part_id).first()
+        if not association:
+            logger.error(f"Part ID {part_id} is not associated with Task ID {task_id}.")
+            return jsonify({'status': 'error', 'message': 'Part not associated with the specified task.'}), 404
+
+        # Remove the association
+        session.delete(association)
+        session.commit()
+        logger.info(f"Successfully removed Part ID {part_id} from Task ID {task_id}.")
+        return jsonify({'status': 'success', 'message': 'Part removed successfully.'}), 200
+
+    except SQLAlchemyError as e:
+        session.rollback()
+        logger.exception("Database error occurred while removing part from task.")
+        return jsonify({'status': 'error', 'message': 'Database error occurred.'}), 500
+
+    except Exception as e:
+        session.rollback()
+        logger.exception("An unexpected error occurred while removing part from task.")
+        return jsonify({'status': 'error', 'message': 'An unexpected error occurred.'}), 500
+
+    finally:
+        session.close()
+
+@pst_troubleshooting_guide_edit_update_bp.route('/remove_task_image', methods=['POST'])
+def remove_task_image():
+    data = request.get_json()
+    task_id = data.get('task_id')
+    image_id = data.get('image_id')
+
+    logger.info(f"Attempting to remove image ID: {image_id} from task ID: {task_id}")
+
+    if not task_id or not image_id:
+        logger.error("Task ID and Image ID are required.")
+        return jsonify({'status': 'error', 'message': 'Task ID and Image ID are required.'}), 400
+
+    # Obtain the session
+    session = db_config.get_main_session()
+
+    try:
+        # Fetch the task
+        task = session.query(Task).get(task_id)
+        if not task:
+            logger.error(f"Task with ID {task_id} not found.")
+            return jsonify({'status': 'error', 'message': 'Task not found.'}), 404
+
+        # Fetch the association using the session
+        association = session.query(ImageTaskAssociation).filter_by(task_id=task_id, image_id=image_id).first()
+        if not association:
+            logger.error(f"Image ID {image_id} is not associated with Task ID {task_id}.")
+            return jsonify({'status': 'error', 'message': 'Image not associated with the specified task.'}), 404
+
+        # Remove the association
+        session.delete(association)
+        session.commit()
+        logger.info(f"Successfully removed Image ID {image_id} from Task ID {task_id}.")
+        return jsonify({'status': 'success', 'message': 'Image removed successfully.'}), 200
+
+    except SQLAlchemyError as e:
+        session.rollback()
+        logger.exception("Database error occurred while removing image from task.")
+        return jsonify({'status': 'error', 'message': 'Database error occurred.'}), 500
+
+    except Exception as e:
+        session.rollback()
+        logger.exception("An unexpected error occurred while removing image from task.")
+        return jsonify({'status': 'error', 'message': 'An unexpected error occurred.'}), 500
+
+    finally:
+        session.close()

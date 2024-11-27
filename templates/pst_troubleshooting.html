@@ -547,16 +547,22 @@
                             </select>
                         </div>
 
-                        <!-- Asset Number Input -->
+                        <!-- Asset Number Dropdown -->
                         <div class="mb-3">
                             <label class="form-label">Asset Number:</label>
-                            <input type="text" class="form-control assetNumberInput" id="assetNumberInput_{{uniqueId}}" placeholder="Enter Asset Number" disabled>
+                            <select class="form-select assetNumberInput" id="assetNumberInput_{{uniqueId}}" disabled>
+                                <option value="">Select Asset Number</option>
+                                <!-- Options populated dynamically via JavaScript -->
+                            </select>
                         </div>
 
-                        <!-- Location Input -->
+                        <!-- Location Dropdown -->
                         <div class="mb-3">
                             <label class="form-label">Location:</label>
-                            <input type="text" class="form-control locationInput" id="locationInput_{{uniqueId}}" placeholder="Enter Location" disabled>
+                            <select class="form-select locationInput" id="locationInput_{{uniqueId}}" disabled>
+                                <option value="">Select Location</option>
+                                <!-- Options populated dynamically via JavaScript -->
+                            </select>
                         </div>
 
                         <!-- Site Location Selection -->
@@ -574,12 +580,6 @@
                             <button type="button" class="btn btn-danger removePositionBtn" id="removePositionBtn_{{uniqueId}}">Remove Position</button>
                         </div>
                     </div>
-                </template>
-
-                        <!-- Buttons -->
-                        <button type="button" class="btn btn-danger removePositionBtn">Remove Position</button>
-                        <button type="button" class="btn btn-primary savePositionBtn">Save Position</button>
-                       </div>
                 </template>
             </div> <!-- End of Edit Task Tab Pane -->
         </div> <!-- End of Tab Content -->

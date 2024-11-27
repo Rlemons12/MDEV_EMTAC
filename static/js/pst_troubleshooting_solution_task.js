@@ -24,9 +24,26 @@ document.addEventListener('DOMContentLoaded', () => {
             assetNumbers: '/pst_troubleshooting_guide_edit_update/get_asset_numbers',
             locations: '/pst_troubleshooting_guide_edit_update/get_locations',
             siteLocations: '/pst_troubleshooting_guide_edit_update/get_site_locations',
+        },
+        associations: { // Updated to use singular keys
+            image: {
+                remove: '/pst_troubleshooting_guide_edit_update/remove_task_image',
+                // Add other image-related endpoints if necessary
+            },
+            part: {
+                remove: '/pst_troubleshooting_guide_edit_update/remove_task_part',
+                // Add other part-related endpoints if necessary
+            },
+            document: {
+                remove: '/pst_troubleshooting_guide_edit_update/remove_task_document',
+                // Add other document-related endpoints if necessary
+            },
+            drawing: {
+                remove: '/pst_troubleshooting_guide_edit_update/remove_task_drawing',
+                // Add other drawing-related endpoints if necessary
+            },
         }
     };
-
 
     // === 2. Namespace for Common Functions ===
     window.SolutionTaskCommon = {
@@ -112,51 +129,123 @@ document.addEventListener('DOMContentLoaded', () => {
      * @param {Array} items - The array of selected items
      * @param {string} itemType - The type of items ('image', 'part', 'drawing')
      */
-    updateSelectedDisplay(displayBoxId, items, itemType) {
-        const displayBox = document.getElementById(displayBoxId);
-        if (!displayBox) {
-            console.warn(`Element with ID '${displayBoxId}' not found.`);
-            return;
+updateSelectedDisplay(displayBoxId, items, itemType) {
+    const displayBox = document.getElementById(displayBoxId);
+    if (!displayBox) {
+        console.warn(`Element with ID '${displayBoxId}' not found.`);
+        return;
+    }
+    displayBox.innerHTML = ''; // Clear existing items
+
+    if (!Array.isArray(items) || items.length === 0) {
+        displayBox.textContent = 'No items selected.';
+        return;
+    }
+
+    // Retrieve the current task ID from AppState
+    const taskId = window.AppState?.currentTaskId;
+
+    if (!taskId) {
+        SolutionTaskCommon.showAlert('No task selected. Unable to remove item.', 'warning');
+        console.warn('No task ID available in AppState.');
+        return;
+    }
+
+    items.forEach(item => {
+        const itemDiv = document.createElement('div');
+        itemDiv.classList.add('selected-item', 'd-flex', 'align-items-center', 'mb-1');
+
+        switch (itemType) {
+            case 'part':
+                itemDiv.textContent = `${item.part_number || 'N/A'} - ${item.name || 'N/A'}`;
+                break;
+            case 'drawing':
+                itemDiv.textContent = `${item.drw_number || 'N/A'} - ${item.drw_name || 'N/A'}`;
+                break;
+            case 'image':
+                itemDiv.textContent = `${item.title || 'N/A'} - ${item.description || 'N/A'}`;
+                break;
+            case 'document':
+                itemDiv.textContent = `${item.doc_number || 'N/A'} - ${item.doc_name || 'N/A'}`;
+                break;
+            default:
+                itemDiv.textContent = `Unknown item type: ${itemType}`;
         }
-        displayBox.innerHTML = ''; // Clear existing items
 
-        if (!Array.isArray(items) || items.length === 0) {
-            displayBox.textContent = 'No items selected.';
-            return;
-        }
+        // Create remove button with data attributes
+        const removeButton = document.createElement('button');
+        removeButton.classList.add('btn', 'btn-sm', 'btn-outline-danger', 'ms-2', 'remove-item-btn');
+        removeButton.textContent = 'Remove';
+        removeButton.setAttribute('data-item-id', item.id);
+        removeButton.setAttribute('data-item-type', itemType);
+        itemDiv.appendChild(removeButton);
+        displayBox.appendChild(itemDiv);
+    });
 
-        items.forEach(item => {
-            const itemDiv = document.createElement('div');
-            itemDiv.classList.add('selected-item', 'd-flex', 'align-items-center', 'mb-1');
+    // Attach a single event listener using event delegation
+    displayBox.addEventListener('click', async (event) => {
+        if (event.target && event.target.matches('.remove-item-btn')) {
+            const btn = event.target;
+            const itemId = btn.getAttribute('data-item-id');
+            const currentItemType = btn.getAttribute('data-item-type');
 
-            // Display different properties based on item type
-            switch (itemType) {
-                case 'part':
-                    itemDiv.textContent = `${item.part_number || 'N/A'} - ${item.name || 'N/A'}`;
-                    break;
-                case 'drawing':
-                    itemDiv.textContent = `${item.drw_number || 'N/A'} - ${item.drw_name || 'N/A'}`;
-                    break;
-                case 'image':
-                    itemDiv.textContent = `${item.title || 'N/A'} - ${item.description || 'N/A'}`;
-                    break;
-                default:
-                    itemDiv.textContent = `Unknown item type: ${itemType}`;
+            if (!itemId || !currentItemType) {
+                console.warn('Remove button missing data attributes.');
+                return;
             }
 
-            const removeButton = document.createElement('button');
-            removeButton.classList.add('btn', 'btn-sm', 'btn-outline-danger', 'ms-2');
-            removeButton.textContent = 'Remove';
-            removeButton.onclick = () => {
-                const index = items.findIndex(selectedItem => selectedItem.id === item.id);
-                if (index > -1) items.splice(index, 1);
-                this.updateSelectedDisplay(displayBoxId, items, itemType);
-            };
+            // Retrieve the current task ID from AppState
+            const taskId = window.AppState?.currentTaskId;
 
-            itemDiv.appendChild(removeButton);
-            displayBox.appendChild(itemDiv);
-        });
-    },
+            if (!taskId) {
+                SolutionTaskCommon.showAlert('No task selected. Unable to remove item.', 'warning');
+                console.warn('No task ID available in AppState.');
+                return;
+            }
+
+            try {
+                // Show a loading alert
+                SolutionTaskCommon.showAlert(`Removing ${currentItemType}...`, 'info');
+
+                // Access the correct remove endpoint
+                const removeEndpoint = ENDPOINTS.associations[currentItemType]?.remove;
+
+                if (!removeEndpoint) {
+                    SolutionTaskCommon.showAlert(`No remove endpoint defined for ${currentItemType}.`, 'danger');
+                    console.error(`Remove endpoint not found for itemType: ${currentItemType}`);
+                    return;
+                }
+
+                // Make an API call to remove the item on the server
+                const response = await fetch(removeEndpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ task_id: taskId, [`${currentItemType}_id`]: itemId }),
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.status === 'success') {
+                    // Remove the item from the local array
+                    const itemIndex = items.findIndex(selectedItem => selectedItem.id === parseInt(itemId, 10));
+                    if (itemIndex > -1) items.splice(itemIndex, 1);
+                    // Update the display
+                    SolutionTaskCommon.updateSelectedDisplay(displayBoxId, items, itemType);
+                    // Show success alert
+                    SolutionTaskCommon.showAlert(`${SolutionTaskCommon.capitalizeFirstLetter(currentItemType)} removed successfully.`, 'success');
+                } else {
+                    // Handle server-side errors
+                    SolutionTaskCommon.showAlert(data.error || `Failed to remove ${currentItemType}.`, 'danger');
+                    console.error(`Failed to remove ${currentItemType}:`, data.error || data.message);
+                }
+            } catch (error) {
+                // Handle network or unexpected errors
+                SolutionTaskCommon.showAlert(`An error occurred while removing the ${currentItemType}.`, 'danger');
+                console.error(`Error removing ${currentItemType}:`, error);
+            }
+        }
+    }, { once: false });
+},
 
     /**
      * Clear input fields by their element references
@@ -313,7 +402,6 @@ async fetchInitialSiteLocations() {
     }
 };
 
-
     // === 3. Helper Function for Fetch with Error Handling ===
     async function fetchWithHandling(url, options = {}) {
         try {
@@ -371,7 +459,7 @@ async fetchInitialSiteLocations() {
  * Populate solutions dropdown
  * @param {Array} solutions - Array of solution objects
  */
-function populateSolutionsDropdown(solutions) {
+    function populateSolutionsDropdown(solutions) {
     const solutionsDropdown = document.getElementById('existing_solutions');
 
     // Validate that solutions is an array
@@ -453,7 +541,6 @@ function populateSolutionsDropdown(solutions) {
         }
     }
 
-
     /**
      * Remove selected solutions from a problem
      * @param {number|string} problemId - The ID of the current problem
@@ -506,7 +593,6 @@ function populateSolutionsDropdown(solutions) {
 
 
     }
-
 
     // Single-click event listener for selecting a task
     document.getElementById('existing_tasks').addEventListener('click', (event) => {
@@ -611,45 +697,78 @@ function populateSolutionsDropdown(solutions) {
         SolutionTaskCommon.updateSelectedDisplay('pst_task_edit_selected_drawings', task.associations?.drawings || [], 'drawing');
     }
 
-    /** #1
+    /**
      * Add a new position section
      * @param {Object} positionData - The data for the position (optional)
      * @param {number} index - The index of the position (for unique IDs)
      */
     async function addPosition(positionData = null, index = 0) {
-        const container = document.getElementById('pst_task_edit_positions_container');
-        const template = document.getElementById('position-template');
-        if (!container || !template) {
-            console.warn("Positions container or template not found.");
-            return;
+    console.log(`\n=== addPosition called with index: ${index} and positionData:`, positionData);
+
+    const container = document.getElementById('pst_task_edit_positions_container');
+    const template = document.getElementById('position-template');
+
+    if (!container || !template) {
+        console.warn("Positions container or template not found.");
+        return;
+    }
+    console.log("Positions container and template found.");
+
+    const clone = template.content.cloneNode(true);
+    const positionSection = clone.querySelector('.position-section');
+
+    if (!positionSection) {
+        console.error("Position section element not found in the template.");
+        return;
+    }
+    console.log("Cloned position section from template.");
+
+    // Assign unique IDs based on index for all select elements
+    const elementsToId = ['areaDropdown', 'equipmentGroupDropdown', 'modelDropdown', 'assetNumberInput', 'locationInput', 'siteLocationDropdown'];
+    elementsToId.forEach(elementClass => {
+        const element = positionSection.querySelector(`.${elementClass}`);
+        if (element) {
+            const newId = `${elementClass}_${index}`;
+            element.id = newId;
+            console.log(`Assigned ID "${newId}" to "${elementClass}".`);
+        } else {
+            console.warn(`Element with class "${elementClass}" not found in position section.`);
         }
+    });
 
-        const clone = template.content.cloneNode(true);
-        const positionSection = clone.querySelector('.position-section');
-
-        // Assign unique IDs based on index for all select elements
-        const elementsToId = ['areaDropdown', 'equipmentGroupDropdown', 'modelDropdown', 'assetNumberInput', 'locationInput', 'siteLocationDropdown'];
-        elementsToId.forEach(elementClass => {
-            const element = positionSection.querySelector(`.${elementClass}`);
-            if (element) {
-                element.id = `${elementClass}_${index}`;
-                console.log(`Assigned ID ${element.id} to ${elementClass}`);
-            }
-        });
-
+    try {
         // If positionData is provided, populate the fields
         if (positionData) {
+            console.log('Position Data:', positionData);
+            console.log("Position data provided. Populating fields with existing data.");
             await populatePositionFields(positionSection, positionData, index);
+            // **Set the data-position-id attribute to the actual position_id from backend**
+            if (positionData.position_id) {
+                positionSection.setAttribute('data-position-id', positionData.position_id);
+                console.log(`Set data-position-id to "${positionData.position_id}".`);
+            } else {
+                console.warn("positionData provided but position_id is missing.");
+                positionSection.setAttribute('data-position-id', `temp-${Date.now()}`);
+                console.log(`Assigned temporary data-position-id "temp-${Date.now()}" due to missing position_id.`);
+            }
         } else {
-            // Initialize dropdowns for a new position
+            console.log("No position data provided. Initializing fields for a new position.");
+            // **For new positions, set a temporary ID**
             await initializeNewPosition(positionSection, index);
+            const tempId = `temp-${Date.now()}`;
+            positionSection.setAttribute('data-position-id', tempId);
+            console.log(`Set temporary data-position-id to "${tempId}".`);
         }
 
         // Append the cloned and populated position section to the container
         container.appendChild(clone);
-        console.log(`Added new position section with index ${index}`);
+        console.log(`Appended position section with index ${index} to the container.`);
+    } catch (error) {
+        console.error(`Error in addPosition for index ${index}:`, error);
     }
 
+    console.log(`=== addPosition completed for index: ${index} ===\n`);
+}
 
     /**
  * Populate position fields based on provided data
@@ -657,7 +776,7 @@ function populateSolutionsDropdown(solutions) {
  * @param {Object} positionData - The data for the position
  * @param {number} index - The index of the position
  */
-async function populatePositionFields(positionSection, positionData, index) {
+    async function populatePositionFields(positionSection, positionData, index) {
     // Populate Area Dropdown
     const areaDropdown = positionSection.querySelector('.areaDropdown');
     if (areaDropdown) {
@@ -749,13 +868,15 @@ async function populatePositionFields(positionSection, positionData, index) {
             console.log('Dropdown options after population:', assetNumberInput.options);
 
             const isValidAssetNumber = assetNumbers.some(asset => String(asset.id) === String(positionData.asset_number));
-            if (isValidAssetNumber) {
-                assetNumberInput.value = positionData.asset_number;
-                console.log(`Set Asset Number Dropdown (ID: ${assetNumberInput.id}) to value: ${positionData.asset_number}`);
+            const matchingAsset = assetNumbers.find(asset => String(asset.number) === String(positionData.asset_number));
+            if (matchingAsset) {
+                assetNumberInput.value = matchingAsset.id;
+                console.log(`Set Asset Number Dropdown (ID: ${assetNumberInput.id}) to value: ${matchingAsset.id}`);
             } else {
                 console.warn(`Invalid Asset Number: ${positionData.asset_number} for Asset Number Dropdown (ID: ${assetNumberInput.id})`);
                 assetNumberInput.value = '';
             }
+
             assetNumberInput.disabled = false;
         } catch (error) {
             console.error('Error fetching Asset Numbers:', error);
@@ -776,12 +897,14 @@ async function populatePositionFields(positionSection, positionData, index) {
             window.SolutionTaskCommon.populateDropdown(locationInput, locations, 'Select Location');
             console.log('Dropdown options after population:', locationInput.options);
 
-            const isValidLocation = locations.some(location => String(location.id) === String(positionData.location));
-            if (isValidLocation) {
-                locationInput.value = positionData.location;
-                console.log(`Set Location Dropdown (ID: ${locationInput.id}) to value: ${positionData.location}`);
+            const locationId = positionData.location_id; // Use the correct property
+            const matchingLocation = locations.find(location => String(location.id) === String(locationId));
+
+            if (matchingLocation) {
+                locationInput.value = matchingLocation.id;
+                console.log(`Set Location Dropdown (ID: ${locationInput.id}) to value: ${matchingLocation.id}`);
             } else {
-                console.warn(`Invalid Location ID: ${positionData.location} for Location Dropdown (ID: ${locationInput.id})`);
+                console.warn(`Invalid Location ID: ${locationId} for Location Dropdown (ID: ${locationInput.id})`);
                 locationInput.value = '';
             }
             locationInput.disabled = false;
@@ -793,51 +916,55 @@ async function populatePositionFields(positionSection, positionData, index) {
         }
     }
 
+
     // Populate Site Location Dropdown Independently
-    const siteLocationDropdown = positionSection.querySelector('.siteLocationDropdown');
-    if (siteLocationDropdown) {
-        try {
-            console.log('Attempting to fetch Site Locations...');
-            const siteLocations = await window.SolutionTaskCommon.fetchInitialSiteLocations();
-            console.log('Fetched Site Locations:', siteLocations);
+const siteLocationDropdown = positionSection.querySelector('.siteLocationDropdown');
+if (siteLocationDropdown) {
+    try {
+        console.log('Attempting to fetch Site Locations...');
+        const siteLocations = await window.SolutionTaskCommon.fetchInitialSiteLocations();
+        console.log('Fetched Site Locations:', siteLocations);
 
-            window.SolutionTaskCommon.populateDropdown(siteLocationDropdown, siteLocations, 'Select Site Location');
-            console.log('Dropdown options after population:', siteLocationDropdown.options);
+        window.SolutionTaskCommon.populateDropdown(siteLocationDropdown, siteLocations, 'Select Site Location');
+        console.log('Dropdown options after population:', siteLocationDropdown.options);
 
-            // If no site locations are available, inform the user within the dropdown
-            if (siteLocations.length === 0) {
-                const option = document.createElement('option');
-                option.value = "";
-                option.textContent = 'No Site Locations Available';
-                option.disabled = true;
-                siteLocationDropdown.appendChild(option);
-                console.log('Added "No Site Locations Available" option.');
-            }
+        const siteLocationId = positionData.site_location_id; // Use the correct property
+        console.log('Site Location ID from Position Data:', siteLocationId);
 
-            // Ensure the dropdown remains enabled regardless of data
-            siteLocationDropdown.disabled = false;
-            console.log(`Site Location Dropdown (ID: ${siteLocationDropdown.id}) is enabled.`);
-        } catch (error) {
-            console.error('Error fetching Site Locations:', error);
+        const matchingSiteLocation = siteLocations.find(location => String(location.id) === String(siteLocationId));
+        console.log('Matching Site Location:', matchingSiteLocation);
 
-            // Show an alert to inform the user about the failure
-            window.SolutionTaskCommon.showAlert('Failed to load site locations.', 'danger');
-
-            // Clear existing options and set to default
-            window.SolutionTaskCommon.populateDropdown(siteLocationDropdown, [], 'Select Site Location');
-            console.log('Dropdown options after clearing:', siteLocationDropdown.options);
-
-            // Ensure the dropdown remains enabled even if there's an error
-            siteLocationDropdown.disabled = false;
-            console.log(`Site Location Dropdown (ID: ${siteLocationDropdown.id}) remains enabled.`);
+        if (matchingSiteLocation) {
+            siteLocationDropdown.value = matchingSiteLocation.id;
+            console.log(`Set Site Location Dropdown (ID: ${siteLocationDropdown.id}) to value: ${matchingSiteLocation.id}`);
+        } else {
+            console.warn(`Invalid Site Location ID: ${siteLocationId} for Site Location Dropdown (ID: ${siteLocationDropdown.id})`);
+            siteLocationDropdown.value = '';
         }
+
+        // Ensure the dropdown remains enabled regardless of data
+        siteLocationDropdown.disabled = false;
+        console.log(`Site Location Dropdown (ID: ${siteLocationDropdown.id}) is enabled.`);
+    } catch (error) {
+        console.error('Error fetching Site Locations:', error);
+
+        // Show an alert to inform the user about the failure
+        window.SolutionTaskCommon.showAlert('Failed to load site locations.', 'danger');
+
+        // Clear existing options and set to default
+        window.SolutionTaskCommon.populateDropdown(siteLocationDropdown, [], 'Select Site Location');
+        console.log('Dropdown options after clearing:', siteLocationDropdown.options);
+
+        // Ensure the dropdown remains enabled even if there's an error
+        siteLocationDropdown.disabled = false;
+        console.log(`Site Location Dropdown (ID: ${siteLocationDropdown.id}) remains enabled.`);
     }
+}
+
 
     // Add event listeners for dynamic dropdown dependencies
     addPositionEventListeners(positionSection, index);
 }
-
-
 
     /**
      * Add event listeners for dynamic dropdown dependencies within a position section
@@ -845,12 +972,12 @@ async function populatePositionFields(positionSection, positionData, index) {
      * @param {number} index - The index of the position
      */
 
-/** #2
+    /** #2
  * Initialize a new position with default dropdown states
  * @param {HTMLElement} positionSection - The position section element
  * @param {number} index - The index of the position
  */
-async function initializeNewPosition(positionSection, index) {
+    async function initializeNewPosition(positionSection, index) {
     // Populate Area Dropdown
     const areaDropdown = positionSection.querySelector('.areaDropdown');
     if (areaDropdown) {
@@ -870,25 +997,57 @@ async function initializeNewPosition(positionSection, index) {
         }
     });
 
-    // Initialize Site Location Dropdown independently
-    const siteLocationDropdown = positionSection.querySelector('.siteLocationDropdown');
-    if (siteLocationDropdown) {
-        SolutionTaskCommon.populateDropdown(siteLocationDropdown, [], 'Select Site Location');
-        siteLocationDropdown.disabled = false; // Enable if needed
-        console.log(`Initialized Site Location Dropdown (ID: ${siteLocationDropdown.id})`);
+    // Populate Site Location Dropdown Independently
+const siteLocationDropdown = positionSection.querySelector('.siteLocationDropdown');
+if (siteLocationDropdown) {
+    try {
+        console.log('Attempting to fetch Site Locations...');
+        const siteLocations = await window.SolutionTaskCommon.fetchInitialSiteLocations();
+        console.log('Fetched Site Locations:', siteLocations);
+
+        window.SolutionTaskCommon.populateDropdown(siteLocationDropdown, siteLocations, 'Select Site Location');
+        console.log('Dropdown options after population:', siteLocationDropdown.options);
+
+        const siteLocationId = positionData.site_location_id; // Use the correct property
+        const matchingSiteLocation = siteLocations.find(location => String(location.id) === String(siteLocationId));
+
+        if (matchingSiteLocation) {
+            siteLocationDropdown.value = matchingSiteLocation.id;
+            console.log(`Set Site Location Dropdown (ID: ${siteLocationDropdown.id}) to value: ${matchingSiteLocation.id}`);
+        } else {
+            console.warn(`Invalid Site Location ID: ${siteLocationId} for Site Location Dropdown (ID: ${siteLocationDropdown.id})`);
+            siteLocationDropdown.value = '';
+        }
+
+        // Ensure the dropdown remains enabled regardless of data
+        siteLocationDropdown.disabled = false;
+        console.log(`Site Location Dropdown (ID: ${siteLocationDropdown.id}) is enabled.`);
+    } catch (error) {
+        console.error('Error fetching Site Locations:', error);
+
+        // Show an alert to inform the user about the failure
+        window.SolutionTaskCommon.showAlert('Failed to load site locations.', 'danger');
+
+        // Clear existing options and set to default
+        window.SolutionTaskCommon.populateDropdown(siteLocationDropdown, [], 'Select Site Location');
+        console.log('Dropdown options after clearing:', siteLocationDropdown.options);
+
+        // Ensure the dropdown remains enabled even if there's an error
+        siteLocationDropdown.disabled = false;
+        console.log(`Site Location Dropdown (ID: ${siteLocationDropdown.id}) remains enabled.`);
     }
+}
 
     // Add event listeners for dynamic dropdown dependencies
     addPositionEventListeners(positionSection, index);
 }
 
-
-/**
- * Add event listeners for dynamic dropdown dependencies within a position section
- * @param {HTMLElement} positionSection - The position section element
- * @param {number} index - The index of the position
- */
-function addPositionEventListeners(positionSection, index) {
+    /**
+     * Add event listeners for dynamic dropdown dependencies within a position section
+     * @param {HTMLElement} positionSection - The position section element
+     * @param {number} index - The index of the position
+     */
+    function addPositionEventListeners(positionSection, index) {
     const areaDropdown = positionSection.querySelector('.areaDropdown');
     const equipmentGroupDropdown = positionSection.querySelector('.equipmentGroupDropdown');
     const modelDropdown = positionSection.querySelector('.modelDropdown');
@@ -973,7 +1132,7 @@ function addPositionEventListeners(positionSection, index) {
                     console.log(`Populated Location Dropdown (ID: ${locationInput.id}) with Locations for Model ID ${selectedModelId}`);
 
                     // Reset and disable Site Location Dropdown to maintain independence
-                    resetDropdowns([siteLocationDropdown]);
+                    // resetDropdowns([siteLocationDropdown]);
                 } catch (error) {
                     console.error('Error fetching asset numbers or locations:', error);
                     SolutionTaskCommon.showAlert('Failed to load asset numbers or locations.', 'danger');
@@ -1016,101 +1175,22 @@ function addPositionEventListeners(positionSection, index) {
     //}
 }
 
-
-/**
- * Reset and disable multiple dropdowns
- * @param {Array} elements - Array of dropdown/select elements to reset
- */
-function resetDropdowns(elements) {
-    elements.forEach(element => {
-        if (element) {
-            const placeholderText = `Select ${SolutionTaskCommon.capitalizeFirstLetter(element.className.replace('Dropdown', '').replace('Input', ''))}`;
-            SolutionTaskCommon.populateDropdown(element, [], placeholderText);
-            element.disabled = true;
-            console.log(`Reset and disabled ${element.className} (ID: ${element.id})`);
-        }
-    });
-}
-
-/**
-    // === 5. Fetch Initial Data Functions ===
-
-    async function fetchInitialAreas() {
-        try {
-            const data = await fetchWithHandling(ENDPOINTS.initialData.areas);
-            return data.areas || [];
-        } catch (error) {
-            return [];
-        }
+    /**
+     * Reset and disable multiple dropdowns
+     * @param {Array} elements - Array of dropdown/select elements to reset
+     */
+    function resetDropdowns(elements) {
+        elements.forEach(element => {
+            if (element) {
+                const placeholderText = `Select ${SolutionTaskCommon.capitalizeFirstLetter(element.className.replace('Dropdown', '').replace('Input', ''))}`;
+                SolutionTaskCommon.populateDropdown(element, [], placeholderText);
+                element.disabled = true;
+                console.log(`Reset and disabled ${element.className} (ID: ${element.id})`);
+            }
+        });
     }
 
-
-    async function fetchInitialEquipmentGroups(areaId) {
-        try {
-            const url = `${ENDPOINTS.initialData.equipmentGroups}?area_id=${encodeURIComponent(areaId)}`;
-            const data = await fetchWithHandling(url);
-            console.log(`Received Equipment Groups:`, data);
-            return Array.isArray(data) ? data : [];
-        } catch (error) {
-            console.error(`Error fetching Equipment Groups for Area ID ${areaId}:`, error);
-            return [];
-        }
-    }
-
-    async function fetchInitialModels(equipmentGroupId) {
-        try {
-            const url = `${ENDPOINTS.initialData.models}?equipment_group_id=${encodeURIComponent(equipmentGroupId)}`;
-            const data = await fetchWithHandling(url);
-            console.log(`Received Models:`, data);
-            return Array.isArray(data) ? data : [];
-        } catch (error) {
-            console.error(`Error fetching Models for Equipment Group ID ${equipmentGroupId}:`, error);
-            return [];
-        }
-    }
-
-    async function fetchInitialAssetNumbers(modelId) {
-        try {
-            const url = `${ENDPOINTS.initialData.assetNumbers}?model_id=${encodeURIComponent(modelId)}`;
-            const data = await fetchWithHandling(url);
-            console.log(`Received Asset Numbers:`, data);
-            return Array.isArray(data) ? data : [];
-        } catch (error) {
-            console.error(`Error fetching Asset Numbers for Model ID ${modelId}:`, error);
-            return [];
-        }
-    }
-
-    async function fetchInitialLocations(modelId) {
-        try {
-            const url = `${ENDPOINTS.initialData.locations}?model_id=${encodeURIComponent(modelId)}`;
-            const data = await fetchWithHandling(url);
-            console.log(`Received Locations:`, data);
-            return Array.isArray(data) ? data : [];
-        } catch (error) {
-            console.error(`Error fetching Locations for Model ID ${modelId}:`, error);
-            return [];
-        }
-    }
-
-    async function fetchInitialSiteLocations() {
-    try {
-        const url = `${ENDPOINTS.initialData.siteLocations}`;
-        const data = await fetchWithHandling(url);
-        console.log(`Received Site Locations:`, data);
-        // Since data is an array directly, check if data is an array
-        return Array.isArray(data) ? data : [];
-    } catch (error) {
-        console.error(`Error fetching Site Locations:`, error);
-        this.showAlert('Failed to load site locations.', 'danger');
-        return [];
-    }
-}
-/*
-
-
-
-    // === 6. Event Listeners ===
+    // === 5. Event Listeners ===
 
     /**
      * Initialize event listeners for the form
@@ -1340,8 +1420,6 @@ function resetDropdowns(elements) {
             })
             .catch(error => console.error('Error removing task:', error));
         }
-
-
     }
 
     // === 7. Initialize Event Listeners ===

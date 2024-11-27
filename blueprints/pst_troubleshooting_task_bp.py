@@ -32,6 +32,7 @@ def get_task_details(task_id):
 
         # Compile a list of positions associated with the task, with detailed data
         positions = [{
+            "position_id": assoc.position.id if assoc.position else None,  # Added position_id
             "area_id": assoc.position.area_id if assoc.position else None,
             "area_name": assoc.position.area.name if assoc.position and assoc.position.area else None,
             "equipment_group_id": assoc.position.equipment_group_id if assoc.position else None,
@@ -106,4 +107,3 @@ def get_task_details(task_id):
     finally:
         session.close()
         logger.info(f"Session closed for task ID {task_id}")
-
