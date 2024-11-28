@@ -95,7 +95,7 @@ def get_task_details(task_id):
             "parts": parts,
             "drawings": drawings,
             "images": images,
-            "complete_documents": complete_documents
+            "completeDocuments": complete_documents
         }
 
         return jsonify({"task": task_data}), 200

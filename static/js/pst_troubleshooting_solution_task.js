@@ -124,26 +124,31 @@ document.addEventListener('DOMContentLoaded', () => {
     },
 
     /**
-     * Update the display box for selected items (images, parts, drawings)
-     * @param {string} displayBoxId - The ID of the display container
-     * @param {Array} items - The array of selected items
-     * @param {string} itemType - The type of items ('image', 'part', 'drawing')
-     */
+ * Update the display box for selected items (images, parts, drawings, documents)
+ * @param {string} displayBoxId - The ID of the display container
+ * @param {Array} items - The array of selected items
+ * @param {string} itemType - The type of items ('image', 'part', 'drawing', 'document')
+ */
 updateSelectedDisplay(displayBoxId, items, itemType) {
+    console.log(`Function called: updateSelectedDisplay(displayBoxId='${displayBoxId}', itemType='${itemType}', items=`, items, `)`);
+
     const displayBox = document.getElementById(displayBoxId);
     if (!displayBox) {
         console.warn(`Element with ID '${displayBoxId}' not found.`);
         return;
     }
+    console.log(`Clearing existing items in display box with ID '${displayBoxId}'.`);
     displayBox.innerHTML = ''; // Clear existing items
 
     if (!Array.isArray(items) || items.length === 0) {
+        console.log('No items to display. Setting display box text to "No items selected."');
         displayBox.textContent = 'No items selected.';
         return;
     }
 
     // Retrieve the current task ID from AppState
     const taskId = window.AppState?.currentTaskId;
+    console.log(`Retrieved taskId from AppState: ${taskId}`);
 
     if (!taskId) {
         SolutionTaskCommon.showAlert('No task selected. Unable to remove item.', 'warning');
@@ -151,25 +156,33 @@ updateSelectedDisplay(displayBoxId, items, itemType) {
         return;
     }
 
-    items.forEach(item => {
+    items.forEach((item, index) => {
+        console.log(`Processing item ${index + 1}/${items.length}:`, item);
+
         const itemDiv = document.createElement('div');
         itemDiv.classList.add('selected-item', 'd-flex', 'align-items-center', 'mb-1');
 
+        let itemText = '';
         switch (itemType) {
             case 'part':
-                itemDiv.textContent = `${item.part_number || 'N/A'} - ${item.name || 'N/A'}`;
+                itemDiv.textContent= `${item.part_number || 'N/A'} - ${item.name || 'N/A'}`;
+                console.log(`Formatted part text: '${itemText}'`);
                 break;
             case 'drawing':
                 itemDiv.textContent = `${item.drw_number || 'N/A'} - ${item.drw_name || 'N/A'}`;
+                console.log(`Formatted drawing text: '${itemText}'`);
                 break;
             case 'image':
                 itemDiv.textContent = `${item.title || 'N/A'} - ${item.description || 'N/A'}`;
+                console.log(`Formatted image text: '${itemText}'`);
                 break;
             case 'document':
-                itemDiv.textContent = `${item.doc_number || 'N/A'} - ${item.doc_name || 'N/A'}`;
+                 itemDiv.textContent = `${item.title || 'N/A'}`;
+                console.log(`Formatted document text: '${itemText}'`);
                 break;
             default:
-                itemDiv.textContent = `Unknown item type: ${itemType}`;
+                itemText = `Unknown item type: ${itemType}`;
+                console.warn(`Unknown item type encountered: '${itemType}'`);
         }
 
         // Create remove button with data attributes
@@ -665,37 +678,42 @@ async fetchInitialSiteLocations() {
     }
 
     /**
-     * Populate the Edit Task form with task data
-     * @param {Object} task - The task data object
-     */
-    async function populateEditTaskForm(task) {
-        // Populate main Task Name and Description
-        const taskNameInput = document.getElementById('pst_task_edit_task_name');
-        const taskDescriptionTextarea = document.getElementById('pst_task_edit_task_description');
+ * Populate the Edit Task form with task data
+ * @param {Object} task - The task data object
+ */
+async function populateEditTaskForm(task) {
+    // Populate main Task Name and Description
+    const taskNameInput = document.getElementById('pst_task_edit_task_name');
+    const taskDescriptionTextarea = document.getElementById('pst_task_edit_task_description');
 
-        if (taskNameInput) taskNameInput.value = task.name || '';
-        if (taskDescriptionTextarea) taskDescriptionTextarea.value = task.description || '';
+    if (taskNameInput) taskNameInput.value = task.name || '';
+    if (taskDescriptionTextarea) taskDescriptionTextarea.value = task.description || '';
 
-        // Populate Positions
-        const positionsContainer = document.getElementById('pst_task_edit_positions_container');
-        if (positionsContainer) {
-            positionsContainer.innerHTML = ''; // Clear existing positions
-            if (task.positions?.length) {
-                for (let i = 0; i < task.positions.length; i++) {
-                    await addPosition(task.positions[i], i);
-                }
-            } else {
-                SolutionTaskCommon.showAlert('No positions associated with this task.', 'info');
+    // Populate Positions
+    const positionsContainer = document.getElementById('pst_task_edit_positions_container');
+    if (positionsContainer) {
+        positionsContainer.innerHTML = ''; // Clear existing positions
+        if (task.positions?.length) {
+            for (let i = 0; i < task.positions.length; i++) {
+                await addPosition(task.positions[i], i);
             }
         } else {
-            console.warn("Element with ID 'pst_task_edit_positions_container' not found.");
+            SolutionTaskCommon.showAlert('No positions associated with this task.', 'info');
         }
-
-        // Populate associated images, parts, and drawings
-        SolutionTaskCommon.updateSelectedDisplay('pst_task_edit_selected_images', task.associations?.images || [], 'image');
-        SolutionTaskCommon.updateSelectedDisplay('pst_task_edit_selected_parts', task.associations?.parts || [], 'part');
-        SolutionTaskCommon.updateSelectedDisplay('pst_task_edit_selected_drawings', task.associations?.drawings || [], 'drawing');
+    } else {
+        console.warn("Element with ID 'pst_task_edit_positions_container' not found.");
     }
+
+    // Populate associated images, parts, drawings, and now documents
+    console.log('Updating selected images:',task.associations.images);
+    SolutionTaskCommon.updateSelectedDisplay('pst_task_edit_selected_images', task.associations?.images || [], 'image');
+    console.log('Updating selected parts:',task.associations.parts);
+    SolutionTaskCommon.updateSelectedDisplay('pst_task_edit_selected_parts', task.associations?.parts || [], 'part');
+    console.log('Updating selected drawings:',task.associations.drawings);
+    SolutionTaskCommon.updateSelectedDisplay('pst_task_edit_selected_drawings', task.associations?.drawings || [], 'drawing');
+    console.log('Updating selected documents:', task.associations.completeDocuments);
+    SolutionTaskCommon.updateSelectedDisplay('pst_task_edit_selected_documents', task.associations?.completeDocuments || [], 'document');
+}
 
     /**
      * Add a new position section
@@ -918,49 +936,48 @@ async fetchInitialSiteLocations() {
 
 
     // Populate Site Location Dropdown Independently
-const siteLocationDropdown = positionSection.querySelector('.siteLocationDropdown');
-if (siteLocationDropdown) {
-    try {
-        console.log('Attempting to fetch Site Locations...');
-        const siteLocations = await window.SolutionTaskCommon.fetchInitialSiteLocations();
-        console.log('Fetched Site Locations:', siteLocations);
+    const siteLocationDropdown = positionSection.querySelector('.siteLocationDropdown');
+    if (siteLocationDropdown) {
+        try {
+            console.log('Attempting to fetch Site Locations...');
+            const siteLocations = await window.SolutionTaskCommon.fetchInitialSiteLocations();
+            console.log('Fetched Site Locations:', siteLocations);
 
-        window.SolutionTaskCommon.populateDropdown(siteLocationDropdown, siteLocations, 'Select Site Location');
-        console.log('Dropdown options after population:', siteLocationDropdown.options);
+            window.SolutionTaskCommon.populateDropdown(siteLocationDropdown, siteLocations, 'Select Site Location');
+            console.log('Dropdown options after population:', siteLocationDropdown.options);
 
-        const siteLocationId = positionData.site_location_id; // Use the correct property
-        console.log('Site Location ID from Position Data:', siteLocationId);
+            const siteLocationId = positionData.site_location_id; // Use the correct property
+            console.log('Site Location ID from Position Data:', siteLocationId);
 
-        const matchingSiteLocation = siteLocations.find(location => String(location.id) === String(siteLocationId));
-        console.log('Matching Site Location:', matchingSiteLocation);
+            const matchingSiteLocation = siteLocations.find(location => String(location.id) === String(siteLocationId));
+            console.log('Matching Site Location:', matchingSiteLocation);
 
-        if (matchingSiteLocation) {
-            siteLocationDropdown.value = matchingSiteLocation.id;
-            console.log(`Set Site Location Dropdown (ID: ${siteLocationDropdown.id}) to value: ${matchingSiteLocation.id}`);
-        } else {
-            console.warn(`Invalid Site Location ID: ${siteLocationId} for Site Location Dropdown (ID: ${siteLocationDropdown.id})`);
-            siteLocationDropdown.value = '';
+            if (matchingSiteLocation) {
+                siteLocationDropdown.value = matchingSiteLocation.id;
+                console.log(`Set Site Location Dropdown (ID: ${siteLocationDropdown.id}) to value: ${matchingSiteLocation.id}`);
+            } else {
+                console.warn(`Invalid Site Location ID: ${siteLocationId} for Site Location Dropdown (ID: ${siteLocationDropdown.id})`);
+                siteLocationDropdown.value = '';
+            }
+
+            // Ensure the dropdown remains enabled regardless of data
+            siteLocationDropdown.disabled = false;
+            console.log(`Site Location Dropdown (ID: ${siteLocationDropdown.id}) is enabled.`);
+        } catch (error) {
+            console.error('Error fetching Site Locations:', error);
+
+            // Show an alert to inform the user about the failure
+            window.SolutionTaskCommon.showAlert('Failed to load site locations.', 'danger');
+
+            // Clear existing options and set to default
+            window.SolutionTaskCommon.populateDropdown(siteLocationDropdown, [], 'Select Site Location');
+            console.log('Dropdown options after clearing:', siteLocationDropdown.options);
+
+            // Ensure the dropdown remains enabled even if there's an error
+            siteLocationDropdown.disabled = false;
+            console.log(`Site Location Dropdown (ID: ${siteLocationDropdown.id}) remains enabled.`);
         }
-
-        // Ensure the dropdown remains enabled regardless of data
-        siteLocationDropdown.disabled = false;
-        console.log(`Site Location Dropdown (ID: ${siteLocationDropdown.id}) is enabled.`);
-    } catch (error) {
-        console.error('Error fetching Site Locations:', error);
-
-        // Show an alert to inform the user about the failure
-        window.SolutionTaskCommon.showAlert('Failed to load site locations.', 'danger');
-
-        // Clear existing options and set to default
-        window.SolutionTaskCommon.populateDropdown(siteLocationDropdown, [], 'Select Site Location');
-        console.log('Dropdown options after clearing:', siteLocationDropdown.options);
-
-        // Ensure the dropdown remains enabled even if there's an error
-        siteLocationDropdown.disabled = false;
-        console.log(`Site Location Dropdown (ID: ${siteLocationDropdown.id}) remains enabled.`);
     }
-}
-
 
     // Add event listeners for dynamic dropdown dependencies
     addPositionEventListeners(positionSection, index);
@@ -997,7 +1014,7 @@ if (siteLocationDropdown) {
         }
     });
 
-    // Populate Site Location Dropdown Independently
+// Populate Site Location Dropdown Independently
 const siteLocationDropdown = positionSection.querySelector('.siteLocationDropdown');
 if (siteLocationDropdown) {
     try {
@@ -1008,17 +1025,7 @@ if (siteLocationDropdown) {
         window.SolutionTaskCommon.populateDropdown(siteLocationDropdown, siteLocations, 'Select Site Location');
         console.log('Dropdown options after population:', siteLocationDropdown.options);
 
-        const siteLocationId = positionData.site_location_id; // Use the correct property
-        const matchingSiteLocation = siteLocations.find(location => String(location.id) === String(siteLocationId));
-
-        if (matchingSiteLocation) {
-            siteLocationDropdown.value = matchingSiteLocation.id;
-            console.log(`Set Site Location Dropdown (ID: ${siteLocationDropdown.id}) to value: ${matchingSiteLocation.id}`);
-        } else {
-            console.warn(`Invalid Site Location ID: ${siteLocationId} for Site Location Dropdown (ID: ${siteLocationDropdown.id})`);
-            siteLocationDropdown.value = '';
-        }
-
+        // No need to set a selected value for new positions
         // Ensure the dropdown remains enabled regardless of data
         siteLocationDropdown.disabled = false;
         console.log(`Site Location Dropdown (ID: ${siteLocationDropdown.id}) is enabled.`);

@@ -145,12 +145,12 @@ console.log('Initialized AppState in pst_troubleshooting.js:', window.AppState);
                 <button class="btn btn-sm btn-warning float-end ms-2 update-problem-btn" data-problem-id="${problem.id}">Update Problem Position</button>
                 <button class="btn btn-sm btn-info float-end edit-solutions-btn" data-problem-id="${problem.id}">Edit Related Solutions</button>
                 <br>
-                <small>Area: ${problem.area}</small><br>
+                <!--<small>Area: ${problem.area}</small><br>
                 <small>Equipment Group: ${problem.equipment_group}</small><br>
                 <small>Model: ${problem.model}</small><br>
                 <small>Asset Number: ${problem.asset_number}</small><br>
                 <small>Location: ${problem.location}</small><br>
-                <small>Site Location: ${problem.site_location}</small>
+                <small>Site Location: ${problem.site_location}</small>-->
             `;
             resultsList.appendChild(listItem);
         });

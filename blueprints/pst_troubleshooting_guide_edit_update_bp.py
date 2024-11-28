@@ -227,9 +227,6 @@ def edit_update_task():
 
     return redirect(url_for('pst_troubleshooting_guide_edit_update_bp.troubleshooting_guide'))
 
-# Search route for Parts
-
-
 # Search route for Drawings
 @pst_troubleshooting_guide_edit_update_bp.route('/search_drawings')
 def search_drawings():
