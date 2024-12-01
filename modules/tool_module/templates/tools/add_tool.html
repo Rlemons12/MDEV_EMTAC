@@ -29,12 +29,16 @@
             {{ form.description(rows=4, cols=32) }}
         </p>
         <p>
-            {{ form.category_id.label }}<br>
-            {{ form.category_id() }}
+            {{ form.category.label }}<br>
+            {{ form.category() }}
         </p>
         <p>
-            {{ form.manufacturer_id.label }}<br>
-            {{ form.manufacturer_id() }}
+            {{ form.manufacturer.label }}<br>
+            {{ form.manufacturer() }}
+        </p>
+        <p>
+            {{ form.image_ids.label }}<br>
+            {{ form.image_ids() }}
         </p>
         <p>{{ form.submit() }}</p>
     </form>
