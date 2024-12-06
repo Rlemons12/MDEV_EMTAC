@@ -3,13 +3,15 @@
 from flask import Blueprint, jsonify, request
 from sqlalchemy.exc import SQLAlchemyError
 from config_env import DatabaseConfig  # Adjust import based on your project structure
-from emtacdb_fts import Problem, Solution, Task, TaskSolutionAssociation,TaskPositionAssociation
+from emtacdb_fts import (Problem, Solution, Task, TaskSolutionAssociation,TaskPositionAssociation,
+                        ProblemPositionAssociation)
 import logging
 
 
 # Initialize Database Config
 db_config = DatabaseConfig()
 
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 # Define a new blueprint for solution-related routes
@@ -20,6 +22,7 @@ def get_solutions(problem_id):
     """
     Retrieve solutions related to the specified problem.
     """
+    print(f"get_solutions called with problem_id: {problem_id}")
     session = db_config.get_main_session()
     try:
         # Query the Solution table for solutions with the specified problem_id
@@ -256,3 +259,70 @@ def remove_task_from_solution():
         session.rollback()
         return jsonify({'error': 'An unexpected error occurred.', 'details': str(e)}), 500
 
+
+@pst_troubleshooting_solution_bp.route('/delete_problem', methods=['POST'])
+def delete_problem():
+    """
+    Handle the deletion of a problem via AJAX, keeping the position entry intact,
+    and deleting all associated solutions and their task associations.
+    """
+    # Assuming db_config.get_main_session() returns a SQLAlchemy session
+    session = db_config.get_main_session()
+    try:
+        # Parse JSON payload
+        data = request.get_json()
+        logging.info(f"Received data for deletion: {data}")
+
+        if not data or 'problem_id' not in data:
+            logging.warning('Delete Problem: Missing problem_id in request.')
+            return jsonify({'success': False, 'message': 'Problem ID is required.'}), 400
+
+        problem_id = data['problem_id']
+        logging.info(f"Attempting to delete Problem ID: {problem_id}")
+
+        # Query for the Problem
+        problem = session.query(Problem).filter_by(id=problem_id).first()
+        if not problem:
+            logging.warning(f'Delete Problem: Problem ID {problem_id} not found.')
+            return jsonify({'success': False, 'message': 'Problem not found.'}), 404
+
+        # Fetch all solutions associated with the problem
+        solutions = session.query(Solution).filter_by(problem_id=problem_id).all()
+
+        # Delete task associations and solutions
+        for solution in solutions:
+            # Delete associated TaskSolutionAssociation entries
+            task_solution_associations = session.query(TaskSolutionAssociation).filter_by(solution_id=solution.id).all()
+            for association in task_solution_associations:
+                session.delete(association)
+                logging.info(f"Deleted TaskSolutionAssociation with ID {association.id} for Solution ID {solution.id}")
+
+            # Delete the Solution
+            session.delete(solution)
+            logging.info(f"Deleted Solution with ID {solution.id}")
+
+        # Delete associated entries in ProblemPositionAssociation
+        associations = session.query(ProblemPositionAssociation).filter_by(problem_id=problem_id).all()
+        for association in associations:
+            session.delete(association)
+            logging.info(f"Deleted ProblemPositionAssociation with ID {association.id}")
+
+        # Delete the Problem
+        session.delete(problem)
+        logging.info(f"Deleted Problem with ID {problem_id}")
+
+        # Commit the transaction
+        session.commit()
+
+        return jsonify({'success': True, 'message': 'Problem and associated solutions deleted successfully.'}), 200
+
+    except SQLAlchemyError as e:
+        session.rollback()
+        logging.error(f"Database error during problem deletion: {e}")
+        return jsonify({'success': False, 'message': 'An error occurred while deleting the problem.'}), 500
+    except Exception as e:
+        session.rollback()
+        logging.error(f"Unexpected error during problem deletion: {e}")
+        return jsonify({'success': False, 'message': 'An unexpected error occurred.'}), 500
+    finally:
+        session.close()

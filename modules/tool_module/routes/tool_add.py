@@ -21,8 +21,8 @@ def add_tool():
     form = ToolForm()
 
     # Assuming 'db' and 'session' are already accessible
-    form.category.choices = [(c.id, c.name) for c in session.query(Category).all()]
-    form.manufacturer.choices = [(m.id, m.name) for m in session.query(Manufacturer).all()]
+    form.category.choices = [(c.id, c.name) for c in db.session.query(Category).all()]
+    form.manufacturer.choices = [(m.id, m.name) for m in db.session.query(Manufacturer).all()]
 
     if form.validate_on_submit():
         # Handle the form submission logic

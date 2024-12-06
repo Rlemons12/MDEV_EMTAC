@@ -137,7 +137,6 @@ def get_site_locations():
             session.close()
             logger.info("Database session closed after fetching site locations.")
 
-
 @pst_troubleshooting_bp.route('/get_positions', methods=['GET'])
 def get_positions():
     try:
@@ -289,7 +288,6 @@ def get_positions():
         session.close()
         logger.info("Database session closed for /get_positions.")
 
-# Main Route Definitions
 @pst_troubleshooting_bp.route('/', methods=['GET', 'POST'])
 @pst_troubleshooting_bp.route('/<int:problem_id>', methods=['GET', 'POST'])
 def pst_troubleshooting_page(problem_id=None):

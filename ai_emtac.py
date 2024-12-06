@@ -24,7 +24,7 @@ from emtacdb_fts import (
     ImageTaskAssociation, serve_image, UserLevel, load_config_from_db
 )
 from emtac_revision_control_db import AreaSnapshot
-from blueprints import register_blueprints
+from blueprints import register_blueprints, pst_troubleshooting_solution_bp
 from event_listeners import register_event_listeners
 from config import UPLOAD_FOLDER, DATABASE_URL, DATABASE_DIR, REVISION_CONTROL_DB_PATH
 from utilities.auth_utils import requires_roles
@@ -76,10 +76,10 @@ def create_app():
                           'create_user_bp.submit_user_creation','tsg_search_parts_bp.tsg_search_parts',
                           'trouble_shooting_guide_bp.update_problem_solution',
                           'trouble_shooting_guide_edit_update.troubleshooting_guide_edit_update',
-                          'trouble_shooting_guide_bp.search_documents']
+                          'trouble_shooting_guide_bp.search_documents','pst_troubleshooting_solution.get_solutions']
 
         # If user is not logged in and the endpoint is not in the allowed routes, redirect to login
-        if 'user_id' not in session and request.endpoint not in allowed_routes:
+        if 'user_id' not in session and not request.endpoint.startswith('pst_troubleshooting_solution.'):
             return redirect(url_for('login_bp.login'))
 
         session.permanent = True
@@ -177,8 +177,6 @@ def create_app():
 
     return app
 
-
-
 def open_browser():
     webbrowser.open_new('http://127.0.0.1:5000/')
 
@@ -186,4 +184,4 @@ def open_browser():
 if __name__ == '__main__':
     Timer(1, open_browser).start()
     app = create_app()
-    app.run(debug=False)
+    app.run(debug=True)

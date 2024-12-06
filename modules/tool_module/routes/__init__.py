@@ -1,6 +1,6 @@
 # AUmaintdb/modules/tool_model/__init__.py
 
-from AuMaintdb.modules.tool_module.model.tool_model import (
+from modules.tool_module.model import (
     ToolImageAssociation,
     ImagePositionAssociation,
     Category,

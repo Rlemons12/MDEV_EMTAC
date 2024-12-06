@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const SEARCH_PROBLEMS_URL = '/pst_troubleshooting_position_update/search_problems';
     const GET_PROBLEM_DETAILS_URL = '/pst_troubleshooting_position_update/get_problem_details/';
     const GET_SOLUTIONS_URL = '/pst_troubleshooting_solution/get_solutions/';
+    const DELETE_PROBLEM_URL = '/pst_troubleshooting_solution/delete_problem';
 
     // Dropdown elements
     const dropdowns = {
@@ -122,56 +123,135 @@ console.log('Initialized AppState in pst_troubleshooting.js:', window.AppState);
      * Display search results with Update and Edit Solutions buttons
      * @param {Array} problems - Array of problem objects
      */
-    function displaySearchResults(problems) {
-        const resultsList = document.getElementById('pst_positionResultsList');
-        resultsList.innerHTML = '';
-        document.getElementById('pst_searchResults').style.display = problems.length ? 'block' : 'none';
+function displaySearchResults(problems) {
+    const resultsList = document.getElementById('pst_positionResultsList');
+    resultsList.innerHTML = '';
+    document.getElementById('pst_searchResults').style.display = problems.length ? 'block' : 'none';
 
-        if (problems.length > 0) {
-            window.AppState.currentProblemId = problems[0].id;
-            sessionStorage.setItem('window.AppState.currentProblemId', window.AppState.currentProblemId);  // Store in sessionStorage
-            console.log('Updated Current Problem ID:', window.AppState.currentProblemId);
-        } else {
-            window.AppState.currentProblemId = null;
-            sessionStorage.removeItem('window.AppState.currentProblemId');  // Remove from sessionStorage if null
-            console.log('No problems found. Resetting Current Problem ID:', window.AppState.currentProblemId);
-        }
-
-        problems.forEach(problem => {
-            const listItem = document.createElement('li');
-            listItem.classList.add('list-group-item');
-            listItem.innerHTML = `
-                <strong>${problem.name}</strong> - ${problem.description}
-                <button class="btn btn-sm btn-warning float-end ms-2 update-problem-btn" data-problem-id="${problem.id}">Update Problem Position</button>
-                <button class="btn btn-sm btn-info float-end edit-solutions-btn" data-problem-id="${problem.id}">Edit Related Solutions</button>
-                <br>
-                <!--<small>Area: ${problem.area}</small><br>
-                <small>Equipment Group: ${problem.equipment_group}</small><br>
-                <small>Model: ${problem.model}</small><br>
-                <small>Asset Number: ${problem.asset_number}</small><br>
-                <small>Location: ${problem.location}</small><br>
-                <small>Site Location: ${problem.site_location}</small>-->
-            `;
-            resultsList.appendChild(listItem);
-        });
-
-        resultsList.addEventListener('click', (event) => {
-            if (event.target.classList.contains('update-problem-btn')) {
-                const problemId = event.target.dataset.problemId;
-                console.log("Update Problem Position button clicked for problem ID:", problemId);
-                fetchProblemDetails(problemId);
-            }
-            if (event.target.classList.contains('edit-solutions-btn')) {
-                const problemId = event.target.dataset.problemId;
-                console.log("Edit Related Solutions button clicked for problem ID:", problemId);
-                window.AppState.currentProblemId = problemId;
-                sessionStorage.setItem('window.AppState.currentProblemId', window.AppState.currentProblemId);  // Update sessionStorage here too
-                editRelatedSolutions(problemId);
-            }
-        });
+    if (problems.length > 0) {
+        window.AppState.currentProblemId = problems[0].id;
+        sessionStorage.setItem('window.AppState.currentProblemId', window.AppState.currentProblemId);  // Store in sessionStorage
+        console.log('Updated Current Problem ID:', window.AppState.currentProblemId);
+    } else {
+        window.AppState.currentProblemId = null;
+        sessionStorage.removeItem('window.AppState.currentProblemId');  // Remove from sessionStorage if null
+        console.log('No problems found. Resetting Current Problem ID:', window.AppState.currentProblemId);
     }
 
+    problems.forEach(problem => {
+        const listItem = document.createElement('li');
+        listItem.classList.add('list-group-item');
+        listItem.innerHTML = `
+            <strong>${problem.name}</strong> - ${problem.description}
+            <button class="btn btn-sm btn-warning float-end ms-2 update-problem-btn" data-problem-id="${problem.id}">Update Problem Position</button>
+            <button class="btn btn-sm btn-info float-end ms-2 edit-solutions-btn" data-problem-id="${problem.id}">Edit Related Solutions</button>
+            <button class="btn btn-sm btn-danger float-end ms-2 delete-problem-btn" data-problem-id="${problem.id}">Delete Problem</button>
+            <br>
+            <!--<small>Area: ${problem.area}</small><br>
+            <small>Equipment Group: ${problem.equipment_group}</small><br>
+            <small>Model: ${problem.model}</small><br>
+            <small>Asset Number: ${problem.asset_number}</small><br>
+            <small>Location: ${problem.location}</small><br>
+            <small>Site Location: ${problem.site_location}</small>-->
+        `;
+        resultsList.appendChild(listItem);
+    });
 
+    resultsList.addEventListener('click', (event) => {
+        if (event.target.classList.contains('update-problem-btn')) {
+            const problemId = event.target.dataset.problemId;
+            console.log("Update Problem Position button clicked for problem ID:", problemId);
+            fetchProblemDetails(problemId);
+        }
+        if (event.target.classList.contains('edit-solutions-btn')) {
+            const problemId = event.target.dataset.problemId;
+            console.log("Edit Related Solutions button clicked for problem ID:", problemId);
+            window.AppState.currentProblemId = problemId;
+            sessionStorage.setItem('window.AppState.currentProblemId', window.AppState.currentProblemId);  // Update sessionStorage here too
+            editRelatedSolutions(problemId);
+        }
+        if (event.target.classList.contains('delete-problem-btn')) {
+            const problemId = event.target.dataset.problemId;
+            console.log("Delete Problem button clicked for problem ID:", problemId);
+            confirmAndDeleteProblem(problemId);
+        }
+    });
+}
+
+/**
+ * Confirm with the user and delete the problem if confirmed
+ * @param {number|string} problemId - The ID of the problem to delete
+ */
+function confirmAndDeleteProblem(problemId) {
+    console.log(`confirmAndDeleteProblem called with problemId: ${problemId}`);
+    const confirmation = confirm('Are you sure you want to delete this problem? This action cannot be undone.');
+    if (confirmation) {
+        deleteProblem(problemId);
+    }
+}
+/**
+ * Delete a problem by making an API call to the backend
+ * @param {number|string} problemId - The ID of the problem to delete
+ * @returns {Promise<boolean>} - Returns true if deletion was successful, else false
+ */
+async function deleteProblem(problemId) {
+    try {
+        console.log(`Initiating deletion for Problem ID: ${problemId}`);
+
+        // Show a loading message or spinner to inform the user
+        SolutionTaskCommon.showAlert('Deleting problem...', 'info');
+
+        // Prepare the payload, ensuring problem_id is a number
+        const payload = { problem_id: Number(problemId) };
+        console.log("Sending payload:", payload);
+
+        // Define the API endpoint without trailing slash
+        const DELETE_PROBLEM_URL = '/pst_troubleshooting_solution/delete_problem';
+
+        // Make the API call to delete the problem
+        const response = await fetch(DELETE_PROBLEM_URL, {
+            method: 'POST', // Ensure this matches the backend expectation
+            headers: {
+                'Content-Type': 'application/json' // Critical for JSON parsing
+            },
+            body: JSON.stringify(payload) // Correctly stringify the JSON
+        });
+
+        console.log(`Received response status: ${response.status}`);
+
+        // Check if response is JSON
+        const contentType = response.headers.get('Content-Type');
+        let data;
+        if (contentType && contentType.includes('application/json')) {
+            data = await response.json();
+            console.log("Received response data:", data);
+        } else {
+            data = { status: 'error', error: 'Unexpected response format.' };
+            console.warn("Unexpected Content-Type. Response is not JSON.");
+        }
+
+        if (response.ok && data.status === 'success') {
+            // Show success alert
+            SolutionTaskCommon.showAlert('Problem deleted successfully.', 'success');
+            console.log(`Problem ID ${problemId} deleted successfully.`);
+
+            // Update the UI by removing the deleted problem
+            removeProblemFromUI(problemId);
+
+            return true;
+        } else {
+            // Handle server-side errors
+            SolutionTaskCommon.showAlert(data.error || 'Failed to delete the problem.', 'danger');
+            console.error('Failed to delete problem:', data.error || data.message);
+            return false;
+        }
+    } catch (error) {
+        // Handle network or unexpected errors
+        SolutionTaskCommon.showAlert('An error occurred while deleting the problem.', 'danger');
+        console.error('Error deleting problem:', error);
+        return false;
+    }
+}
 
     // Fetch and display problem details in the update form
     function fetchProblemDetails(problemId) {
@@ -303,11 +383,17 @@ function fetchData(url) {
     return fetch(url)
         .then(response => {
             if (!response.ok) {
-                return response.json().then(errorData => {
-                    throw new Error(errorData.error || 'Unknown error occurred.');
-                });
+                // Check if response is JSON
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    return response.json().then(errorData => {
+                        throw new Error(errorData.error || 'Unknown error occurred.');
+                    });
+                } else {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
             }
             return response.json();
         });
-
 }
+
