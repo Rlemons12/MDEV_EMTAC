@@ -1,12 +1,11 @@
 import logging
 from flask import Blueprint, render_template, request, redirect, flash, session, url_for
-from emtacdb_fts import ChatSession, User, engine, UserLevel
+from modules.emtacdb.emtacdb_fts import ChatSession, User, UserLevel
 from datetime import datetime
 from sqlalchemy.orm import sessionmaker, scoped_session, declarative_base
 from flask_bcrypt import Bcrypt
 from sqlalchemy import create_engine
-from blueprints import DATABASE_URL
-from werkzeug.security import check_password_hash
+from modules.configuration.config import DATABASE_URL
 
 # Set up logging configuration
 logging.basicConfig(level=logging.INFO)

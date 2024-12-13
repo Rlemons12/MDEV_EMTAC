@@ -21,7 +21,7 @@ def get_parts_for_position(position_id):
     return parts
 
 
-@search_bill_of_material.route('/search', methods=['GET'])
+@search_bill_of_material.route('/tool_search', methods=['GET'])
 def search_bill_of_material():
     model = request.args.get('model')
     asset_number = request.args.get('asset_number')

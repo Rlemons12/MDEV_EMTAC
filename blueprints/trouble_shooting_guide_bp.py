@@ -2,15 +2,15 @@ import logging
 from flask import Blueprint, request, jsonify, render_template
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy import create_engine
-from emtacdb_fts import (
+from modules.emtacdb.emtacdb_fts import (
     Problem, Task, Position, Part, Drawing,
     ImageProblemAssociation, ImageTaskAssociation,
     CompleteDocumentProblemAssociation, CompleteDocumentTaskAssociation,
     PartProblemAssociation, PartTaskAssociation, DrawingProblemAssociation,
-    DrawingTaskAssociation, ProblemPositionAssociation, PartsPositionImageAssociation,
+    ProblemPositionAssociation, PartsPositionImageAssociation,
     DrawingPositionAssociation
 )
-from blueprints import DATABASE_URL
+from modules.configuration.config import DATABASE_URL
 
 # Create the blueprint
 trouble_shooting_guide_bp = Blueprint('trouble_shooting_guide_bp', __name__)

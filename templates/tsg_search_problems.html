@@ -16,7 +16,7 @@
         {% endif %}
         <!-- Display the current user level -->
         <p>User Level: {{ session['user_level'] }}</p>
-        <a href="/upload_image" style="color: #39FF14;" class="upload-button"> To Search and Upload </a>
+        <a href="/upload_search_database" style="color: #39FF14;" class="upload-button"> To Search and Upload </a>
         <a href="/bill_of_materials"style="color: #39FF14;"> To Parts and BOMs</a>
         {% if session['user_level'] != 'STANDARD' %}
             <a href="/troubleshooting_guide"style="color: #39FF14;"> To Update Troubleshooting Guide</a>

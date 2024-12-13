@@ -1,6 +1,6 @@
 # plugins/image_models/image_handler.py
 from plugins.image_models import CLIPModelHandler, NoImageModel
-from emtacdb_fts import Session, load_image_model_config_from_db
+from modules.emtacdb.emtacdb_fts import Session, load_image_model_config_from_db
 
 class ImageHandler:
     def __init__(self):

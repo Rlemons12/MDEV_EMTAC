@@ -1,8 +1,7 @@
 from flask import Blueprint, request, jsonify, redirect, url_for, current_app
 from werkzeug.utils import secure_filename
 import os
-from emtacdb_fts import add_document_to_db  # Import your database function here
-from config import UPLOAD_FOLDER
+from modules.emtacdb.utlity.main_database.database import add_document_to_db
 
 add_document_bp = Blueprint('add_document_bp', __name__)
 

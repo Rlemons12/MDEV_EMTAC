@@ -1,10 +1,10 @@
 # emtac_revision_control_db.py
 import os
 from datetime import datetime
-from sqlalchemy import (DateTime, Column, ForeignKey, Integer, JSON, LargeBinary, String, Float, Text, create_engine)
+from sqlalchemy import (DateTime, Column, ForeignKey, Integer, LargeBinary, String, Float, Text, create_engine)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, scoped_session, sessionmaker
-from config import DATABASE_DIR, REVISION_CONTROL_DB_PATH
+from modules.configuration.config import DATABASE_DIR
 import logging
 
 # Initialize logging

@@ -1,10 +1,10 @@
 from flask import Blueprint, request, render_template, flash
-from emtacdb_fts import Image, Position, ImagePositionAssociation, serve_image
-from blueprints import DATABASE_URL, DATABASE_PATH_IMAGES_FOLDER
+from modules.emtacdb.emtacdb_fts import Image, Position, ImagePositionAssociation
+from modules.emtacdb.utlity.main_database.database import serve_image
+from modules.configuration.config import DATABASE_URL
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, joinedload
 import logging
-import os
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -85,9 +85,9 @@ def search_images():
     # If no filters are provided, show a flash message and redirect to the upload image page
     if not filters:
         flash("No search criteria provided", "error")
-        logger.info("No search criteria provided. Redirecting to upload_image.html.")
+        logger.info("No search criteria provided. Redirecting to upload_search_database.html.")
         session.close()
-        return render_template('upload_image.html')
+        return render_template('upload_search_database.html')
 
     # Paginate the results
     images = query.offset(offset).limit(per_page).all()
@@ -101,8 +101,8 @@ def search_images():
 
     if not images:
         flash("No images found matching the criteria", "error")
-        logger.info("No images found. Redirecting to upload_image.html.")
-        return render_template('upload_image.html')
+        logger.info("No images found. Redirecting to upload_search_database.html.")
+        return render_template('upload_search_database.html')
 
     logger.info(f"Returning {len(images)} images for display on page {page}.")
     return render_template('image_results.html', images=images, description=description, title=title, page=page, total_pages=total_pages)

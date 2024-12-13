@@ -1,7 +1,7 @@
-from flask import Blueprint, request, send_file
+from flask import Blueprint, send_file
 import os
-from emtacdb_fts import get_powerpoints_by_title
-from blueprints import DATABASE_DIR
+from modules.emtacdb.utlity.main_database.database import get_powerpoints_by_title
+from modules.configuration.config import DATABASE_DIR
 
 PPT2PDF_PDF_FILES_PROCESS = os.path.join(DATABASE_DIR, 'PDF_FILES')
 

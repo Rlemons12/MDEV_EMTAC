@@ -1,9 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for
-from emtacdb_fts import Session, User, UserLevel  # Import the User model and Session
+from modules.emtacdb.emtacdb_fts import Session, User, UserLevel  # Import the User model and Session
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Date
-from werkzeug.security import generate_password_hash
-
 
 create_user_bp = Blueprint('create_user_bp', __name__)
 

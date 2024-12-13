@@ -3,8 +3,8 @@ from flask import Blueprint, request, jsonify
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
-from blueprints import DATABASE_URL
-from emtacdb_fts import Part
+from modules.configuration.config import DATABASE_URL
+from modules.emtacdb.emtacdb_fts import Part
 
 tsg_search_parts_bp = Blueprint('tsg_search_parts_bp', __name__)
 

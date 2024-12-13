@@ -1,19 +1,14 @@
-import logging
 from flask import Blueprint, request, jsonify
 import openai
-from sqlalchemy.exc import SQLAlchemyError
-from emtacdb_fts import find_most_relevant_document, create_session, update_session, get_session, QandA, ChatSession
+from modules.emtacdb.emtacdb_fts import QandA, ChatSession
+from modules.emtacdb.utlity.main_database.database import find_most_relevant_document, create_session, update_session, get_session
 from datetime import datetime
 import logging
-import sqlalchemy
-from sqlalchemy import create_engine
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy import create_engine
-from sqlalchemy import Column, Integer, String, DateTime
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session as LocalSession  # Import LocalSession
 from sqlalchemy.orm import Session
-from config import DATABASE_PATH
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

@@ -3,11 +3,11 @@ from werkzeug.utils import secure_filename
 import os
 import logging
 from sqlalchemy.orm import joinedload
-from emtacdb_fts import (Drawing,Part,PartsPositionImageAssociation,DrawingPositionAssociation,CompletedDocumentPositionAssociation,
-                Area, EquipmentGroup, Model, AssetNumber, Location, SiteLocation,CompleteDocument,
-                         Image,Position, ImagePositionAssociation)
-from config_env import DatabaseConfig
-from config import ALLOWED_EXTENSIONS
+from modules.emtacdb.emtacdb_fts import (Drawing, Part, PartsPositionImageAssociation, DrawingPositionAssociation, CompletedDocumentPositionAssociation,
+                                         Area, EquipmentGroup, Model, AssetNumber, Location, SiteLocation, CompleteDocument,
+                                         Image, Position, ImagePositionAssociation)
+from modules.configuration.config_env import DatabaseConfig
+from modules.configuration.config import ALLOWED_EXTENSIONS
 from sqlalchemy import or_
 
 # Configure logging

@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block title %}Tool Data Entry{% endblock %}
+
+{% block extra_head %}
+    <!-- Include base.css first -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <!-- Page-specific CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tool_search_entry.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="sidebar" id="sidebar">
+    <button class="toggle-btn" onclick="toggleSidebar()">Toggle Sidebar</button>
+    <h3>
+        <!-- Display the current user level -->
+        <p>User Level: {{ session['user_level'] }}</p>
+    </h3>
+    <h1> Search </h1>
+    <h2>Welcome {{ session['first_name'] }}! How can I assist you?</h2>
+    {% if session['user_level'] == 'ADMIN' or session['user_level'] == 'LEVEL_III' %}
+        <a href="/">Return to Main Page</a>
+    {% endif %}
+    <a href="#search-documents" onclick="showForm('search-documents')">Search Documents</a>
+    <a href="#search-images" onclick="showForm('search-images')">Search Images</a>
+    <a href="#compare-images" onclick="showForm('compare-images')">Compare Images</a>
+    {% if session['user_level'] == 'ADMIN' or session['user_level'] == 'LEVEL_III' %}
+    <a href="/tool/submit_tool_data" class="highlight-link">Tools: Entry and Search</a>
+    {% endif %}
+    <a href="/tsg_search_problems" class="highlight-link">To Search Troubleshooting</a>
+    <a href="/bill_of_materials" class="highlight-link">To Parts and BOMs</a>
+    {% if session['user_level'] == 'ADMIN' or session['user_level'] == 'LEVEL_III' %}
+        <a href="/troubleshooting_guide" class="highlight-link">To Update Troubleshooting Guide</a>
+    {% endif %}
+    <a href="/logout" class="logout-button">Logout</a>
+</div>
+
+<div class="form-container">
+    <h1>Tool Data Entry</h1>
+    <form action="{{ url_for('tool_bp.submit_tool_data') }}" method="POST" enctype="multipart/form-data">
+        <!-- Tool Information -->
+        <fieldset>
+            <legend>Tool Information</legend>
+            <label for="tool_name">Tool Name:</label>
+            <input type="text" id="tool_name" name="tool_name" required>
+
+            <label for="tool_size">Size:</label>
+            <input type="text" id="tool_size" name="tool_size">
+
+            <label for="tool_type">Type:</label>
+            <input type="text" id="tool_type" name="tool_type">
+
+            <label for="tool_material">Material:</label>
+            <input type="text" id="tool_material" name="tool_material">
+
+            <label for="tool_description">Description:</label>
+            <textarea id="tool_description" name="tool_description"></textarea>
+
+            <label for="tool_category">Category:</label>
+            <select id="tool_category" name="tool_category" required>
+                <option value="">Select Category</option>
+                {% macro render_categories(categories, depth=0) %}
+                    {% for category in categories %}
+                        <option value="{{ category.id }}">
+                            {{ '--' * depth }} {{ category.name }}
+                        </option>
+                        {% if category.subcategories %}
+                            {{ render_categories(category.subcategories, depth + 1) }}
+                        {% endif %}
+                    {% endfor %}
+                {% endmacro %}
+                {{ render_categories(tool_categories) }}
+            </select>
+
+            <label for="tool_manufacturer">Manufacturer:</label>
+            <select id="tool_manufacturer" name="tool_manufacturer" required>
+                <option value="">Select Manufacturer</option>
+                {% for manufacturer in tool_manufacturers %}
+                    <option value="{{ manufacturer.id }}">{{ manufacturer.name }}</option>
+                {% endfor %}
+            </select>
+        </fieldset>
+
+        <!-- Tool Position Association -->
+        <fieldset>
+            <legend>Tool Position Association</legend>
+            <label for="tool_position">Position:</label>
+            <select id="tool_position" name="tool_position">
+                <option value="">Select Position</option>
+                {% for position in tool_positions %}
+                    <option value="{{ position.id }}">{{ position.name }}</option>
+                {% endfor %}
+            </select>
+
+            <label for="position_description">Description:</label>
+            <textarea id="position_description" name="position_description"></textarea>
+        </fieldset>
+
+        <!-- Tool Image Association -->
+        <fieldset>
+            <legend>Tool Image Association</legend>
+            <label for="tool_image">Upload Image:</label>
+            <input type="file" id="tool_image" name="tool_image" accept="image/*">
+
+            <label for="image_description">Image Description:</label>
+            <textarea id="image_description" name="image_description"></textarea>
+        </fieldset>
+
+        <!-- Tool Package -->
+        <fieldset>
+            <legend>Tool Package</legend>
+            <label for="tool_package">Package:</label>
+            <select id="tool_package" name="tool_package">
+                <option value="">Select Package</option>
+                {% for package in tool_packages %}
+                    <option value="{{ package.id }}">{{ package.name }}</option>
+                {% endfor %}
+            </select>
+        </fieldset>
+
+        <button type="submit">Submit</button>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{{ url_for('static', filename='js/tool/tool_entry.js') }}"></script>
+<script src="{{ url_for('static', filename='js/tool/tool_search.js') }}"></script>
+{% endblock %}

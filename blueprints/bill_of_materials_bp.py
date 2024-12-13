@@ -3,9 +3,10 @@ import os
 import logging
 from werkzeug.utils import secure_filename
 from openpyxl import load_workbook, Workbook
-from config import DB_LOADSHEET_BOMS, DATABASE_PATH_IMAGES_FOLDER  # Added DATABASE_PATH_IMAGES_FOLDER
-from config_env import DatabaseConfig
-from emtacdb_fts import Position, add_image_to_db, Part, PartsPositionImageAssociation, create_position
+from modules.configuration.config import DB_LOADSHEET_BOMS, DATABASE_PATH_IMAGES_FOLDER  # Added DATABASE_PATH_IMAGES_FOLDER
+from modules.configuration.config_env import DatabaseConfig
+from modules.emtacdb.emtacdb_fts import Part, PartsPositionImageAssociation
+from modules.emtacdb.utlity.main_database.database import create_position, add_image_to_db
 from sqlalchemy.orm.exc import NoResultFound
 import shutil  # Added to handle file copying
 from utilities.auth_utils import login_required

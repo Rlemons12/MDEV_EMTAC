@@ -1,9 +1,9 @@
 import logging
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
-from emtacdb_fts import Session, User, UserComments, UserLevel, AIModelConfig, ImageModelConfig, load_config_from_db, \
+from modules.emtacdb.emtacdb_fts import Session, User, UserComments, UserLevel, AIModelConfig, ImageModelConfig, load_config_from_db, \
     load_image_model_config_from_db
 from sqlalchemy.orm import subqueryload
-import config
+from modules.configuration import config
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)  # Set to DEBUG for detailed logging

@@ -1,16 +1,12 @@
 # AUmaintdb/modules/tool_model/__init__.py
 
 from modules.tool_module.model import (
-    ToolImageAssociation,
     ImagePositionAssociation,
-    Category,
+    ToolCategory,
     Manufacturer,
-    Tool,
-    ToolPackage,
     Image,
     SiteLocation,
     Position,
-    ToolUsed,
     Area,
     EquipmentGroup,
     Model,
@@ -20,18 +16,15 @@ from modules.tool_module.model import (
     populate_example_data,
     ToolForm
 )
+from modules.emtacdb.emtacdb_fts import ToolImageAssociation, Tool, ToolPackage, ToolUsed
 
 __all__ = [
-    'ToolImageAssociation',
     'ImagePositionAssociation',
-    'Category',
+    'ToolCategory',
     'Manufacturer',
-    'Tool',
-    'ToolPackage',
     'Image',
     'SiteLocation',
     'Position',
-    'ToolUsed',
     'Area',
     'EquipmentGroup',
     'Model',

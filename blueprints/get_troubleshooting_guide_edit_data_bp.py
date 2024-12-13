@@ -2,8 +2,8 @@ from flask import Blueprint, request, jsonify
 from sqlalchemy import create_engine, and_
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
-from blueprints import DATABASE_URL
-from emtacdb_fts import Problem, Task, ProblemPositionAssociation, PartProblemAssociation, PartTaskAssociation, DrawingProblemAssociation, DrawingTaskAssociation, Position
+from modules.configuration.config import DATABASE_URL
+from modules.emtacdb.emtacdb_fts import Problem, ProblemPositionAssociation, Position
 import logging
 
 # Configure logging

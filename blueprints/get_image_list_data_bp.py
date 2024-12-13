@@ -3,8 +3,8 @@ from flask import Blueprint, jsonify
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
-from blueprints import DATABASE_URL
-from emtacdb_fts import Area, EquipmentGroup, Model, AssetNumber, Location
+from modules.configuration.config import DATABASE_URL
+from modules.emtacdb.emtacdb_fts import Area, EquipmentGroup, Model, AssetNumber, Location
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)

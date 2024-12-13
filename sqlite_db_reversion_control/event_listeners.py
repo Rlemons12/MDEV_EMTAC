@@ -1,11 +1,9 @@
 import os
 from sqlalchemy import event
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.orm import sessionmaker, scoped_session
+from sqlalchemy.orm import scoped_session
 from sqlalchemy import create_engine
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.declarative import declarative_base
-from emtacdb_fts import (
+from modules.emtacdb.emtacdb_fts import (
     SiteLocation, Position, Area, EquipmentGroup, Model, AssetNumber, Location, Part, Image,
     ImageEmbedding, Drawing, Document, CompleteDocument, Problem, Task, PowerPoint, DrawingPartAssociation,
     PartProblemAssociation, PartTaskAssociation, DrawingProblemAssociation, DrawingTaskAssociation,
@@ -13,20 +11,20 @@ from emtacdb_fts import (
     ImageTaskAssociation, PartsPositionImageAssociation, ImagePositionAssociation, DrawingPositionAssociation,
     CompletedDocumentPositionAssociation, ImageCompletedDocumentAssociation
 )
-from emtac_revision_control_db import (AssetNumberSnapshot,
-                                       AreaSnapshot, PositionSnapshot, SiteLocationSnapshot, CompleteDocumentSnapshot,
-                                       DocumentSnapshot, ModelSnapshot, LocationSnapshot, PartSnapshot, ImageSnapshot,
-                                       ImageEmbeddingSnapshot, DrawingSnapshot, TaskSnapshot, ProblemSnapshot, EquipmentGroupSnapshot,
-                                       PowerPointSnapshot, DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot, PartTaskAssociationSnapshot,
-                                       DrawingProblemAssociationSnapshot, DrawingTaskAssociationSnapshot, BillOfMaterialSnapshot,
-                                       ProblemPositionAssociationSnapshot, CompleteDocumentProblemAssociationSnapshot, CompleteDocumentTaskAssociationSnapshot,
-                                       ImageProblemAssociationSnapshot, ImageTaskAssociationSnapshot, PartsPositionImageAssociationSnapshot, ImagePositionAssociationSnapshot,
-                                       DrawingPositionAssociationSnapshot, CompletedDocumentPositionAssociationSnapshot, ImageCompletedDocumentAssociationSnapshot
-                                       )
-from auditlog import log_insert, log_update, log_delete, log_event_listeners, AuditLog
+from modules.emtacdb.emtac_revision_control_db import (AssetNumberSnapshot,
+                                                       AreaSnapshot, PositionSnapshot, SiteLocationSnapshot, CompleteDocumentSnapshot,
+                                                       DocumentSnapshot, ModelSnapshot, LocationSnapshot, PartSnapshot, ImageSnapshot,
+                                                       ImageEmbeddingSnapshot, DrawingSnapshot, TaskSnapshot, ProblemSnapshot, EquipmentGroupSnapshot,
+                                                       PowerPointSnapshot, DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot, PartTaskAssociationSnapshot,
+                                                       DrawingProblemAssociationSnapshot, DrawingTaskAssociationSnapshot, BillOfMaterialSnapshot,
+                                                       ProblemPositionAssociationSnapshot, CompleteDocumentProblemAssociationSnapshot, CompleteDocumentTaskAssociationSnapshot,
+                                                       ImageProblemAssociationSnapshot, ImageTaskAssociationSnapshot, PartsPositionImageAssociationSnapshot, ImagePositionAssociationSnapshot,
+                                                       DrawingPositionAssociationSnapshot, CompletedDocumentPositionAssociationSnapshot, ImageCompletedDocumentAssociationSnapshot
+                                                       )
+from modules.emtacdb.utlity.revision_database.auditlog import log_insert, log_update, log_delete, log_event_listeners
 from sqlalchemy.orm import sessionmaker
 import logging
-from config import DATABASE_DIR,DATABASE_PATH, DATABASE_URL,REVISION_CONTROL_DB_PATH
+from modules.configuration.config import DATABASE_DIR
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

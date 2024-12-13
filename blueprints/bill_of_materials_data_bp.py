@@ -1,7 +1,7 @@
 import logging
 from flask import Blueprint, jsonify
-from emtacdb_fts import Area, EquipmentGroup, Model, AssetNumber, Location
-from config_env import DatabaseConfig  # Assuming this is your config file
+from modules.emtacdb.emtacdb_fts import Area, EquipmentGroup, Model, AssetNumber, Location
+from modules.configuration.config_env import DatabaseConfig  # Assuming this is your config file
 
 # Initialize the database configuration
 db_config = DatabaseConfig()

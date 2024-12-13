@@ -1,7 +1,9 @@
 import pandas as pd
-from sqlalchemy.orm import Session
-from config_env import DatabaseConfig  # Import your database configuration
-from emtacdb_fts import create_position, Part, PartsPositionImageAssociation
+from modules.configuration.config_env import DatabaseConfig  # Import your database configuration
+from modules.emtacdb.emtacdb_fts import Part, PartsPositionImageAssociation
+from modules.emtacdb.utlity.main_database.database import create_position
+
+
 # Function to read the spreadsheet using a hard-coded file path
 def get_spreadsheet_data():
     file_path = r"C:\Users\10169062\Desktop\AuMaintdb\Database\DB_LOADSHEETS\bom_for_AFL31600.xlsx"

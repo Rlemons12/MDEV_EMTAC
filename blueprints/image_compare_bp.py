@@ -5,9 +5,9 @@ import os
 import numpy as np
 from PIL import Image as PILImage
 from werkzeug.utils import secure_filename
-from emtacdb_fts import Image, ImageEmbedding, load_image_model_config_from_db
+from modules.emtacdb.emtacdb_fts import Image, ImageEmbedding, load_image_model_config_from_db
 from plugins.image_models import get_image_model_handler
-from config import DATABASE_URL, DATABASE_PATH_IMAGES_FOLDER, DATABASE_DIR
+from modules.configuration.config import DATABASE_URL, DATABASE_PATH_IMAGES_FOLDER, DATABASE_DIR
 import logging
 
 # Create SQLAlchemy engine

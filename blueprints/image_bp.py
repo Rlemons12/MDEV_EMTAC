@@ -1,32 +1,20 @@
 import sys
 import os
-import os
-from werkzeug.utils import secure_filename
-import pandas as pd
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, scoped_session
-from sqlalchemy import create_engine, text, event, inspect
-import logging
-from concurrent.futures import ThreadPoolExecutor
-import threading
-from threading import Lock
+from sqlalchemy import create_engine, event, inspect
 from datetime import datetime
-import fitz
-import time
-import requests
+
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from flask import Blueprint, request, jsonify, redirect, url_for, render_template
 from werkzeug.utils import secure_filename
-from emtacdb_fts import (add_image_to_db, Session, Image, FileLog, Location, Area, create_position, CompletedDocumentPositionAssociation, 
-                         load_config_from_db, ImagePositionAssociation, load_image_model_config_from_db)
+from modules.emtacdb.emtacdb_fts import (Session, load_config_from_db)
+from modules.emtacdb.utlity.main_database.database import create_position, add_image_to_db
 import logging
-from PIL import Image as PILImage
-from plugins.ai_models import load_ai_model, load_embedding_model 
-from plugins.image_models import get_image_model_handler
-from blueprints import TEMPORARY_FILES, OPENAI_API_KEY, DATABASE_PATH_IMAGES_FOLDER
-from auditlog import commit_audit_logs, get_serializable_data
+from plugins.ai_models import load_ai_model
+from modules.emtacdb.utlity.revision_database.auditlog import commit_audit_logs
 
-from config import DATABASE_DIR,DATABASE_PATH,DATABASE_URL,DATABASE_PATH_IMAGES_FOLDER,REVISION_CONTROL_DB_PATH
+from modules.configuration.config import DATABASE_DIR, DATABASE_URL,DATABASE_PATH_IMAGES_FOLDER
 
 # Configure logging to write to a file with timestamps
 log_file = f'logs/{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.log'
@@ -92,14 +80,14 @@ MINIMUM_SIZE = (100, 100)  # Define the minimum width and height for the image
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# Route to serve the upload_image.html page
-@image_bp.route('/upload_image', methods=['GET'])
+# Route to serve the upload_search_database.html page
+@image_bp.route('/upload_search_database', methods=['GET'])
 def upload_image_page():
     filename = request.args.get('filename', '')
-    return render_template('upload_image.html', filename=filename)
+    return render_template('upload_search_database.html', filename=filename)
 
 # Route for uploading images
-@image_bp.route('/upload_image', methods=['GET', 'POST'])
+@image_bp.route('/upload_search_database', methods=['GET', 'POST'])
 def upload_image():
     session = Session()  # Create a session at the beginning of the route
     try:

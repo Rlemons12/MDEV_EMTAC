@@ -1,10 +1,10 @@
-from flask import Blueprint, request, render_template, flash, jsonify
-from emtacdb_fts import get_images_by_description, get_total_images_count, create_thumbnail, Image, serve_image
-from blueprints import DATABASE_URL
+from flask import Blueprint, request, flash, jsonify
+from modules.emtacdb.emtacdb_fts import Image
+from modules.emtacdb.utlity.main_database.database import create_thumbnail
+from modules.configuration.config import DATABASE_URL
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import SQLAlchemyError
-from PIL import Image as PILImage
 from io import BytesIO
 import base64
 

@@ -3,11 +3,11 @@ from flask import Blueprint, jsonify, request
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
-from blueprints import DATABASE_URL
-from emtacdb_fts import (Area, EquipmentGroup, Model, AssetNumber, Location, Image, CompleteDocument, Part,
-                         Drawing, Position, SiteLocation, Problem, Task,
-                         ImageProblemAssociation, ImageTaskAssociation, CompleteDocumentProblemAssociation,
-                         PartProblemAssociation, DrawingProblemAssociation)
+from modules.configuration.config import DATABASE_URL
+from modules.emtacdb.emtacdb_fts import (Area, EquipmentGroup, Model, AssetNumber, Location, Image, CompleteDocument, Part,
+                                         Drawing, Position, SiteLocation, Problem, Task,
+                                         ImageProblemAssociation, ImageTaskAssociation, CompleteDocumentProblemAssociation,
+                                         PartProblemAssociation, DrawingProblemAssociation)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

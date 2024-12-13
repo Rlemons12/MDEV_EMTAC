@@ -2,12 +2,11 @@ import os
 import logging
 from flask import Blueprint, jsonify, request, render_template
 from PIL import Image as PILImage, ImageFile
-from config import DATABASE_PATH_IMAGES_FOLDER, DATABASE_URL
+from modules.configuration.config import DATABASE_PATH_IMAGES_FOLDER, DATABASE_URL
 from plugins.image_models import CLIPModelHandler, NoImageModel
-from emtacdb_fts import load_image_model_config_from_db
-from sqlalchemy import (DateTime, Date,Column, ForeignKey, Integer, JSON, LargeBinary, Enum as SqlEnum,
-                        String, Table, and_, create_engine, func, or_, text, Float, Text, UniqueConstraint)
-from sqlalchemy.orm import declarative_base, configure_mappers, relationship, scoped_session, sessionmaker
+from modules.emtacdb.emtacdb_fts import load_image_model_config_from_db
+from sqlalchemy import (create_engine)
+from sqlalchemy.orm import declarative_base, scoped_session, sessionmaker
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 

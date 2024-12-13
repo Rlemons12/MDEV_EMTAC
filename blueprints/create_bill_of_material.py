@@ -1,9 +1,8 @@
 import logging
 from flask import Blueprint, send_file, request, redirect, url_for, flash, render_template, session as flask_session
-from emtacdb_fts import PartsPositionImageAssociation, Position, Part, Image, BOMResult, AssetNumber
-from config_env import DatabaseConfig
+from modules.emtacdb.emtacdb_fts import PartsPositionImageAssociation, Position, Part, Image, BOMResult, AssetNumber
+from modules.configuration.config_env import DatabaseConfig
 import json
-from sqlalchemy import or_
 import os
 
 # Instantiate the database configuration

@@ -2,8 +2,8 @@ from flask import Blueprint, jsonify, request, send_file, flash
 from sqlalchemy.orm import sessionmaker, scoped_session, joinedload
 from sqlalchemy import create_engine
 import os
-from blueprints import DATABASE_URL, DATABASE_DIR
-from emtacdb_fts import Image, Position, \
+from modules.configuration.config import DATABASE_URL, DATABASE_DIR
+from modules.emtacdb.emtacdb_fts import Image, Position, \
     ImagePositionAssociation  # Ensure this is the correct import path for your Image model
 import logging
 

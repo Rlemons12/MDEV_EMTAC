@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
-from emtacdb_fts import Part  # Assuming you have a session manager
+from modules.emtacdb.emtacdb_fts import Part  # Assuming you have a session manager
 from sqlalchemy.exc import IntegrityError
-from config_env import DatabaseConfig
+from modules.configuration.config_env import DatabaseConfig
 
 # Blueprint setup
 update_part_bp = Blueprint('update_part_bp', __name__)

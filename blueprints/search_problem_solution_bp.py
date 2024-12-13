@@ -1,11 +1,11 @@
 from flask import Blueprint, request, flash, jsonify, url_for
-from emtacdb_fts import (
-    ImageProblemAssociation, ImageTaskAssociation, CompleteDocument, get_total_images_count, create_thumbnail,
-    Image, serve_image, Problem, Task, Document, Position, ProblemPositionAssociation, SiteLocation, CompleteDocumentProblemAssociation,
-    Area, EquipmentGroup, Model, AssetNumber, Location, BillOfMaterial, Part, Drawing, DrawingProblemAssociation, DrawingTaskAssociation,
+from modules.emtacdb.emtacdb_fts import (
+    ImageTaskAssociation, CompleteDocument, Image, Problem, Position, ProblemPositionAssociation,
+    CompleteDocumentProblemAssociation,
+    Part, Drawing, DrawingProblemAssociation, DrawingTaskAssociation,
     PartProblemAssociation, PartTaskAssociation, PartsPositionImageAssociation
 )
-from blueprints import DATABASE_URL
+from modules.configuration.config import DATABASE_URL
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import SQLAlchemyError

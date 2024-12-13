@@ -1,7 +1,6 @@
 from flask import Blueprint, jsonify, flash, redirect, request, url_for, render_template
-from sqlalchemy.orm import sessionmaker
-from config_env import DatabaseConfig
-from emtacdb_fts import Part, Model
+from modules.configuration.config_env import DatabaseConfig
+from modules.emtacdb.emtacdb_fts import Part, Model
 
 # Initialize the database configuration
 db_config = DatabaseConfig()

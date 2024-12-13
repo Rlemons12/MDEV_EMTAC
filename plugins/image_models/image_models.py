@@ -1,17 +1,15 @@
 # image_models.py 
 import sys
-import os
-import numpy as np
 from transformers import CLIPProcessor, CLIPModel
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
 import logging
-from PIL import Image as PILImage, ImageFile
+from PIL import ImageFile
 from abc import ABC, abstractmethod
 import torch
 
 # Import config variables from config.py
-from config import DATABASE_URL, ALLOWED_EXTENSIONS
+from modules.configuration.config import DATABASE_URL, ALLOWED_EXTENSIONS
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
@@ -54,7 +52,7 @@ class BaseImageModelHandler(ABC):
         pass
 
     def store_image_metadata(self, session, title, description, file_path, embedding, model_name):
-        from emtacdb_fts import Image, ImageEmbedding  # Import here to avoid circular import
+        from modules.emtacdb.emtacdb_fts import Image, ImageEmbedding  # Import here to avoid circular import
         
         # Create Image entry
         image = Image(title=title, description=description, file_path=file_path)

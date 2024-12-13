@@ -1,13 +1,11 @@
 import os
 import logging
-from datetime import datetime
-from sqlalchemy import create_engine, Column, Integer, String, JSON, DateTime
+from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import scoped_session, sessionmaker
-from emtac_revision_control_db import (
-    VersionInfo, RevisionControlBase, revision_control_engine,
+from modules.emtacdb.emtac_revision_control_db import (
     SiteLocationSnapshot, PositionSnapshot, AreaSnapshot, EquipmentGroupSnapshot, ModelSnapshot,
-    AssetNumberSnapshot, LocationSnapshot , PartSnapshot, ImageSnapshot, ImageEmbeddingSnapshot, DrawingSnapshot,
+    AssetNumberSnapshot, PartSnapshot, ImageSnapshot, ImageEmbeddingSnapshot, DrawingSnapshot,
     DocumentSnapshot, CompleteDocumentSnapshot, ProblemSnapshot, TaskSnapshot,
     DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot, PartTaskAssociationSnapshot,
     PartsPositionImageAssociationSnapshot, DrawingProblemAssociationSnapshot, DrawingTaskAssociationSnapshot,
@@ -16,7 +14,7 @@ from emtac_revision_control_db import (
     ImageTaskAssociationSnapshot, ImagePositionAssociationSnapshot, DrawingPositionAssociationSnapshot,
     CompletedDocumentPositionAssociationSnapshot, ImageCompletedDocumentAssociationSnapshot, VersionInfo
 )
-from config import DATABASE_DIR, REVISION_CONTROL_DB_PATH 
+from modules.configuration.config import DATABASE_DIR
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

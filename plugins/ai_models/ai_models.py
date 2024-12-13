@@ -10,7 +10,7 @@ import torch
 import importlib
 import json
 from abc import ABC, abstractmethod
-from config import (OPENAI_API_KEY, HUGGINGFACE_API_KEY, OPENAI_MODEL_NAME, CURRENT_EMBEDDING_MODEL, DATABASE_URL)
+from modules.configuration.config import (OPENAI_API_KEY, OPENAI_MODEL_NAME, DATABASE_URL)
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy import create_engine
 import requests
@@ -210,7 +210,7 @@ def store_embedding(document_id, embeddings, model_name):
     logger.info(f"Storing embedding for model {model_name} and document ID {document_id}")
     try:
         # Import DocumentEmbedding here to avoid circular import
-        from emtacdb_fts import DocumentEmbedding
+        from modules.emtacdb.emtacdb_fts import DocumentEmbedding
         session = Session()
         document_embedding = DocumentEmbedding(
             document_id=document_id,

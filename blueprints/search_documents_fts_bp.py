@@ -1,10 +1,10 @@
 import logging
-from flask import Blueprint, request, render_template, send_file, url_for, redirect
-from emtacdb_fts import CompleteDocument
-from sqlalchemy.orm import Session, sessionmaker, scoped_session, relationship
+from flask import Blueprint, request, render_template, send_file, url_for
+from modules.emtacdb.emtacdb_fts import CompleteDocument
+from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy import create_engine, text
 import os
-from blueprints import DATABASE_URL, DATABASE_DOC, DATABASE_DIR
+from modules.configuration.config import DATABASE_URL, DATABASE_DIR
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)

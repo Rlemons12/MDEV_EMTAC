@@ -3,30 +3,21 @@ import os
 import logging
 import webbrowser
 from threading import Timer
-from functools import wraps
-from flask import Flask, render_template, redirect, url_for, session, flash, request
+from flask import Flask, render_template, flash
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
-from datetime import timedelta
-
-from blueprints.create_user_bp import create_user
 
 # Add current directory to the Python path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # Import models, functions, and utilities from your application modules
-from emtacdb_fts import (
-    QandA, ChatSession, Area, EquipmentGroup, Model, AssetNumber, Location, SiteLocation, Position,
-    Document, Image, Drawing, Problem, Task, CompleteDocument, Part, ImageEmbedding, PowerPoint,
-    PartsPositionImageAssociation, ImagePositionAssociation, DrawingPositionAssociation,
-    CompletedDocumentPositionAssociation, ImageCompletedDocumentAssociation,
-    ProblemPositionAssociation, ImageProblemAssociation, CompleteDocumentProblemAssociation,
-    ImageTaskAssociation, serve_image, UserLevel, load_config_from_db
+from modules.emtacdb.emtacdb_fts import (
+    UserLevel, load_config_from_db
 )
-from emtac_revision_control_db import AreaSnapshot
-from blueprints import register_blueprints, pst_troubleshooting_solution_bp
-from event_listeners import register_event_listeners
-from config import UPLOAD_FOLDER, DATABASE_URL, DATABASE_DIR, REVISION_CONTROL_DB_PATH
+from modules.emtacdb.utlity.main_database.database import serve_image
+from blueprints import register_blueprints
+from modules.emtacdb.utlity.revision_database.event_listeners import register_event_listeners
+from modules.configuration.config import UPLOAD_FOLDER, DATABASE_URL, REVISION_CONTROL_DB_PATH
 from utilities.auth_utils import requires_roles
 
 # Set up logging
@@ -68,20 +59,37 @@ def create_app():
     # Track if session has been cleared after app start
     app.has_cleared_session = True
 
-    # Global login requirement
+    from flask import session, request, redirect, url_for
+
     @app.before_request
     def global_login_check():
         # List of routes that do not require login
-        allowed_routes = ['login_bp.login', 'login_bp.logout', 'static', 'create_user_bp.create_user',
-                          'create_user_bp.submit_user_creation','tsg_search_parts_bp.tsg_search_parts',
-                          'trouble_shooting_guide_bp.update_problem_solution',
-                          'trouble_shooting_guide_edit_update.troubleshooting_guide_edit_update',
-                          'trouble_shooting_guide_bp.search_documents','pst_troubleshooting_solution.get_solutions']
+        allowed_routes = [
+            'login_bp.login',
+            'login_bp.logout',
+            'static',
+            'create_user_bp.create_user',
+            'create_user_bp.submit_user_creation',
+            'tsg_search_parts_bp.tsg_search_parts',
+            'trouble_shooting_guide_bp.update_problem_solution',
+            'trouble_shooting_guide_edit_update.troubleshooting_guide_edit_update',
+            'trouble_shooting_guide_bp.search_documents',
+            'pst_troubleshooting_solution.get_solutions',
+            'tool_routes.tool_search',
+            'tool_routes.get_tool_positions',
+            'tool_routes.get_tool_packages',
+            'tool_routes.submit_tool_data',
+        ]
+
+        # Check if request.endpoint is None (which can happen for invalid requests)
+        if request.endpoint is None:
+            return
 
         # If user is not logged in and the endpoint is not in the allowed routes, redirect to login
-        if 'user_id' not in session and not request.endpoint.startswith('pst_troubleshooting_solution.'):
+        if 'user_id' not in session and request.endpoint not in allowed_routes:
             return redirect(url_for('login_bp.login'))
 
+        # Make the session permanent to extend it on every request (useful for maintaining sessions)
         session.permanent = True
 
     # Define routes
@@ -104,12 +112,12 @@ def create_app():
                                current_embedding_model=current_embedding_model,
                                user_level=user_level)  # Pass user_level to the template
 
-    @app.route('/upload_image')
+    @app.route('/upload_search_database')
     def upload_image_page():
         session.permanent = False  # Make the session non-permanent
         total_pages = 1
         page = 1
-        return render_template('upload_image.html', total_pages=total_pages, page=page)
+        return render_template('upload_search_database.html', total_pages=total_pages, page=page)
 
     @app.route('/success')
     def upload_success():

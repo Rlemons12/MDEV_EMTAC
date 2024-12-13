@@ -1,15 +1,9 @@
 import logging
-from flask import Blueprint, request, redirect, url_for, render_template
+from flask import Blueprint
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
 from blueprints import DATABASE_URL
-from emtacdb_fts import (
-    Problem, Task, Area, EquipmentGroup, Model, AssetNumber, Location, Image,
-    ImageProblemAssociation, create_position, ImageTaskAssociation, Document, CompleteDocument, Part, Drawing,
-    PartProblemAssociation, PartTaskAssociation, DrawingProblemAssociation, DrawingPositionAssociation,
-    ProblemPositionAssociation
-)
 
 # Create the blueprint
 update_problem_solution_bp = Blueprint('update_problem_solution_bp', __name__)

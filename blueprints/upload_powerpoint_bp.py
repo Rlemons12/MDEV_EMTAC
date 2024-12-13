@@ -1,7 +1,7 @@
 from flask import Blueprint, request
 from werkzeug.utils import secure_filename
-from emtacdb_fts import add_document_to_db, PowerPoint, add_powerpoint_to_db, extract_images_from_ppt, create_position
-from blueprints import PPT2PDF_PPT_FILES_PROCESS, PPT2PDF_PDF_FILES_PROCESS, DATABASE_URL
+from modules.emtacdb.utlity.main_database.database import create_position, add_powerpoint_to_db, add_document_to_db
+from modules.configuration.config import PPT2PDF_PPT_FILES_PROCESS, PPT2PDF_PDF_FILES_PROCESS, DATABASE_URL
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import scoped_session, sessionmaker

@@ -1,11 +1,9 @@
-from flask import Blueprint, request, render_template, send_file, url_for
+from flask import Blueprint, request, render_template, send_file
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import text
 import os
-from blueprints import DATABASE_URL, PPT2PDF_PDF_FILES_PROCESS, DATABASE_DIR
-from emtacdb_fts import PowerPoint  # Assuming you have a Powerpoint model defined in 'models.py'
-from sqlalchemy import create_engine, Column, Integer, String, LargeBinary, ForeignKey, text, func
-
+from modules.configuration.config import DATABASE_URL, PPT2PDF_PDF_FILES_PROCESS
+from modules.emtacdb.emtacdb_fts import PowerPoint  # Assuming you have a Powerpoint model defined in 'models.py'
+from sqlalchemy import create_engine, text
 
 # Create a SQLAlchemy engine using the DATABASE_URL from your config
 engine = create_engine(DATABASE_URL)

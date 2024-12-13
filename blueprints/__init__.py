@@ -1,61 +1,30 @@
 import sys
 import os
+
+from blueprints.tool_routes import tool_blueprint_bp
+
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from emtac_revision_control_db import (VersionInfo, RevisionControlBase, SiteLocationSnapshot, PositionSnapshot, AreaSnapshot,
-                                       EquipmentGroupSnapshot, ModelSnapshot, AssetNumberSnapshot, PartSnapshot, ImageSnapshot,
-                                       ImageEmbeddingSnapshot, DrawingSnapshot, DocumentSnapshot, CompleteDocumentSnapshot,
-                                       ProblemSnapshot, TaskSnapshot, DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot,
-                                       PartTaskAssociationSnapshot, DrawingProblemAssociationSnapshot, DrawingTaskAssociationSnapshot,
-                                       ProblemPositionAssociationSnapshot, CompleteDocumentProblemAssociationSnapshot,
-                                       CompleteDocumentTaskAssociationSnapshot, ImageProblemAssociationSnapshot, ImageTaskAssociationSnapshot,
-                                       ImagePositionAssociationSnapshot, DrawingPositionAssociationSnapshot, CompletedDocumentPositionAssociationSnapshot,
-                                       ImageCompletedDocumentAssociationSnapshot
-                                       )
-from emtacdb_fts import (split_text_into_chunks, AIModelConfig, ImageEmbedding, ImageModelConfig, ChatSession, User, engine, search_documents_fts, search_images_by_keyword, find_keyword_and_extract_detail,
-                         load_keywords_to_db, perform_action_based_on_keyword, load_keywords_and_patterns,
-                         find_most_relevant_document, create_session, update_session, get_session, QandA,
-                         ChatSession, Area, EquipmentGroup, Model, AssetNumber, Location, SiteLocation, Position,
-                         Document, Image, Drawing, Problem, Task, CompleteDocument, PowerPoint,
-                         PartsPositionImageAssociation, ImagePositionAssociation, DrawingPositionAssociation,
-                         CompletedDocumentPositionAssociation, ImageCompletedDocumentAssociation,
-                         ProblemPositionAssociation, ImageProblemAssociation, CompleteDocumentProblemAssociation,
-                         ImageTaskAssociation, UserLevel, User, AIModelConfig, load_config_from_db, load_image_model_config_from_db)
+from modules.emtacdb.emtacdb_fts import (AIModelConfig)
 
-from snapshot_utils import(
-    create_sitlocation_snapshot, create_position_snapshot, create_snapshot,
-    create_area_snapshot, create_equipment_group_snapshot, create_model_snapshot, create_asset_number_snapshot,
-    create_part_snapshot, create_image_snapshot, create_image_embedding_snapshot, create_drawing_snapshot,
-    create_document_snapshot, create_complete_document_snapshot, create_problem_snapshot, create_task_snapshot,
-    create_drawing_part_association_snapshot, create_part_problem_association_snapshot, create_part_task_association_snapshot,
-    create_drawing_problem_association_snapshot, create_drawing_task_association_snapshot, create_problem_position_association_snapshot,
-    create_complete_document_problem_association_snapshot, create_complete_document_task_association_snapshot,
-    create_image_problem_association_snapshot, create_image_task_association_snapshot, create_image_position_association_snapshot,
-    create_drawing_position_association_snapshot, create_completed_document_position_association_snapshot, create_image_completed_document_association_snapshot,
-    create_parts_position_association_snapshot)
-
-from auditlog import AuditLog, log_insert, log_update, log_delete  # Ensure this is the correct module for these functions
-
-from config import (TEMPORARY_FILES, OPENAI_API_KEY, DATABASE_PATH_IMAGES_FOLDER,
-                    DATABASE_DOC, DATABASE_URL, DATABASE_DIR, PPT2PDF_PPT_FILES_PROCESS,
-                    PPT2PDF_PDF_FILES_PROCESS,UPLOAD_FOLDER)
-from sqlalchemy import create_engine, event
-from sqlalchemy.orm import declarative_base, configure_mappers, relationship, scoped_session, sessionmaker
-import log_config
+from modules.configuration.config import DATABASE_URL
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from modules.configuration import log_config
 from plugins import load_ai_model, load_embedding_model
 logger = log_config.logger
-from flask_bcrypt import Bcrypt
-from flask import Flask, Blueprint, request, jsonify, current_app, url_for, redirect
-
+from flask import Flask
 # Log that the application is starting
 logger.info("Starting the Flask application")
 
 # Import blueprints
-from pst_troubleshooting_task_bp import pst_troubleshooting_task_bp
-from pst_troubleshooting_guide_edit_update_bp import pst_troubleshooting_guide_edit_update_bp
-from pst_troubleshooting_solution_bp import pst_troubleshooting_solution_bp
-from blueprints.pst_troubleshooting_position_update_bp import pst_troubleshooting_position_update_bp
-from blueprints.pst_troubleshooting_new_entry_bp import pst_troubleshoot_new_entry_bp
-from blueprints.pst_troubleshooting_bp import pst_troubleshooting_bp
+from blueprints.assembly_routes import assembly_model_bp
+from blueprints.tool_routes import tool_blueprint_bp
+from blueprints.pst_troubleshooting.pst_troubleshooting_task_bp import pst_troubleshooting_task_bp
+from blueprints.pst_troubleshooting.pst_troubleshooting_guide_edit_update_bp import pst_troubleshooting_guide_edit_update_bp
+from blueprints.pst_troubleshooting.pst_troubleshooting_solution_bp import pst_troubleshooting_solution_bp
+from blueprints.pst_troubleshooting.pst_troubleshooting_position_update_bp import pst_troubleshooting_position_update_bp
+from blueprints.pst_troubleshooting.pst_troubleshooting_new_entry_bp import pst_troubleshoot_new_entry_bp
+from blueprints.pst_troubleshooting.pst_troubleshooting_bp import pst_troubleshooting_bp
 from blueprints.tsg_search_parts_bp import tsg_search_parts_bp
 from blueprints.search_drawing_by_number_bp import search_drawing_by_number_bp
 from blueprints.tsg_search_drawing_bp import tsg_search_drawing_bp
@@ -126,6 +95,9 @@ ai_model = load_ai_model(current_ai_model)
 embedding_model = load_embedding_model(current_embedding_model)
 
 def register_blueprints(app):
+
+    app.register_blueprint(assembly_model_bp,url_prefix='/')
+    app.register_blueprint(tool_blueprint_bp, url_prefix='/tool')
     app.register_blueprint(pst_troubleshooting_guide_edit_update_bp, url_prefix='/pst_troubleshooting_guide_edit_update')
     app.register_blueprint(pst_troubleshooting_task_bp,url_prefix='/pst_troubleshooting_task')
     app.register_blueprint(pst_troubleshooting_solution_bp, url_prefix='/pst_troubleshooting_solution')

@@ -2,8 +2,8 @@ from flask import Blueprint, jsonify
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
-from blueprints import DATABASE_URL
-from emtacdb_fts import Area, EquipmentGroup, Model, AssetNumber, Location, CompleteDocument, Image, Task, Problem
+from modules.configuration.config import DATABASE_URL
+from modules.emtacdb.emtacdb_fts import Area, EquipmentGroup, Model, AssetNumber, Location, CompleteDocument, Image, Task, Problem
 import logging
 
 get_search_troubleshooting_guide_data_bp = Blueprint('get_search_troubleshooting_guide_data_bp', __name__)

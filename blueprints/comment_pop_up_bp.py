@@ -2,9 +2,9 @@ import os
 import base64
 import logging
 from flask import Blueprint, request, jsonify, session
-from emtacdb_fts import User, UserComments  # Import UserComments model
-from config_env import DatabaseConfig
-from config import COMMENT_IMAGES_FOLDER
+from modules.emtacdb.emtacdb_fts import User, UserComments  # Import UserComments model
+from modules.configuration.config_env import DatabaseConfig
+from modules.configuration.config import COMMENT_IMAGES_FOLDER
 from sqlalchemy.orm.exc import NoResultFound
 from datetime import datetime
 

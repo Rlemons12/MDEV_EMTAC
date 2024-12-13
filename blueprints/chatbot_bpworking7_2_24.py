@@ -1,35 +1,23 @@
 #chatbot_bp.py
-import logging
-from flask import Blueprint, request, jsonify, current_app, url_for, redirect
+from flask import request, url_for, redirect
 import openai
-from sqlalchemy.exc import SQLAlchemyError
-from emtacdb_fts import (
-    search_documents_fts, search_images_by_keyword, find_keyword_and_extract_detail,
-    load_keywords_to_db, perform_action_based_on_keyword, load_keywords_and_patterns,
-    find_most_relevant_document, create_session, update_session, get_session, QandA,
-    ChatSession, Area, EquipmentGroup, Model, AssetNumber, Location, SiteLocation, Position,
-    Document, Image, Drawing, Problem, Task, CompleteDocument, PowerPoint,
-    PartsPositionImageAssociation, ImagePositionAssociation, DrawingPositionAssociation,
-    CompletedDocumentPositionAssociation, ImageCompletedDocumentAssociation,
-    ProblemPositionAssociation, ImageProblemAssociation, CompleteDocumentProblemAssociation,
-    CompleteDocumentProblemAssociation, ImageTaskAssociation
+from modules.emtacdb.emtacdb_fts import (
+    QandA,
+    ChatSession
 )
+from modules.emtacdb.utlity.main_database.database import find_most_relevant_document, create_session, update_session, get_session, \
+    load_keywords_and_patterns, find_keyword_and_extract_detail, perform_action_based_on_keyword, search_documents_fts, \
+    search_images_by_keyword
 from datetime import datetime
 import logging
-import sqlalchemy
-from sqlalchemy import create_engine
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy import create_engine
-from sqlalchemy import Column, Integer, String, DateTime
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session as LocalSession  # Import LocalSession
 from sqlalchemy.orm import Session
-from sqlalchemy.ext.declarative import declarative_base
-from config import DATABASE_URL
-import re
-from utilities.auth_utils import logout
+from modules.configuration.config import DATABASE_URL
 from blueprints.logout_bp import logout_bp
-from flask import Flask, render_template, send_file, Blueprint, current_app, session, jsonify
+from flask import Flask, Blueprint, current_app, jsonify
 
 app = Flask(__name__)
 app.secret_key = '1234'

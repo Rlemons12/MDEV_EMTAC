@@ -1,7 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
-from config_env import DatabaseConfig  # Import your DatabaseConfig class
-from emtacdb_fts import Position, Area, EquipmentGroup, Model, AssetNumber, Location, SiteLocation
-from sqlalchemy.orm import joinedload
+from modules.configuration.config_env import DatabaseConfig  # Import your DatabaseConfig class
+from modules.emtacdb.emtacdb_fts import Position, Area, EquipmentGroup, Model, AssetNumber, Location, SiteLocation
 import logging
 
 # Configure logging

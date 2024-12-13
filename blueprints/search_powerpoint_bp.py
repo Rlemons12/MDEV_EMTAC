@@ -1,19 +1,12 @@
 from flask import Blueprint, request, render_template, send_file
-from emtacdb_fts import get_powerpoints_by_title, serve_pdf,PowerPoint
-from sqlalchemy import or_
+from modules.emtacdb.emtacdb_fts import PowerPoint
+from modules.emtacdb.utlity.main_database.database import get_powerpoints_by_title
 from sqlalchemy.orm import Session
-from sqlalchemy import or_ 
+from modules.configuration.config import DATABASE_URL, PPT2PDF_PPT_FILES_PROCESS
 from sqlalchemy import create_engine
-import os
-from blueprints import DATABASE_URL,DATABASE_DOC, PPT2PDF_PPT_FILES_PROCESS  # Update with your PDF storage directory
-import webbrowser  # Import the webbrowser module
-from sqlalchemy import create_engine, Column, Integer, String, LargeBinary, ForeignKey, text
-from sqlalchemy.orm import sessionmaker, scoped_session, relationship
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 
 import os
-from config import PPT2PDF_PDF_FILES_PROCESS, DATABASE_DIR  # Update with your PDF storage directory
-import webbrowser  # Import the webbrowser module
 
 # Create a SQLAlchemy engine using the DATABASE_URL from your config
 engine = create_engine(DATABASE_URL)
@@ -107,4 +100,4 @@ def search_powerpoint():
     
     # If no search criteria provided or no matching results found, render the search form or a default page
     print("Debug: No search criteria provided or no matching results found. Rendering search form.")
-    return render_template('upload_image.html')
+    return render_template('upload_search_database.html')

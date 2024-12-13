@@ -1,14 +1,15 @@
 import os
 import logging
 from flask import Blueprint, request, flash, jsonify, render_template
-from emtacdb_fts import Image, ImagePositionAssociation, Position, create_thumbnail
-from blueprints import DATABASE_PATH_IMAGES_FOLDER
+from modules.emtacdb.emtacdb_fts import Image, ImagePositionAssociation, Position
+from modules.emtacdb.utlity.main_database.database import create_thumbnail
+from modules.configuration.config import DATABASE_PATH_IMAGES_FOLDER
 from sqlalchemy.orm import joinedload
 from sqlalchemy.exc import SQLAlchemyError
 from PIL import Image as PILImage
 from io import BytesIO
 import base64
-from config_env import DatabaseConfig
+from modules.configuration.config_env import DatabaseConfig
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)  # Change to DEBUG for more verbose logs
@@ -77,9 +78,9 @@ def search_images():
     # If no filters are provided, show a flash message and redirect to the upload image page
     if not description and not title and not area_id and not equipment_group_id and not model_id and not asset_number_id and not location_id:
         flash("No search criteria provided", "error")
-        logger.info("No search criteria provided. Redirecting to upload_image.html.")
+        logger.info("No search criteria provided. Redirecting to upload_search_database.html.")
         session.close()
-        return render_template('upload_image.html')
+        return render_template('upload_search_database.html')
 
     try:
         # Query the images with pagination

@@ -1,12 +1,12 @@
-from flask import current_app, request, redirect, url_for, render_template, Blueprint
+from flask import request, redirect, url_for, render_template, Blueprint
 from werkzeug.utils import secure_filename
-from emtacdb_fts import (Session, Image, ImagePositionAssociation, create_position, add_image_to_db, load_config_from_db,load_image_model_config_from_db)
+from modules.emtacdb.emtacdb_fts import (load_image_model_config_from_db)
+from modules.emtacdb.utlity.main_database.database import create_position, add_image_to_db
 from plugins.image_models import CLIPModelHandler, NoImageModel
 import os
 import base64
 import requests
-from blueprints import API_KEY, DATABASE_PATH_IMAGES_FOLDER
-from PIL import Image as PILImage
+from modules.configuration.config import API_KEY, DATABASE_PATH_IMAGES_FOLDER
 
 upload_image_bp = Blueprint('upload_image_bp', __name__)
 

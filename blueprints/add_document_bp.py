@@ -1,65 +1,28 @@
 import psutil
 from flask import Blueprint, request, jsonify, redirect, url_for
-from emtacdb_fts import (add_docx_to_db,
-                         create_position, SiteLocation, extract_text_from_pdf, extract_text_from_txt,
-                         CompleteDocument, Document, split_text_into_chunks, generate_embedding,
-                         store_embedding, CURRENT_EMBEDDING_MODEL, Area, EquipmentGroup, AssetNumber,
-                         Model, Location, ChatSession, Position, Image, Drawing, Problem, Task,
-                         Part, ImageEmbedding, PowerPoint, PartsPositionImageAssociation,
-                         ImagePositionAssociation, DrawingPositionAssociation,
-                         CompletedDocumentPositionAssociation, ImageCompletedDocumentAssociation,
-                         ProblemPositionAssociation, ImageProblemAssociation,
-                         CompleteDocumentProblemAssociation, ImageTaskAssociation
-                         )
-from config import DATABASE_URL, DATABASE_DOC, DATABASE_DIR, TEMPORARY_UPLOAD_FILES, REVISION_CONTROL_DB_PATH
+from plugins.ai_models import generate_embedding
+from modules.emtacdb.emtacdb_fts import (SiteLocation, CompleteDocument, Document, CompletedDocumentPositionAssociation)
+from modules.emtacdb.utlity.main_database.database import create_position, split_text_into_chunks, extract_text_from_pdf, \
+    extract_text_from_txt, add_docx_to_db,store_embedding
+from modules.configuration.config import DATABASE_URL, DATABASE_DOC, DATABASE_DIR, TEMPORARY_UPLOAD_FILES,CURRENT_EMBEDDING_MODEL
 import os
 from werkzeug.utils import secure_filename
-import pandas as pd
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy import create_engine, text, event
 import logging
 from concurrent.futures import ThreadPoolExecutor
 import threading
-from threading import Lock
 from datetime import datetime
 import fitz
-import time
 import requests
-from emtac_revision_control_db import (
-    VersionInfo, RevisionControlBase, RevisionControlSession, SiteLocationSnapshot,
-    PositionSnapshot, AreaSnapshot, EquipmentGroupSnapshot, ModelSnapshot,
-    AssetNumberSnapshot, PartSnapshot, ImageSnapshot, ImageEmbeddingSnapshot,
-    DrawingSnapshot, DocumentSnapshot, CompleteDocumentSnapshot, ProblemSnapshot,
-    TaskSnapshot, DrawingPartAssociationSnapshot, PartProblemAssociationSnapshot,
-    PartTaskAssociationSnapshot, DrawingProblemAssociationSnapshot,
-    DrawingTaskAssociationSnapshot, ProblemPositionAssociationSnapshot,
-    CompleteDocumentProblemAssociationSnapshot, CompleteDocumentTaskAssociationSnapshot,
-    ImageProblemAssociationSnapshot, ImageTaskAssociationSnapshot,
-    ImagePositionAssociationSnapshot, DrawingPositionAssociationSnapshot,
-    CompletedDocumentPositionAssociationSnapshot, ImageCompletedDocumentAssociationSnapshot,
-    LocationSnapshot
+from modules.emtacdb.emtac_revision_control_db import (
+    VersionInfo, RevisionControlSession
 )
-from snapshot_utils import (
-    create_sitlocation_snapshot, create_position_snapshot, create_snapshot,
-    create_area_snapshot, create_equipment_group_snapshot, create_model_snapshot,
-    create_asset_number_snapshot, create_part_snapshot, create_image_snapshot,
-    create_image_embedding_snapshot, create_drawing_snapshot,
-    create_document_snapshot, create_complete_document_snapshot,
-    create_problem_snapshot, create_task_snapshot,
-    create_drawing_part_association_snapshot, create_part_problem_association_snapshot,
-    create_part_task_association_snapshot, create_drawing_problem_association_snapshot,
-    create_drawing_task_association_snapshot, create_problem_position_association_snapshot,
-    create_complete_document_problem_association_snapshot,
-    create_complete_document_task_association_snapshot,
-    create_image_problem_association_snapshot, create_image_task_association_snapshot,
-    create_image_position_association_snapshot, create_drawing_position_association_snapshot,
-    create_completed_document_position_association_snapshot,
-    create_image_completed_document_association_snapshot,
-    create_parts_position_association_snapshot
-)
-from auditlog import AuditLog, commit_audit_logs, add_audit_log_entry, audit_log_lock
+from modules.emtacdb.utlity.revision_database.auditlog import commit_audit_logs, add_audit_log_entry
+from modules.configuration.config_env import DatabaseConfig
 
+db_config = DatabaseConfig()
 
 # Create logs directory if it doesn't exist
 if not os.path.exists('logs'):
@@ -90,7 +53,6 @@ engine = create_engine(
     connect_args={"check_same_thread": False}
 )
 
-Session = scoped_session(sessionmaker(bind=engine))
 
 # Revision control database configuration
 REVISION_CONTROL_DB_PATH = os.path.join(DATABASE_DIR, 'emtac_revision_control_db.db')
@@ -122,7 +84,7 @@ add_document_bp = Blueprint("add_document_bp", __name__)
 # Define the route for adding documents
 @add_document_bp.route("/add_document", methods=["POST"])
 def add_document():
-    session = Session()  # Create a session at the beginning of the route
+    session = db_config.MainSession()  # Create a session at the beginning of the route
     logger.info("Received a request to add documents")
 
     if "files" not in request.files:
@@ -142,7 +104,7 @@ def add_document():
 
     try:
         site_location = None
-        with Session() as session:
+        with db_config.MainSession() as session:
             if site_location_title:
                 site_location = session.query(SiteLocation).filter_by(title=site_location_title).first()
                 if not site_location:
@@ -188,7 +150,7 @@ def add_document():
                         logger.error(f"Failed to process DOCX file: {file_path}")
                         raise Exception(f"Failed to process DOCX file: {file_path}")
 
-                with Session() as session:
+                with db_config.MainSession() as session:
                     existing_document = session.query(CompleteDocument).filter_by(title=title).order_by(CompleteDocument.rev.desc()).first()
                     if existing_document:
                         new_rev = f"R{int(existing_document.rev[1:]) + 1}"
@@ -261,7 +223,7 @@ def add_document_to_db_multithread(title, file_path, position_id, revision, rema
     try:
         extracted_text = None
 
-        with Session() as session:
+        with db_config.MainSession() as session:
             logger.info(f"[Thread {thread_id}] Session started for file: {file_path}")
 
             # First, extract the text from the document
@@ -376,7 +338,7 @@ def add_document_to_db_multithread(title, file_path, position_id, revision, rema
         return None, False
 
 def extract_images_from_pdf(file_path, complete_document_id, completed_document_position_association_id, position_id=None):
-    session = Session()
+    session = db_config.MainSession()
 
     try:
         logger.info(f"extract_images_from_pdf called with arguments:")

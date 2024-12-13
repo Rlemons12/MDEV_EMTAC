@@ -2,8 +2,8 @@ from flask import Blueprint, request, jsonify
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
-from blueprints import DATABASE_URL
-from emtacdb_fts import Drawing
+from modules.configuration.config import DATABASE_URL
+from modules.emtacdb.emtacdb_fts import Drawing
 import logging
 
 tsg_search_drawing_bp = Blueprint('tsg_search_drawing_bp', __name__)

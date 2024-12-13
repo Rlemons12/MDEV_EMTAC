@@ -1,10 +1,11 @@
 import threading
 import time
 import webbrowser
-from flask import Flask, render_template, request, redirect, url_for
-from modules.tool_module.model import Category, Manufacturer, Tool, ToolForm
+from flask import render_template, redirect, url_for
+from modules.tool_module.model import ToolCategory, Manufacturer, ToolForm
 from modules.tool_module import create_app,db
-from emtacdb_fts import Image
+from modules.emtacdb.emtacdb_fts import Image, Tool
+
 # Create Flask app using the factory function
 app = create_app()
 
@@ -19,7 +20,7 @@ def add_tool():
     form = ToolForm()
 
     # Load available choices for categories, manufacturers, and images
-    form.category.choices = [(c.id, c.name) for c in db.session.query(Category).all()]
+    form.category.choices = [(c.id, c.name) for c in db.session.query(ToolCategory).all()]
     form.manufacturer.choices = [(m.id, m.name) for m in db.session.query(Manufacturer).all()]
     form.image_ids.choices = [(i.id, i.title) for i in db.session.query(Image).all()]  # Populate images
 

@@ -5,24 +5,18 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from flask import Flask, Blueprint, request, jsonify, current_app, url_for, redirect
 from sqlalchemy.exc import SQLAlchemyError
-from emtacdb_fts import (
-    search_documents_fts, search_images_by_keyword, find_keyword_and_extract_detail,
-    load_keywords_to_db, perform_action_based_on_keyword, load_keywords_and_patterns,
-    find_most_relevant_document, create_session, update_session, get_session, QandA,
-    ChatSession, Area, EquipmentGroup, Model, AssetNumber, Location, SiteLocation, Position,
-    Document, Image, Drawing, Problem, Task, CompleteDocument, PowerPoint,
-    PartsPositionImageAssociation, ImagePositionAssociation, DrawingPositionAssociation,
-    CompletedDocumentPositionAssociation, ImageCompletedDocumentAssociation,
-    ProblemPositionAssociation, ImageProblemAssociation, CompleteDocumentProblemAssociation,
-    ImageTaskAssociation, AIModelConfig
+from modules.emtacdb.emtacdb_fts import (
+    QandA,
+    ChatSession, AIModelConfig
 )
+from modules.emtacdb.utlity.main_database.database import find_most_relevant_document, create_session, update_session, get_session, \
+    load_keywords_and_patterns, find_keyword_and_extract_detail, perform_action_based_on_keyword, search_documents_fts, \
+    search_images_by_keyword
 from datetime import datetime
-import sqlalchemy
 from sqlalchemy import create_engine
 from sqlalchemy.orm import scoped_session, sessionmaker
-from config import DATABASE_URL
-from plugins import load_ai_model, generate_embedding, load_embedding_model  # Importing from plugins package
-from utilities.auth_utils import logout
+from modules.configuration.config import DATABASE_URL
+from plugins import load_ai_model, load_embedding_model  # Importing from plugins package
 from blueprints.logout_bp import logout_bp
 from sqlalchemy.orm import Session as LocalSession  # Import LocalSession
 from sqlalchemy.orm import Session

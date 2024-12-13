@@ -1,7 +1,5 @@
 from flask import Blueprint, send_file
 import os
-from emtacdb_fts import get_powerpoints_by_title
-from blueprints import PPT2PDF_PDF_FILES_PROCESS  # Update with your PDF storage directory
 
 display_pdf_bp = Blueprint('display_pdf_bp', __name__)
 

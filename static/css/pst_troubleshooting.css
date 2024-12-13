@@ -1,0 +1,225 @@
+/* Main Container Styling */
+.main-container {
+    background-image: url("/static/background images/dark-blue-futuristic-technology.jpg");
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: center;
+    display: flex;
+    flex-direction: column; /* Stack content vertically */
+    height: 100vh;
+    width: 100%;
+    padding-top: 10px;
+}
+
+/* Content Container */
+.container {
+    background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent black */
+    border-radius: 10px;
+    padding: 30px; /* Add more space inside the container */
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.6); /* Slightly stronger shadow */
+    margin-top: 20px;
+    width: 95%; /* Make it more fluid on smaller screens */
+    max-width: 1200px; /* Maintain the maximum width */
+    margin-left: auto;
+    margin-right: auto; /* Center the container */
+    text-align: left; /* Center-align content inside */
+}
+
+
+/* Page Header */
+h2 {
+    color: #39FF14; /* Bright green for the header */
+    text-align: Left;
+    margin-bottom: 30px; /* Increase spacing below header */
+    font-weight: bold;
+    font-size: 2rem; /* Make the header size prominent */
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8); /* Add subtle text shadow */
+}
+
+
+/* Form Styling */
+form {
+    background-color: rgba(255, 255, 255, 0.15); /* Slightly brighter transparency for visibility */
+    padding: 25px; /* Increase padding for larger form appearance */
+    border-radius: 12px; /* Smoother rounded edges */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3); /* Add a stronger shadow for depth */
+    margin-bottom: 30px; /* Create more spacing below the form */
+    width: 100%; /* Full width of the parent container */
+    max-width: 900px; /* Limit the form size for readability */
+    margin-left: auto;
+    margin-right: auto; /* Center the form horizontally */
+    font-size: 1.1rem; /* Larger font size for readability */
+}
+
+form label {
+    color: #ffffff; /* White labels for contrast */
+    font-weight: bold;
+}
+
+form input,
+form select,
+form textarea {
+    background-color: rgba(255, 255, 255, 0.9); /* Almost white for better readability */
+    color: #000000; /* Black text for inputs */
+    border: 1px solid rgba(0, 0, 0, 0.3); /* Light borders */
+    border-radius: 5px;
+    padding: 10px;
+    margin-bottom: 10px;
+}
+
+form input:focus,
+form select:focus,
+form textarea:focus {
+    border-color: #007BFF; /* Blue focus outline */
+    background-color: white; /* Solid background when focused */
+    outline: none;
+}
+
+/* Accordion Styling */
+.accordion-button {
+    background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent background */
+    color: #ffffff; /* White text */
+    border: none; /* Remove border */
+}
+
+.accordion-button:not(.collapsed) {
+    color: #39FF14; /* Bright green for expanded state */
+    background-color: rgba(0, 0, 0, 0.8); /* Darker background when active */
+    border: none; /* Remove border when active */
+}
+
+.accordion-body {
+    background-color: rgba(0, 0, 0, 0.7); /* Semi-transparent for body */
+    color: white;
+    border-radius: 5px;
+}
+
+/* Tab Styling */
+.nav-tabs .nav-link {
+    background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent black */
+    color: white;
+    border-radius: 5px;
+    margin-right: 5px;
+}
+
+.nav-tabs .nav-link.active {
+    background-color: #39FF14; /* Bright green for active tab */
+    color: white;
+    font-weight: bold;
+}
+
+/* Buttons */
+.btn {
+    border-radius: 5px;
+    font-weight: bold;
+}
+
+.btn-primary {
+    background-color: #007BFF;
+    color: white;
+    border: none;
+}
+
+.btn-primary:hover {
+    background-color: #0056b3;
+}
+
+.btn-danger {
+    background-color: #dc3545;
+    color: white;
+    border: none;
+}
+
+.btn-danger:hover {
+    background-color: #c82333;
+}
+
+.btn-success {
+    background-color: #28a745;
+    color: white;
+    border: none;
+}
+
+.btn-success:hover {
+    background-color: #218838;
+}
+
+.tab-content h4 {
+    color: #ffffff;
+}
+.tab-content h5 {
+    color: #ffffff;
+}
+.tab-content h6 {
+    color: #ffffff;
+}
+.tab-content label.form-label {
+    color: #ffffff; /* White text for labels inside tab content */
+}
+
+/* Spinner */
+#loadingSpinner {
+    background-color: rgba(0, 0, 0, 0.6); /* Overlay spinner background */
+    padding: 20px;
+    border-radius: 10px;
+}
+
+/* Sidebar Styling */
+.sidebar {
+    width: 250px;
+    background-color: rgba(0, 0, 0, 0.6); /* Semi-transparent black */
+    color: white;
+    padding: 20px;
+    border-right: 1px solid rgba(255, 255, 255, 0.3);
+    overflow-y: auto; /* Allow vertical scrolling for long content */
+    z-index: 1000;
+}
+
+.sidebar h1,
+.sidebar h2 {
+    color: #fff; /* Improve text visibility */
+    margin-bottom: 20px;
+}
+
+.sidebar a {
+    padding: 10px;
+    margin-bottom: 5px;
+    display: block;
+    color: #39FF14; /* Bright green for links */
+    text-decoration: none;
+    font-size: 1em;
+}
+
+.sidebar a:hover {
+    background-color: rgba(255, 255, 255, 0.1); /* Highlight links on hover */
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .sidebar {
+        width: 100%;
+        position: static;
+        height: auto;
+        margin-bottom: 20px;
+    }
+
+    .container {
+        padding: 10px;
+        width: 100%;
+    }
+
+    form {
+        padding: 10px;
+    }
+
+    .nav-tabs .nav-link {
+        font-size: 14px;
+        margin-bottom: 5px;
+    }
+
+    .main-container {
+        flex-direction: column; /* Stack sidebar and content */
+    }
+}
+
+
