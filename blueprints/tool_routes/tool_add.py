@@ -1,17 +1,31 @@
+#tool_add.py
+import os
 from modules.configuration.log_config import logger
 from flask import request, render_template, redirect, url_for, flash, jsonify, current_app
 from blueprints.tool_routes import tool_blueprint_bp
-from modules.emtacdb.emtacdb_fts import Tool, ToolCategory, ToolManufacturer, ToolImageAssociation, Image
+from modules.emtacdb.emtacdb_fts import (Position,Tool, ToolCategory, ToolManufacturer, ToolImageAssociation, Image,
+                                         ToolPackage)
 from werkzeug.utils import secure_filename
-import os
+from modules.configuration.config_env import DatabaseConfig
+from sqlalchemy.exc import SQLAlchemyError
+from modules.configuration.log_config import logger
+from flask import request, render_template, flash, url_for, redirect
+from blueprints.tool_routes import tool_blueprint_bp
+from modules.emtacdb.emtacdb_fts import (
+    Position, Tool, ToolCategory, ToolManufacturer, ToolPackage
+)
 from modules.configuration.config_env import DatabaseConfig
 from sqlalchemy.exc import SQLAlchemyError
 
+# Database configuration
 db_config = DatabaseConfig()
 
-# Define a route for adding tools
-@tool_bp.route('/submit_tool_data', methods=['GET', 'POST'])
+
+# Route for adding tools
+@tool_blueprint_bp.route('/submit_tool_data', methods=['GET', 'POST'])
 def submit_tool_data():
+    logger.debug(f"Request method: {request.method} - Path: {request.path}")
+
     if request.method == 'POST':
         # Extract form data
         tool_name = request.form.get('tool_name')
@@ -24,16 +38,25 @@ def submit_tool_data():
         tool_position_id = request.form.get('tool_position')
         position_description = request.form.get('position_description')
         tool_package_id = request.form.get('tool_package')
-        # Handle file upload if necessary
 
         # Validate required fields
-        if not tool_name or not tool_category_id or not tool_manufacturer_id:
-            flash('Please fill in all required fields.', 'error')
-            return redirect(url_for('tool_bp.submit_tool_data'))
+        missing_fields = []
+        if not tool_name:
+            missing_fields.append('Tool Name')
+        if not tool_category_id:
+            missing_fields.append('Tool Category')
+        if not tool_manufacturer_id:
+            missing_fields.append('Tool Manufacturer')
 
+        if missing_fields:
+            flash(f"Missing required fields: {', '.join(missing_fields)}", 'error')
+            return render_template('tool_search_entry.html')
+
+        # Database transaction
         try:
-            with db_config.MainSession() as session:
-                # Create a new Tool instance
+            with db_config.get_main_session() as session:
+                logger.debug("Starting database transaction to add a new tool.")
+
                 new_tool = Tool(
                     name=tool_name,
                     size=tool_size,
@@ -43,48 +66,48 @@ def submit_tool_data():
                     tool_category_id=tool_category_id,
                     tool_manufacturer_id=tool_manufacturer_id
                 )
+
                 session.add(new_tool)
                 session.commit()
+                logger.info("Tool data submitted successfully.")
                 flash('Tool data submitted successfully!', 'success')
-                return redirect(url_for('tool_bp.submit_tool_data'))
+
+                return redirect(url_for('tool_routes.submit_tool_data'))
 
         except SQLAlchemyError as e:
             logger.error(f"Database error while submitting tool data: {e}")
-            session.rollback()
-            flash('An internal server error occurred while submitting tool data.', 'error')
-            return redirect(url_for('tool_bp.submit_tool_data'))
+            flash('A database error occurred while submitting tool data.', 'error')
+            return render_template('tool_search_entry.html')
 
         except Exception as e:
             logger.error(f"Unexpected error while submitting tool data: {e}")
-            session.rollback()
-            flash('An unexpected error occurred while submitting tool data.', 'error')
-            return redirect(url_for('tool_bp.submit_tool_data'))
+            flash('An unexpected error occurred. Please try again.', 'error')
+            return render_template('tool_search_entry.html')
 
-    else:
-        # Handle GET request - render the form
-        try:
-            with db_config.MainSession() as session:
-                # Fetch all tool categories
-                tool_categories = session.query(ToolCategory).all()
-                # Fetch other data like manufacturers, positions, packages
-                tool_manufacturers = session.query(ToolManufacturer).all()
-                tool_positions = session.query(Position).all()
-                tool_packages = session.query(ToolPackage).all()
+    # GET Request: Render the tool form
+    try:
+        with db_config.get_main_session() as session:
+            logger.debug("Loading tool form data from the database.")
 
-            return render_template(
-                'tool_data_entry.html',
-                tool_categories=tool_categories,
-                tool_manufacturers=tool_manufacturers,
-                tool_positions=tool_positions,
-                tool_packages=tool_packages
-            )
+            tool_categories = session.query(ToolCategory).all()
+            tool_manufacturers = session.query(ToolManufacturer).all()
+            tool_positions = session.query(Position).all()
+            tool_packages = session.query(ToolPackage).all()
 
-        except SQLAlchemyError as e:
-            logger.error(f"Database error while loading the form: {e}")
-            flash('An internal server error occurred while loading the form.', 'error')
-            return redirect(url_for('tool_bp.submit_tool_data'))
+        return render_template(
+            'tool_search_entry.html',
+            tool_categories=tool_categories,
+            tool_manufacturers=tool_manufacturers,
+            tool_positions=tool_positions,
+            tool_packages=tool_packages
+        )
 
-        except Exception as e:
-            logger.error(f"Unexpected error while loading the form: {e}")
-            flash('An unexpected error occurred while loading the form.', 'error')
-            return redirect(url_for('tool_bp.submit_tool_data'))
+    except SQLAlchemyError as e:
+        logger.error(f"Database error while loading form data: {e}")
+        flash('An error occurred while loading the form. Please try again.', 'error')
+        return render_template('tool_search_entry.html')
+
+    except Exception as e:
+        logger.error(f"Unexpected error while loading form data: {e}")
+        flash('An unexpected error occurred while loading the form.', 'error')
+        return render_template('tool_search_entry.html')

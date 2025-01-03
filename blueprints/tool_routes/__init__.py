@@ -1,3 +1,4 @@
+#__init__.py
 from flask import Blueprint
 
 # Create the blueprint

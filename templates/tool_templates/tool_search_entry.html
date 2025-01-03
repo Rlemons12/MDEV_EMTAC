@@ -12,24 +12,22 @@
 {% block content %}
 <div class="sidebar" id="sidebar">
     <button class="toggle-btn" onclick="toggleSidebar()">Toggle Sidebar</button>
-    <h3>
-        <!-- Display the current user level -->
-        <p>User Level: {{ session['user_level'] }}</p>
-    </h3>
-    <h1> Search </h1>
-    <h2>Welcome {{ session['first_name'] }}! How can I assist you?</h2>
-    {% if session['user_level'] == 'ADMIN' or session['user_level'] == 'LEVEL_III' %}
+    <h3>User Level: {{ session['user_level'] }}</h3>
+    <h1>Search</h1>
+    <h2>Welcome, {{ session['first_name'] }}!</h2>
+
+    {% if session['user_level'] in ['ADMIN', 'LEVEL_III'] %}
         <a href="/">Return to Main Page</a>
     {% endif %}
     <a href="#search-documents" onclick="showForm('search-documents')">Search Documents</a>
     <a href="#search-images" onclick="showForm('search-images')">Search Images</a>
     <a href="#compare-images" onclick="showForm('compare-images')">Compare Images</a>
-    {% if session['user_level'] == 'ADMIN' or session['user_level'] == 'LEVEL_III' %}
-    <a href="/tool/submit_tool_data" class="highlight-link">Tools: Entry and Search</a>
+    {% if session['user_level'] in ['ADMIN', 'LEVEL_III'] %}
+        <a href="/tool/submit_tool_data" class="highlight-link">Tools: Entry and Search</a>
     {% endif %}
     <a href="/tsg_search_problems" class="highlight-link">To Search Troubleshooting</a>
     <a href="/bill_of_materials" class="highlight-link">To Parts and BOMs</a>
-    {% if session['user_level'] == 'ADMIN' or session['user_level'] == 'LEVEL_III' %}
+    {% if session['user_level'] in ['ADMIN', 'LEVEL_III'] %}
         <a href="/troubleshooting_guide" class="highlight-link">To Update Troubleshooting Guide</a>
     {% endif %}
     <a href="/logout" class="logout-button">Logout</a>
@@ -37,93 +35,148 @@
 
 <div class="form-container">
     <h1>Tool Data Entry</h1>
-    <form action="{{ url_for('tool_bp.submit_tool_data') }}" method="POST" enctype="multipart/form-data">
-        <!-- Tool Information -->
-        <fieldset>
-            <legend>Tool Information</legend>
-            <label for="tool_name">Tool Name:</label>
-            <input type="text" id="tool_name" name="tool_name" required>
 
-            <label for="tool_size">Size:</label>
-            <input type="text" id="tool_size" name="tool_size">
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
 
-            <label for="tool_type">Type:</label>
-            <input type="text" id="tool_type" name="tool_type">
+    <!-- Tool Data Entry Form -->
+    <form id="tool_search_form" action="{{ url_for('tool_routes.submit_tool_data') }}" method="POST" enctype="multipart/form-data">
 
-            <label for="tool_material">Material:</label>
-            <input type="text" id="tool_material" name="tool_material">
+        <div class="accordion" id="toolFormAccordion">
 
-            <label for="tool_description">Description:</label>
-            <textarea id="tool_description" name="tool_description"></textarea>
+            <!-- Tool Information Section -->
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="headingToolInfo">
+                    <button class="accordion-button" type="button" data-bs-toggle="collapse"
+                            data-bs-target="#collapseToolInfo" aria-expanded="true" aria-controls="collapseToolInfo">
+                        Tool Information
+                    </button>
+                </h2>
+                <div id="collapseToolInfo" class="accordion-collapse collapse show"
+                     aria-labelledby="headingToolInfo" data-bs-parent="#toolFormAccordion">
+                    <div class="accordion-body">
+                        <div class="mb-3">
+                            <label for="tool_name" class="form-label">Tool Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="tool_name" name="tool_name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="tool_size" class="form-label">Size</label>
+                            <input type="text" class="form-control" id="tool_size" name="tool_size">
+                        </div>
+                        <div class="mb-3">
+                            <label for="tool_type" class="form-label">Type</label>
+                            <input type="text" class="form-control" id="tool_type" name="tool_type">
+                        </div>
+                        <div class="mb-3">
+                            <label for="tool_material" class="form-label">Material</label>
+                            <input type="text" class="form-control" id="tool_material" name="tool_material">
+                        </div>
+                        <div class="mb-3">
+                            <label for="tool_description" class="form-label">Description</label>
+                            <textarea class="form-control" id="tool_description" name="tool_description" rows="3"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="tool_category" class="form-label">Category <span class="text-danger">*</span></label>
+                            <select class="form-select" id="tool_category" name="tool_category" required>
+                                <option value="" disabled selected>Select Category</option>
+                                {% for category in tool_categories %}
+                                    <option value="{{ category.id }}">{{ category.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="tool_manufacturer" class="form-label">Manufacturer <span class="text-danger">*</span></label>
+                            <select class="form-select" id="tool_manufacturer" name="tool_manufacturer" required>
+                                <option value="" disabled selected>Select Manufacturer</option>
+                                {% for manufacturer in tool_manufacturers %}
+                                    <option value="{{ manufacturer.id }}">{{ manufacturer.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-            <label for="tool_category">Category:</label>
-            <select id="tool_category" name="tool_category" required>
-                <option value="">Select Category</option>
-                {% macro render_categories(categories, depth=0) %}
-                    {% for category in categories %}
-                        <option value="{{ category.id }}">
-                            {{ '--' * depth }} {{ category.name }}
-                        </option>
-                        {% if category.subcategories %}
-                            {{ render_categories(category.subcategories, depth + 1) }}
-                        {% endif %}
-                    {% endfor %}
-                {% endmacro %}
-                {{ render_categories(tool_categories) }}
-            </select>
+            <!-- Tool Position Section -->
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="headingToolPosition">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                            data-bs-target="#collapseToolPosition" aria-expanded="false" aria-controls="collapseToolPosition">
+                        Tool Position Association
+                    </button>
+                </h2>
+                <div id="collapseToolPosition" class="accordion-collapse collapse"
+                     aria-labelledby="headingToolPosition" data-bs-parent="#toolFormAccordion">
+                    <div class="accordion-body">
+                        <div class="mb-3">
+                            <label for="tool_position" class="form-label">Position</label>
+                            <select class="form-select" id="tool_position" name="tool_position">
+                                <option value="" disabled selected>Select Position</option>
+                                {% for position in tool_positions %}
+                                    <option value="{{ position.id }}">{{ position.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-            <label for="tool_manufacturer">Manufacturer:</label>
-            <select id="tool_manufacturer" name="tool_manufacturer" required>
-                <option value="">Select Manufacturer</option>
-                {% for manufacturer in tool_manufacturers %}
-                    <option value="{{ manufacturer.id }}">{{ manufacturer.name }}</option>
-                {% endfor %}
-            </select>
-        </fieldset>
+            <!-- Tool Image Section -->
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="headingToolImage">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                            data-bs-target="#collapseToolImage" aria-expanded="false" aria-controls="collapseToolImage">
+                        Tool Image Upload
+                    </button>
+                </h2>
+                <div id="collapseToolImage" class="accordion-collapse collapse"
+                     aria-labelledby="headingToolImage" data-bs-parent="#toolFormAccordion">
+                    <div class="accordion-body">
+                        <div class="mb-3">
+                            <label for="tool_image" class="form-label">Upload Image</label>
+                            <input class="form-control" type="file" id="tool_image" name="tool_image" accept="image/*">
+                        </div>
+                        <div class="mb-3">
+                            <label for="image_description" class="form-label">Image Description</label>
+                            <textarea class="form-control" id="image_description" name="image_description" rows="2"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-        <!-- Tool Position Association -->
-        <fieldset>
-            <legend>Tool Position Association</legend>
-            <label for="tool_position">Position:</label>
-            <select id="tool_position" name="tool_position">
-                <option value="">Select Position</option>
-                {% for position in tool_positions %}
-                    <option value="{{ position.id }}">{{ position.name }}</option>
-                {% endfor %}
-            </select>
+        </div>
 
-            <label for="position_description">Description:</label>
-            <textarea id="position_description" name="position_description"></textarea>
-        </fieldset>
-
-        <!-- Tool Image Association -->
-        <fieldset>
-            <legend>Tool Image Association</legend>
-            <label for="tool_image">Upload Image:</label>
-            <input type="file" id="tool_image" name="tool_image" accept="image/*">
-
-            <label for="image_description">Image Description:</label>
-            <textarea id="image_description" name="image_description"></textarea>
-        </fieldset>
-
-        <!-- Tool Package -->
-        <fieldset>
-            <legend>Tool Package</legend>
-            <label for="tool_package">Package:</label>
-            <select id="tool_package" name="tool_package">
-                <option value="">Select Package</option>
-                {% for package in tool_packages %}
-                    <option value="{{ package.id }}">{{ package.name }}</option>
-                {% endfor %}
-            </select>
-        </fieldset>
-
-        <button type="submit">Submit</button>
+        <!-- Submit Button -->
+        <div class="text-end mt-4">
+            <button type="submit" class="btn btn-primary">Submit Tool Data</button>
+        </div>
     </form>
+
+    <!-- Search Results Container -->
+    <div id="search_results"></div>
 </div>
 {% endblock %}
 
 {% block extra_scripts %}
+<!-- Pass dynamic URLs to JavaScript -->
+<script>
+    const TOOL_CATEGORIES_URL = "{{ url_for('tool_routes.get_tool_categories') }}";
+
+    const TOOL_POSITIONS_URL = "{{ url_for('tool_routes.get_tool_positions') }}";
+    const TOOL_PACKAGES_URL = "{{ url_for('tool_routes.get_tool_packages') }}";
+</script>
+
+<!-- Bootstrap JS Bundle (includes Popper) -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="{{ url_for('static', filename='js/tool/tool_entry.js') }}"></script>
 <script src="{{ url_for('static', filename='js/tool/tool_search.js') }}"></script>
 {% endblock %}

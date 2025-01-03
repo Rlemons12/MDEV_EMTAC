@@ -125,6 +125,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const assetNumberInput = positionSection.querySelector('.assetNumberInput');
     const locationInput = positionSection.querySelector('.locationInput');
     const siteLocationDropdown = positionSection.querySelector('.siteLocationDropdown');
+    // Select new dropdown elements
+    const assemblyDropdown = positionSection.querySelector('.assembliesDropdown');
+    const subassemblyDropdown = positionSection.querySelector('.subassembliesDropdown');
+    const assemblyViewDropdown = positionSection.querySelector('.assemblyViewsDropdown');
 
     if (!areaDropdown.value || !equipmentGroupDropdown.value || !modelDropdown.value) {
         SolutionTaskCommon.showAlert('Please fill in all required fields before saving.', 'warning');
@@ -136,13 +140,17 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
     }
 
+    // Construct the position data object with existing fields
     const positionData = {
         area_id: parseInt(areaDropdown.value, 10) || null,
         equipment_group_id: parseInt(equipmentGroupDropdown.value, 10) || null,
         model_id: parseInt(modelDropdown.value, 10) || null,
         asset_number_id: parseInt(assetNumberInput.value.trim(), 10) || null, // Converted to integer
         location_id: parseInt(locationInput.value.trim(), 10) || null,       // Converted to integer
-        site_location_id: parseInt(siteLocationDropdown.value, 10) || null
+        site_location_id: parseInt(siteLocationDropdown.value, 10) || null,
+        assembly_id: parseInt(assemblyDropdown.value, 10) || null,
+        subassembly_id: parseInt(subassemblyDropdown.value, 10) || null,
+        assembly_view_id: parseInt(assemblyViewDropdown.value, 10) || null
     };
 
 
@@ -227,7 +235,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function collectPositionsData() {
+function collectPositionsData() {
     const positionsContainer = document.getElementById('pst_task_edit_positions_container');
     const positionsData = [];
 
@@ -240,6 +248,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const locationInput = section.querySelector('.locationInput');
         const siteLocationDropdown = section.querySelector('.siteLocationDropdown');
 
+        // **New Dropdowns**
+        const assemblyDropdown = section.querySelector('.assemblyDropdown');
+        const subassemblyDropdown = section.querySelector('.subassemblyDropdown');
+        const assemblyViewDropdown = section.querySelector('.assemblyViewDropdown');
+
         // Parse integer values where necessary
         const areaId = parseInt(areaDropdown.value, 10) || null;
         const equipmentGroupId = parseInt(equipmentGroupDropdown.value, 10) || null;
@@ -250,12 +263,26 @@ document.addEventListener('DOMContentLoaded', () => {
         const locationId = locationInput.value.trim() ? parseInt(locationInput.value.trim(), 10) : null;           // Integer
         const siteLocationId = parseInt(siteLocationDropdown.value, 10) || null;
 
+        // **Parse New Dropdowns**
+        const assemblyId = assemblyDropdown.value.trim() ? parseInt(assemblyDropdown.value.trim(), 10) : null; // Integer
+        const subassemblyId = subassemblyDropdown.value.trim() ? parseInt(subassemblyDropdown.value.trim(), 10) : null; // Integer
+        const assemblyViewId = assemblyViewDropdown.value.trim() ? parseInt(assemblyViewDropdown.value.trim(), 10) : null; // Integer
+
         // Optional: Validate parsed integers
         if (assetNumberInput.value.trim() && isNaN(assetNumberId)) {
             console.warn(`Invalid Asset Number ID in position section.`);
         }
         if (locationInput.value.trim() && isNaN(locationId)) {
             console.warn(`Invalid Location ID in position section.`);
+        }
+        if (assemblyDropdown.value.trim() && isNaN(assemblyId)) {
+            console.warn(`Invalid Assembly ID in position section.`);
+        }
+        if (subassemblyDropdown.value.trim() && isNaN(subassemblyId)) {
+            console.warn(`Invalid Subassembly ID in position section.`);
+        }
+        if (assemblyViewDropdown.value.trim() && isNaN(assemblyViewId)) {
+            console.warn(`Invalid Assembly View ID in position section.`);
         }
 
         const positionData = {
@@ -264,7 +291,12 @@ document.addEventListener('DOMContentLoaded', () => {
             model_id: modelId,
             asset_number_id: assetNumberId, // Renamed key to match backend
             location_id: locationId,         // Renamed key to match backend
-            site_location_id: siteLocationId
+            site_location_id: siteLocationId,
+
+            // **Include New Fields**
+            assembly_id: assemblyId,
+            subassembly_id: subassemblyId,
+            assembly_view_id: assemblyViewId
         };
 
         console.log('Collected Position Data:', positionData);

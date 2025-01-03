@@ -5,7 +5,7 @@ import logging
 from sqlalchemy.orm import joinedload
 from modules.emtacdb.emtacdb_fts import (Drawing, Part, PartsPositionImageAssociation, DrawingPositionAssociation, CompletedDocumentPositionAssociation,
                                          Area, EquipmentGroup, Model, AssetNumber, Location, SiteLocation, CompleteDocument,
-                                         Image, Position, ImagePositionAssociation)
+                                         Image, Position, ImagePositionAssociation, Assembly,AssemblyView,SubAssembly)
 from modules.configuration.config_env import DatabaseConfig
 from modules.configuration.config import ALLOWED_EXTENSIONS
 from sqlalchemy import or_
@@ -41,6 +41,10 @@ def position_data_assignment():
             asset_number_input = request.form.get('asset_number_input') or None
             location_id = request.form.get('location_id') or None
             location_input = request.form.get('location_input') or None
+            assembly_id = request.form.get('assembly_id') or None
+            assembly_input = request.form.get('assembly_input') or None
+            subassembly_id = request.form.get('subassembly_id') or None
+            subassembly_input = request.form.get('subassembly_input') or None
             site_location_id = request.form.get('site_location_id')
             position_id = request.form.get('position_id')
             part_numbers = request.form.getlist('part_numbers[]')
@@ -92,6 +96,9 @@ def position_data_assignment():
                 position.model_id = model_id
                 position.asset_number_id = asset_number_id
                 position.location_id = location_id
+                position.assembly_id = assembly_id
+                position.subassembly_id = subassembly_id
+                position.assembly_view_id = assembly_id
                 position.site_location_id = site_location_id
                 position.parts = part_numbers  # Assuming position has a parts relationship or column
 
@@ -136,6 +143,9 @@ def position_data_assignment():
             models = db_session.query(Model).all()
             asset_numbers = db_session.query(AssetNumber).all()
             locations = db_session.query(Location).all()
+            assemblies = db_session.query(Assembly).all()
+            subassemblies = db_session.query(SubAssembly).all()
+            assembly_views = db_session.query(AssemblyView).all()
             site_locations = db_session.query(SiteLocation).all()
 
             position = None
@@ -151,6 +161,9 @@ def position_data_assignment():
                 models=models,
                 asset_numbers=asset_numbers,
                 locations=locations,
+                assemblies=assemblies,
+                subassemblies=subassemblies,
+                assembly_views=assembly_views,
                 site_locations=site_locations,
                 position=position
             )
@@ -208,6 +221,39 @@ def get_locations():
     finally:
         db_session.close()
 
+@position_data_assignment_bp.route('/get_assemblies')
+def get_assemblies():
+    location_id = request.args.get('location_id')
+    db_session = db_config.get_main_session()
+    try:
+        assembly = db_session.query(Assembly).filter_by(location_id=location_id).all()
+        data = [{'id': assembly.id, 'name': assembly.name, 'description': assembly.description} for assembly in assembly]
+        return jsonify(data)
+    finally:
+        db_session.close()
+
+@position_data_assignment_bp.route('/get_subassemblies')
+def get_subassemblies():
+    assembly_id = request.args.get('assembly_id')
+    db_session = db_config.get_main_session()
+    try:
+        subassemblies = db_session.query(SubAssembly).filter(SubAssembly.assembly_id == assembly_id).all()
+        data = [{'id': subassembly.id, 'name': subassembly.name, 'description': subassembly.description} for subassembly in subassemblies]
+        return jsonify(data)
+    finally:
+        db_session.close()
+
+@position_data_assignment_bp.route('/get_assembly_views')
+def get_assembly_views():
+    subassembly_id = request.args.get('subassembly_id')
+    db_session = db_config.get_main_session()
+    try:
+        assembly_views = db_session.query(AssemblyView).filter(AssemblyView.subassembly_id == subassembly_id).all()
+        data = [{'id': assembly_view.id, 'name': assembly_view.name} for assembly_view in assembly_views]
+        return jsonify(data)
+    finally:
+        db_session.close()
+
 @position_data_assignment_bp.route('/get_site_locations')
 def get_site_locations():
     model_id = request.args.get('model_id')
@@ -240,6 +286,9 @@ def get_positions():
         model_id = request.args.get('model_id')
         asset_number_id = request.args.get('asset_number_id')
         location_id = request.args.get('location_id')
+        assembly_id = request.args.get('assembly_id')
+        subassembly_id = request.args.get('subassembly_id')
+        assembly_view_id = request.args.get('assembly_view_id')
 
         logger.info(f"Received GET request with filters: site_location_id={site_location_id}, area_id={area_id}, equipment_group_id={equipment_group_id}, model_id={model_id}, asset_number_id={asset_number_id}, location_id={location_id}")
 
@@ -260,6 +309,12 @@ def get_positions():
             query = query.filter(Position.asset_number_id == asset_number_id)
         if location_id:
             query = query.filter(Position.location_id == location_id)
+        if assembly_id:
+            query = query.filter(Position.assembly_id == assembly_id)
+        if subassembly_id:
+            query = query.filter(Position.subassembly_id == subassembly_id)
+        if assembly_view_id:
+            query = query.filter(Position.assembly_view_id == assembly_view_id)
 
         positions = query.all()
         logger.info(f"Found {len(positions)} positions matching the filters.")
@@ -1163,3 +1218,5 @@ def pda_get_documents_by_position():
 
     finally:
         db_session.close()
+
+

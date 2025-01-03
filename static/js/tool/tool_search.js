@@ -1,3 +1,4 @@
+// tool_search.js
 document.addEventListener('DOMContentLoaded', function () {
     const searchForm = document.getElementById('tool_search_form');
     const resultsContainer = document.getElementById('search_results');

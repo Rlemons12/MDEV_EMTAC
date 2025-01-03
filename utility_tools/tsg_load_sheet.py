@@ -11,7 +11,7 @@ from modules.emtacdb.emtacdb_fts import (Area, EquipmentGroup, Model, AssetNumbe
                                          ProblemPositionAssociation,
                                          load_config_from_db)
 from modules.emtacdb.utlity.main_database.database import create_position, split_text_into_chunks
-from plugins.ai_models import generate_embedding
+from plugins.ai_modules import generate_embedding
 from modules.configuration.config_env import DatabaseConfig
 
 # Set up logging

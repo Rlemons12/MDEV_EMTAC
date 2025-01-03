@@ -1,5 +1,5 @@
 import requests
-from .ai_models import (
+from .ai_modules import (
     load_ai_model,
     load_embedding_model,
     generate_embedding,
@@ -9,6 +9,7 @@ from .ai_models import (
     OpenAIEmbeddingModel,
     NoAIModel,
     NoEmbeddingModel)
+from .image_modules import (NoImageModel,BaseImageModelHandler,CLIPModelHandler)
 
 __all__ = [
     'store_embedding',

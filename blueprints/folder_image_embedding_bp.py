@@ -3,7 +3,7 @@ import logging
 from flask import Blueprint, jsonify, request, render_template
 from PIL import Image as PILImage, ImageFile
 from modules.configuration.config import DATABASE_PATH_IMAGES_FOLDER, DATABASE_URL
-from plugins.image_models import CLIPModelHandler, NoImageModel
+from plugins.image_modules import CLIPModelHandler, NoImageModel
 from modules.emtacdb.emtacdb_fts import load_image_model_config_from_db
 from sqlalchemy import (create_engine)
 from sqlalchemy.orm import declarative_base, scoped_session, sessionmaker

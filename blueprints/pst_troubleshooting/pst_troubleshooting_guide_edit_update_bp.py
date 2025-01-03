@@ -3,10 +3,12 @@ import os
 import traceback
 from flask import Blueprint, request, redirect, url_for, jsonify, flash, render_template
 import logging
+
+from blueprints.assembly_routes import submit_assembly
 from modules.configuration.config_env import DatabaseConfig
 from modules.emtacdb.emtacdb_fts import (Drawing, Task, ImageTaskAssociation, Part, Solution, Position, Image,
                                          TaskPositionAssociation, PartTaskAssociation, DrawingTaskAssociation, CompleteDocumentTaskAssociation, CompleteDocument,
-                                         Area, EquipmentGroup, AssetNumber,
+                                         Area, EquipmentGroup, AssetNumber,Assembly,SubAssembly,AssemblyView,
                                          Model, Location, SiteLocation, TaskSolutionAssociation)
 from sqlalchemy import or_
 from sqlalchemy.exc import SQLAlchemyError
@@ -74,7 +76,29 @@ def update_associations(session, model, filter_field, target_id, item_ids, assoc
     except Exception as e:
         logger.error(f"Error updating {assoc_name} associations: {traceback.format_exc()}")
 
-def handle_save_position(session, task_id, solution_id, area_id, equipment_group_id, model_id, asset_number_id, location_id, site_location_id):
+def handle_save_position(session, task_id, solution_id, area_id, equipment_group_id, model_id,
+                        asset_number_id, location_id, site_location_id,
+                        assembly_id=None, subassembly_id=None, assembly_view_id=None):
+    """
+       Handles saving a position to the database.
+
+       Parameters:
+           session: Database session.
+           task_id (int): ID of the task.
+           solution_id (int): ID of the solution.
+           area_id (int): ID of the area.
+           equipment_group_id (int): ID of the equipment group.
+           model_id (int): ID of the model.
+           asset_number_id (int): ID of the asset number.
+           location_id (int): ID of the location.
+           site_location_id (int): ID of the site location.
+           assembly_id (int, optional): ID of the assembly.
+           subassembly_id (int, optional): ID of the subassembly.
+           assembly_view_id (int, optional): ID of the assembly view.
+
+       Returns:
+           Flask Response: JSON response indicating success or failure.
+       """
     try:
         # Fetch the Task instance
         task = session.query(Task).filter_by(id=task_id).first()
@@ -107,7 +131,10 @@ def handle_save_position(session, task_id, solution_id, area_id, equipment_group
             model_id=model_id,
             asset_number_id=asset_number_id,
             location_id=location_id,
-            site_location_id=site_location_id
+            site_location_id=site_location_id,
+            assembly_id = assembly_id,
+            subassembly_id = subassembly_id,
+            assembly_view_id = assembly_view_id
         ).first()
 
         if not position:
@@ -118,7 +145,10 @@ def handle_save_position(session, task_id, solution_id, area_id, equipment_group
                 model_id=model_id,
                 asset_number_id=asset_number_id,
                 location_id=location_id,
-                site_location_id=site_location_id
+                site_location_id=site_location_id,
+                assembly_id = assembly_id,
+                subassembly_id = subassembly_id,
+                assembly_view_id = assembly_view_id
             )
             session.add(position)
             session.flush()  # Flush to get the position ID
@@ -321,6 +351,62 @@ def get_locations():
     data = [{'id': location.id, 'name': location.name} for location in locations]
     return jsonify(data)
 
+@pst_troubleshooting_guide_edit_update_bp.route('/get_assemblies', methods=['GET'])
+def get_assemblies():
+    session = db_config.get_main_session()
+    location_id = request.args.get('location_id')  # No presence or type check
+    assemblies = session.query(Assembly).filter_by(location_id=location_id).all()
+    data = [{'id': assembly.id, 'name': assembly.name} for assembly in assemblies]
+    return jsonify(data)  # Return a 200 implicitly
+
+@pst_troubleshooting_guide_edit_update_bp.route('/get_subassemblies', methods=['GET'])
+def get_subassemblies():
+    session = db_config.get_main_session()
+    assembly_id = request.args.get('assembly_id')
+
+    # Validate the presence of assembly_id
+    if not assembly_id:
+        return jsonify({'error': 'assembly_id is required.'}), 400
+
+    # Validate that assembly_id is an integer
+    try:
+        assembly_id = int(assembly_id)
+    except ValueError:
+        return jsonify({'error': 'assembly_id must be an integer.'}), 400
+
+    # Query subassemblies based on assembly_id
+    subassemblies = session.query(SubAssembly).filter_by(assembly_id=assembly_id).all()
+
+    # Corrected list comprehension with proper variable naming
+    data = [{'id': subassembly.id, 'name': subassembly.name} for subassembly in subassemblies]
+
+    return jsonify(data), 200
+
+
+@pst_troubleshooting_guide_edit_update_bp.route('/get_assembly_views', methods=['GET'])
+def get_assembly_views():
+    session = db_config.get_main_session()
+    subassembly_id = request.args.get('subassembly_id')
+
+    # Validate the presence of subassembly_id
+    if not subassembly_id:
+        return jsonify({'error': 'subassembly_id is required.'}), 400
+
+    # Validate that subassembly_id is an integer
+    try:
+        subassembly_id = int(subassembly_id)
+    except ValueError:
+        return jsonify({'error': 'subassembly_id must be an integer.'}), 400
+
+    # Query assembly views based on subassembly_id
+    assembly_views = session.query(AssemblyView).filter_by(subassembly_id=subassembly_id).all()
+
+    # Corrected list comprehension with proper variable naming
+    data = [{'id': av.id, 'name': av.name} for av in assembly_views]
+
+    return jsonify(data), 200
+
+
 @pst_troubleshooting_guide_edit_update_bp.route('/get_site_locations', methods=['GET'])
 def get_site_locations():
     """
@@ -407,13 +493,18 @@ def save_position():
         model_id = position_data.get('model_id')
         asset_number_id = position_data.get('asset_number_id')  # Updated key
         location_id = position_data.get('location_id')          # Updated key
+        assembly_id = position_data.get('assembly_id')
+        subassembly_id = position_data.get('subassembly_id')
+        assembly_view_id = position_data.get('assembly_view_id')
         site_location_id = position_data.get('site_location_id')
 
         logger.debug(
             f"Extracted position fields - area_id: {area_id}, "
             f"equipment_group_id: {equipment_group_id}, model_id: {model_id}, "
             f"asset_number_id: {asset_number_id}, location_id: {location_id}, "
-            f"site_location_id: {site_location_id}"
+            f"site_location_id: {site_location_id}, "
+            f"assembly_id: {assembly_id}, subassembly_id: {subassembly_id}, "
+            f"assembly_view_id: {assembly_view_id}"
         )
 
         # Validate required position fields
@@ -425,7 +516,9 @@ def save_position():
             f"Saving position for task_id: {task_id}, solution_id: {solution_id}, "
             f"area_id: {area_id}, equipment_group_id: {equipment_group_id}, "
             f"model_id: {model_id}, asset_number_id: {asset_number_id}, "
-            f"location_id: {location_id}, site_location_id: {site_location_id}"
+            f"location_id: {location_id}, site_location_id: {site_location_id}, "
+            f"assembly_id: {assembly_id}, subassembly_id: {subassembly_id}, "
+            f"assembly_view_id: {assembly_view_id}"
         )
 
         # Call helper function to handle saving position
@@ -438,7 +531,10 @@ def save_position():
             model_id=model_id,
             asset_number_id=asset_number_id,
             location_id=location_id,
-            site_location_id=site_location_id
+            site_location_id=site_location_id,
+            assembly_id=assembly_id,
+            subassembly_id=subassembly_id,
+            assembly_view_id=assembly_view_id,
         )
 
         logger.info("Position saved successfully.")

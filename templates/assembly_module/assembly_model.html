@@ -1,71 +1,27 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Data Entry Page</title>
-    <!-- Link to External CSS File Using Flask's url_for -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-</head>
-<body>
-    <!-- Red Banner -->
-    <div class="banner">
-        Data Entry Application
-    </div>
+{% extends 'module_template_html/base_template.html' %}
 
-    <!-- Main Container -->
-    <div class="main-container">
-        <!-- Sidebar -->
-        <div class="sidebar">
-            <span class="close-btn" id="closeSidebar">&times;</span>
-            <a href="#">Home</a>
-            <a href="#">Add Assembly</a>
-            <a href="#">View Assemblies</a>
-            <button id="openComment">Add Comment</button>
-            <!-- Add more navigation links/buttons as needed -->
-        </div>
+{% block title %}
+Enter Assembly Details
+{% endblock %}
 
-        <!-- Sidebar Toggle Button -->
-        <button id="sidebarCollapse">&#9776;</button>
+{% block content %}
+<h2>Enter Assembly Details</h2>
+<form class="data-entry-form" id="assemblyForm">
+    <label for="assemblyName">Assembly Name</label>
+    <input type="text" id="assemblyName" name="assemblyName" required>
 
-        <!-- Main Content -->
-        <div class="content">
-            <h2>Enter Assembly Details</h2>
-            <form class="data-entry-form" id="assemblyForm">
-                <label for="assemblyName">Assembly Name</label>
-                <input type="text" id="assemblyName" name="assemblyName" required>
+    <label for="assemblyView">Assembly View</label>
+    <select id="assemblyView" name="assemblyView" required>
+        <option value="">Select View</option>
+        <option value="front">Front</option>
+        <option value="back">Back</option>
+        <option value="left">Left Side</option>
+        <option value="right">Right Side</option>
+    </select>
 
-                <label for="assemblyView">Assembly View</label>
-                <select id="assemblyView" name="assemblyView" required>
-                    <option value="">Select View</option>
-                    <option value="front">Front</option>
-                    <option value="back">Back</option>
-                    <option value="left">Left Side</option>
-                    <option value="right">Right Side</option>
-                    <!-- Add more options as needed -->
-                </select>
+    <label for="subAssemblyName">SubAssembly Name</label>
+    <input type="text" id="subAssemblyName" name="subAssemblyName" required>
 
-                <label for="subAssemblyName">SubAssembly Name</label>
-                <input type="text" id="subAssemblyName" name="subAssemblyName" required>
-
-                <button type="submit">Submit</button>
-            </form>
-
-            <!-- Results Container (Optional) -->
-            <div class="results-container">
-                <!-- Display results or additional content here -->
-            </div>
-        </div>
-    </div>
-
-    <!-- Comment Popup -->
-    <div id="commentPopup">
-        <h3>Add a Comment</h3>
-        <textarea id="commentText" placeholder="Enter your comment here..."></textarea>
-        <button id="submitComment">Submit</button>
-    </div>
-
-    <!-- Link to External JavaScript File Using Flask's url_for -->
-    <script src="{{ url_for('static', filename='script.js') }}"></script>
-</body>
-</html>
+    <button type="submit">Submit</button>
+</form>
+{% endblock %}

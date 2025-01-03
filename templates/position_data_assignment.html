@@ -41,6 +41,7 @@
                 <li class="tab-item" data-tab="parts-tab">Manage Parts</li>
                 <li class="tab-item" data-tab="images-tab">Manage Images</li>
                 <li class="tab-item" data-tab="drawings-tab">Manage Drawings</li>
+                <li class="tab-item" data-tab="tool-tab">Manage Tools</li>
             </ul>
         </div>
 
@@ -92,6 +93,30 @@
                         <option value="">Select Location</option>
                     </select>
                     <input type="text" name="location_input" id="pda_locationInput" placeholder="Or type Location">
+                </div>
+
+            <!-- Assembly Dropdown -->
+                <div>
+                    <label for="pda_assemblyDropdown">Assembly:</label>
+                    <select name="assembly_id" id="pda_assemblyDropdown" disabled>
+                        <option value="">Select Assembly</option>
+                    </select>
+                </div>
+
+                <!-- SubAssembly Dropdown -->
+                <div>
+                    <label for="pda_subAssemblyDropdown">SubAssembly:</label>
+                    <select name="subassembly_id" id="pda_subAssemblyDropdown" disabled>
+                        <option value="">Select SubAssembly</option>
+                    </select>
+                </div>
+
+                <!-- Assembly View Dropdown -->
+                <div>
+                    <label for="pda_assemblyViewDropdown">Assembly View:</label>
+                    <select name="assembly_view_id" id="pda_assemblyViewDropdown" disabled>
+                        <option value="">Select Assembly View</option>
+                    </select>
                 </div>
 
                 <!-- Site Location Dropdown -->
@@ -157,7 +182,7 @@
                             <!-- Loop for adding multiple equipment groups -->
                             <div class="equipmentGroupFields">
                                 <label for="new_equipmentGroupDropdown">Select Equipment Group:</label>
-                                <select name="equipment_group_id[]" id="new_equipmentGroupDropdown" disabled>
+                                <select name="equipment_group_id[]" id="new_equipmentGroupDropdown" disabled >
                                     <option value="">Select Equipment Group</option>
                                     <option value="new">New Equipment Group...</option>
                                 </select>
@@ -213,7 +238,7 @@
                             <!-- Loop for adding multiple asset numbers -->
                             <div class="assetNumberFields">
                                 <label for="new_assetNumberDropdown">Select Asset Number:</label>
-                                <select name="asset_number_id[]" id="new_assetNumberDropdown" disabled>
+                                <select name="asset_number_id[]" id="new_assetNumberDropdown" >
                                     <option value="">Select Asset Number</option>
                                     <option value="new">New Asset Number...</option>
                                 </select>
@@ -258,6 +283,104 @@
 
                         <!-- Button to add another Location -->
                         <button type="button" id="addAnotherLocationBtn">Add Another Location</button>
+                    </div>
+                </div>
+                <!-- Add Assembly Section -->
+                <div class="collapsible-section">
+                    <h4>Select or Add Assembly</h4>
+                    <div id="assemblyContainer">
+                        <div id="assemblyFieldsWrapper">
+                            <!-- Loop for adding multiple assemblies -->
+                            <div class="assemblyFields">
+                                <label for="new_assemblyDropdown">Select Assembly:</label>
+                                <select name="assembly_id[]" id="new_assemblyDropdown">
+                                    <option value="">Select Assembly</option>
+                                    {% for assembly in assemblies %}
+                                        <option value="{{ assembly.id }}">{{ assembly.name }}</option>
+                                    {% endfor %}
+                                    <option value="new">New Assembly...</option>
+                                </select>
+
+                                <!-- Fields for creating a new Assembly -->
+                                <div id="newAssemblyFields" style="display:none;">
+                                    <h4>New Assembly</h4>
+                                    <label for="new_assembly_name">New Assembly Name:</label>
+                                    <input type="text" id="new_assembly_name" name="new_assembly_name[]">
+
+                                    <label for="new_assembly_description">New Assembly Description:</label>
+                                    <textarea id="new_assembly_description" name="new_assembly_description[]"></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Button to add another Assembly -->
+                        <button type="button" id="addAnotherAssemblyBtn">Add Another Assembly</button>
+                    </div>
+                </div>
+
+                <!-- Add Subassembly Section -->
+                <div class="collapsible-section">
+                    <h4>Select or Add Subassembly</h4>
+                    <div id="subassemblyContainer">
+                        <div id="subassemblyFieldsWrapper">
+                            <!-- Loop for adding multiple subassemblies -->
+                            <div class="subassemblyFields">
+                                <label for="new_subassemblyDropdown">Select Subassembly:</label>
+                                <select name="subassembly_id[]" id="new_subassemblyDropdown" >
+                                    <option value="">Select Subassembly</option>
+                                    {% for subassembly in subassemblies %}
+                                        <option value="{{ subassembly.id }}">{{ subassembly.name }}</option>
+                                    {% endfor %}
+                                    <option value="new">New Subassembly...</option>
+                                </select>
+
+                                <!-- Fields for creating a new Subassembly -->
+                                <div id="newSubassemblyFields" style="display:none;">
+                                    <h4>New Subassembly</h4>
+                                    <label for="new_subassembly_name">New Subassembly Name:</label>
+                                    <input type="text" id="new_subassembly_name" name="new_subassembly_name[]">
+
+                                    <label for="new_subassembly_description">New Subassembly Description:</label>
+                                    <textarea id="new_subassembly_description" name="new_subassembly_description[]"></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Button to add another Subassembly -->
+                        <button type="button" id="addAnotherSubassemblyBtn">Add Another Subassembly</button>
+                    </div>
+                </div>
+
+                <!-- Add Assembly View Section -->
+                <div class="collapsible-section">
+                    <h4>Select or Add Assembly View</h4>
+                    <div id="assemblyViewContainer">
+                        <div id="assemblyViewFieldsWrapper">
+                            <!-- Loop for adding multiple assembly views -->
+                            <div class="assemblyViewFields">
+                                <label for="new_assemblyViewDropdown">Select Assembly View:</label>
+                                <select name="assembly_view_id[]" id="new_assemblyViewDropdown" >
+                                    <option value="">Select Assembly View</option>
+                                    {% for av in assembly_views %}
+                                        <option value="{{ av.id }}">{{ av.name }}</option>
+                                    {% endfor %}
+                                    <option value="new">New Assembly View...</option>
+                                </select>
+
+                                <!-- Fields for creating a new Assembly View -->
+                                <div id="newAssemblyViewFields" style="display:none;">
+                                    <h4>New Assembly View</h4>
+                                    <label for="new_assemblyView_name">New Assembly View Name:</label>
+                                    <input type="text" id="new_assemblyView_name" name="new_assemblyView_name[]">
+
+                                    <label for="new_assemblyView_description">New Assembly View Description:</label>
+                                    <textarea id="new_assemblyView_description" name="new_assemblyView_description[]"></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Button to add another Assembly View -->
+                        <button type="button" id="addAnotherAssemblyViewBtn">Add Another Assembly View</button>
                     </div>
                 </div>
 
@@ -318,16 +441,29 @@
                         <select name="area_id" id="edit_areaDropdown">
                             <option value="">Select Area</option>
                             {% for area in areas %}
-                                <option value="{{ area.id }}" {% if position and area.id == position.area_id %}selected{% endif %}>{{ area.name }}</option>
+                                <option
+                                    value="{{ area.id }}"
+                                    {% if position and area.id == position.area_id %}selected{% endif %}
+                                >
+                                    {{ area.name }}
+                                </option>
                             {% endfor %}
                         </select>
 
                         <!-- Name and Description for Area -->
                         <label for="edit_area_name">Area Name:</label>
-                        <input type="text" id="edit_area_name" name="area_name" value="{{ position.area.name if position.area else '' }}">
+                        <input
+                            type="text"
+                            id="edit_area_name"
+                            name="area_name"
+                            value="{{ position.area.name if position.area else '' }}"
+                        >
 
                         <label for="edit_area_description">Area Description:</label>
-                        <textarea id="edit_area_description" name="area_description">{{ position.area.description if position.area else '' }}</textarea>
+                        <textarea
+                            id="edit_area_description"
+                            name="area_description"
+                        >{{ position.area.description if position.area else '' }}</textarea>
                     </div>
                 </div>
 
@@ -339,16 +475,29 @@
                         <select name="equipment_group_id" id="edit_equipmentGroupDropdown">
                             <option value="">Select Equipment Group</option>
                             {% for group in equipment_groups %}
-                                <option value="{{ group.id }}" {% if position and group.id == position.equipment_group_id %}selected{% endif %}>{{ group.name }}</option>
+                                <option
+                                    value="{{ group.id }}"
+                                    {% if position and group.id == position.equipment_group_id %}selected{% endif %}
+                                >
+                                    {{ group.name }}
+                                </option>
                             {% endfor %}
                         </select>
 
                         <!-- Name and Description for Equipment Group -->
                         <label for="edit_equipmentGroup_name">Equipment Group Name:</label>
-                        <input type="text" id="edit_equipmentGroup_name" name="equipment_group_name" value="{{ position.equipment_group.name if position.equipment_group else '' }}">
+                        <input
+                            type="text"
+                            id="edit_equipmentGroup_name"
+                            name="equipment_group_name"
+                            value="{{ position.equipment_group.name if position.equipment_group else '' }}"
+                        >
 
                         <label for="edit_equipmentGroup_description">Equipment Group Description:</label>
-                        <textarea id="edit_equipmentGroup_description" name="equipment_group_description">{{ position.equipment_group.description if position.equipment_group else '' }}</textarea>
+                        <textarea
+                            id="edit_equipmentGroup_description"
+                            name="equipment_group_description"
+                        >{{ position.equipment_group.description if position.equipment_group else '' }}</textarea>
                     </div>
                 </div>
 
@@ -360,16 +509,29 @@
                         <select name="model_id" id="edit_modelDropdown">
                             <option value="">Select Model</option>
                             {% for model in models %}
-                                <option value="{{ model.id }}" {% if position and model.id == position.model_id %}selected{% endif %}>{{ model.name }}</option>
+                                <option
+                                    value="{{ model.id }}"
+                                    {% if position and model.id == position.model_id %}selected{% endif %}
+                                >
+                                    {{ model.name }}
+                                </option>
                             {% endfor %}
                         </select>
 
                         <!-- Name and Description for Model -->
                         <label for="edit_model_name">Model Name:</label>
-                        <input type="text" id="edit_model_name" name="model_name" value="{{ position.model.name if position.model else '' }}">
+                        <input
+                            type="text"
+                            id="edit_model_name"
+                            name="model_name"
+                            value="{{ position.model.name if position.model else '' }}"
+                        >
 
                         <label for="edit_model_description">Model Description:</label>
-                        <textarea id="edit_model_description" name="model_description">{{ position.model.description if position.model else '' }}</textarea>
+                        <textarea
+                            id="edit_model_description"
+                            name="model_description"
+                        >{{ position.model.description if position.model else '' }}</textarea>
                     </div>
                 </div>
 
@@ -381,16 +543,29 @@
                         <select name="asset_number_id" id="edit_assetNumberDropdown">
                             <option value="">Select Asset Number</option>
                             {% for asset in asset_numbers %}
-                                <option value="{{ asset.id }}" {% if position and asset.id == position.asset_number_id %}selected{% endif %}>{{ asset.number }}</option>
+                                <option
+                                    value="{{ asset.id }}"
+                                    {% if position and asset.id == position.asset_number_id %}selected{% endif %}
+                                >
+                                    {{ asset.number }}
+                                </option>
                             {% endfor %}
                         </select>
 
                         <!-- Number and Description for Asset Number -->
                         <label for="edit_assetNumber">Asset Number:</label>
-                        <input type="text" id="edit_assetNumber" name="asset_number" value="{{ position.asset_number.number if position.asset_number else '' }}">
+                        <input
+                            type="text"
+                            id="edit_assetNumber"
+                            name="asset_number"
+                            value="{{ position.asset_number.number if position.asset_number else '' }}"
+                        >
 
                         <label for="edit_assetNumber_description">Asset Number Description:</label>
-                        <textarea id="edit_assetNumber_description" name="asset_number_description">{{ position.asset_number.description if position.asset_number else '' }}</textarea>
+                        <textarea
+                            id="edit_assetNumber_description"
+                            name="asset_number_description"
+                        >{{ position.asset_number.description if position.asset_number else '' }}</textarea>
                     </div>
                 </div>
 
@@ -402,16 +577,29 @@
                         <select name="location_id" id="edit_locationDropdown">
                             <option value="">Select Location</option>
                             {% for location in locations %}
-                                <option value="{{ location.id }}" {% if position and location.id == position.location_id %}selected{% endif %}>{{ location.name }}</option>
+                                <option
+                                    value="{{ location.id }}"
+                                    {% if position and location.id == position.location_id %}selected{% endif %}
+                                >
+                                    {{ location.name }}
+                                </option>
                             {% endfor %}
                         </select>
 
                         <!-- Name and Description for Location -->
                         <label for="edit_location_name">Location Name:</label>
-                        <input type="text" id="edit_location_name" name="location_name" value="{{ position.location.name if position.location else '' }}">
+                        <input
+                            type="text"
+                            id="edit_location_name"
+                            name="location_name"
+                            value="{{ position.location.name if position.location else '' }}"
+                        >
 
                         <label for="edit_location_description">Location Description:</label>
-                        <textarea id="edit_location_description" name="location_description">{{ position.location.description if position.location else '' }}</textarea>
+                        <textarea
+                            id="edit_location_description"
+                            name="location_description"
+                        >{{ position.location.description if position.location else '' }}</textarea>
                     </div>
                 </div>
 
@@ -423,16 +611,133 @@
                         <select name="site_location_id" id="edit_siteLocationDropdown">
                             <option value="">Select Site Location</option>
                             {% for site in site_locations %}
-                                <option value="{{ site.id }}" {% if position and site.id == position.site_location_id %}selected{% endif %}>{{ site.title }}</option>
+                                <option
+                                    value="{{ site.id }}"
+                                    {% if position and site.id == position.site_location_id %}selected{% endif %}
+                                >
+                                    {{ site.title }}
+                                </option>
                             {% endfor %}
                         </select>
 
                         <!-- Title and Room Number for Site Location -->
                         <label for="edit_siteLocation_title">Site Location Title:</label>
-                        <input type="text" id="edit_siteLocation_title" name="site_location_title" value="{{ position.site_location.title if position.site_location else '' }}">
+                        <input
+                            type="text"
+                            id="edit_siteLocation_title"
+                            name="site_location_title"
+                            value="{{ position.site_location.title if position.site_location else '' }}"
+                        >
 
                         <label for="edit_siteLocation_roomNumber">Room Number:</label>
-                        <input type="text" id="edit_siteLocation_roomNumber" name="site_location_room_number" value="{{ position.site_location.room_number if position.site_location else '' }}">
+                        <input
+                            type="text"
+                            id="edit_siteLocation_roomNumber"
+                            name="site_location_room_number"
+                            value="{{ position.site_location.room_number if position.site_location else '' }}"
+                        >
+                    </div>
+                </div>
+
+                <!-- Update Assembly Section -->
+                <div class="collapsible-section">
+                    <h4>Update Assembly</h4>
+                    <div>
+                        <label for="edit_assemblyDropdown">Edit Assembly:</label>
+                        <select name="assembly_id" id="edit_assemblyDropdown">
+                            <option value="">Select Assembly</option>
+                            {% for assembly in assemblies %}
+                                <option
+                                    value="{{ assembly.id }}"
+                                    {% if position and assembly.id == position.assembly_id %}selected{% endif %}
+                                >
+                                    {{ assembly.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+
+                        <!-- Name and Description for Assembly -->
+                        <label for="edit_assembly_name">Assembly Name:</label>
+                        <input
+                            type="text"
+                            id="edit_assembly_name"
+                            name="assembly_name"
+                            value="{{ position.assembly.name if position.assembly else '' }}"
+                        >
+
+                        <label for="edit_assembly_description">Assembly Description:</label>
+                        <textarea
+                            id="edit_assembly_description"
+                            name="assembly_description"
+                        >{{ position.assembly.description if position.assembly else '' }}</textarea>
+                    </div>
+                </div>
+
+                <!-- Update Subassembly Section -->
+                <div class="collapsible-section">
+                    <h4>Update Subassembly</h4>
+                    <div>
+                        <label for="edit_subassemblyDropdown">Edit Subassembly:</label>
+                        <select name="subassembly_id" id="edit_subassemblyDropdown">
+                            <option value="">Select Subassembly</option>
+                            {% for subassembly in subassemblies %}
+                                <option
+                                    value="{{ subassembly.id }}"
+                                    {% if position and subassembly.id == position.subassembly_id %}selected{% endif %}
+                                >
+                                    {{ subassembly.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+
+                        <!-- Name and Description for Subassembly -->
+                        <label for="edit_subassembly_name">Subassembly Name:</label>
+                        <input
+                            type="text"
+                            id="edit_subassembly_name"
+                            name="subassembly_name"
+                            value="{{ position.subassembly.name if position.subassembly else '' }}"
+                        >
+
+                        <label for="edit_subassembly_description">Subassembly Description:</label>
+                        <textarea
+                            id="edit_subassembly_description"
+                            name="subassembly_description"
+                        >{{ position.subassembly.description if position.subassembly else '' }}</textarea>
+                    </div>
+                </div>
+
+                <!-- Update Assembly View Section -->
+                <div class="collapsible-section">
+                    <h4>Update Assembly View</h4>
+                    <div>
+                        <label for="edit_assemblyViewDropdown">Edit Assembly View:</label>
+                        <select name="assembly_view_id" id="edit_assemblyViewDropdown">
+                            <option value="">Select Assembly View</option>
+                            {% for av in assembly_views %}
+                                <option
+                                    value="{{ av.id }}"
+                                    {% if position and av.id == position.assembly_view_id %}selected{% endif %}
+                                >
+                                    {{ av.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+
+                        <!-- Name and Description for Assembly View -->
+                        <label for="edit_assemblyView_name">Assembly View Name:</label>
+                        <input
+                            type="text"
+                            id="edit_assemblyView_name"
+                            name="assembly_view_name"
+                            value="{{ position.assembly_view.name if position.assembly_view else '' }}"
+                        >
+
+                        <label for="edit_assemblyView_description">Assembly View Description:</label>
+                        <textarea
+                            id="edit_assemblyView_description"
+                            name="assembly_view_description"
+                        >{{ position.assembly_view.description if position.assembly_view else '' }}</textarea>
                     </div>
                 </div>
 
@@ -440,6 +745,7 @@
                 <button type="submit">Update Position</button>
             </form>
         </div>
+
 
         <!-- Manage Documents Section -->
 <div id="documents-tab" class="tab-content">
@@ -652,6 +958,11 @@
     var getSiteLocationsUrl = "{{ url_for('position_data_assignment_bp.get_site_locations') }}";
     var getPositionsUrl = "{{ url_for('position_data_assignment_bp.get_positions') }}";
     var removeImageFromPositionUrl = "{{ url_for('position_data_assignment_bp.remove_image_from_position') }}";
+
+    // New Routes for Assembly, SubAssembly, and AssemblyView
+    var getAssembliesUrl = "{{ url_for('position_data_assignment_bp.get_assemblies') }}";
+    var getSubAssembliesUrl = "{{ url_for('position_data_assignment_bp.get_subassemblies') }}";
+    var getAssemblyViewsUrl = "{{ url_for('position_data_assignment_bp.get_assembly_views') }}";
 
     $('#searchPositionBtn').click(function() {
         $.ajax({

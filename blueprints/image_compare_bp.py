@@ -6,7 +6,7 @@ import numpy as np
 from PIL import Image as PILImage
 from werkzeug.utils import secure_filename
 from modules.emtacdb.emtacdb_fts import Image, ImageEmbedding, load_image_model_config_from_db
-from plugins.image_models import get_image_model_handler
+from plugins.image_modules.image_models import get_image_model_handler
 from modules.configuration.config import DATABASE_URL, DATABASE_PATH_IMAGES_FOLDER, DATABASE_DIR
 import logging
 
@@ -25,7 +25,7 @@ image_compare_bp = Blueprint('image_compare_bp', __name__)
 # Load the current image model configuration from the database
 CURRENT_IMAGE_MODEL = load_image_model_config_from_db()
 
-# Instantiate the appropriate handler using the function from image_models.py
+# Instantiate the appropriate handler using the function from image_modules.py
 image_handler = get_image_model_handler(CURRENT_IMAGE_MODEL)
 
 @image_compare_bp.route('/upload_and_compare', methods=['POST'])

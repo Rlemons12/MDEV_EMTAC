@@ -87,7 +87,7 @@ class Position(Base):
     location_id = Column(Integer, ForeignKey('location.id'), nullable=True)
     assembly_id = Column(Integer, ForeignKey('assembly.id'), nullable=True)
     subassembly_id = Column(Integer, ForeignKey('subassembly.id'), nullable=True)
-    assembl_view_id = Column(Integer, ForeignKey('assembly_view.id'), nullable=True)
+    assembly_view_id = Column(Integer, ForeignKey('assembly_view.id'), nullable=True)
     site_location_id = Column(Integer, ForeignKey('site_location.id'), nullable=True)
 
     area = relationship("Area", back_populates="position")
@@ -164,6 +164,45 @@ class Location(Base):
     
     model = relationship("Model", back_populates="location")
     position = relationship("Position", back_populates="location")
+    assembly = relationship("Assembly", back_populates="location")
+
+#class's dealing with machine subassemblies.
+
+class Assembly(Base):
+    # main assembly of a location
+    __tablename__ = 'assembly'
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+    location_id = Column(Integer, ForeignKey('location.id'))
+    description = Column(String, nullable=False)
+    # Relationships
+    location =relationship("Location", back_populates="assembly")
+    subassembly = relationship("SubAssembly", back_populates="assembly")
+    position = relationship("Position", back_populates="assembly")
+
+class SubAssembly(Base):
+    # specific group of components of an assembly
+    __tablename__ = 'subassembly'
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+    description = Column(String, nullable=False)
+    assembly_id = Column(Integer, ForeignKey('assembly.id'), nullable=False)
+
+    # Relationships
+    assembly = relationship("Assembly", back_populates="subassembly")
+    assembly_view = relationship("AssemblyView", back_populates="subassembly")
+    position = relationship("Position", back_populates="subassembly")
+
+class AssemblyView(Base):
+    __tablename__ = 'assembly_view'
+    # location within assembly. example front,back,right-side top left ect...
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+    description = Column(String, nullable=False)
+    subassembly_id = Column(Integer, ForeignKey('subassembly.id'), nullable=False)
+    # Relationships
+    subassembly = relationship("SubAssembly", back_populates="assembly_view")
+    position = relationship("Position", back_populates="assembly_view")
 
 class Part(Base):
     __tablename__ = 'part'
@@ -683,41 +722,6 @@ class BOMResult(Base):
 
     part = relationship('Part', lazy='joined')
     image = relationship('Image', lazy='joined')
-
-#class's dealing with machine subassemblies.
-
-class Assembly(Base):
-    # main assembly of a location
-    __tablename__ = 'assembly'
-    id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False)
-    description = Column(String, nullable=False)
-    # Relationships
-    subassembly = relationship("SubAssembly", back_populates="assembly")
-    position = relationship("Position", back_populates="assembly")
-
-class SubAssembly(Base):
-    # specific group of components of an assembly
-    __tablename__ = 'subassembly'
-    id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False)
-    description = Column(String, nullable=False)
-    assembly_id = Column(Integer, ForeignKey('assembly.id'), nullable=False)
-
-    # Relationships
-    assembly = relationship("Assembly", back_populates="subassembly")
-    assembly_view = relationship("AssemblyView", back_populates="subassembly")
-    position = relationship("Position", back_populates="subassembly")
-
-class AssemblyView(Base):
-    __tablename__ = 'assembly_view'
-    # location within assembly. example front,back,right-side top left ect...
-    id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False)
-    subassembly_id = Column(Integer, ForeignKey('subassembly.id'), nullable=False)
-    # Relationships
-    subassembly = relationship("SubAssembly", back_populates="assembly_view")
-    position = relationship("Position", back_populates="assembly_view")
 
 #class's dealing with tools
 class ToolImageAssociation(Base):

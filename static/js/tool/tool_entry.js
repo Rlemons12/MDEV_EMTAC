@@ -1,23 +1,27 @@
-// static/js/tool/tool_entry.js
-
+// tool_entry.js
 document.addEventListener('DOMContentLoaded', () => {
+    // Elements for dropdowns
     const categorySelect = document.getElementById('tool_category');
     const manufacturerSelect = document.getElementById('tool_manufacturer');
     const positionSelect = document.getElementById('tool_position');
     const packageSelect = document.getElementById('tool_package');
 
-    populateDropdown('/get_tool_categories', categorySelect, 'Select Category');
-    populateDropdown('/get_tool_manufacturers', manufacturerSelect, 'Select Manufacturer');
+    // Populate dropdowns
+    populateDropdown('/tool/get_tool_categories', categorySelect, 'Select Category');
+    populateDropdown('/tool/get_tool_manufacturers', manufacturerSelect, 'Select Manufacturer');
     populateDropdown('/get_tool_positions', positionSelect, 'Select Position');
-    populateDropdown('/get_tool_packages', packageSelect, 'Select Package');
+    populateDropdown('/tool/get_tool_packages', packageSelect, 'Select Package');
+
+    // Add event listeners to the accordion
+    setupAccordionEvents();
 });
 
+// Function to populate dropdowns dynamically
 function populateDropdown(url, selectElement, defaultOptionText) {
     fetch(url)
         .then(response => response.json())
         .then(data => {
-            // Clear existing options
-            selectElement.innerHTML = '';
+            selectElement.innerHTML = ''; // Clear existing options
 
             // Add default option
             const defaultOption = document.createElement('option');
@@ -25,7 +29,7 @@ function populateDropdown(url, selectElement, defaultOptionText) {
             defaultOption.textContent = defaultOptionText;
             selectElement.appendChild(defaultOption);
 
-            // Determine the key to access the data based on URL
+            // Determine data key
             let items = [];
             if (data.categories) {
                 items = data.categories;
@@ -37,17 +41,15 @@ function populateDropdown(url, selectElement, defaultOptionText) {
                 items = data.packages;
             }
 
-            // Populate the dropdown
-            items.forEach(item => {
-                addOption(selectElement, item);
-            });
+            // Add options recursively for subcategories
+            items.forEach(item => addOption(selectElement, item));
         })
         .catch(error => {
             console.error('Error fetching data:', error);
-            // Optionally, handle the error in the UI (e.g., show a message)
         });
 }
 
+// Recursive function to add options
 function addOption(selectElement, item, depth = 0) {
     const option = document.createElement('option');
     option.value = item.id;
@@ -57,4 +59,19 @@ function addOption(selectElement, item, depth = 0) {
     if (item.subcategories && item.subcategories.length > 0) {
         item.subcategories.forEach(sub => addOption(selectElement, sub, depth + 1));
     }
+}
+
+// Function to handle Bootstrap Accordion events
+function setupAccordionEvents() {
+    const accordion = document.getElementById('toolFormAccordion');
+
+    // Triggered when an accordion section expands
+    accordion.addEventListener('shown.bs.collapse', (event) => {
+        console.log(`Section Expanded: ${event.target.id}`);
+    });
+
+    // Triggered when an accordion section collapses
+    accordion.addEventListener('hidden.bs.collapse', (event) => {
+        console.log(`Section Collapsed: ${event.target.id}`);
+    });
 }

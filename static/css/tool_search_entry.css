@@ -1,3 +1,5 @@
+/* tool_search_entry.css */
+
 /* Adjust Sidebar Styling */
 .sidebar {
     width: 250px; /* Reduce sidebar width */
@@ -112,4 +114,69 @@ button[type="submit"]:hover {
     .main-container {
         flex-direction: column;
     }
+}
+
+/* Accordion Header Customization */
+.accordion-button {
+    background-color: rgba(0, 123, 255, 0.2); /* Light blue background */
+    color: #ffffff; /* White text */
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.accordion-button:not(.collapsed) {
+    background-color: rgba(0, 123, 255, 0.8); /* Highlight expanded section */
+    color: #ffffff;
+}
+
+.accordion-button:hover {
+    background-color: rgba(0, 123, 255, 0.5);
+    color: #ffffff;
+}
+
+/* Accordion Body Customization */
+.accordion-body {
+    background-color: rgba(255, 255, 255, 0.05); /* Very light background */
+    color: #fff; /* Ensure text is readable */
+    border-left: 2px solid #007BFF; /* Add a left border for emphasis */
+    border-right: 2px solid #007BFF;
+    border-bottom: 2px solid #007BFF;
+    border-radius: 0 0 5px 5px;
+}
+
+/* Adjustments for Nested Select Options (if using subcategories) */
+.accordion-body select option {
+    padding-left: 20px; /* Indent subcategories */
+}
+
+/* Responsive Accordion Adjustments */
+@media (max-width: 768px) {
+    .accordion-button {
+        font-size: 1em; /* Adjust font size on smaller screens */
+    }
+
+    .accordion-body {
+        padding: 15px; /* Reduce padding for smaller devices */
+    }
+}
+
+/* Override Bootstrap's default accordion styles if necessary */
+.accordion-item {
+    border: none; /* Remove borders between accordion items */
+}
+
+.accordion-collapse {
+    border: none; /* Remove default borders */
+}
+
+/* Remove or adjust the toggle icon if not using Font Awesome */
+.accordion-button::after {
+    /* If using Font Awesome, ensure it's loaded
+    content: '\f078';
+    font-family: 'Font Awesome 5 Free';
+    font-weight: 900;
+    margin-left: auto;
+    */
+
+    /* If not using Font Awesome, use Bootstrap's default toggle */
+    content: '';
 }

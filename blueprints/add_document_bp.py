@@ -1,11 +1,13 @@
 import psutil
 from flask import Blueprint, request, jsonify, redirect, url_for
-from plugins.ai_models import generate_embedding
+from plugins.ai_modules import generate_embedding
 from modules.emtacdb.emtacdb_fts import (SiteLocation, CompleteDocument, Document, CompletedDocumentPositionAssociation)
-from modules.emtacdb.utlity.main_database.database import create_position, split_text_into_chunks, extract_text_from_pdf, \
-    extract_text_from_txt, add_docx_to_db,store_embedding
+from modules.emtacdb.utlity.main_database.database import (create_position, split_text_into_chunks,
+                                                           extract_text_from_pdf,extract_text_from_txt, add_docx_to_db,
+                                                           store_embedding,create_image_completed_document_association)
 from modules.configuration.config import DATABASE_URL, DATABASE_DOC, DATABASE_DIR, TEMPORARY_UPLOAD_FILES,CURRENT_EMBEDDING_MODEL
 import os
+import json
 from werkzeug.utils import secure_filename
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, scoped_session
@@ -16,11 +18,13 @@ import threading
 from datetime import datetime
 import fitz
 import requests
-from modules.emtacdb.emtac_revision_control_db import (
-    VersionInfo, RevisionControlSession
-)
+import time
+from modules.emtacdb.emtac_revision_control_db import (VersionInfo, RevisionControlSession)
 from modules.emtacdb.utlity.revision_database.auditlog import commit_audit_logs, add_audit_log_entry
 from modules.configuration.config_env import DatabaseConfig
+
+POST_URL = os.getenv('IMAGE_POST_URL', 'http://localhost:5000/image/add_image')
+REQUEST_DELAY = float(os.getenv('REQUEST_DELAY', '1.0'))  # in seconds
 
 db_config = DatabaseConfig()
 
@@ -45,46 +49,12 @@ stream_handler.setLevel(logging.INFO)
 stream_handler.setFormatter(logging.Formatter('%(asctime)s - %(threadName)s - %(levelname)s - %(message)s'))
 logger.addHandler(stream_handler)
 
-# Database setup
-engine = create_engine(
-    DATABASE_URL, 
-    pool_size=10, 
-    max_overflow=20, 
-    connect_args={"check_same_thread": False}
-)
-
-
-# Revision control database configuration
-REVISION_CONTROL_DB_PATH = os.path.join(DATABASE_DIR, 'emtac_revision_control_db.db')
-revision_control_engine = create_engine(
-    f'sqlite:///{REVISION_CONTROL_DB_PATH}',
-    pool_size=10,            # Set a small pool size
-    max_overflow=20,         # Allow up to 10 additional connections
-    connect_args={"check_same_thread": False}  # Needed for SQLite when using threading
-)
-
-RevisionControlBase = declarative_base()
-RevisionControlSession = scoped_session(sessionmaker(bind=revision_control_engine))  # Use distinct name
-revision_control_session = RevisionControlSession()
-
-# Apply PRAGMA settings to SQLite database
-@event.listens_for(engine, "connect")
-def set_sqlite_pragma(dbapi_connection, connection_record):
-    cursor = dbapi_connection.cursor()
-    cursor.execute("PRAGMA synchronous = OFF")
-    cursor.execute("PRAGMA journal_mode = MEMORY")
-    cursor.execute("PRAGMA cache_size = -64000")
-    cursor.execute("PRAGMA temp_store = MEMORY")
-    cursor.close()
-
-
 # Create a blueprint for the add_document route
 add_document_bp = Blueprint("add_document_bp", __name__)
 
 # Define the route for adding documents
 @add_document_bp.route("/add_document", methods=["POST"])
 def add_document():
-    session = db_config.MainSession()  # Create a session at the beginning of the route
     logger.info("Received a request to add documents")
 
     if "files" not in request.files:
@@ -104,7 +74,7 @@ def add_document():
 
     try:
         site_location = None
-        with db_config.MainSession() as session:
+        with db_config.get_main_session() as session:
             if site_location_title:
                 site_location = session.query(SiteLocation).filter_by(title=site_location_title).first()
                 if not site_location:
@@ -113,11 +83,15 @@ def add_document():
                     session.commit()
                 logger.info(f"Processed site location: {site_location_title}")
 
-            position_id = create_position(area, equipment_group, model, asset_number, location, site_location.id if site_location else None,session)
+            position_id = create_position(
+                area, equipment_group, model, asset_number, location,
+                site_location.id if site_location else None,
+                session
+            )
             logger.info(f"Processed position ID: {position_id}")
 
         cpu_count = os.cpu_count()
-        max_workers = max(1, cpu_count - 2) 
+        max_workers = max(1, cpu_count - 2)
         logger.info(f"Using {max_workers} workers based on CPU count.")
 
         num_files = len(files)
@@ -150,8 +124,11 @@ def add_document():
                         logger.error(f"Failed to process DOCX file: {file_path}")
                         raise Exception(f"Failed to process DOCX file: {file_path}")
 
-                with db_config.MainSession() as session:
-                    existing_document = session.query(CompleteDocument).filter_by(title=title).order_by(CompleteDocument.rev.desc()).first()
+                with db_config.get_main_session() as session:
+                    existing_document = session.query(CompleteDocument)\
+                        .filter_by(title=title)\
+                        .order_by(CompleteDocument.rev.desc())\
+                        .first()
                     if existing_document:
                         new_rev = f"R{int(existing_document.rev[1:]) + 1}"
                         logger.info(f"Existing document found. Incrementing revision to: {new_rev}")
@@ -211,6 +188,7 @@ def add_document():
 
     except Exception as e:
         logger.error(f"Error processing files: {e}")
+        logger.error(traceback.format_exc())
         return jsonify({"message": str(e)}), 500
 
     logger.info("Successfully processed all files")
@@ -218,15 +196,17 @@ def add_document():
 
 def add_document_to_db_multithread(title, file_path, position_id, revision, remaining_workers, complete_document_id, completed_document_position_association_id):
     thread_id = threading.get_ident()
+    logger = logging.getLogger(__name__)
     logger.info(f"[Thread {thread_id}] Started processing file: {file_path} with revision: {revision}")
 
     try:
         extracted_text = None
 
-        with db_config.MainSession() as session:
+        # Correctly obtain a new session using get_main_session()
+        with db_config.get_main_session() as session:
             logger.info(f"[Thread {thread_id}] Session started for file: {file_path}")
 
-            # First, extract the text from the document
+            # Extract text from the document
             if file_path.endswith(".pdf"):
                 logger.info(f"[Thread {thread_id}] Extracting text from PDF...")
                 extracted_text = extract_text_from_pdf(file_path)
@@ -239,9 +219,9 @@ def add_document_to_db_multithread(title, file_path, position_id, revision, rema
                 logger.error(f"[Thread {thread_id}] Unsupported file format: {file_path}")
                 return None, False
 
-            # Only proceed if the text was successfully extracted
+            # Proceed only if text was successfully extracted
             if extracted_text:
-                # Check if an existing CompleteDocument with the same title and revision exists
+                # Check for an existing CompleteDocument with the same title and revision
                 existing_document = session.query(CompleteDocument).filter_by(title=title, rev=revision).first()
 
                 if existing_document:
@@ -289,6 +269,7 @@ def add_document_to_db_multithread(title, file_path, position_id, revision, rema
                     logger.info(f"[Thread {thread_id}] Extracting images from PDF...")
                     extract_images_from_pdf(file_path, complete_document_id, completed_document_position_association_id, position_id)
                     logger.info(f"[Thread {thread_id}] Images extracted from PDF.")
+
             else:
                 logger.error(f"[Thread {thread_id}] No text extracted from the document.")
                 return None, False
@@ -318,9 +299,9 @@ def add_document_to_db_multithread(title, file_path, position_id, revision, rema
                 else:
                     logger.info(f"[Thread {thread_id}] No embedding generated for chunk {i+1} of document: {title} because no model is selected.")
 
-            # Querying the version_info table
+            # Querying the version_info table in the revision control database
             try:
-                with RevisionControlSession() as revision_session:
+                with db_config.get_revision_control_session() as revision_session:
                     logger.info(f"[Thread {thread_id}] Querying version_info table in revision control database.")
                     version_info = revision_session.query(VersionInfo).order_by(VersionInfo.id.desc()).first()
                     if version_info:
@@ -332,80 +313,11 @@ def add_document_to_db_multithread(title, file_path, position_id, revision, rema
 
             logger.info(f"[Thread {thread_id}] Successfully processed file: {file_path}")
             return complete_document_id, True
+
     except Exception as e:
         logger.error(f"[Thread {thread_id}] An error occurred in add_document_to_db_multithread: {e}")
         logger.error(f"[Thread {thread_id}] Attempted Processed file: {file_path}")
         return None, False
-
-def extract_images_from_pdf(file_path, complete_document_id, completed_document_position_association_id, position_id=None):
-    session = db_config.MainSession()
-
-    try:
-        logger.info(f"extract_images_from_pdf called with arguments:")
-        logger.info(f"file_path: {file_path}")
-        logger.info(f"complete_document_id: {complete_document_id}")
-        logger.info(f"completed_document_position_association_id: {completed_document_position_association_id}")
-        logger.info(f"position_id: {position_id}")
-        logger.info(f"Session info: {session}")
-
-        logger.info(f"Opening PDF file from: {file_path}")
-        doc = fitz.open(file_path)
-        total_pages = len(doc)
-        logger.info(f"Total pages in the PDF: {total_pages}")
-        extracted_images = []
-
-        file_name = os.path.splitext(os.path.basename(file_path))[0].replace("_", " ")
-
-        if not os.path.exists(TEMPORARY_UPLOAD_FILES):
-            os.makedirs(TEMPORARY_UPLOAD_FILES)
-
-        for page_num in range(total_pages):
-            page = doc[page_num]
-            img_list = page.get_images(full=True)
-
-            logger.info(f"Processing page {page_num + 1}/{total_pages} with {len(img_list)} images.")
-
-            for img_index, img in enumerate(img_list):
-                xref = img[0]
-                base_image = doc.extract_image(xref)
-                image_bytes = base_image["image"]
-
-                temp_path = os.path.join(TEMPORARY_UPLOAD_FILES, f"{file_name}_page{page_num + 1}_image{img_index + 1}.jpg")
-
-                with open(temp_path, 'wb') as temp_file:
-                    temp_file.write(image_bytes)
-
-                logger.info(f"Saved image to {temp_path}")
-
-                try:
-                    response = requests.post('http://localhost:5000/image/add_image',
-                                             files={'image': open(temp_path, 'rb')},
-                                             data={'complete_document_id': complete_document_id,
-                                                   'completed_document_position_association_id': completed_document_position_association_id,
-                                                   'position_id': position_id})
-
-                    if response.status_code == 200:
-                        logger.info(f"Image processed successfully for page {page_num + 1}, image {img_index + 1}")
-                    else:
-                        logger.error(f"Failed to process image for page {page_num + 1}, image {img_index + 1}: {response.text}")
-                        logger.error(f"HTTP Status Code: {response.status_code}")
-                except Exception as e:
-                    logger.error(f"Exception occurred while processing image for page {page_num + 1}, image {img_index + 1}: {e}")
-
-                extracted_images.append(temp_path)
-
-        logger.info(f"extract_images_from_pdf completed. Extracted images: {extracted_images}")
-
-        return extracted_images
-
-    except Exception as e:
-        logger.error(f"An error occurred in extract_images_from_pdf: {e}")
-        session.rollback()  # Rollback the session in case of any errors
-        return []
-
-    finally:
-        session.close()  # Ensure the session is closed at the end
-
 
 def calculate_optimal_workers(memory_threshold=0.5, max_workers=None):
     """Calculate optimal number of workers based on available memory."""
@@ -421,4 +333,109 @@ def calculate_optimal_workers(memory_threshold=0.5, max_workers=None):
 
     # Apply a memory threshold to avoid using all available memory
     return max(1, int(optimal_workers * memory_threshold))
+
+def extract_images_from_pdf(file_path, complete_document_id, completed_document_position_association_id, position_id=None):
+    """
+    Extracts images from a PDF file, uploads them, and creates associations in the database.
+
+    Args:
+        file_path (str): Path to the PDF file.
+        complete_document_id (int): ID of the completed document.
+        completed_document_position_association_id (int): ID of the completed document position association.
+        position_id (int, optional): ID of the position. Defaults to None.
+
+    Returns:
+        list: List of paths to the extracted images.
+    """
+    try:
+        # Obtain a session using the getter method
+        with db_config.get_main_session() as session:
+            logger.info("Starting image extraction from PDF.")
+            logger.info(f"file_path: {file_path}")
+            logger.info(f"complete_document_id: {complete_document_id}")
+            logger.info(f"completed_document_position_association_id: {completed_document_position_association_id}")
+            logger.info(f"position_id: {position_id}")
+            logger.info(f"Session info: {session}")
+
+            if not os.path.exists(TEMPORARY_UPLOAD_FILES):
+                os.makedirs(TEMPORARY_UPLOAD_FILES)
+                logger.debug(f"Created temporary upload directory at {TEMPORARY_UPLOAD_FILES}")
+
+            doc = fitz.open(file_path)
+            total_pages = len(doc)
+            logger.info(f"Opened PDF file. Total pages: {total_pages}")
+
+            extracted_images = []
+            file_name = os.path.splitext(os.path.basename(file_path))[0].replace("_", " ")
+
+            for page_num in range(total_pages):
+                page = doc[page_num]
+                img_list = page.get_images(full=True)
+                logger.info(f"Processing page {page_num + 1}/{total_pages} with {len(img_list)} images.")
+
+                for img_index, img in enumerate(img_list):
+                    xref = img[0]
+                    base_image = doc.extract_image(xref)
+                    image_bytes = base_image["image"]
+                    image_ext = base_image.get("ext", "jpg")  # Default to jpg if extension not found
+                    temp_path = os.path.join(
+                        TEMPORARY_UPLOAD_FILES,
+                        f"{file_name}_page{page_num + 1}_image{img_index + 1}.{image_ext}"
+                    )
+
+                    with open(temp_path, 'wb') as temp_file:
+                        temp_file.write(image_bytes)
+                    logger.debug(f"Saved image to {temp_path}")
+
+                    try:
+                        with open(temp_path, 'rb') as img_file:
+                            response = requests.post(
+                                POST_URL,
+                                files={'image': img_file},
+                                data={
+                                    'complete_document_id': complete_document_id,
+                                    'completed_document_position_association_id': completed_document_position_association_id,
+                                    'position_id': position_id
+                                }
+                            )
+
+                        if response.status_code == 200:
+                            logger.info(f"Successfully processed image {img_index + 1} on page {page_num + 1}.")
+                            try:
+                                response_data = response.json()
+                                image_id = response_data.get('image_id')
+                                if image_id:
+                                    association = create_image_completed_document_association(
+                                        image_id=image_id,
+                                        complete_document_id=complete_document_id,
+                                        session=session
+                                    )
+                                    logger.info(f"Created ImageCompletedDocumentAssociation with ID: {association.id}")
+                                else:
+                                    logger.error(f"'image_id' not found in response for image {img_index + 1} on page {page_num + 1}.")
+                            except json.JSONDecodeError:
+                                logger.error(f"Invalid JSON response for image {img_index + 1} on page {page_num + 1}: {response.text}")
+                        else:
+                            logger.error(f"Failed to process image {img_index + 1} on page {page_num + 1}: {response.text} (Status Code: {response.status_code})")
+                    except requests.RequestException as req_err:
+                        logger.error(f"HTTP request failed for image {img_index + 1} on page {page_num + 1}: {req_err}")
+                    except Exception as e:
+                        logger.error(f"Unexpected error processing image {img_index + 1} on page {page_num + 1}: {e}")
+
+                    extracted_images.append(temp_path)
+
+                    # Introduce a delay to prevent overwhelming the server
+                    time.sleep(REQUEST_DELAY)
+
+            logger.info(f"Image extraction completed. Total images extracted: {len(extracted_images)}")
+            return extracted_images
+
+    except Exception as e:
+        logger.error(f"An error occurred in extract_images_from_pdf: {e}")
+        try:
+            session.rollback()
+            logger.debug("Database session rolled back due to error.")
+        except Exception as rollback_e:
+            logger.error(f"Failed to rollback the session: {rollback_e}")
+        return []
 

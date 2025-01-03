@@ -96,7 +96,7 @@ embedding_model = load_embedding_model(current_embedding_model)
 
 def register_blueprints(app):
 
-    app.register_blueprint(assembly_model_bp,url_prefix='/')
+    app.register_blueprint(assembly_model_bp,url_prefix='/assembly_model')
     app.register_blueprint(tool_blueprint_bp, url_prefix='/tool')
     app.register_blueprint(pst_troubleshooting_guide_edit_update_bp, url_prefix='/pst_troubleshooting_guide_edit_update')
     app.register_blueprint(pst_troubleshooting_task_bp,url_prefix='/pst_troubleshooting_task')

@@ -18,12 +18,15 @@ document.addEventListener('DOMContentLoaded', () => {
             update: '/pst_troubleshooting_task/update_task_details/',
         },
         initialData: {
-            areas: '/pst_troubleshooting_guide_edit_update/get_areas',
-            equipmentGroups: '/pst_troubleshooting_guide_edit_update/get_equipment_groups',
-            models: '/pst_troubleshooting_guide_edit_update/get_models',
-            assetNumbers: '/pst_troubleshooting_guide_edit_update/get_asset_numbers',
-            locations: '/pst_troubleshooting_guide_edit_update/get_locations',
-            siteLocations: '/pst_troubleshooting_guide_edit_update/get_site_locations',
+        areas: '/pst_troubleshooting_guide_edit_update/get_areas',
+        equipmentGroups: '/pst_troubleshooting_guide_edit_update/get_equipment_groups',
+        models: '/pst_troubleshooting_guide_edit_update/get_models',
+        assetNumbers: '/pst_troubleshooting_guide_edit_update/get_asset_numbers',
+        locations: '/pst_troubleshooting_guide_edit_update/get_locations',
+        siteLocations: '/pst_troubleshooting_guide_edit_update/get_site_locations',
+        assemblies: '/pst_troubleshooting_guide_edit_update/get_assemblies',
+        subassemblies: '/pst_troubleshooting_guide_edit_update/get_subassemblies',
+        assemblyViews: '/pst_troubleshooting_guide_edit_update/get_assembly_views',
         },
         associations: { // Updated to use singular keys
             image: {
@@ -398,6 +401,37 @@ async fetchInitialSiteLocations() {
     },
 
     /**
+ * Fetch initial assemblies based on Location ID
+ * @param {string|number} locationId - The ID of the selected Location
+ * @returns {Promise<Array>} - Array of assembly objects
+ */
+    async fetchInitialAssembliesByLocation(locationId) {
+    try {
+        // Build the request URL
+        const url = `${ENDPOINTS.initialData.assemblies}?location_id=${encodeURIComponent(locationId)}`;
+
+        // Use the fetchWithHandling helper for consistency
+        // This will handle the fetch, parse JSON, check response.ok, etc.
+        const data = await fetchWithHandling(url);
+
+        console.log(`Received assemblies:`, data);
+
+        // If your endpoint returns an array directly (like your models endpoint):
+        //   return Array.isArray(data) ? data : [];
+        //
+        // If your endpoint wraps the array (like { assemblies: [...] } ):
+        //   return Array.isArray(data.assemblies) ? data.assemblies : [];
+
+        // Assuming your endpoint returns a simple array (like [ {id, name}, ... ])
+        return Array.isArray(data) ? data : [];
+    } catch (error) {
+        console.error(`Error fetching assemblies for Location ID ${locationId}:`, error);
+        // Return an empty array if an error occurs
+        return [];
+    }
+},
+
+    /**
      * Fetch initial locations based on model ID
      * @param {string|number} modelId
      * @returns {Promise<Array>} - Array of location objects
@@ -412,7 +446,47 @@ async fetchInitialSiteLocations() {
             console.error(`Error fetching Locations for Model ID ${modelId}:`, error);
             return [];
         }
-    }
+    },
+
+    /**
+     * Fetch initial subassemblies based on assembly ID
+     * @param {string|number} assemblyId
+     * @returns {Promise<Array>} - Array of subassembly objects
+     */
+    async fetchInitialSubassemblies(assemblyId) {
+        try {
+            // Build the request URL
+            const url = `${ENDPOINTS.initialData.subassemblies}?assembly_id=${encodeURIComponent(assemblyId)}`;
+            // Use the fetchWithHandling helper for consistency
+            const data = await fetchWithHandling(url);
+            console.log(`Received Subassemblies:`, data);
+            return Array.isArray(data) ? data : [];
+        } catch (error) {
+            console.error(`Error fetching Subassemblies for Assembly ID ${assemblyId}:`, error);
+            return [];
+        }
+    },
+
+    /**
+     * Fetch initial assembly views based on subassembly ID
+     * @param {string|number} subassemblyId
+     * @returns {Promise<Array>} - Array of assembly view objects
+     */
+    async fetchInitialAssemblyViews(subassemblyId) {
+        try {
+            // Build the request URL
+            const url = `${ENDPOINTS.initialData.assemblyViews}?subassembly_id=${encodeURIComponent(subassemblyId)}`;
+            // Use the fetchWithHandling helper for consistency
+            const data = await fetchWithHandling(url);
+            console.log(`Received Assembly Views:`, data);
+            return Array.isArray(data) ? data : [];
+
+        } catch (error) {
+            console.error(`Error fetching Assembly Views for Subassembly ID ${subassemblyId}:`, error);
+            return [];
+        }
+    },
+
 };
 
     // === 3. Helper Function for Fetch with Error Handling ===
@@ -681,7 +755,7 @@ async fetchInitialSiteLocations() {
  * Populate the Edit Task form with task data
  * @param {Object} task - The task data object
  */
-async function populateEditTaskForm(task) {
+    async function populateEditTaskForm(task) {
     // Populate main Task Name and Description
     const taskNameInput = document.getElementById('pst_task_edit_task_name');
     const taskDescriptionTextarea = document.getElementById('pst_task_edit_task_description');
@@ -716,10 +790,10 @@ async function populateEditTaskForm(task) {
 }
 
     /**
-     * Add a new position section
-     * @param {Object} positionData - The data for the position (optional)
-     * @param {number} index - The index of the position (for unique IDs)
-     */
+ * Add a new position section
+ * @param {Object} positionData - The data for the position (optional)
+ * @param {number} index - The index of the position (for unique IDs)
+ */
     async function addPosition(positionData = null, index = 0) {
     console.log(`\n=== addPosition called with index: ${index} and positionData:`, positionData);
 
@@ -731,6 +805,7 @@ async function populateEditTaskForm(task) {
         return;
     }
     console.log("Positions container and template found.");
+    console.log('Template innerHTML:', template.innerHTML);
 
     const clone = template.content.cloneNode(true);
     const positionSection = clone.querySelector('.position-section');
@@ -741,25 +816,64 @@ async function populateEditTaskForm(task) {
     }
     console.log("Cloned position section from template.");
 
-    // Assign unique IDs based on index for all select elements
-    const elementsToId = ['areaDropdown', 'equipmentGroupDropdown', 'modelDropdown', 'assetNumberInput', 'locationInput', 'siteLocationDropdown'];
+    // Generate a unique ID. Using index as uniqueId here; alternatively, use a more robust unique identifier.
+    const uniqueId = `${Date.now()}_${index}`; // e.g., "1701234567890_0"
+    console.log(`Generated uniqueId: ${uniqueId}`);
+
+    // Assign unique IDs to all select elements, including assemblies, subassemblies, and assemblyViews
+    const elementsToId = [
+        'areaDropdown',
+        'equipmentGroupDropdown',
+        'modelDropdown',
+        'assetNumberInput',
+        'locationInput',
+        'siteLocationDropdown',
+        'assembliesDropdown',
+        'subassembliesDropdown',
+        'assemblyViewsDropdown'
+    ];
+
     elementsToId.forEach(elementClass => {
         const element = positionSection.querySelector(`.${elementClass}`);
         if (element) {
-            const newId = `${elementClass}_${index}`;
+            const baseId = element.id; // e.g., 'assembliesDropdown_{{uniqueId}}'
+            const newId = baseId.replace('__UNIQUE__', uniqueId);
             element.id = newId;
-            console.log(`Assigned ID "${newId}" to "${elementClass}".`);
+            console.log(`Assigned ID "${newId}" to element with class "${elementClass}".`);
+
+            // Update corresponding label's 'for' attribute
+            const label = positionSection.querySelector(`label[for="${baseId}"]`);
+            if (label) {
+                label.setAttribute('for', newId);
+                console.log(`Updated label 'for' attribute to "${newId}" for "${elementClass}".`);
+            } else {
+                console.warn(`Label for "${elementClass}" not found.`);
+            }
+
+            // Additional log to verify the updated element's ID
+            console.log(`Element after ID assignment:`, element);
         } else {
             console.warn(`Element with class "${elementClass}" not found in position section.`);
         }
     });
+
+    // Assign unique ID to the Remove Position button if necessary
+    const removeBtn = positionSection.querySelector('.removePositionBtn');
+    if (removeBtn) {
+        const baseId = removeBtn.id; // e.g., 'removePositionBtn_{{uniqueId}}'
+        const newId = baseId.replace('{{uniqueId}}', uniqueId);
+        removeBtn.id = newId;
+        console.log(`Assigned new id to Remove Button: ${removeBtn.id}`);
+    } else {
+        console.warn("Remove Position button with class 'removePositionBtn' not found.");
+    }
 
     try {
         // If positionData is provided, populate the fields
         if (positionData) {
             console.log('Position Data:', positionData);
             console.log("Position data provided. Populating fields with existing data.");
-            await populatePositionFields(positionSection, positionData, index);
+            await populatePositionFields(positionSection, positionData, uniqueId);
             // **Set the data-position-id attribute to the actual position_id from backend**
             if (positionData.position_id) {
                 positionSection.setAttribute('data-position-id', positionData.position_id);
@@ -772,7 +886,7 @@ async function populateEditTaskForm(task) {
         } else {
             console.log("No position data provided. Initializing fields for a new position.");
             // **For new positions, set a temporary ID**
-            await initializeNewPosition(positionSection, index);
+            await initializeNewPosition(positionSection, uniqueId);
             const tempId = `temp-${Date.now()}`;
             positionSection.setAttribute('data-position-id', tempId);
             console.log(`Set temporary data-position-id to "${tempId}".`);
@@ -780,12 +894,15 @@ async function populateEditTaskForm(task) {
 
         // Append the cloned and populated position section to the container
         container.appendChild(clone);
-        console.log(`Appended position section with index ${index} to the container.`);
+        console.log(`Appended position section with uniqueId ${uniqueId} to the container.`);
+
+        // Log the current state of the container
+        console.log(`Current container HTML:`, container.innerHTML);
     } catch (error) {
-        console.error(`Error in addPosition for index ${index}:`, error);
+        console.error(`Error in addPosition for uniqueId ${uniqueId}:`, error);
     }
 
-    console.log(`=== addPosition completed for index: ${index} ===\n`);
+    console.log(`=== addPosition completed for uniqueId: ${uniqueId} ===\n`);
 }
 
     /**
@@ -795,7 +912,10 @@ async function populateEditTaskForm(task) {
  * @param {number} index - The index of the position
  */
     async function populatePositionFields(positionSection, positionData, index) {
-    // Populate Area Dropdown
+    console.log(`\n--- populatePositionFields called for positionSection index: ${index} ---`);
+    console.log('Position Data:', positionData);
+
+    // === 1. Populate Area Dropdown ===
     const areaDropdown = positionSection.querySelector('.areaDropdown');
     if (areaDropdown) {
         try {
@@ -804,7 +924,7 @@ async function populateEditTaskForm(task) {
             console.log('Fetched areas:', areas);
 
             window.SolutionTaskCommon.populateDropdown(areaDropdown, areas, 'Select Area');
-            console.log('Dropdown options after population:', areaDropdown.options);
+            console.log(`Dropdown options after populating Area Dropdown (ID: ${areaDropdown.id}):`, areaDropdown.options);
 
             areaDropdown.value = positionData.area_id || '';
             areaDropdown.disabled = false;
@@ -814,10 +934,13 @@ async function populateEditTaskForm(task) {
             window.SolutionTaskCommon.showAlert('Failed to load areas.', 'danger');
             window.SolutionTaskCommon.populateDropdown(areaDropdown, [], 'Select Area');
             areaDropdown.disabled = true;
+            console.log(`Area Dropdown (ID: ${areaDropdown.id}) has been disabled due to error.`);
         }
+    } else {
+        console.warn('Area Dropdown element not found in position section.');
     }
 
-    // Populate Equipment Group Dropdown based on Area
+    // === 2. Populate Equipment Group Dropdown based on Area ===
     const equipmentGroupDropdown = positionSection.querySelector('.equipmentGroupDropdown');
     if (equipmentGroupDropdown && positionData.area_id) {
         try {
@@ -826,7 +949,7 @@ async function populateEditTaskForm(task) {
             console.log('Fetched Equipment Groups:', equipmentGroups);
 
             window.SolutionTaskCommon.populateDropdown(equipmentGroupDropdown, equipmentGroups, 'Select Equipment Group');
-            console.log('Dropdown options after population:', equipmentGroupDropdown.options);
+            console.log(`Dropdown options after populating Equipment Group Dropdown (ID: ${equipmentGroupDropdown.id}):`, equipmentGroupDropdown.options);
 
             // Validate equipment_group_id exists in fetched equipmentGroups
             const isValidId = equipmentGroups.some(group => String(group.id) === String(positionData.equipment_group_id));
@@ -838,15 +961,21 @@ async function populateEditTaskForm(task) {
                 equipmentGroupDropdown.value = '';
             }
             equipmentGroupDropdown.disabled = false;
+            console.log(`Equipment Group Dropdown (ID: ${equipmentGroupDropdown.id}) has been enabled.`);
         } catch (error) {
             console.error('Error fetching Equipment Groups:', error);
             window.SolutionTaskCommon.showAlert('Failed to load equipment groups.', 'danger');
             window.SolutionTaskCommon.populateDropdown(equipmentGroupDropdown, [], 'Select Equipment Group');
             equipmentGroupDropdown.disabled = true;
+            console.log(`Equipment Group Dropdown (ID: ${equipmentGroupDropdown.id}) has been disabled due to error.`);
         }
+    } else if (!positionData.area_id) {
+        console.warn('Area ID is missing in positionData; cannot populate Equipment Group Dropdown.');
+    } else {
+        console.warn('Equipment Group Dropdown element not found in position section.');
     }
 
-    // Populate Model Dropdown based on Equipment Group
+    // === 3. Populate Model Dropdown based on Equipment Group ===
     const modelDropdown = positionSection.querySelector('.modelDropdown');
     if (modelDropdown && positionData.equipment_group_id) {
         try {
@@ -855,7 +984,7 @@ async function populateEditTaskForm(task) {
             console.log('Fetched Models:', models);
 
             window.SolutionTaskCommon.populateDropdown(modelDropdown, models, 'Select Model');
-            console.log('Dropdown options after population:', modelDropdown.options);
+            console.log(`Dropdown options after populating Model Dropdown (ID: ${modelDropdown.id}):`, modelDropdown.options);
 
             const isValidModelId = models.some(model => String(model.id) === String(positionData.model_id));
             if (isValidModelId) {
@@ -866,15 +995,21 @@ async function populateEditTaskForm(task) {
                 modelDropdown.value = '';
             }
             modelDropdown.disabled = false;
+            console.log(`Model Dropdown (ID: ${modelDropdown.id}) has been enabled.`);
         } catch (error) {
             console.error('Error fetching Models:', error);
             window.SolutionTaskCommon.showAlert('Failed to load models.', 'danger');
             window.SolutionTaskCommon.populateDropdown(modelDropdown, [], 'Select Model');
             modelDropdown.disabled = true;
+            console.log(`Model Dropdown (ID: ${modelDropdown.id}) has been disabled due to error.`);
         }
+    } else if (!positionData.equipment_group_id) {
+        console.warn('Equipment Group ID is missing in positionData; cannot populate Model Dropdown.');
+    } else {
+        console.warn('Model Dropdown element not found in position section.');
     }
 
-    // Populate Asset Number based on Model
+    // === 4. Populate Asset Number based on Model ===
     const assetNumberInput = positionSection.querySelector('.assetNumberInput');
     if (assetNumberInput && positionData.model_id) {
         try {
@@ -883,28 +1018,33 @@ async function populateEditTaskForm(task) {
             console.log('Fetched Asset Numbers:', assetNumbers);
 
             window.SolutionTaskCommon.populateDropdown(assetNumberInput, assetNumbers, 'Select Asset Number');
-            console.log('Dropdown options after population:', assetNumberInput.options);
+            console.log(`Dropdown options after populating Asset Number Input (ID: ${assetNumberInput.id}):`, assetNumberInput.options);
 
             const isValidAssetNumber = assetNumbers.some(asset => String(asset.id) === String(positionData.asset_number));
             const matchingAsset = assetNumbers.find(asset => String(asset.number) === String(positionData.asset_number));
             if (matchingAsset) {
                 assetNumberInput.value = matchingAsset.id;
-                console.log(`Set Asset Number Dropdown (ID: ${assetNumberInput.id}) to value: ${matchingAsset.id}`);
+                console.log(`Set Asset Number Input (ID: ${assetNumberInput.id}) to value: ${matchingAsset.id}`);
             } else {
-                console.warn(`Invalid Asset Number: ${positionData.asset_number} for Asset Number Dropdown (ID: ${assetNumberInput.id})`);
+                console.warn(`Invalid Asset Number: ${positionData.asset_number} for Asset Number Input (ID: ${assetNumberInput.id})`);
                 assetNumberInput.value = '';
             }
-
             assetNumberInput.disabled = false;
+            console.log(`Asset Number Input (ID: ${assetNumberInput.id}) has been enabled.`);
         } catch (error) {
             console.error('Error fetching Asset Numbers:', error);
             window.SolutionTaskCommon.showAlert('Failed to load asset numbers.', 'danger');
             window.SolutionTaskCommon.populateDropdown(assetNumberInput, [], 'Select Asset Number');
             assetNumberInput.disabled = true;
+            console.log(`Asset Number Input (ID: ${assetNumberInput.id}) has been disabled due to error.`);
         }
+    } else if (!positionData.model_id) {
+        console.warn('Model ID is missing in positionData; cannot populate Asset Number Input.');
+    } else {
+        console.warn('Asset Number Input element not found in position section.');
     }
 
-    // Populate Location based on Model
+    // === 5. Populate Location based on Model ===
     const locationInput = positionSection.querySelector('.locationInput');
     if (locationInput && positionData.model_id) {
         try {
@@ -913,29 +1053,137 @@ async function populateEditTaskForm(task) {
             console.log('Fetched Locations:', locations);
 
             window.SolutionTaskCommon.populateDropdown(locationInput, locations, 'Select Location');
-            console.log('Dropdown options after population:', locationInput.options);
+            console.log(`Dropdown options after populating Location Input (ID: ${locationInput.id}):`, locationInput.options);
 
             const locationId = positionData.location_id; // Use the correct property
             const matchingLocation = locations.find(location => String(location.id) === String(locationId));
+            console.log(`Matching Location for ID ${locationId}:`, matchingLocation);
 
             if (matchingLocation) {
                 locationInput.value = matchingLocation.id;
-                console.log(`Set Location Dropdown (ID: ${locationInput.id}) to value: ${matchingLocation.id}`);
+                console.log(`Set Location Input (ID: ${locationInput.id}) to value: ${matchingLocation.id}`);
             } else {
-                console.warn(`Invalid Location ID: ${locationId} for Location Dropdown (ID: ${locationInput.id})`);
+                console.warn(`Invalid Location ID: ${locationId} for Location Input (ID: ${locationInput.id})`);
                 locationInput.value = '';
             }
             locationInput.disabled = false;
+            console.log(`Location Input (ID: ${locationInput.id}) has been enabled.`);
         } catch (error) {
             console.error('Error fetching Locations:', error);
             window.SolutionTaskCommon.showAlert('Failed to load locations.', 'danger');
             window.SolutionTaskCommon.populateDropdown(locationInput, [], 'Select Location');
             locationInput.disabled = true;
+            console.log(`Location Input (ID: ${locationInput.id}) has been disabled due to error.`);
         }
+    } else if (!positionData.model_id) {
+        console.warn('Model ID is missing in positionData; cannot populate Location Input.');
+    } else {
+        console.warn('Location Input element not found in position section.');
     }
 
+    // === 6. Populate Assemblies ===
+    const assembliesDropdown = positionSection.querySelector('.assembliesDropdown');
+    if (assembliesDropdown) {
+        try {
+            console.log('Attempting to fetch Assemblies...');
+            // **Important:** Ensure that you pass the required locationId to fetchInitialAssembliesByLocation
+            const locationId = positionData.location_id;
+            if (!locationId) {
+                console.warn('Location ID is missing; cannot fetch Assemblies.');
+                throw new Error('Location ID is required to fetch Assemblies.');
+            }
 
-    // Populate Site Location Dropdown Independently
+            console.log(`Fetching Assemblies for Location ID: ${locationId}`);
+            const assemblies = await SolutionTaskCommon.fetchInitialAssembliesByLocation(locationId);
+            console.log('Fetched Assemblies:', assemblies);
+
+            window.SolutionTaskCommon.populateDropdown(assembliesDropdown, assemblies, 'Select Assembly');
+            console.log(`Dropdown options after populating Assemblies Dropdown (ID: ${assembliesDropdown.id}):`, assembliesDropdown.options);
+
+            // Validate assembly_id exists in fetched assemblies
+            const isValidAssemblyId = assemblies.some(assembly => String(assembly.id) === String(positionData.assembly_id));
+            if (isValidAssemblyId) {
+                assembliesDropdown.value = positionData.assembly_id;
+                console.log(`Set Assemblies Dropdown (ID: ${assembliesDropdown.id}) to value: ${positionData.assembly_id}`);
+            } else {
+                console.warn(`Invalid Assembly ID: ${positionData.assembly_id} for Assemblies Dropdown (ID: ${assembliesDropdown.id})`);
+                assembliesDropdown.value = '';
+            }
+            console.log("Assemblies returned:", assemblies);
+            console.log("assemblies.length:", assemblies.length);
+            //assembliesDropdown.disabled = assemblies.length === 0;
+            console.log('async function populatePositionFields disabled')
+            console.log(`Assemblies Dropdown (ID: ${assembliesDropdown.id}) has been ${assemblies.length === 0 ? 'disabled' : 'enabled'}.`);
+
+
+            console.log(`Assemblies Dropdown (ID: ${assembliesDropdown.id}) has been ${assemblies.length === 0 ? 'disabled' : 'enabled'}.`);
+        } catch (error) {
+            console.error('Error fetching Assemblies:', error);
+            window.SolutionTaskCommon.showAlert('Failed to load assemblies.', 'danger');
+            window.SolutionTaskCommon.populateDropdown(assembliesDropdown, [], 'Select Assembly');
+            //assembliesDropdown.disabled = true;
+            console.log('async function populatePositionFields disabled')
+            console.log(`Assemblies Dropdown (ID: ${assembliesDropdown.id}) has been disabled due to error.`);
+        }
+    } else {
+        console.warn('Assemblies Dropdown element not found in position section.');
+    }
+
+    // === 7. Populate Subassemblies based on selected Assembly ===
+    const subassembliesDropdown = positionSection.querySelector('.subassembliesDropdown');
+    if (subassembliesDropdown && positionData.assembly_id) {
+        try {
+            console.log(`Attempting to fetch Subassemblies for Assembly ID: ${positionData.assembly_id}`);
+            const subassemblies = await SolutionTaskCommon.fetchInitialSubassemblies(positionData.assembly_id);
+            console.log('Fetched Subassemblies:', subassemblies);
+
+            window.SolutionTaskCommon.populateDropdown(subassembliesDropdown, subassemblies, 'Select Subassembly');
+            console.log(`Dropdown options after populating Subassemblies Dropdown (ID: ${subassembliesDropdown.id}):`, subassembliesDropdown.options);
+
+            subassembliesDropdown.value = positionData.subassembly_id || '';
+            subassembliesDropdown.disabled = false;
+            console.log(`Set Subassemblies Dropdown (ID: ${subassembliesDropdown.id}) to value: ${positionData.subassembly_id}`);
+        } catch (error) {
+            console.error('Error fetching Subassemblies:', error);
+            window.SolutionTaskCommon.showAlert('Failed to load subassemblies.', 'danger');
+            window.SolutionTaskCommon.populateDropdown(subassembliesDropdown, [], 'Select Subassembly');
+            subassembliesDropdown.disabled = true;
+            console.log(`Subassemblies Dropdown (ID: ${subassembliesDropdown.id}) has been disabled due to error.`);
+        }
+    } else if (!positionData.assembly_id) {
+        console.warn('Assembly ID is missing in positionData; cannot populate Subassemblies Dropdown.');
+    } else {
+        console.warn('Subassemblies Dropdown element not found in position section.');
+    }
+
+    // === 8. Populate Assembly Views based on selected Subassembly ===
+    const assemblyViewsDropdown = positionSection.querySelector('.assemblyViewsDropdown');
+    if (assemblyViewsDropdown && positionData.subassembly_id) {
+        try {
+            console.log(`Attempting to fetch Assembly Views for Subassembly ID: ${positionData.subassembly_id}`);
+            const assemblyViews = await SolutionTaskCommon.fetchInitialAssemblyViews(positionData.subassembly_id);
+            console.log('Fetched Assembly Views:', assemblyViews);
+
+            window.SolutionTaskCommon.populateDropdown(assemblyViewsDropdown, assemblyViews, 'Select Assembly View');
+            console.log(`Dropdown options after populating Assembly Views Dropdown (ID: ${assemblyViewsDropdown.id}):`, assemblyViewsDropdown.options);
+
+            assemblyViewsDropdown.value = positionData.assembly_view_id || '';
+            assemblyViewsDropdown.disabled = false;
+            console.log(`Set Assembly Views Dropdown (ID: ${assemblyViewsDropdown.id}) to value: ${positionData.assembly_view_id}`);
+        } catch (error) {
+            console.error('Error fetching Assembly Views:', error);
+            window.SolutionTaskCommon.showAlert('Failed to load assembly views.', 'danger');
+            window.SolutionTaskCommon.populateDropdown(assemblyViewsDropdown, [], 'Select Assembly View');
+            assemblyViewsDropdown.disabled = true;
+            console.log(`Assembly Views Dropdown (ID: ${assemblyViewsDropdown.id}) has been disabled due to error.`);
+        }
+    } else if (!positionData.subassembly_id) {
+        console.warn('Subassembly ID is missing in positionData; cannot populate Assembly Views Dropdown.');
+    } else {
+        console.warn('Assembly Views Dropdown element not found in position section.');
+    }
+
+    // === 9. Populate Site Location Dropdown Independently ===
     const siteLocationDropdown = positionSection.querySelector('.siteLocationDropdown');
     if (siteLocationDropdown) {
         try {
@@ -944,10 +1192,10 @@ async function populateEditTaskForm(task) {
             console.log('Fetched Site Locations:', siteLocations);
 
             window.SolutionTaskCommon.populateDropdown(siteLocationDropdown, siteLocations, 'Select Site Location');
-            console.log('Dropdown options after population:', siteLocationDropdown.options);
+            console.log(`Dropdown options after populating Site Location Dropdown (ID: ${siteLocationDropdown.id}):`, siteLocationDropdown.options);
 
             const siteLocationId = positionData.site_location_id; // Use the correct property
-            console.log('Site Location ID from Position Data:', siteLocationId);
+            console.log(`Site Location ID from Position Data: ${siteLocationId}`);
 
             const matchingSiteLocation = siteLocations.find(location => String(location.id) === String(siteLocationId));
             console.log('Matching Site Location:', matchingSiteLocation);
@@ -961,8 +1209,8 @@ async function populateEditTaskForm(task) {
             }
 
             // Ensure the dropdown remains enabled regardless of data
-            siteLocationDropdown.disabled = false;
-            console.log(`Site Location Dropdown (ID: ${siteLocationDropdown.id}) is enabled.`);
+            siteLocationDropdown.disabled = siteLocations.length === 0;
+            console.log(`Site Location Dropdown (ID: ${siteLocationDropdown.id}) has been ${siteLocationDropdown.disabled ? 'disabled' : 'enabled'}.`);
         } catch (error) {
             console.error('Error fetching Site Locations:', error);
 
@@ -971,96 +1219,212 @@ async function populateEditTaskForm(task) {
 
             // Clear existing options and set to default
             window.SolutionTaskCommon.populateDropdown(siteLocationDropdown, [], 'Select Site Location');
-            console.log('Dropdown options after clearing:', siteLocationDropdown.options);
+            console.log(`Dropdown options after clearing Site Location Dropdown (ID: ${siteLocationDropdown.id}):`, siteLocationDropdown.options);
 
             // Ensure the dropdown remains enabled even if there's an error
-            siteLocationDropdown.disabled = false;
-            console.log(`Site Location Dropdown (ID: ${siteLocationDropdown.id}) remains enabled.`);
+            siteLocationDropdown.disabled = siteLocations.length === 0;
+            console.log(`Site Location Dropdown (ID: ${siteLocationDropdown.id}) has been ${siteLocationDropdown.disabled ? 'disabled' : 'enabled'}.`);
         }
+    } else {
+        console.warn('Site Location Dropdown element not found in position section.');
     }
 
-    // Add event listeners for dynamic dropdown dependencies
+    // === 10. Add Event Listeners for Dynamic Dropdown Dependencies ===
     addPositionEventListeners(positionSection, index);
+    console.log(`--- populatePositionFields completed for positionSection index: ${index} ---\n`);
 }
 
     /**
-     * Add event listeners for dynamic dropdown dependencies within a position section
-     * @param {HTMLElement} positionSection - The position section element
-     * @param {number} index - The index of the position
-     */
-
-    /** #2
  * Initialize a new position with default dropdown states
  * @param {HTMLElement} positionSection - The position section element
  * @param {number} index - The index of the position
  */
     async function initializeNewPosition(positionSection, index) {
-    // Populate Area Dropdown
+    console.log(`\n--- initializeNewPosition called for positionSection index: ${index} ---`);
+
+    // === 1. Populate Area Dropdown ===
     const areaDropdown = positionSection.querySelector('.areaDropdown');
     if (areaDropdown) {
-        const areas = await window.SolutionTaskCommon.fetchInitialAreas();
-        SolutionTaskCommon.populateDropdown(areaDropdown, areas, 'Select Area');
-        areaDropdown.disabled = false;
-        console.log(`Initialized Area Dropdown (ID: ${areaDropdown.id})`);
-    }
+        try {
+            console.log('Attempting to fetch areas...');
+            const areas = await window.SolutionTaskCommon.fetchInitialAreas();
+            console.log('Fetched areas:', areas);
 
-    // Disable dependent dropdowns except Site Location
-    ['equipmentGroupDropdown', 'modelDropdown', 'assetNumberInput', 'locationInput'].forEach(className => {
-        const element = positionSection.querySelector(`.${className}`);
-        if (element) {
-            SolutionTaskCommon.populateDropdown(element, [], `Select ${SolutionTaskCommon.capitalizeFirstLetter(className.replace('Dropdown', '').replace('Input', ''))}`);
-            element.disabled = true;
-            console.log(`Initialized and disabled ${className} (ID: ${element.id})`);
+            window.SolutionTaskCommon.populateDropdown(areaDropdown, areas, 'Select Area');
+            console.log(`Dropdown options after populating Area Dropdown (ID: ${areaDropdown.id}):`, Array.from(areaDropdown.options).map(opt => ({ value: opt.value, text: opt.text })));
+
+            areaDropdown.disabled = false;
+            console.log(`Area Dropdown (ID: ${areaDropdown.id}) has been enabled.`);
+        } catch (error) {
+            console.error('Error initializing Area Dropdown:', error);
+            window.SolutionTaskCommon.showAlert('Failed to load areas.', 'danger');
+            window.SolutionTaskCommon.populateDropdown(areaDropdown, [], 'Select Area');
+            areaDropdown.disabled = true;
+            console.log(`Area Dropdown (ID: ${areaDropdown.id}) has been disabled due to error.`);
         }
-    });
-
-// Populate Site Location Dropdown Independently
-const siteLocationDropdown = positionSection.querySelector('.siteLocationDropdown');
-if (siteLocationDropdown) {
-    try {
-        console.log('Attempting to fetch Site Locations...');
-        const siteLocations = await window.SolutionTaskCommon.fetchInitialSiteLocations();
-        console.log('Fetched Site Locations:', siteLocations);
-
-        window.SolutionTaskCommon.populateDropdown(siteLocationDropdown, siteLocations, 'Select Site Location');
-        console.log('Dropdown options after population:', siteLocationDropdown.options);
-
-        // No need to set a selected value for new positions
-        // Ensure the dropdown remains enabled regardless of data
-        siteLocationDropdown.disabled = false;
-        console.log(`Site Location Dropdown (ID: ${siteLocationDropdown.id}) is enabled.`);
-    } catch (error) {
-        console.error('Error fetching Site Locations:', error);
-
-        // Show an alert to inform the user about the failure
-        window.SolutionTaskCommon.showAlert('Failed to load site locations.', 'danger');
-
-        // Clear existing options and set to default
-        window.SolutionTaskCommon.populateDropdown(siteLocationDropdown, [], 'Select Site Location');
-        console.log('Dropdown options after clearing:', siteLocationDropdown.options);
-
-        // Ensure the dropdown remains enabled even if there's an error
-        siteLocationDropdown.disabled = false;
-        console.log(`Site Location Dropdown (ID: ${siteLocationDropdown.id}) remains enabled.`);
+    } else {
+        console.warn('Area Dropdown element not found in position section.');
     }
-}
 
-    // Add event listeners for dynamic dropdown dependencies
-    addPositionEventListeners(positionSection, index);
+    // === 2. Populate Equipment Group Dropdown ===
+    const equipmentGroupDropdown = positionSection.querySelector('.equipmentGroupDropdown');
+    if (equipmentGroupDropdown) {
+        try {
+            window.SolutionTaskCommon.populateDropdown(equipmentGroupDropdown, [], 'Select Equipment Group');
+            equipmentGroupDropdown.disabled = true;
+            console.log(`Initialized and disabled Equipment Group Dropdown (ID: ${equipmentGroupDropdown.id})`);
+        } catch (error) {
+            console.error('Error initializing Equipment Group Dropdown:', error);
+        }
+    } else {
+        console.warn('Equipment Group Dropdown element not found in position section.');
+    }
+
+    // === 3. Populate Model Dropdown ===
+    const modelDropdown = positionSection.querySelector('.modelDropdown');
+    if (modelDropdown) {
+        try {
+            window.SolutionTaskCommon.populateDropdown(modelDropdown, [], 'Select Model');
+            modelDropdown.disabled = true;
+            console.log(`Initialized and disabled Model Dropdown (ID: ${modelDropdown.id})`);
+        } catch (error) {
+            console.error('Error initializing Model Dropdown:', error);
+        }
+    } else {
+        console.warn('Model Dropdown element not found in position section.');
+    }
+
+    // === 4. Populate Asset Number Dropdown ===
+    const assetNumberInput = positionSection.querySelector('.assetNumberInput');
+    if (assetNumberInput) {
+        try {
+            window.SolutionTaskCommon.populateDropdown(assetNumberInput, [], 'Select Asset Number');
+            assetNumberInput.disabled = true;
+            console.log(`Initialized and disabled Asset Number Dropdown (ID: ${assetNumberInput.id})`);
+        } catch (error) {
+            console.error('Error initializing Asset Number Dropdown:', error);
+        }
+    } else {
+        console.warn('Asset Number Input element not found in position section.');
+    }
+
+    // === 5. Populate Location Dropdown ===
+    const locationInput = positionSection.querySelector('.locationInput');
+    if (locationInput) {
+        try {
+            window.SolutionTaskCommon.populateDropdown(locationInput, [], 'Select Location');
+            locationInput.disabled = true;
+            console.log(`Initialized and disabled Location Dropdown (ID: ${locationInput.id})`);
+        } catch (error) {
+            console.error('Error initializing Location Dropdown:', error);
+        }
+    } else {
+        console.warn('Location Input element not found in position section.');
+    }
+
+    // === 6. Populate Assemblies Dropdown ===
+    const assembliesDropdown = positionSection.querySelector('.assembliesDropdown');
+    if (assembliesDropdown) {
+        try {
+            window.SolutionTaskCommon.populateDropdown(assembliesDropdown, [], 'Select Assembly');
+            //assembliesDropdown.disabled = true;
+            console.log(`Initialized and disabled Assemblies Dropdown (ID: ${assembliesDropdown.id})`);
+        } catch (error) {
+            console.error('Error initializing Assemblies Dropdown:', error);
+        }
+    } else {
+        console.warn('Assemblies Dropdown element not found in position section.');
+    }
+
+    // === 7. Populate Subassemblies Dropdown ===
+    const subassembliesDropdown = positionSection.querySelector('.subassembliesDropdown');
+    if (subassembliesDropdown) {
+        try {
+            window.SolutionTaskCommon.populateDropdown(subassembliesDropdown, [], 'Select Subassembly');
+            subassembliesDropdown.disabled = true;
+            console.log(`Initialized and disabled Subassemblies Dropdown (ID: ${subassembliesDropdown.id})`);
+        } catch (error) {
+            console.error('Error initializing Subassemblies Dropdown:', error);
+        }
+    } else {
+        console.warn('Subassemblies Dropdown element not found in position section.');
+    }
+
+    // === 8. Populate Assembly Views Dropdown ===
+    const assemblyViewsDropdown = positionSection.querySelector('.assemblyViewsDropdown');
+    if (assemblyViewsDropdown) {
+        try {
+            window.SolutionTaskCommon.populateDropdown(assemblyViewsDropdown, [], 'Select Assembly View');
+            assemblyViewsDropdown.disabled = true;
+            console.log(`Initialized and disabled Assembly Views Dropdown (ID: ${assemblyViewsDropdown.id})`);
+        } catch (error) {
+            console.error('Error initializing Assembly Views Dropdown:', error);
+        }
+    } else {
+        console.warn('Assembly Views Dropdown element not found in position section.');
+    }
+
+    // === 9. Populate Site Location Dropdown Independently ===
+    const siteLocationDropdown = positionSection.querySelector('.siteLocationDropdown');
+    if (siteLocationDropdown) {
+        try {
+            console.log('Attempting to fetch Site Locations...');
+            const siteLocations = await window.SolutionTaskCommon.fetchInitialSiteLocations();
+            console.log('Fetched Site Locations:', siteLocations);
+
+            window.SolutionTaskCommon.populateDropdown(siteLocationDropdown, siteLocations, 'Select Site Location');
+            console.log(`Dropdown options after populating Site Location Dropdown (ID: ${siteLocationDropdown.id}):`, Array.from(siteLocationDropdown.options).map(opt => ({ value: opt.value, text: opt.text })));
+
+            // Ensure the dropdown remains enabled regardless of data
+            siteLocationDropdown.disabled = siteLocations.length === 0;
+            console.log(`Site Location Dropdown (ID: ${siteLocationDropdown.id}) is ${siteLocationDropdown.disabled ? 'disabled' : 'enabled'}.`);
+        } catch (error) {
+            console.error('Error fetching Site Locations:', error);
+
+            // Show an alert to inform the user about the failure
+            window.SolutionTaskCommon.showAlert('Failed to load site locations.', 'danger');
+
+            // Clear existing options and set to default
+            window.SolutionTaskCommon.populateDropdown(siteLocationDropdown, [], 'Select Site Location');
+            console.log(`Dropdown options after clearing Site Location Dropdown (ID: ${siteLocationDropdown.id}):`, Array.from(siteLocationDropdown.options).map(opt => ({ value: opt.value, text: opt.text })));
+
+            // Ensure the dropdown remains disabled even if there's an error
+            siteLocationDropdown.disabled = true;
+            console.log(`Site Location Dropdown (ID: ${siteLocationDropdown.id}) has been disabled due to error.`);
+        }
+    } else {
+        console.warn('Site Location Dropdown element not found in position section.');
+    }
+
+    // === 10. Add Event Listeners for Dynamic Dropdown Dependencies ===
+    try {
+        addPositionEventListeners(positionSection, index);
+        console.log(`Added event listeners for positionSection index: ${index}.`);
+    } catch (error) {
+        console.error(`Error adding event listeners for positionSection index: ${index}:`, error);
+    }
+
+    console.log(`--- initializeNewPosition completed for positionSection index: ${index} ---\n`);
 }
 
     /**
-     * Add event listeners for dynamic dropdown dependencies within a position section
-     * @param {HTMLElement} positionSection - The position section element
-     * @param {number} index - The index of the position
-     */
+ * Add event listeners for dynamic dropdown dependencies within a position section
+ * @param {HTMLElement} positionSection - The position section element
+ * @param {number} index - The index of the position
+ */
     function addPositionEventListeners(positionSection, index) {
+    // === Existing Dropdowns ===
     const areaDropdown = positionSection.querySelector('.areaDropdown');
     const equipmentGroupDropdown = positionSection.querySelector('.equipmentGroupDropdown');
     const modelDropdown = positionSection.querySelector('.modelDropdown');
     const assetNumberInput = positionSection.querySelector('.assetNumberInput');
     const locationInput = positionSection.querySelector('.locationInput');
     const siteLocationDropdown = positionSection.querySelector('.siteLocationDropdown');
+
+    // === New Dropdowns ===
+    const assembliesDropdown = positionSection.querySelector('.assembliesDropdown');
+    const subassembliesDropdown = positionSection.querySelector('.subassembliesDropdown');
+    const assemblyViewsDropdown = positionSection.querySelector('.assemblyViewsDropdown');
 
     /**
      * Helper function to populate the Site Location dropdown
@@ -1081,21 +1445,56 @@ if (siteLocationDropdown) {
         }
     }
 
+    // === Event Listeners for Existing Dropdowns ===
+
     if (areaDropdown) {
         areaDropdown.addEventListener('change', async () => {
             const selectedAreaId = areaDropdown.value;
             console.log(`Area Dropdown (ID: ${areaDropdown.id}) changed to: ${selectedAreaId}`);
             if (selectedAreaId) {
-                const equipmentGroups = await SolutionTaskCommon.fetchInitialEquipmentGroups(selectedAreaId);
-                SolutionTaskCommon.populateDropdown(equipmentGroupDropdown, equipmentGroups, 'Select Equipment Group');
-                equipmentGroupDropdown.disabled = equipmentGroups.length === 0;
-                console.log(`Populated Equipment Group Dropdown (ID: ${equipmentGroupDropdown.id}) with Equipment Groups for Area ID ${selectedAreaId}`);
+                try {
+                    const equipmentGroups = await SolutionTaskCommon.fetchInitialEquipmentGroups(selectedAreaId);
+                    SolutionTaskCommon.populateDropdown(equipmentGroupDropdown, equipmentGroups, 'Select Equipment Group');
+                    equipmentGroupDropdown.disabled = equipmentGroups.length === 0;
+                    console.log(`Populated Equipment Group Dropdown (ID: ${equipmentGroupDropdown.id}) with Equipment Groups for Area ID ${selectedAreaId}`);
 
-                // Reset and disable only the dependent dropdowns except Site Location
-                resetDropdowns([modelDropdown, assetNumberInput, locationInput]);
+                    // Reset and disable dependent dropdowns except Site Location
+                    /**resetDropdowns([
+                        modelDropdown,
+                        assetNumberInput,
+                        locationInput,
+                        //assembliesDropdown,
+                        subassembliesDropdown,
+                        assemblyViewsDropdown
+                    ]); */
+
+                } catch (error) {
+                    console.error(`Error fetching Equipment Groups for Area ID ${selectedAreaId}:`, error);
+                    SolutionTaskCommon.showAlert('Failed to load equipment groups.', 'danger');
+                    SolutionTaskCommon.populateDropdown(equipmentGroupDropdown, [], 'Select Equipment Group');
+                    equipmentGroupDropdown.disabled = true;
+
+                    // Reset and disable dependent dropdowns except Site Location
+                    /** resetDropdowns([
+                        modelDropdown,
+                        assetNumberInput,
+                        locationInput,
+                        //assembliesDropdown,
+                        subassembliesDropdown,
+                        assemblyViewsDropdown
+                    ]); */
+                }
             } else {
-                // Reset and disable only the dependent dropdowns except Site Location
-                resetDropdowns([equipmentGroupDropdown, modelDropdown, assetNumberInput, locationInput]);
+                // Reset and disable dependent dropdowns except Site Location
+                /** resetDropdowns([
+                    equipmentGroupDropdown,
+                    modelDropdown,
+                    assetNumberInput,
+                    locationInput,
+                    //assembliesDropdown,
+                    subassembliesDropdown,
+                    assemblyViewsDropdown
+                ]); */
             }
         });
     }
@@ -1105,16 +1504,45 @@ if (siteLocationDropdown) {
             const selectedEquipmentGroupId = equipmentGroupDropdown.value;
             console.log(`Equipment Group Dropdown (ID: ${equipmentGroupDropdown.id}) changed to: ${selectedEquipmentGroupId}`);
             if (selectedEquipmentGroupId) {
-                const models = await SolutionTaskCommon.fetchInitialModels(selectedEquipmentGroupId);
-                SolutionTaskCommon.populateDropdown(modelDropdown, models, 'Select Model');
-                modelDropdown.disabled = models.length === 0;
-                console.log(`Populated Model Dropdown (ID: ${modelDropdown.id}) with Models for Equipment Group ID ${selectedEquipmentGroupId}`);
+                try {
+                    const models = await SolutionTaskCommon.fetchInitialModels(selectedEquipmentGroupId);
+                    SolutionTaskCommon.populateDropdown(modelDropdown, models, 'Select Model');
+                    modelDropdown.disabled = models.length === 0;
+                    console.log(`Populated Model Dropdown (ID: ${modelDropdown.id}) with Models for Equipment Group ID ${selectedEquipmentGroupId}`);
 
-                // Reset and disable only the dependent dropdowns except Site Location
-                resetDropdowns([assetNumberInput, locationInput]);
+                    // Reset and disable dependent dropdowns except Site Location
+                    /** resetDropdowns([
+                        assetNumberInput,
+                        locationInput,
+                        //assembliesDropdown,
+                        subassembliesDropdown,
+                        assemblyViewsDropdown
+                    ]); */
+                } catch (error) {
+                    console.error(`Error fetching Models for Equipment Group ID ${selectedEquipmentGroupId}:`, error);
+                    SolutionTaskCommon.showAlert('Failed to load models.', 'danger');
+                    SolutionTaskCommon.populateDropdown(modelDropdown, [], 'Select Model');
+                    modelDropdown.disabled = true;
+
+                    // Reset and disable dependent dropdowns except Site Location
+                    /** resetDropdowns([
+                        assetNumberInput,
+                        locationInput,
+                        //assembliesDropdown,
+                        subassembliesDropdown,
+                        assemblyViewsDropdown
+                    ]); */
+                }
             } else {
-                // Reset and disable only the dependent dropdowns except Site Location
-                resetDropdowns([modelDropdown, assetNumberInput, locationInput]);
+                // Reset and disable dependent dropdowns except Site Location
+                /** resetDropdowns([
+                    modelDropdown,
+                    assetNumberInput,
+                    locationInput,
+                    //assembliesDropdown,
+                    subassembliesDropdown,
+                    assemblyViewsDropdown
+                ]); */
             }
         });
     }
@@ -1138,23 +1566,40 @@ if (siteLocationDropdown) {
                     locationInput.disabled = locations.length === 0;
                     console.log(`Populated Location Dropdown (ID: ${locationInput.id}) with Locations for Model ID ${selectedModelId}`);
 
-                    // Reset and disable Site Location Dropdown to maintain independence
-                    // resetDropdowns([siteLocationDropdown]);
+                    // Reset and disable Assembly-related Dropdowns
+                    /** resetDropdowns([
+                        //assembliesDropdown,
+                        subassembliesDropdown,
+                        assemblyViewsDropdown
+                    ]);*/
                 } catch (error) {
-                    console.error('Error fetching asset numbers or locations:', error);
+                    console.error(`Error fetching Asset Numbers or Locations for Model ID ${selectedModelId}:`, error);
                     SolutionTaskCommon.showAlert('Failed to load asset numbers or locations.', 'danger');
-                    resetDropdowns([assetNumberInput, locationInput, siteLocationDropdown]);
+                    /** resetDropdowns([
+                        assetNumberInput,
+                        locationInput,
+                        //assembliesDropdown,
+                        subassembliesDropdown,
+                        assemblyViewsDropdown
+                    ]);*/
                 }
             } else {
-                // Reset and disable only the dependent dropdowns except Site Location
-                resetDropdowns([assetNumberInput, locationInput, siteLocationDropdown]);
+                // Reset and disable dependent dropdowns except Site Location
+                /** resetDropdowns([
+                    assetNumberInput,
+                    locationInput,
+                    //assembliesDropdown,
+                    subassembliesDropdown,
+                    assemblyViewsDropdown
+                ]); */
             }
         });
     }
 
     if (assetNumberInput) {
-        assetNumberInput.addEventListener('change', async () => {
-            console.log(`Asset Number Dropdown (ID: ${assetNumberInput.id}) changed to: ${assetNumberInput.value}`);
+        assetNumberInput.addEventListener('change', () => {
+            const selectedAssetNumber = assetNumberInput.value;
+            console.log(`Asset Number Dropdown (ID: ${assetNumberInput.id}) changed to: ${selectedAssetNumber}`);
             // Since Site Location is independent, no action needed here
             // Optionally, you can clear Site Location if required
             // SolutionTaskCommon.populateDropdown(siteLocationDropdown, [], 'Select Site Location');
@@ -1164,38 +1609,154 @@ if (siteLocationDropdown) {
 
     if (locationInput) {
         locationInput.addEventListener('change', async () => {
-            console.log(`Location Input (ID: ${locationInput.id}) changed to: ${locationInput.value}`);
-            // Since Site Location is independent, no action needed here
-            // Optionally, you can clear Site Location if required
-            // SolutionTaskCommon.populateDropdown(siteLocationDropdown, [], 'Select Site Location');
-            // siteLocationDropdown.disabled = true;
-        });
-    }
+            const selectedLocationId = locationInput.value;
+            console.log(`Location Input (ID: ${locationInput.id}) changed to: ${selectedLocationId}`);
+            if (selectedLocationId) {
+                try {
+                    const assemblies = await SolutionTaskCommon.fetchInitialAssembliesByLocation(selectedLocationId);
+                    SolutionTaskCommon.populateDropdown(assembliesDropdown, assemblies, 'Select Assembly');
+                    console.log(`assembliesDropdown assemblies.length = ${assemblies.length}`);
+                    //assembliesDropdown.disabled = assemblies.length === 0;
 
-    // Add event listener for remove button
-   // const removeBtn = positionSection.querySelector('.removePositionBtn');
-    //if (removeBtn) {
-        //removeBtn.addEventListener('click', () => {
-            //positionSection.remove();
-            //console.log(`Removed position section with index ${index}`);
-       // });
-    //}
-}
+                    console.log(`Populated Assemblies Dropdown (ID: ${assembliesDropdown.id}) with Assemblies for Location ID ${selectedLocationId}`);
 
-    /**
-     * Reset and disable multiple dropdowns
-     * @param {Array} elements - Array of dropdown/select elements to reset
-     */
-    function resetDropdowns(elements) {
-        elements.forEach(element => {
-            if (element) {
-                const placeholderText = `Select ${SolutionTaskCommon.capitalizeFirstLetter(element.className.replace('Dropdown', '').replace('Input', ''))}`;
-                SolutionTaskCommon.populateDropdown(element, [], placeholderText);
-                element.disabled = true;
-                console.log(`Reset and disabled ${element.className} (ID: ${element.id})`);
+                    // Reset and disable Subassemblies and Assembly Views Dropdowns
+                    /** resetDropdowns([
+                        subassembliesDropdown,
+                        assemblyViewsDropdown
+                    ]);*/
+                } catch (error) {
+                    console.error(`Error fetching Assemblies for Location ID ${selectedLocationId}:`, error);
+                    SolutionTaskCommon.showAlert('Failed to load assemblies.', 'danger');
+                    SolutionTaskCommon.populateDropdown(assembliesDropdown, [], 'Select Assembly');
+                    //assembliesDropdown.disabled = true;
+
+                    // Reset and disable Subassemblies and Assembly Views Dropdowns
+                    /** resetDropdowns([
+                        subassembliesDropdown,
+                        assemblyViewsDropdown
+                    ]); */
+                }
+            } else {
+                // Reset and disable Assemblies, Subassemblies, and Assembly Views Dropdowns
+                /** resetDropdowns([
+                    //assembliesDropdown,
+                    subassembliesDropdown,
+                    assemblyViewsDropdown
+                ]);*/
             }
         });
     }
+
+    // === Event Listeners for New Dropdowns ===
+
+    if (assembliesDropdown) {
+        assembliesDropdown.addEventListener('change', async () => {
+            const selectedAssemblyId = assembliesDropdown.value;
+            console.log(`Assemblies Dropdown (ID: ${assembliesDropdown.id}) changed to: ${selectedAssemblyId}`);
+            if (selectedAssemblyId) {
+                try {
+                    const subassemblies = await SolutionTaskCommon.fetchInitialSubassemblies(selectedAssemblyId);
+                    SolutionTaskCommon.populateDropdown(subassembliesDropdown, subassemblies, 'Select Subassembly');
+                    subassembliesDropdown.disabled = subassemblies.length === 0;
+                    console.log(`Populated Subassemblies Dropdown (ID: ${subassembliesDropdown.id}) with Subassemblies for Assembly ID ${selectedAssemblyId}`);
+
+                    // Reset and disable Assembly Views Dropdown
+                    /** resetDropdowns([assemblyViewsDropdown]);*/
+                } catch (error) {
+                    console.error(`Error fetching Subassemblies for Assembly ID ${selectedAssemblyId}:`, error);
+                    SolutionTaskCommon.showAlert('Failed to load subassemblies.', 'danger');
+                    SolutionTaskCommon.populateDropdown(subassembliesDropdown, [], 'Select Subassembly');
+                    subassembliesDropdown.disabled = true;
+
+                    // Reset and disable Assembly Views Dropdown
+                    /** resetDropdowns([assemblyViewsDropdown]); */
+                }
+            } else {
+                // Reset and disable Subassemblies and Assembly Views Dropdowns
+                /** resetDropdowns([subassembliesDropdown, assemblyViewsDropdown]); */
+            }
+        });
+    }
+
+    if (subassembliesDropdown) {
+        subassembliesDropdown.addEventListener('change', async () => {
+            const selectedSubassemblyId = subassembliesDropdown.value;
+            console.log(`Subassemblies Dropdown (ID: ${subassembliesDropdown.id}) changed to: ${selectedSubassemblyId}`);
+            if (selectedSubassemblyId) {
+                try {
+                    const assemblyViews = await SolutionTaskCommon.fetchInitialAssemblyViews(selectedSubassemblyId);
+                    SolutionTaskCommon.populateDropdown(assemblyViewsDropdown, assemblyViews, 'Select Assembly View');
+                    assemblyViewsDropdown.disabled = assemblyViews.length === 0;
+                    console.log(`Populated Assembly Views Dropdown (ID: ${assemblyViewsDropdown.id}) with Assembly Views for Subassembly ID ${selectedSubassemblyId}`);
+                } catch (error) {
+                    console.error(`Error fetching Assembly Views for Subassembly ID ${selectedSubassemblyId}:`, error);
+                    SolutionTaskCommon.showAlert('Failed to load assembly views.', 'danger');
+                    SolutionTaskCommon.populateDropdown(assemblyViewsDropdown, [], 'Select Assembly View');
+                    assemblyViewsDropdown.disabled = true;
+                }
+            } else {
+                // Reset and disable Assembly Views Dropdown
+                /** resetDropdowns([assemblyViewsDropdown]); */
+            }
+        });
+    }
+
+    if (assemblyViewsDropdown) {
+        assemblyViewsDropdown.addEventListener('change', () => {
+            const selectedAssemblyViewId = assemblyViewsDropdown.value;
+            console.log(`Assembly Views Dropdown (ID: ${assemblyViewsDropdown.id}) changed to: ${selectedAssemblyViewId}`);
+            // Add any additional logic if needed when assembly view changes
+            // For example, fetching more details based on the selected assembly view
+        });
+    }
+
+    // === Remove Position Button ===
+    const removeBtn = positionSection.querySelector('.removePositionBtn');
+    if (removeBtn) {
+        removeBtn.addEventListener('click', () => {
+            positionSection.remove();
+            console.log(`Removed position section with index ${index}`);
+        });
+    }
+}
+
+    /**
+ * Reset and disable multiple dropdowns
+ * @param {Array} elements - Array of dropdown/select elements to reset
+    */
+    function resetDropdowns(elements) {
+    elements.forEach(element => {
+        if (!element) {
+            console.warn('Attempted to reset a dropdown that does not exist.');
+            return;
+        }
+
+        // 1. Skip if we want to exclude assembliesDropdown
+        if (element.classList.contains('assembliesDropdown')) {
+            console.log(`Skipping reset for assembliesDropdown (ID: ${element.id}).`);
+            return;
+        }
+
+        // 2. Otherwise, proceed as before
+        const elementClass = Array.from(element.classList)
+            .find(cls => cls.endsWith('Dropdown') || cls.endsWith('Input'));
+
+        if (!elementClass) {
+            console.warn(`No Dropdown/Input class found for element with ID: ${element.id}`);
+            return;
+        }
+
+        const baseName = elementClass.replace('Dropdown', '').replace('Input', '');
+        const placeholderText = `Select ${SolutionTaskCommon.capitalizeFirstLetter(baseName)}`;
+
+        // This is the normal "clear" step
+        SolutionTaskCommon.populateDropdown(element, [], placeholderText);
+        element.disabled = true;
+        console.log(`Reset and disabled ${elementClass} (ID: ${element.id})`);
+    });
+}
+
 
     // === 5. Event Listeners ===
 

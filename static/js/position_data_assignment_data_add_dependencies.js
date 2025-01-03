@@ -1,44 +1,53 @@
 $(document).ready(function () {
-    // Function to toggle visibility of forms
-    function toggleForm(formId) {
-        var form = document.getElementById(formId);
-        form.style.display = form.style.display === 'none' ? 'block' : 'none';
-    }
-
-    // Initially hide "Add Another" buttons
+    //------------------------------------------------
+    // 1) Hide "Add Another" Buttons Initially
+    //------------------------------------------------
     $('#addAnotherAreaBtn').hide();
     $('#addAnotherEquipmentGroupBtn').hide();
     $('#addAnotherModelBtn').hide();
     $('#addAnotherAssetNumberBtn').hide();
     $('#addAnotherLocationBtn').hide();
     $('#addAnotherSiteLocationBtn').hide();
+    // NEW: for Assembly, Subassembly, Assembly View
+    $('#addAnotherAssemblyBtn').hide();
+    $('#addAnotherSubassemblyBtn').hide();
+    $('#addAnotherAssemblyViewBtn').hide();
 
-    // Add event listeners for form toggles
+    //------------------------------------------------
+    // 2) Toggle/Hide "New..." Sections with Buttons
+    //------------------------------------------------
+    // (Only relevant if you have hidden sub-forms toggled by some button,
+    //  but your snippet shows minimal usage, so we keep them.)
+    function toggleForm(formId) {
+        var form = document.getElementById(formId);
+        form.style.display = (form.style.display === 'none') ? 'block' : 'none';
+    }
+
+    // Example toggles — if you have these buttons in your HTML
     $('#toggleNewAreaBtn').on('click', function () {
         toggleForm('newAreaForm');
     });
-
     $('#toggleNewEquipmentGroupBtn').on('click', function () {
         toggleForm('newEquipmentGroupForm');
     });
-
     $('#toggleNewModelBtn').on('click', function () {
         toggleForm('newModelForm');
     });
-
     $('#toggleNewAssetNumberBtn').on('click', function () {
         toggleForm('newAssetNumberForm');
     });
-
     $('#toggleNewLocationBtn').on('click', function () {
         toggleForm('newLocationForm');
     });
-
     $('#toggleNewSiteLocationBtn').on('click', function () {
         toggleForm('newSiteLocationForm');
     });
 
-    // Fetch Equipment Groups when Area is selected
+    //------------------------------------------------
+    // 3) AREA → EQUIPMENT GROUP → MODEL → ASSET # → LOCATION
+    //------------------------------------------------
+    // (Already in your snippet. We just keep it.)
+    // A) Area change => fetch Equipment Groups
     $('#new_areaDropdown').on('change', function () {
         var areaId = $(this).val();
         if (areaId === "new") {
@@ -49,9 +58,12 @@ $(document).ready(function () {
             $('#newAreaFields').hide();
             $('#addAnotherAreaBtn').hide();
             $.getJSON('/get_equipment_groups', { area_id: areaId }, function (data) {
-                $('#new_equipmentGroupDropdown').empty().append('<option value="">Select Equipment Group</option>');
+                $('#new_equipmentGroupDropdown')
+                    .empty()
+                    .append('<option value="">Select Equipment Group</option>');
                 $.each(data, function (index, group) {
-                    $('#new_equipmentGroupDropdown').append('<option value="' + group.id + '">' + group.name + '</option>');
+                    $('#new_equipmentGroupDropdown')
+                        .append('<option value="' + group.id + '">' + group.name + '</option>');
                 });
                 $('#new_equipmentGroupDropdown').append('<option value="new">New Equipment Group...</option>');
             }).fail(function () {
@@ -60,7 +72,7 @@ $(document).ready(function () {
         }
     });
 
-    // Fetch Models when Equipment Group is selected
+    // B) Equipment Group => fetch Models
     $('#new_equipmentGroupDropdown').on('change', function () {
         var equipmentGroupId = $(this).val();
         if (equipmentGroupId === "new") {
@@ -71,9 +83,12 @@ $(document).ready(function () {
             $('#newEquipmentGroupFields').hide();
             $('#addAnotherEquipmentGroupBtn').hide();
             $.getJSON('/get_models', { equipment_group_id: equipmentGroupId }, function (data) {
-                $('#new_modelDropdown').empty().append('<option value="">Select Model</option>');
+                $('#new_modelDropdown')
+                    .empty()
+                    .append('<option value="">Select Model</option>');
                 $.each(data, function (index, model) {
-                    $('#new_modelDropdown').append('<option value="' + model.id + '">' + model.name + '</option>');
+                    $('#new_modelDropdown')
+                        .append('<option value="' + model.id + '">' + model.name + '</option>');
                 });
                 $('#new_modelDropdown').append('<option value="new">New Model...</option>');
             }).fail(function () {
@@ -82,7 +97,7 @@ $(document).ready(function () {
         }
     });
 
-    // Fetch Asset Numbers and Locations when Model is selected
+    // C) Model => fetch Asset Numbers & Locations
     $('#new_modelDropdown').on('change', function () {
         var modelId = $(this).val();
         if (modelId === "new") {
@@ -95,9 +110,12 @@ $(document).ready(function () {
 
             // Fetch Asset Numbers
             $.getJSON('/get_asset_numbers', { model_id: modelId }, function (data) {
-                $('#new_assetNumberDropdown').empty().append('<option value="">Select Asset Number</option>');
+                $('#new_assetNumberDropdown')
+                    .empty()
+                    .append('<option value="">Select Asset Number</option>');
                 $.each(data, function (index, asset) {
-                    $('#new_assetNumberDropdown').append('<option value="' + asset.id + '">' + asset.number + '</option>');
+                    $('#new_assetNumberDropdown')
+                        .append('<option value="' + asset.id + '">' + asset.number + '</option>');
                 });
                 $('#new_assetNumberDropdown').append('<option value="new">New Asset Number...</option>');
             }).fail(function () {
@@ -106,9 +124,12 @@ $(document).ready(function () {
 
             // Fetch Locations
             $.getJSON('/get_locations', { model_id: modelId }, function (data) {
-                $('#new_locationDropdown').empty().append('<option value="">Select Location</option>');
+                $('#new_locationDropdown')
+                    .empty()
+                    .append('<option value="">Select Location</option>');
                 $.each(data, function (index, location) {
-                    $('#new_locationDropdown').append('<option value="' + location.id + '">' + location.name + '</option>');
+                    $('#new_locationDropdown')
+                        .append('<option value="' + location.id + '">' + location.name + '</option>');
                 });
                 $('#new_locationDropdown').append('<option value="new">New Location...</option>');
             }).fail(function () {
@@ -117,7 +138,7 @@ $(document).ready(function () {
         }
     });
 
-    // Show new fields when "New..." is selected in Asset Number or Location dropdowns
+    // D) Show new fields for "New Asset Number" or "New Location"
     $('#new_assetNumberDropdown').on('change', function () {
         if ($(this).val() === 'new') {
             $('#newAssetNumberFields').show();
@@ -138,23 +159,28 @@ $(document).ready(function () {
         }
     });
 
-    // Initialize the Select2 plugin for searchable dropdown
+    //------------------------------------------------
+    // 4) SITE LOCATION (Select2)
+    //------------------------------------------------
     $('#new_siteLocationDropdown').select2({
-        placeholder: 'Search, Select Site Location or type "New..',
+        placeholder: 'Search, Select Site Location or type "New.."',
         ajax: {
             url: '/search_site_locations',
             dataType: 'json',
             delay: 250,
             data: function (params) {
-                return { search: params.term }; // Pass search term to the server
+                return { search: params.term };
             },
             processResults: function (data) {
-                // Include the "New Site Location" option in the search results
+                // Insert a "new" option at the top
                 data.unshift({ id: 'new', title: 'New Site Location', room_number: '' });
-
                 return {
                     results: data.map(function (location) {
-                        return { id: location.id, text: location.title + (location.room_number ? ' (Room: ' + location.room_number + ')' : '') };
+                        var label = location.title;
+                        if (location.room_number) {
+                            label += ' (Room: ' + location.room_number + ')';
+                        }
+                        return { id: location.id, text: label };
                     })
                 };
             },
@@ -163,27 +189,26 @@ $(document).ready(function () {
         minimumInputLength: 1
     });
 
-    // Handle selection of "New Site Location"
+    // If "New Site Location" is chosen
     $('#new_siteLocationDropdown').on('change', function () {
         var selectedValue = $(this).val();
-        console.log("Selected value:", selectedValue); // Debugging log
         if (selectedValue === 'new') {
-            $('#newSiteLocationFields').show(); // Show fields to input new site location
-            $('#addAnotherSiteLocationBtn').show(); // Show the button to add another site location
+            $('#newSiteLocationFields').show();
+            $('#addAnotherSiteLocationBtn').show();
         } else {
-            $('#newSiteLocationFields').hide(); // Hide the fields when other options are selected
-            $('#addAnotherSiteLocationBtn').hide(); // Hide the button when other options are selected
+            $('#newSiteLocationFields').hide();
+            $('#addAnotherSiteLocationBtn').hide();
         }
     });
 
-    // Add new Site Location fields dynamically
+    // Add new site location fields dynamically
     $('#addAnotherSiteLocationBtn').on('click', function () {
         var newSiteLocationHtml = `
             <div class="new-site-location-entry">
                 <h4>New Site Location</h4>
-                <label for="new_siteLocation_title">New Site Location Title:</label>
+                <label>New Site Location Title:</label>
                 <input type="text" name="new_siteLocation_title[]" required>
-                <label for="new_siteLocation_roomNumber">Room Number:</label>
+                <label>Room Number:</label>
                 <input type="text" name="new_siteLocation_room_number[]" required>
                 <button type="button" class="remove-entry">Remove</button>
             </div>
@@ -191,31 +216,145 @@ $(document).ready(function () {
         $('#siteLocationFieldsWrapper').append(newSiteLocationHtml);
     });
 
-    // Remove dynamically added site location fields
+    // Remove extra site location fields
     $(document).on('click', '.remove-entry', function () {
         $(this).parent().remove();
     });
 
-    // Function to add new fields dynamically
-    function addNewField(containerId, fieldHtml) {
-        $(containerId).append(fieldHtml);
-    }
-});
+    //------------------------------------------------
+    // 5) ASSEMBLY → SUBASSEMBLY → ASSEMBLY VIEW
+    //------------------------------------------------
+    // A) Assembly change => fetch Subassemblies
+    $('#new_assemblyDropdown').on('change', function () {
+        var assemblyId = $(this).val();
 
+        if (assemblyId === 'new') {
+            // Show "New Assembly" fields
+            $('#newAssemblyFields').show();
+            $('#addAnotherAssemblyBtn').show();
 
+            // Disable Subassembly & AssemblyView
+            $('#new_subassemblyDropdown').prop('disabled', true).val('');
+            $('#new_assemblyViewDropdown').prop('disabled', true).val('');
+        }
+        else if (assemblyId) {
+            $('#newAssemblyFields').hide();
+            $('#addAnotherAssemblyBtn').hide();
+
+            // Enable subassembly dropdown
+            $('#new_subassemblyDropdown').prop('disabled', false);
+            $('#newSubassemblyFields').hide();
+            $('#addAnotherSubassemblyBtn').hide();
+
+            // Clear & fetch subassemblies
+            $.getJSON('/get_subassemblies', { assembly_id: assemblyId }, function (data) {
+                $('#new_subassemblyDropdown')
+                    .empty()
+                    .append('<option value="">Select Subassembly</option>');
+
+                $.each(data, function (index, subasm) {
+                    $('#new_subassemblyDropdown')
+                        .append('<option value="' + subasm.id + '">' + subasm.name + '</option>');
+                });
+                // Add "New Subassembly..."
+                $('#new_subassemblyDropdown').append('<option value="new">New Subassembly...</option>');
+
+                // Also disable assembly view until subassembly chosen
+                $('#new_assemblyViewDropdown').prop('disabled', true).val('');
+            }).fail(function () {
+                alert('Error fetching subassemblies');
+            });
+        }
+        else {
+            // If user selected nothing or cleared it
+            $('#newAssemblyFields').hide();
+            $('#addAnotherAssemblyBtn').hide();
+            $('#new_subassemblyDropdown').prop('disabled', true).val('');
+            $('#newSubassemblyFields').hide();
+            $('#addAnotherSubassemblyBtn').hide();
+            $('#new_assemblyViewDropdown').prop('disabled', true).val('');
+            $('#newAssemblyViewFields').hide();
+            $('#addAnotherAssemblyViewBtn').hide();
+        }
+    });
+
+    // B) Subassembly change => fetch Assembly Views
+    $('#new_subassemblyDropdown').on('change', function () {
+        var subassemblyId = $(this).val();
+
+        if (subassemblyId === 'new') {
+            $('#newSubassemblyFields').show();
+            $('#addAnotherSubassemblyBtn').show();
+
+            // Disable assembly view
+            $('#new_assemblyViewDropdown').prop('disabled', true).val('');
+            $('#newAssemblyViewFields').hide();
+            $('#addAnotherAssemblyViewBtn').hide();
+        }
+        else if (subassemblyId) {
+            $('#newSubassemblyFields').hide();
+            $('#addAnotherSubassemblyBtn').hide();
+
+            // Enable assembly view dropdown
+            $('#new_assemblyViewDropdown').prop('disabled', false);
+            $('#newAssemblyViewFields').hide();
+            $('#addAnotherAssemblyViewBtn').hide();
+
+            // Clear & fetch assembly views
+            $.getJSON('/get_assembly_views', { subassembly_id: subassemblyId }, function (data) {
+                $('#new_assemblyViewDropdown')
+                    .empty()
+                    .append('<option value="">Select Assembly View</option>');
+
+                $.each(data, function (index, av) {
+                    $('#new_assemblyViewDropdown')
+                        .append('<option value="' + av.id + '">' + av.name + '</option>');
+                });
+                // "New Assembly View"
+                $('#new_assemblyViewDropdown').append('<option value="new">New Assembly View...</option>');
+            }).fail(function () {
+                alert('Error fetching assembly views');
+            });
+        }
+        else {
+            // If user cleared
+            $('#newSubassemblyFields').hide();
+            $('#addAnotherSubassemblyBtn').hide();
+            $('#new_assemblyViewDropdown').prop('disabled', true).val('');
+            $('#newAssemblyViewFields').hide();
+            $('#addAnotherAssemblyViewBtn').hide();
+        }
+    });
+
+    // C) Assembly View change => show "New..." fields
+    $('#new_assemblyViewDropdown').on('change', function () {
+        var avId = $(this).val();
+        if (avId === 'new') {
+            $('#newAssemblyViewFields').show();
+            $('#addAnotherAssemblyViewBtn').show();
+        } else {
+            $('#newAssemblyViewFields').hide();
+            $('#addAnotherAssemblyViewBtn').hide();
+        }
+    });
+
+    //------------------------------------------------
+    // 6) FORM SUBMIT => POST via AJAX
+    //------------------------------------------------
     $('#addPositionDependenciesForm').on('submit', function (e) {
-        e.preventDefault(); // prevent the form from refreshing the page
+        e.preventDefault(); // Prevent page refresh
 
-        var formData = $(this).serialize(); // get all form data
+        var formData = $(this).serialize(); // gather all form data
 
         $.ajax({
             type: 'POST',
-            url: $(this).attr('action'), // get the form's action URL
+            url: $(this).attr('action'), // your /add_position endpoint
             data: formData,
             success: function (response) {
                 // handle success
                 alert('Position successfully created with ID: ' + response.position_id);
-                // Optionally reload or redirect
+                // optionally reload or redirect, e.g.:
+                // window.location.reload();
             },
             error: function (xhr) {
                 // handle error
@@ -223,4 +362,4 @@ $(document).ready(function () {
             }
         });
     });
-
+});

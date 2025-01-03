@@ -1,3 +1,5 @@
+# ai_emtac.py
+
 import sys
 import os
 import logging
@@ -79,6 +81,10 @@ def create_app():
             'tool_routes.get_tool_positions',
             'tool_routes.get_tool_packages',
             'tool_routes.submit_tool_data',
+            'tool_routes.get_manufacturers',
+            'tool_routes.get_categories',
+            'image_bp.add_image',
+            'image_bp.upload_image',
         ]
 
         # Check if request.endpoint is None (which can happen for invalid requests)
