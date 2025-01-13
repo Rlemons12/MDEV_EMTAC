@@ -21,6 +21,7 @@ from blueprints import register_blueprints
 from modules.emtacdb.utlity.revision_database.event_listeners import register_event_listeners
 from modules.configuration.config import UPLOAD_FOLDER, DATABASE_URL, REVISION_CONTROL_DB_PATH
 from utilities.auth_utils import requires_roles
+from modules.configuration.config_env import DatabaseConfig
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -51,6 +52,10 @@ def create_app():
 
     # Set the upload folder in the app's configuration
     app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+    # Initialize and set db_config
+    db_config = DatabaseConfig()
+    app.config['db_config'] = db_config
 
     # Set the session lifetime (e.g., 1 day)
     #app.permanent_session_lifetime = timedelta(days=1)

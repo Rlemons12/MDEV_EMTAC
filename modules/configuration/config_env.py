@@ -33,6 +33,14 @@ class DatabaseConfig:
     def get_revision_control_base(self):
         return self.RevisionControlBase
 
+    def get_main_session_registry(self):
+        """Return the scoped_session registry for the main database."""
+        return self.MainSession
+
+    def get_revision_control_session_registry(self):
+        """Return the scoped_session registry for the revision control database."""
+        return self.RevisionControlSession
+
     def _apply_sqlite_pragmas(self, engine):
         def set_sqlite_pragmas(dbapi_connection, connection_record):
             cursor = dbapi_connection.cursor()

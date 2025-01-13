@@ -2,9 +2,10 @@
 from flask import request, jsonify
 from sqlalchemy.exc import SQLAlchemyError
 from blueprints.tool_routes import tool_blueprint_bp
-from modules.emtacdb.emtacdb_fts import Position, ToolPackage, ToolManufacturer
+from modules.emtacdb.emtacdb_fts import Position, ToolPackage, ToolManufacturer,ToolCategory
 from modules.configuration.config_env import DatabaseConfig
 from modules.configuration.log_config import logger  # Import the logger
+from modules.emtacdb.forms  import PositionForm
 
 db_config = DatabaseConfig()
 
@@ -31,7 +32,7 @@ def get_tool_packages():
         return jsonify({'error': str(e)}), 500
 
 @tool_blueprint_bp.route('/get_tool_manufacturers', methods=['GET'])
-def get_tool_manufacturer():
+def get_tool_manufacturers():
     """
     Route to fetch all tool manufacturers.
     Returns:
@@ -128,4 +129,72 @@ def get_tool_categories():
 
         # Return a JSON error response with a 500 Internal Server Error status
         return jsonify({'error': 'An unexpected error occurred while fetching tool categories.'}), 500
+
+@tool_blueprint_bp.route('/get_tool_position_associations', methods=['GET', 'POST'])
+def get_tool_position_associations():
+    form = PositionForm()
+    if form.validate_on_submit():
+        logger.info('PositionForm submitted with data: %s', form.data)
+
+        session = db_config.get_main_session()
+        try:
+            # Check if the position already exists
+            position = session.query(Position).filter_by(
+                area=form.area.data,
+                equipment_group=form.equipment_group.data,
+                model=form.model.data,
+                asset_number=form.asset_number.data,
+                location=form.location.data,
+                assembly=form.assembly.data,
+                subassembly=form.subassembly.data,
+                assembly_view=form.assembly_view.data,
+                site_location=form.site_location.data
+            ).first()
+
+            if not position:
+                # Create a new Position
+                position = Position(
+                    area=form.area.data,
+                    equipment_group=form.equipment_group.data,
+                    model=form.model.data,
+                    asset_number=form.asset_number.data,
+                    location=form.location.data,
+                    assembly=form.assembly.data,
+                    subassembly=form.subassembly.data,
+                    assembly_view=form.assembly_view.data,
+                    site_location=form.site_location.data
+                )
+                session.add(position)
+                session.commit()
+                logger.info('New Position created with ID: %s', position.id)
+
+            # Get Tool ID from query parameters
+            tool_id = request.args.get('tool_id')
+            if not tool_id:
+                flash('Tool ID is required!', 'danger')
+                logger.warning('Tool ID is missing in the request.')
+                return redirect(request.url)
+
+            # Create ToolPositionAssociation
+            tool_position_association = ToolPositionAssociation(
+                tool_id=tool_id,
+                position_id=position.id,
+                description=form.position_description.data
+            )
+            session.add(tool_position_association)
+            session.commit()
+            logger.info('ToolPositionAssociation created with Tool ID: %s and Position ID: %s', tool_id, position.id)
+
+            flash('Tool Position Association created successfully!', 'success')
+            return redirect('/get_tool_position_associations')
+
+        except Exception as e:
+            session.rollback()
+            logger.error('Error while processing form: %s', str(e), exc_info=True)
+            flash('An error occurred while processing the request.', 'danger')
+        finally:
+            session.close()
+
+    return render_template('tool_position_association.html', position_form=form)
+
 

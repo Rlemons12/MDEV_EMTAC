@@ -1,28 +1,42 @@
-#tool_search.py
+# tool_search.py
+
 from flask import request, jsonify
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import joinedload
 from blueprints.tool_routes import tool_blueprint_bp
 from modules.emtacdb.emtacdb_fts import Tool, ToolImageAssociation, Image
 from modules.configuration.config_env import DatabaseConfig
+from modules.configuration.log_config import logger
 
 
 db_config = DatabaseConfig()
 
-@tool_blueprint_bp.route('/tool_search', methods=['GET'])
-def tool_search():
+@tool_blueprint_bp.route('/tools_search', methods=['GET'])
+def tools_search():
     """
     Endpoint to search tools based on query parameters, including associated images.
+    Implements pagination and optimized querying.
     """
     try:
-        with db_config.MainSession() as session:
-            # Get query parameters
-            name = request.args.get('name')
-            category_id = request.args.get('category_id')
-            manufacturer_id = request.args.get('manufacturer_id')
+        # Extract query parameters
+        name = request.args.get('name', type=str, default=None)
+        category_id = request.args.get('category_id', type=int, default=None)
+        manufacturer_id = request.args.get('manufacturer_id', type=int, default=None)
+        page = request.args.get('page', type=int, default=1)
+        per_page = request.args.get('per_page', type=int, default=10)
 
-            # Query tools
-            query = session.query(Tool).outerjoin(ToolImageAssociation).outerjoin(Image)
+        logger.debug(f"Search parameters - Name: {name}, Category ID: {category_id}, "
+                     f"Manufacturer ID: {manufacturer_id}, Page: {page}, Per Page: {per_page}")
 
+        with db_config.get_main_session() as session:
+            # Build the base query with eager loading to prevent N+1 queries
+            query = session.query(Tool).options(
+                joinedload(Tool.tool_category),
+                joinedload(Tool.tool_manufacturer),
+                joinedload(Tool.tool_image_association).joinedload(ToolImageAssociation.image)
+            )
+
+            # Apply filters based on query parameters
             if name:
                 query = query.filter(Tool.name.ilike(f'%{name}%'))
             if category_id:
@@ -30,7 +44,11 @@ def tool_search():
             if manufacturer_id:
                 query = query.filter(Tool.tool_manufacturer_id == manufacturer_id)
 
-            tools = query.all()
+            # Implement pagination
+            total = query.count()
+            tools = query.offset((page - 1) * per_page).limit(per_page).all()
+
+            logger.info(f"Found {total} tools matching the criteria. Returning page {page} with {len(tools)} tools.")
 
             # Prepare response data
             tool_data = []
@@ -56,13 +74,22 @@ def tool_search():
                     'images': images,
                 })
 
-            return jsonify(tool_data)
+            # Return paginated response
+            response = {
+                'total': total,
+                'page': page,
+                'per_page': per_page,
+                'tools': tool_data
+            }
+
+            return jsonify(response), 200
 
     except SQLAlchemyError as e:
         # Handle database errors
+        logger.error(f"Database error occurred during tool search: {e}")
         return jsonify({"error": "Database error occurred.", "details": str(e)}), 500
 
     except Exception as e:
         # Handle generic errors
+        logger.error(f"Unexpected error occurred during tool search: {e}")
         return jsonify({"error": "An unexpected error occurred.", "details": str(e)}), 500
-
