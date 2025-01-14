@@ -3,10 +3,11 @@
 import os
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, jsonify
 from werkzeug.utils import secure_filename
+from sqlalchemy.orm import joinedload  # Import for eager loading
 from modules.tool_module.forms import ToolForm, ToolCategoryForm, ToolManufacturerForm, ToolSearchForm
 from modules.emtacdb.emtacdb_fts import (Tool, ToolCategory, ToolManufacturer, ToolPositionAssociation, Position,
-                                        Area,EquipmentGroup,Model,AssetNumber,
-                                        Location,Assembly,SubAssembly,AssemblyView,SiteLocation )
+                                        Area, EquipmentGroup, Model, AssetNumber,
+                                        Location, Assembly, SubAssembly, AssemblyView, SiteLocation, Image)
 from modules.configuration.log_config import logger
 from modules.emtacdb.forms.position_form import PositionForm
 
@@ -20,11 +21,11 @@ def allowed_file(filename):
     """Check if the file has an allowed extension."""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-
 @tool_blueprint_bp.route('/submit_tool_data', methods=['GET', 'POST'])
 def submit_tool_data():
     logger.info("Accessed /submit_tool_data route.")
     print(f'inside submit_tool_data route')
+
     # Access db_config
     db_config = current_app.config.get('db_config')
     if not db_config:
@@ -189,6 +190,7 @@ def submit_tool_data():
                 positions=[]
             )
 
+    # Determine if the request is AJAX
     is_ajax = (request.headers.get('X-Requested-With') == 'XMLHttpRequest')
     logger.debug(f"request.form data: {request.form.to_dict(flat=False)}")
     print("Reached the point before checking request.method...")
@@ -196,7 +198,7 @@ def submit_tool_data():
     if request.method == 'POST':
         print("Inside POST handling...")
 
-        # figure out which form was submitted
+        # Determine which form was submitted
         print("Checking which submit button was used...")
         if 'submit_manufacturer' in request.form:
             form = manufacturer_form
@@ -237,7 +239,6 @@ def submit_tool_data():
                         print("Handling 'category' form logic...")
                         # ... same logic as before ...
                         pass
-
 
                     elif form_name == 'tool':
 
@@ -334,7 +335,7 @@ def submit_tool_data():
 
                             print("Creating `ToolImageAssociation` to link Tool & Image...")
 
-                            tool_image_assoc = ToolImageAssociation(
+                            tool_image_assoc = ToolPositionAssociation(  # **Potential Typo Here**
 
                                 tool=new_tool,
 
@@ -495,22 +496,19 @@ def submit_tool_data():
                             positions=positions
                         )
             else:
-                print(f"Form '{form_name}' did NOT validate or form was missing.")
+                print("No recognized form found or request.method != 'POST'")
+                error_msg = "No valid form submission detected."
+                logger.error(error_msg)
                 if is_ajax:
-                    errors = {field: errs for field, errs in form.errors.items()}
-                    logger.error(f"Form validation failed for {form_name}: {errors}")
-                    return jsonify({'success': False, 'errors': errors}), 400
+                    return jsonify({'success': False, 'message': error_msg}), 400
                 else:
-                    for field, errors in form.errors.items():
-                        for error in errors:
-                            flash(f"Error in {getattr(form, field).label.text}: {error}", 'danger')
-
+                    flash(error_msg, 'danger')
                     try:
                         manufacturers = main_session.query(ToolManufacturer).order_by(ToolManufacturer.name).all()
                         categories = main_session.query(ToolCategory).order_by(ToolCategory.name).all()
                         positions = main_session.query(Position).order_by(Position.id).all()
                     except Exception as e:
-                        logger.error(f"Error fetching data during validation failure: {e}", exc_info=True)
+                        logger.error(f"Error fetching data during unknown form submission: {e}", exc_info=True)
                         manufacturers = []
                         categories = []
                         positions = []
@@ -530,43 +528,78 @@ def submit_tool_data():
                         categories=categories,
                         positions=positions
                     )
-        else:
-            print("No recognized form found or request.method != 'POST'")
-            error_msg = "No valid form submission detected."
-            logger.error(error_msg)
-            if is_ajax:
-                return jsonify({'success': False, 'message': error_msg}), 400
-            else:
-                flash(error_msg, 'danger')
+
+    # Handle AJAX GET requests for tool search
+    elif request.method == 'GET' and is_ajax:
+        print("Handling AJAX GET request for tool search.")
+        try:
+            # Extract query parameters
+            query_params = request.args.to_dict()
+            page = int(query_params.get('page', 1))
+            per_page = int(query_params.get('per_page', 10))
+
+            # Define search filters based on available query parameters
+            filters = []
+            if 'tool_name' in query_params and query_params['tool_name']:
+                filters.append(Tool.name.ilike(f"%{query_params['tool_name']}%"))
+            if 'tool_type' in query_params and query_params['tool_type']:
+                filters.append(Tool.type.ilike(f"%{query_params['tool_type']}%"))
+            if 'tool_category' in query_params and query_params['tool_category']:
                 try:
-                    manufacturers = main_session.query(ToolManufacturer).order_by(ToolManufacturer.name).all()
-                    categories = main_session.query(ToolCategory).order_by(ToolCategory.name).all()
-                    positions = main_session.query(Position).order_by(Position.id).all()
-                except Exception as e:
-                    logger.error(f"Error fetching data during unknown form submission: {e}", exc_info=True)
-                    manufacturers = []
-                    categories = []
-                    positions = []
+                    tool_category_id = int(query_params['tool_category'])
+                    filters.append(Tool.tool_category_id == tool_category_id)
+                except ValueError:
+                    logger.error(f"Invalid tool_category ID: {query_params['tool_category']}")
+            if 'tool_manufacturer' in query_params and query_params['tool_manufacturer']:
+                try:
+                    tool_manufacturer_id = int(query_params['tool_manufacturer'])
+                    filters.append(Tool.tool_manufacturer_id == tool_manufacturer_id)
+                except ValueError:
+                    logger.error(f"Invalid tool_manufacturer ID: {query_params['tool_manufacturer']}")
+            # Add more filters based on other search fields as needed
 
-                return render_template(
-                    'tool_templates/tool_search_entry.html',
-                    tool_form=tool_form,
-                    category_form=category_form,
-                    manufacturer_form=manufacturer_form,
-                    position_form=position_form,
-                    search_tool_form=tool_search_form,
-                    tools=[],
-                    page=1,
-                    per_page=20,
-                    total_pages=0,
-                    manufacturers=manufacturers,
-                    categories=categories,
-                    positions=positions
-                )
+            # Query the database with eager loading to prevent N+1 problem
+            query = main_session.query(Tool).options(
+                joinedload(Tool.tool_category),
+                joinedload(Tool.tool_manufacturer)
+            )
+            if filters:
+                query = query.filter(*filters)
+            total = query.count()
+            tools = query.offset((page - 1) * per_page).limit(per_page).all()
 
-    # end if request.method == 'POST'
+            # Serialize tools data
+            tools_data = []
+            for tool in tools:
+                tools_data.append({
+                    'name': tool.name,
+                    'size': tool.size or 'N/A',
+                    'type': tool.type or 'N/A',
+                    'material': tool.material or 'N/A',
+                    'category': tool.tool_category.name if tool.tool_category else 'N/A',
+                    'manufacturer': tool.tool_manufacturer.name if tool.tool_manufacturer else 'N/A',
+                    'description': tool.description or 'N/A',
+                    'image': tool.get_main_image_url() if hasattr(tool, 'get_main_image_url') else None
+                })
 
-    # If GET request or no post
+            response = {
+                'success': True,
+                'tools': tools_data,
+                'total': total,
+                'page': page,
+                'per_page': per_page,
+                'total_pages': (total + per_page - 1) // per_page
+            }
+
+            logger.info(f"Search successful: {len(tools_data)} tools found.")
+            return jsonify(response), 200
+
+        except Exception as e:
+            error_msg = f"Error processing AJAX search: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            return jsonify({'success': False, 'message': error_msg}), 500
+
+    # If GET request and not AJAX, render the template
     return render_template(
         'tool_templates/tool_search_entry.html',
         tool_form=tool_form,
@@ -578,7 +611,6 @@ def submit_tool_data():
         categories=[],
         positions=[]
     )
-
 
 @tool_blueprint_bp.teardown_app_request
 def remove_session(exception=None):
