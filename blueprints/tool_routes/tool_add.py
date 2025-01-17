@@ -48,13 +48,6 @@ def submit_tool_data():
             )
 
     main_session = db_config.get_main_session()
-    print(f'Instantiate forms')
-    # Instantiate forms
-    tool_form = ToolForm()
-    category_form = ToolCategoryForm()
-    manufacturer_form = ToolManufacturerForm()
-    position_form = PositionForm()
-    tool_search_form = ToolSearchForm()
 
     print("Instantiating forms...")
     tool_form = ToolForm()
