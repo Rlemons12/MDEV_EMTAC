@@ -1,3 +1,5 @@
+<!--templates/position_data_assignment.html -->
+
 {% extends "base.html" %}
 
 {% block extra_head %}
@@ -746,9 +748,8 @@
             </form>
         </div>
 
-
         <!-- Manage Documents Section -->
-<div id="documents-tab" class="tab-content">
+        <div id="documents-tab" class="tab-content">
     <!-- Hidden Field for Position ID -->
     <input type="hidden" id="position_id" name="position_id" value="{{ position.id }}">
 
@@ -770,10 +771,10 @@
     <div id="documents-pagination" class="pagination-controls"></div>
 </div>
 
-<!-- Manage Parts Section -->
-<div id="parts-tab" class="tab-content">
-<!-- Updated Hidden Input for Position ID in Manage Parts -->
-<input type="hidden" id="position_id" name="position_id" value="{{ position.id }}">
+        <!-- Manage Parts Section -->
+        <div id="parts-tab" class="tab-content">
+        <!-- Updated Hidden Input for Position ID in Manage Parts -->
+        <input type="hidden" id="position_id" name="position_id" value="{{ position.id }}">
 
 
     <!-- Parts Search -->
@@ -902,6 +903,11 @@
             <input type="hidden" id="position_id" value="{{ position.id }}">
         </div>
 
+        <!--Manage Tools-->
+        <div id="tool-tab" class="tab-content">
+            {% include 'position_data_assignment/pda_partials/position_data_assignment_tool_management.html' %}
+        </div>
+
     </div>
 </div>
 {% endblock %}
@@ -919,13 +925,13 @@
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
 <!-- Your custom scripts -->
-<script src="{{ url_for('static', filename='js/position_data_assignment_data_add_dependencies.js') }}"></script>
-<script src="{{ url_for('static', filename='js/get_position_data_assignment_data.js') }}"></script>
+<script src="{{ url_for('static', filename='js/position_data_assignment/position_data_assignment_data_add_dependencies.js') }}"></script>
+<script src="{{ url_for('static', filename='js/position_data_assignment/get_position_data_assignment_data.js') }}"></script>
 <script src="{{ url_for('static', filename='js/base_sidebar.js') }}"></script>
-<script src="{{ url_for('static', filename='js/get_position_data_assignment_data_part.js') }}"></script>
-<script src="{{ url_for('static', filename='js/get_position_data_assignment_data_image.js') }}"></script>
-<script src="{{ url_for('static', filename='js/get_position_data_assignment_data_drawing.js') }}"></script>
-<script src="{{ url_for('static', filename='js/get_position_data_assignment_data_document.js') }}"></script>
+<script src="{{ url_for('static', filename='js/position_data_assignment/get_position_data_assignment_data_part.js') }}"></script>
+<script src="{{ url_for('static', filename='js/position_data_assignment/get_position_data_assignment_data_image.js') }}"></script>
+<script src="{{ url_for('static', filename='js/position_data_assignment/get_position_data_assignment_data_drawing.js') }}"></script>
+<script src="{{ url_for('static', filename='js/position_data_assignment/get_position_data_assignment_data_document.js') }}"></script>
 
 <!-- Tab Functionality Script -->
 <script>
@@ -979,5 +985,35 @@
             }
         });
     });
+</script>
+<!-- Handle Flashed Messages with Toastr -->
+<script>
+    // Toastr Options
+    toastr.options = {
+        "closeButton": true,
+        "debug": false,
+        "newestOnTop": false,
+        "progressBar": true,
+        "positionClass": "toast-top-right",
+        "preventDuplicates": false,
+        "onclick": null,
+        "showDuration": "300",
+        "hideDuration": "1000",
+        "timeOut": "5000",
+        "extendedTimeOut": "1000",
+        "showEasing": "swing",
+        "hideEasing": "linear",
+        "showMethod": "fadeIn",
+        "hideMethod": "fadeOut"
+    };
+
+    // Display flashed messages using Toastr
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                toastr["{{ category }}"]("{{ message }}");
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
 </script>
 {% endblock %}
