@@ -14,7 +14,8 @@ db_config = DatabaseConfig()
 session = db_config.get_main_session()
 
 # Create a blueprint for the route
-position_data_assignment_data_add_dependencies_bp = Blueprint('position_data_assignment_data_add_dependencies_bp', __name__)
+position_data_assignment_data_add_dependencies_bp = Blueprint('position_data_assignment_data_add_dependencies_bp',
+                                                __name__, template_folder='../../templates/position_data_assignment')
 
 @position_data_assignment_data_add_dependencies_bp.route('/add_position', methods=['POST'])
 def add_position():
