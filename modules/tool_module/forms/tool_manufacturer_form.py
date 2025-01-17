@@ -11,7 +11,7 @@ class ToolManufacturerForm(FlaskForm):
     description = TextAreaField('Description', validators=[Optional()])
     country = StringField('Country', validators=[Optional()])
     website = StringField('Website URL', validators=[Optional(), URL()])
-    submit = SubmitField('Add Manufacturer')
+    submit = SubmitField('Submit Manufacturer')
 
     '''def validate_name(self, name):
         manufacturer = ToolManufacturer.query.filter_by(name=name.data.strip()).first()
