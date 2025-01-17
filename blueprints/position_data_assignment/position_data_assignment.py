@@ -3,18 +3,19 @@ from werkzeug.utils import secure_filename
 import os
 import logging
 from sqlalchemy.orm import joinedload
-from modules.emtacdb.emtacdb_fts import (Drawing, Part, PartsPositionImageAssociation, DrawingPositionAssociation, CompletedDocumentPositionAssociation,
-                                         Area, EquipmentGroup, Model, AssetNumber, Location, SiteLocation, CompleteDocument,
-                                         Image, Position, ImagePositionAssociation, Assembly,AssemblyView,SubAssembly)
+from modules.emtacdb.emtacdb_fts import (Drawing, Part, PartsPositionImageAssociation, DrawingPositionAssociation,
+                                         CompletedDocumentPositionAssociation,
+                                         Area, EquipmentGroup, Model, AssetNumber, Location, SiteLocation,
+                                         CompleteDocument,
+                                         Image, Position, ImagePositionAssociation, Assembly, AssemblyView, SubAssembly,
+                                         ToolCategory, ToolManufacturer)
 from modules.configuration.config_env import DatabaseConfig
 from modules.configuration.config import ALLOWED_EXTENSIONS
 from sqlalchemy import or_
+from blueprints.position_data_assignment import position_data_assignment_bp
+from modules.configuration.log_config import logger
+from modules.tool_module.forms import ToolSearchForm
 
-# Configure logging
-logger = logging.getLogger(__name__)
-
-# Create the Blueprint
-position_data_assignment_bp = Blueprint('position_data_assignment_bp', __name__, template_folder='templates')
 
 # Initialize DatabaseConfig
 db_config = DatabaseConfig()
@@ -23,8 +24,8 @@ db_config = DatabaseConfig()
 def allowed_file(filename, allowed_extensions=ALLOWED_EXTENSIONS):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
 
-
 # Route for displaying and submitting position data assignment form
+@position_data_assignment_bp.route('/position_data_assignment', methods=['GET', 'POST'])
 @position_data_assignment_bp.route('/position_data_assignment', methods=['GET', 'POST'])
 def position_data_assignment():
     db_session = db_config.get_main_session()
@@ -33,6 +34,8 @@ def position_data_assignment():
 
     if request.method == 'POST':
         try:
+            logger.info("Handling POST request for position_data_assignment.")
+
             # Handle form submission
             area_id = request.form.get('area_id')
             equipment_group_id = request.form.get('equipment_group_id')
@@ -55,12 +58,14 @@ def position_data_assignment():
                 db_session.add(new_asset)
                 db_session.commit()
                 asset_number_id = new_asset.id
+                logger.info(f"Created new AssetNumber with ID {asset_number_id}.")
 
             if not location_id and location_input:
                 new_location = Location(name=location_input, model_id=model_id)
                 db_session.add(new_location)
                 db_session.commit()
                 location_id = new_location.id
+                logger.info(f"Created new Location with ID {location_id}.")
 
             # Handle file uploads
             images = request.files.getlist('images[]')
@@ -68,19 +73,21 @@ def position_data_assignment():
 
             saved_image_paths = []
             for image in images:
-                if image and allowed_file(image.filename):
+                if image and allowed_file(image.filename, ALLOWED_IMAGE_EXTENSIONS):
                     filename = secure_filename(image.filename)
                     image_path = os.path.join('static/uploads/images/', filename)
                     image.save(image_path)
                     saved_image_paths.append(image_path)
+                    logger.info(f"Saved image: {image_path}")
 
             saved_drawing_paths = []
             for drawing in drawings:
-                if drawing and allowed_file(drawing.filename, ['pdf', 'jpg', 'jpeg', 'png']):
+                if drawing and allowed_file(drawing.filename, ALLOWED_DRAWING_EXTENSIONS):
                     filename = secure_filename(drawing.filename)
                     drawing_path = os.path.join('static/uploads/drawings/', filename)
                     drawing.save(drawing_path)
                     saved_drawing_paths.append(drawing_path)
+                    logger.info(f"Saved drawing: {drawing_path}")
 
             # Check if we're updating an existing position or creating a new one
             if position_id:
@@ -88,6 +95,7 @@ def position_data_assignment():
                 position = db_session.query(Position).filter_by(id=position_id).first()
                 if not position:
                     flash('Position not found.', 'error')
+                    logger.error(f"Position with ID {position_id} not found for update.")
                     return redirect(url_for('position_data_assignment_bp.position_data_assignment'))
 
                 # Update position fields
@@ -100,10 +108,11 @@ def position_data_assignment():
                 position.subassembly_id = subassembly_id
                 position.assembly_view_id = assembly_id
                 position.site_location_id = site_location_id
-                position.parts = part_numbers  # Assuming position has a parts relationship or column
+                position.parts = part_numbers  # Ensure this is handled correctly
 
                 db_session.commit()
                 flash('Position Data Updated Successfully!', 'success')
+                logger.info(f"Updated Position ID {position_id} successfully.")
 
             else:
                 # Creating a new position
@@ -123,6 +132,7 @@ def position_data_assignment():
                 db_session.commit()
 
                 flash('Position Data Assigned Successfully!', 'success')
+                logger.info("Created new PositionDataAssignment successfully.")
 
             return redirect(url_for('position_data_assignment_bp.position_data_assignment'))
 
@@ -138,6 +148,7 @@ def position_data_assignment():
     # If it's a GET request, load the form with initial data
     else:
         try:
+            logger.info("Handling GET request for position_data_assignment.")
             areas = db_session.query(Area).all()
             equipment_groups = db_session.query(EquipmentGroup).all()
             models = db_session.query(Model).all()
@@ -153,9 +164,27 @@ def position_data_assignment():
             # Load the position if position_id is provided (for updating)
             if position_id:
                 position = db_session.query(Position).filter_by(id=position_id).first()
+                if not position:
+                    flash('Position not found.', 'error')
+                    logger.error(f"Position with ID {position_id} not found.")
+                    return redirect(url_for('position_data_assignment_bp.position_data_assignment'))
+                logger.info(f"Loaded Position ID {position_id} for updating.")
+
+            # Instantiate the ToolSearchForm
+            tool_search_form = ToolSearchForm()
+            logger.debug("Instantiated ToolSearchForm.")
+
+            # Populate choices for SelectMultipleFields
+            tool_search_form.tool_category.choices = [
+                (c.id, c.name) for c in db_session.query(ToolCategory).order_by(ToolCategory.name).all()
+            ]
+            tool_search_form.tool_manufacturer.choices = [
+                (m.id, m.name) for m in db_session.query(ToolManufacturer).order_by(ToolManufacturer.name).all()
+            ]
+            logger.debug("Populated ToolSearchForm choices for categories and manufacturers.")
 
             return render_template(
-                'position_data_assignment.html',
+                'position_data_assignment/position_data_assignment.html',
                 areas=areas,
                 equipment_groups=equipment_groups,
                 models=models,
@@ -165,7 +194,8 @@ def position_data_assignment():
                 subassemblies=subassemblies,
                 assembly_views=assembly_views,
                 site_locations=site_locations,
-                position=position
+                position=position,
+                tool_search_form=tool_search_form  # Pass the form to the template
             )
 
         except Exception as e:
@@ -471,6 +501,7 @@ def add_site_location():
 def update_position():
     db_session = db_config.get_main_session()
     try:
+        logger.info(f"Initiating update form data from the updated form")
         # Retrieve form data from the update form
         position_id = request.form.get('position_id')
         area_id = request.form.get('area_id')
