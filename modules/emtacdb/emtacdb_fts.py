@@ -768,6 +768,7 @@ class ToolManufacturer(Base):
     __tablename__ = 'tool_manufacturer'
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False, unique=True)
+    description =Column(String, nullable=True)
     country = Column(String, nullable=True)
     website = Column(String, nullable=True)
 
