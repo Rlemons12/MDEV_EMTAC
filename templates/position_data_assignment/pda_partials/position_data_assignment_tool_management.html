@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Tool Management</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/partials/position_data_assignment/position_data_assignment_tool_management.css') }}">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="{{ url_for('static', filename='js/position_data_assignment/pda_partials_tool_management.js') }}"></script>
+</head>
+<body>
+    <div id="toolManagementContainer">
+        <h3>Tool Management</h3>
+
+        <!-- Sub-Tab Navigation -->
+        <div class="sub-tab-container">
+            <ul class="sub-tab-list">
+                <li class="sub-tab-item active" data-subtab="search-tools">Search Tools</li>
+                <li class="sub-tab-item" data-subtab="edit-tools">Edit Tools</li>
+            </ul>
+        </div>
+
+        <!-- Sub-Tab Content Sections -->
+
+        <!-- Search Tools Sub-Tab -->
+        <div id="search-tools" class="sub-tab-content active">
+            <form id="toolManagementForm" method="POST" action="{{ url_for('position_data_assignment_bp.manage_tools') }}">
+                {{ tool_search_form.hidden_tag() }}
+                <!-- Hidden Field for Position ID -->
+                <input type="hidden" id="position_id" name="position_id" value="{{ position.id }}">
+
+
+                <!-- Display Position ID -->
+                <div>
+                    <label>Position ID:</label>
+                    <span id="displayPositionId">{{ position.id }}</span>
+                </div>
+
+
+                <!-- Tool ID -->
+                <div class="form-group">
+                    <label for="tool_id">Tool ID:</label>
+                    <input type="text" id="tool_id" name="tool_id" placeholder="Enter Tool ID">
+                </div>
+
+                        <!-- Tool Name -->
+                <div class="form-group">
+                    <label for="tool_name">Tool Name:</label>
+                    <input type="text" id="tool_name" name="tool_name" placeholder="Enter Tool Name">
+                </div>
+
+                <!-- Manufacturer Dropdown -->
+                <div class="form-group">
+                    <label for="manufacturerDropdown">Manufacturer:</label>
+                    <select name="manufacturer_id" id="manufacturerDropdown">
+                        <option value="">Select Manufacturer</option>
+                        {% for manufacturer in manufacturers %}
+                            <option value="{{ manufacturer.id }}">{{ manufacturer.name }}</option>
+                        {% endfor %}
+                        <option value="new">New Manufacturer...</option>
+                    </select>
+
+                    <!-- Fields for creating a new Manufacturer -->
+                    <div id="newManufacturerFields" style="display:none; margin-top: 10px;">
+                        <h4>Add New Manufacturer</h4>
+                        <label for="new_manufacturer_name">Manufacturer Name:</label>
+                        <input type="text" id="new_manufacturer_name" name="new_manufacturer_name" placeholder="Enter Manufacturer Name">
+
+                        <label for="new_manufacturer_description">Manufacturer Description:</label>
+                        <textarea id="new_manufacturer_description" name="new_manufacturer_description" placeholder="Enter Description"></textarea>
+                    </div>
+                </div>
+
+                <!-- Model Dropdown -->
+                <div class="form-group">
+                    <label for="modelDropdown">Model:</label>
+                    <select name="model_id" id="modelDropdown">
+                        <option value="">Select Model</option>
+                        {% for model in models %}
+                            <option value="{{ model.id }}">{{ model.name }}</option>
+                        {% endfor %}
+                        <option value="new">New Model...</option>
+                    </select>
+
+                    <!-- Fields for creating a new Model -->
+                    <div id="newModelFields" style="display:none; margin-top: 10px;">
+                        <h4>Add New Model</h4>
+                        <label for="new_model_name">Model Name:</label>
+                        <input type="text" id="new_model_name" name="new_model_name" placeholder="Enter Model Name">
+
+                        <label for="new_model_description">Model Description:</label>
+                        <textarea id="new_model_description" name="new_model_description" placeholder="Enter Description"></textarea>
+                    </div>
+                </div>
+
+                <!-- Tool Type Dropdown -->
+                <div class="form-group">
+                    <label for="toolTypeDropdown">Tool Type:</label>
+                    <select name="tool_type_id" id="toolTypeDropdown">
+                        <option value="">Select Tool Type</option>
+                        {% for type in tool_types %}
+                            <option value="{{ type.id }}">{{ type.name }}</option>
+                        {% endfor %}
+                        <option value="new">New Tool Type...</option>
+                    </select>
+
+                    <!-- Fields for creating a new Tool Type -->
+                    <div id="newToolTypeFields" style="display:none; margin-top: 10px;">
+                        <h4>Add New Tool Type</h4>
+                        <label for="new_tool_type_name">Tool Type Name:</label>
+                        <input type="text" id="new_tool_type_name" name="new_tool_type_name" placeholder="Enter Tool Type Name">
+
+                        <label for="new_tool_type_description">Tool Type Description:</label>
+                        <textarea id="new_tool_type_description" name="new_tool_type_description" placeholder="Enter Description"></textarea>
+                    </div>
+                </div>
+
+                <!-- Search Button -->
+                <button type="submit" id="toolSearchBtn">Search Tools</button>
+            </form>
+
+            <!-- Results Section -->
+            <div id="toolSearchResults" style="margin-top: 20px;">
+                {% if searched_tools %}
+                    <table class="tools-table">
+                        <thead>
+                            <tr>
+                                <th>Tool ID</th>
+                                <th>Name</th>
+                                <th>Manufacturer</th>
+                                <th>Model</th>
+                                <th>Type</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for tool in searched_tools %}
+                                <tr>
+                                    <td>{{ tool.id }}</td>
+                                    <td>{{ tool.name }}</td>
+                                    <td>{{ tool.tool_manufacturer.name }}</td>
+                                    <td>{{ tool.model.name if tool.model else 'N/A' }}</td>
+                                    <td>{{ tool.type or 'N/A' }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <p>No tools found.</p>
+                {% endif %}
+            </div>
+        </div>
+
+    <!-- Edit Tools Sub-Tab -->
+    <div id="edit-tools" class="sub-tab-content" style="display:none;">
+        <!-- Edit Tools Content -->
+        <div id="editToolsContainer">
+            <h4>Associated Tools</h4>
+            <table class="tools-table">
+                <thead>
+                    <tr>
+                        <th>Tool ID</th>
+                        <th>Name</th>
+                        <th>Manufacturer</th>
+                        <th>Model</th>
+                        <th>Type</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for association in tool_associations %}
+                        {% if association.tool %}
+                            <tr id="tool-{{ association.tool.id }}">
+                                <td>{{ association.tool.id }}</td>
+                                <td>{{ association.tool.name }}</td>
+                                <td>{{ association.tool.tool_manufacturer.name }}</td>
+                                <td>{{ association.tool.model.name if association.tool.model else 'N/A' }}</td>
+                                <td>{{ association.tool.type or 'N/A' }}</td>
+                                <td>
+                                    <button type="button" class="edit-tool-button" data-tool-id="{{ association.tool.id }}">Edit</button>
+                                    <button type="button" class="delete-tool-button" data-tool-id="{{ association.tool.id }}">Delete</button>
+                                </td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="6">Associated tool data is missing.</td>
+                            </tr>
+                        {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Edit Tool Modal (Hidden by Default) -->
+        <div id="editToolModal" class="modal" style="display:none;">
+            <div class="modal-content">
+                <span class="close-button">&times;</span>
+                <h3>Edit Tool</h3>
+                <form id="editToolForm" method="post">
+                    <!-- Hidden Field for Tool ID -->
+                    <input type="hidden" id="edit_tool_id" name="edit_tool_id" value="">
+
+                    <!-- Tool Name -->
+                    <div class="form-group">
+                        <label for="edit_tool_name">Tool Name:</label>
+                        <input type="text" id="edit_tool_name" name="edit_tool_name" placeholder="Enter Tool Name" required>
+                    </div>
+
+                    <!-- Manufacturer Dropdown -->
+                    <div class="form-group">
+                        <label for="edit_manufacturerDropdown">Manufacturer:</label>
+                        <select name="edit_manufacturer_id" id="edit_manufacturerDropdown" required>
+                            <option value="">Select Manufacturer</option>
+                            {% for manufacturer in manufacturers %}
+                                <option value="{{ manufacturer.id }}">{{ manufacturer.name }}</option>
+                            {% endfor %}
+                            <option value="new">New Manufacturer...</option>
+                        </select>
+
+                        <!-- Fields for creating a new Manufacturer -->
+                        <div id="editNewManufacturerFields" style="display:none; margin-top: 10px;">
+                            <h4>Add New Manufacturer</h4>
+                            <label for="edit_new_manufacturer_name">Manufacturer Name:</label>
+                            <input type="text" id="edit_new_manufacturer_name" name="edit_new_manufacturer_name" placeholder="Enter Manufacturer Name">
+
+                            <label for="edit_new_manufacturer_description">Manufacturer Description:</label>
+                            <textarea id="edit_new_manufacturer_description" name="edit_new_manufacturer_description" placeholder="Enter Description"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Model Dropdown -->
+                    <div class="form-group">
+                        <label for="edit_modelDropdown">Model:</label>
+                        <select name="edit_model_id" id="edit_modelDropdown">
+                            <option value="">Select Model</option>
+                            {% for model in models %}
+                                <option value="{{ model.id }}">{{ model.name }}</option>
+                            {% endfor %}
+                            <option value="new">New Model...</option>
+                        </select>
+
+                        <!-- Fields for creating a new Model -->
+                        <div id="editNewModelFields" style="display:none; margin-top: 10px;">
+                            <h4>Add New Model</h4>
+                            <label for="edit_new_model_name">Model Name:</label>
+                            <input type="text" id="edit_new_model_name" name="edit_new_model_name" placeholder="Enter Model Name">
+
+                            <label for="edit_new_model_description">Model Description:</label>
+                            <textarea id="edit_new_model_description" name="edit_new_model_description" placeholder="Enter Description"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Tool Type Dropdown -->
+                    <div class="form-group">
+                        <label for="edit_toolTypeDropdown">Tool Type:</label>
+                        <select name="edit_tool_type_id" id="edit_toolTypeDropdown">
+                            <option value="">Select Tool Type</option>
+                            {% for type in tool_types %}
+                                <option value="{{ type.id }}">{{ type.name }}</option>
+                            {% endfor %}
+                            <option value="new">New Tool Type...</option>
+                        </select>
+
+                        <!-- Fields for creating a new Tool Type -->
+                        <div id="editNewToolTypeFields" style="display:none; margin-top: 10px;">
+                            <h4>Add New Tool Type</h4>
+                            <label for="edit_new_tool_type_name">Tool Type Name:</label>
+                            <input type="text" id="edit_new_tool_type_name" name="edit_new_tool_type_name" placeholder="Enter Tool Type Name">
+
+                            <label for="edit_new_tool_type_description">Tool Type Description:</label>
+                            <textarea id="edit_new_tool_type_description" name="edit_new_tool_type_description" placeholder="Enter Description"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit">Update Tool</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript to Handle Dynamic Fields -->
+<head>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="{{ url_for('static', filename='js/position_data_assignment/pda_partials_tool_management.js') }}"></script>
+</head>
+
+
+<script>
+    $(document).ready(function() {
+        // Toggle New Manufacturer Fields
+        $('#manufacturerDropdown').on('change', function() {
+            if ($(this).val() === 'new') {
+                $('#newManufacturerFields').slideDown();
+            } else {
+                $('#newManufacturerFields').slideUp();
+            }
+        });
+
+        // Toggle New Model Fields
+        $('#modelDropdown').on('change', function() {
+            if ($(this).val() === 'new') {
+                $('#newModelFields').slideDown();
+            } else {
+                $('#newModelFields').slideUp();
+            }
+        });
+
+        // Toggle New Tool Type Fields
+        $('#toolTypeDropdown').on('change', function() {
+            if ($(this).val() === 'new') {
+                $('#newToolTypeFields').slideDown();
+            } else {
+                $('#newToolTypeFields').slideUp();
+            }
+        });
+    });
+</script>
