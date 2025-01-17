@@ -179,7 +179,7 @@ def create_app():
     @app.route('/position_data_assignment')
     def position_data_assignment():
         logger.debug("Rendering position_data_assignment page.")
-        return render_template('position_data_assignment.html')
+        return render_template('position_data_assignment/position_data_assignment.html')
 
     """@app.route('/pst_troubleshooting')
     def pst_troubleshooting_page():
