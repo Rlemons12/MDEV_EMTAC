@@ -14,7 +14,7 @@ position_data_assignment_bp = Blueprint('position_data_assignment_bp', __name__)
 # Initialize DatabaseConfig
 db_config = DatabaseConfig()
 
-@position_data_assignment_bp.route('/manage_tools', methods=['GET', 'POST'])
+'''@position_data_assignment_bp.route('/manage_tools', methods=['GET', 'POST'])
 def manage_tools():
     logger.info("Accessed /manage_tools route.")
 
@@ -156,6 +156,7 @@ def manage_tools():
     finally:
         session.close()
         logger.debug("Database session closed.")
+'''
 
 @position_data_assignment_bp.route('/edit_tool/<int:tool_id>', methods=['GET', 'POST'])
 def edit_tool(tool_id):
@@ -196,3 +197,193 @@ def edit_tool(tool_id):
 
     return render_template('position_data_assignment/pda_partials/edit_tool.html', tool=tool,
                            manufacturers=manufacturers, categories=categories)
+
+@position_data_assignment_bp.route('/pda_add_tool_to_position', methods=['POST'])
+def pda_add_tool_to_position():
+    """
+    Creates a ToolPositionAssociation for an existing Tool and Position.
+    Expects JSON body: { "tool_id": <int>, "position_id": <int> }
+    """
+    try:
+        data = request.get_json()
+        tool_id = data.get('tool_id')
+        position_id = data.get('position_id')
+
+        if not tool_id or not position_id:
+            return jsonify({'message': 'tool_id and position_id are required'}), 400
+
+        with db_config.get_main_session() as session:
+            # Verify the tool actually exists
+            tool = session.query(Tool).filter_by(id=tool_id).first()
+            if not tool:
+                return jsonify({'message': 'Tool not found'}), 404
+
+            # Verify the position actually exists
+            position = session.query(Position).filter_by(id=position_id).first()
+            if not position:
+                return jsonify({'message': 'Position not found'}), 404
+
+            # Check if the association already exists
+            existing_assoc = session.query(ToolPositionAssociation).filter_by(
+                tool_id=tool_id, position_id=position_id
+            ).first()
+            if existing_assoc:
+                return jsonify({'message': 'Tool is already associated with this position'}), 409
+
+            # Create a new association
+            new_assoc = ToolPositionAssociation(tool_id=tool_id, position_id=position_id)
+            session.add(new_assoc)
+            session.commit()
+
+            logger.info(f"Added Tool ID {tool_id} to Position ID {position_id}")
+
+            return jsonify({
+                'message': 'Tool successfully added to position',
+                'tool_id': tool.id,
+                'tool_name': tool.name
+            }), 200
+
+    except Exception as e:
+        logger.error(f"Error adding tool to position: {e}", exc_info=True)
+        return jsonify({'message': 'Failed to add tool to position'}), 500
+
+@position_data_assignment_bp.route('/pda_remove_tool_from_position', methods=['POST'])
+def pda_remove_tool_from_position():
+    """
+    Removes a ToolPositionAssociation record.
+    Expects JSON body: { "tool_id": <int>, "position_id": <int> }
+    """
+    try:
+        data = request.get_json()
+        tool_id = data.get('tool_id')
+        position_id = data.get('position_id')
+
+        if not tool_id or not position_id:
+            return jsonify({'message': 'tool_id and position_id are required'}), 400
+
+        with db_config.get_main_session() as session:
+            # Find the association
+            assoc = session.query(ToolPositionAssociation).filter_by(
+                tool_id=tool_id, position_id=position_id
+            ).first()
+
+            if not assoc:
+                return jsonify({'message': 'Tool is not associated with this position'}), 404
+
+            # Remove the association
+            session.delete(assoc)
+            session.commit()
+
+            logger.info(f"Removed Tool ID {tool_id} from Position ID {position_id}")
+            return jsonify({'message': 'Tool successfully removed from position'}), 200
+
+    except Exception as e:
+        logger.error(f"Error removing tool from position: {e}", exc_info=True)
+        return jsonify({'message': 'Failed to remove tool from position'}), 500
+
+@position_data_assignment_bp.route('/pda_get_tools_by_position', methods=['GET'])
+def pda_get_tools_by_position():
+    """
+    Returns a JSON list of tools associated with a specific position.
+    Endpoint: /pda_get_tools_by_position?position_id=<some_id>
+    """
+    try:
+        # Grab position_id from the query string
+        position_id = request.args.get('position_id', type=int)
+        if not position_id:
+            return jsonify({'message': 'No position_id provided'}), 400
+
+        with db_config.get_main_session() as session:
+            # Verify the position exists
+            position = session.query(Position).filter_by(id=position_id).first()
+            if not position:
+                return jsonify({'message': 'Position not found'}), 404
+
+            # Fetch all tool-position associations for this position
+            associations = session.query(ToolPositionAssociation)\
+                                  .filter_by(position_id=position_id)\
+                                  .all()
+            if not associations:
+                # If no associated tools, return an empty list
+                return jsonify({'tools': []}), 200
+
+            # Gather tool IDs
+            tool_ids = [assoc.tool_id for assoc in associations]
+
+            # Fetch those tools
+            tools = session.query(Tool).filter(Tool.id.in_(tool_ids)).all()
+
+            # Serialize tool data
+            tools_list = []
+            for t in tools:
+                tools_list.append({
+                    'id': t.id,
+                    'name': t.name,
+                    'size': t.size or '',
+                    'type': t.type or '',
+                    'material': t.material or '',
+                    'description': t.description or '',
+                    'manufacturer': t.tool_manufacturer.name if t.tool_manufacturer else '',
+                    'category': t.tool_category.name if t.tool_category else ''
+                })
+
+            return jsonify({'tools': tools_list}), 200
+
+    except Exception as e:
+        logger.error(f"Error fetching tools by position: {e}", exc_info=True)
+        return jsonify({'message': 'Failed to fetch tools by position'}), 500
+
+
+@position_data_assignment_bp.route('/pda_search_tools', methods=['POST'])
+def pda_search_tools():
+    try:
+        session = db_config.get_main_session()
+
+        # Since we're receiving form-encoded data (not JSON), just do this:
+        name = request.form.get('tool_name', '').strip()
+        size = request.form.get('tool_size', '').strip()
+        tool_type = request.form.get('tool_type', '').strip()
+        material = request.form.get('tool_material', '').strip()
+        category_id = request.form.get('tool_category_id')
+        manufacturer_id = request.form.get('tool_manufacturer_id')
+
+        # Then build your query based on the form fields.
+        query = session.query(Tool)
+        if name:
+            query = query.filter(Tool.name.ilike(f"%{name}%"))
+        if size:
+            query = query.filter(Tool.size.ilike(f"%{size}%"))
+        if tool_type:
+            query = query.filter(Tool.type.ilike(f"%{tool_type}%"))
+        if material:
+            query = query.filter(Tool.material.ilike(f"%{material}%"))
+        if category_id:
+            query = query.filter(Tool.tool_category_id == category_id)
+        if manufacturer_id:
+            query = query.filter(Tool.tool_manufacturer_id == manufacturer_id)
+
+        results = query.all()
+
+        # Serialize into JSON
+        tools_data = []
+        for t in results:
+            tools_data.append({
+                'id': t.id,
+                'name': t.name,
+                'size': t.size or '',
+                'type': t.type or '',
+                'material': t.material or '',
+                'tool_category': t.tool_category.name if t.tool_category else '',
+                'tool_manufacturer': t.tool_manufacturer.name if t.tool_manufacturer else ''
+            })
+
+        return jsonify({'tools': tools_data}), 200
+
+    except Exception as e:
+        logger.error(f"Error in /pda_search_tools: {e}", exc_info=True)
+        return jsonify({'message': 'An error occurred while searching for tools'}), 500
+
+    finally:
+        session.close()
+
+

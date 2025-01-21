@@ -1,4 +1,4 @@
-
+    // static/js/position_data_assignment/get_position_data_assignment_data.js
     // ============================
     // Define Your API Endpoints Using Flask's url_for
     // ============================
@@ -349,33 +349,48 @@
             button.parentElement.remove();
         }
 
-        // ============================
-        // Search Position Button Click Event
-        // ============================
-        $('#searchPositionBtn').click(function () {
-            $.ajax({
-                url: getPositionsUrl,
-                method: 'GET',
-                data: $('#searchPositionForm').serialize(),
-                success: function (data) {
-                    clearAllSections();
+       // ============================
+// Search Position Button Click Event
+// ============================
+$('#searchPositionBtn').click(function () {
+    $.ajax({
+        url: getPositionsUrl, // Ensure this variable is defined with the correct URL
+        method: 'GET',
+        data: $('#searchPositionForm').serialize(),
+        success: function (data) {
+            clearAllSections(); // Clear previous results
 
-                    data.forEach(function (position) {
-                        console.log('Position Data:', position);
+            if (data && Array.isArray(data)) {
+                data.forEach(function (position) {
+                    console.log('Position Data:', position);
 
-                        setPositionDetails(position);
-                        renderParts(position.parts);
-                        renderImages(position.images);
-                        renderDocuments(position.documents);
-                        renderDrawings(position.drawings);
-                    });
-                },
-                error: function (xhr, status, error) {
-                    console.error("Error fetching positions:", error);
-                    alert("An error occurred while fetching positions.");
-                }
-            });
-        });
+                    // Populate position details on the page
+                    setPositionDetails(position); // Ensure this function sets the #position_id
+
+                    // Render associated entities
+                    renderParts(position.parts);
+                    renderImages(position.images);
+                    renderDocuments(position.documents);
+                    renderDrawings(position.drawings);
+
+                    // After setting the position details, fetch associated tools
+                    var positionId = $('#position_id').val();
+                    if (positionId) {
+                        // Call the global ToolManagement's fetchAssociatedTools method
+                        window.ToolManagement.fetchAssociatedTools(positionId);
+                    }
+                });
+            } else {
+                alert("No positions found.");
+            }
+        },
+        error: function (xhr, status, error) {
+            console.error("Error fetching positions:", error);
+            alert("An error occurred while fetching positions.");
+        }
+    });
+});
+
 
         // ============================
         // Function to Clear All Sections Before Rendering
