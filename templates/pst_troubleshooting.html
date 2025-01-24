@@ -411,23 +411,28 @@
             </div>
             <button type="button" id="updateTaskDetailsBtn" class="btn btn-primary">Update Task Name and Description</button>
 
-            <ul class="nav nav-tabs mt-3" id="editTaskSubTabs" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="task-details-tab" data-bs-toggle="tab" data-bs-target="#task-details" type="button" role="tab" aria-controls="task-details" aria-selected="true">Task Details</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="task-images-tab" data-bs-toggle="tab" data-bs-target="#task-images" type="button" role="tab" aria-controls="task-images" aria-selected="false">Images</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="task-parts-tab" data-bs-toggle="tab" data-bs-target="#task-parts" type="button" role="tab" aria-controls="task-parts" aria-selected="false">Parts</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="task-drawings-tab" data-bs-toggle="tab" data-bs-target="#task-drawings" type="button" role="tab" aria-controls="task-drawings" aria-selected="false">Drawings</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="task-documents-tab" data-bs-toggle="tab" data-bs-target="#task-documents" type="button" role="tab" aria-controls="task-documents" aria-selected="false">Documents</button>
-                </li>
-            </ul>
+            <!-- Sub Tabs Navigation -->
+                <ul class="nav nav-tabs mt-3" id="editTaskSubTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="task-details-tab" data-bs-toggle="tab" data-bs-target="#task-details" type="button" role="tab" aria-controls="task-details" aria-selected="true">Task Details</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="task-images-tab" data-bs-toggle="tab" data-bs-target="#task-images" type="button" role="tab" aria-controls="task-images" aria-selected="false">Images</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="task-parts-tab" data-bs-toggle="tab" data-bs-target="#task-parts" type="button" role="tab" aria-controls="task-parts" aria-selected="false">Parts</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="task-drawings-tab" data-bs-toggle="tab" data-bs-target="#task-drawings" type="button" role="tab" aria-controls="task-drawings" aria-selected="false">Drawings</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="task-documents-tab" data-bs-toggle="tab" data-bs-target="#task-documents" type="button" role="tab" aria-controls="task-documents" aria-selected="false">Documents</button>
+                    </li>
+                    <!-- **New "Tools" Tab Button (Moved Inside the <ul>)** -->
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="task-tools-tab" data-bs-toggle="tab" data-bs-target="#task-tools" type="button" role="tab" aria-controls="task-tools" aria-selected="false">Tools</button>
+                    </li>
+                </ul>
 
             <div class="tab-content mt-3" id="editTaskSubTabContent">
                 <div class="tab-pane fade show active" id="task-details" role="tabpanel" aria-labelledby="task-details-tab">
@@ -472,6 +477,24 @@
                     <button id="saveImagesBtn" class="btn btn-primary mt-2">Save Images</button>
                     <div id="pst_task_edit_selected_images" class="selected-items-display-box mt-2"></div>
                 </div>
+
+                <!-- **New "Tools" Tab Pane** -->
+               <div class="tab-pane fade" id="task-tools" role="tabpanel" aria-labelledby="task-tools-tab">
+                        <h6>Tools Configuration</h6>
+                        <div class="mb-3">
+                            <label for="pst_task_edit_task_tools" class="form-label">Available Tools</label>
+                            <select class="form-select" id="pst_task_edit_task_tools" multiple>
+                                <option value="" disabled>Select or search for tools</option>
+                                <!-- Add tool options here -->
+                                <option value="tool1">Tool 1</option>
+                                <option value="tool2">Tool 2</option>
+                                <option value="tool3">Tool 3</option>
+                                <!-- ... -->
+                            </select>
+                        </div>
+                        <button id="saveToolsBtn" class="btn btn-primary mt-2">Save Tools</button>
+                        <div id="pst_task_edit_selected_tools" class="selected-items-display-box mt-2"></div>
+                    </div>
 
                 <template id="position-template">
                 <div class="position-section border p-3 mb-3" data-position-id="temp-__UNIQUE__">
@@ -558,7 +581,7 @@
             </template>
 
 
-            </div> 
+            </div>
         </div> <!-- End of Edit Task Tab Pane -->
     </div> <!-- End of Tab Content -->
 </div> <!-- End of Main Container -->

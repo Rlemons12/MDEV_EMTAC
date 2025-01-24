@@ -1,3 +1,5 @@
+<!--templates/position_data_assignment/pda_partials/position_data_assignment_tool_management.html-->
+
 <!-- No doctype, no <head>, no <body> -->
 <div id="toolManagementContainer">
     <h3>Tool Management</h3>
@@ -16,12 +18,29 @@
 
     <!-- Sub-Tab Content Sections -->
 
-    <!-- 1) Associated Tools (Default) -->
     <div id="associated-tools" class="sub-tab-content active">
-        <h4>Currently Associated Tools</h4>
-        <p>Placeholder for associated tools. Will eventually list them here.</p>
-        <button type="button" id="goToAddToolsBtn">Add a Tool</button>
+      <h4>Currently Associated Tools</h4>
+
+      <!-- Table where we'll inject the associated tools via JS -->
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Manufacturer</th>
+            <th>Type</th>
+            <th>Material</th>
+            <th>Category</th>
+          </tr>
+        </thead>
+        <tbody id="associatedToolsTableBody">
+          <!-- Tools will be dynamically populated here by renderAssociatedTools() -->
+        </tbody>
+      </table>
+
+      <button type="button" id="goToAddToolsBtn">Add a Tool</button>
     </div>
+
 
     <!-- 2) Add/Search Tools -->
     <div id="add-search-tools" class="sub-tab-content" style="display:none;">

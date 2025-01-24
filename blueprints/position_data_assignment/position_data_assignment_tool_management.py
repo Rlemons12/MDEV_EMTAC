@@ -333,7 +333,6 @@ def pda_get_tools_by_position():
         logger.error(f"Error fetching tools by position: {e}", exc_info=True)
         return jsonify({'message': 'Failed to fetch tools by position'}), 500
 
-
 @position_data_assignment_bp.route('/pda_search_tools', methods=['POST'])
 def pda_search_tools():
     try:

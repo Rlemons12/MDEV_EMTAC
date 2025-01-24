@@ -2,46 +2,16 @@
 import os
 import traceback
 from flask import Blueprint, request, redirect, url_for, jsonify, flash, render_template
-import logging
 
 from blueprints.assembly_routes import submit_assembly
 from modules.configuration.config_env import DatabaseConfig
 from modules.emtacdb.emtacdb_fts import (Drawing, Task, ImageTaskAssociation, Part, Solution, Position, Image,
                                          TaskPositionAssociation, PartTaskAssociation, DrawingTaskAssociation, CompleteDocumentTaskAssociation, CompleteDocument,
                                          Area, EquipmentGroup, AssetNumber,Assembly,SubAssembly,AssemblyView,
-                                         Model, Location, SiteLocation, TaskSolutionAssociation)
+                                         Model, Location, SiteLocation, TaskSolutionAssociation,Tool, TaskToolAssociation)
 from sqlalchemy import or_
 from sqlalchemy.exc import SQLAlchemyError
-from logging.handlers import RotatingFileHandler
-
-# Setup logging
-def setup_logger():
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.DEBUG)
-
-    log_directory = 'logs'
-    if not os.path.exists(log_directory):
-        os.makedirs(log_directory)
-
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
-
-    file_handler = RotatingFileHandler(
-        os.path.join(log_directory, 'app.log'), maxBytes=5 * 1024 * 1024, backupCount=5
-    )
-    file_handler.setLevel(logging.DEBUG)
-
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    console_handler.setFormatter(formatter)
-    file_handler.setFormatter(formatter)
-
-    if not logger.handlers:
-        logger.addHandler(console_handler)
-        logger.addHandler(file_handler)
-
-    return logger
-
-logger = setup_logger()
+from modules.configuration.log_config import logger
 
 # Initialize DatabaseConfig
 db_config = DatabaseConfig()
@@ -211,8 +181,11 @@ def edit_update_task():
     selected_document_ids = form_data.getlist('edit_document[]')
     selected_part_ids = form_data.getlist('edit_part[]')
     selected_drawing_ids = form_data.getlist('edit_drawing[]')
-    logger.debug(f"Parsed Associated IDs - Image IDs: {selected_task_image_ids}, Document IDs: {selected_document_ids}, Part IDs: {selected_part_ids}, Drawing IDs: {selected_drawing_ids}")
+    selected_tool_ids = form_data.getlist('edit_tool[]')  # New line for tools
+    logger.debug(f"Parsed Associated IDs - Image IDs: {selected_task_image_ids}, Document IDs: {selected_document_ids},"
+                 f" Part IDs: {selected_part_ids}, Drawing IDs: {selected_drawing_ids}, Tool IDs: {selected_tool_ids}")
 
+    # Start a database session
     session = db_config.get_main_session()
 
     try:
@@ -227,18 +200,56 @@ def edit_update_task():
             return render_template('troubleshooting_guide.html'), 404
 
         # Update various task-specific associations
-        update_associations(session, ImageTaskAssociation, 'task_id', task_id, selected_task_image_ids,
-                            'image_id', lambda tid, iid: ImageTaskAssociation(task_id=tid, image_id=iid),
-                            'ImageTaskAssociation')
-        update_associations(session, CompleteDocumentTaskAssociation, 'task_id', task_id, selected_document_ids,
-                            'complete_document_id', lambda tid, did: CompleteDocumentTaskAssociation(task_id=tid, complete_document_id=did),
-                            'CompleteDocumentTaskAssociation')
-        update_associations(session, PartTaskAssociation, 'task_id', task_id, selected_part_ids,
-                            'part_id', lambda tid, partid: PartTaskAssociation(task_id=tid, part_id=partid),
-                            'PartTaskAssociation')
-        update_associations(session, DrawingTaskAssociation, 'task_id', task_id, selected_drawing_ids,
-                            'drawing_id', lambda tid, drawingid: DrawingTaskAssociation(task_id=tid, drawing_id=drawingid),
-                            'DrawingTaskAssociation')
+        update_associations(
+            session=session,
+            model=ImageTaskAssociation,
+            filter_field='task_id',
+            target_id=task_id,
+            item_ids=selected_task_image_ids,
+            assoc_field='image_id',
+            assoc_data_func=lambda tid, iid: ImageTaskAssociation(task_id=tid, image_id=iid),
+            assoc_name='ImageTaskAssociation'
+        )
+        update_associations(
+            session=session,
+            model=CompleteDocumentTaskAssociation,
+            filter_field='task_id',
+            target_id=task_id,
+            item_ids=selected_document_ids,
+            assoc_field='complete_document_id',
+            assoc_data_func=lambda tid, did: CompleteDocumentTaskAssociation(task_id=tid, complete_document_id=did),
+            assoc_name='CompleteDocumentTaskAssociation'
+        )
+        update_associations(
+            session=session,
+            model=PartTaskAssociation,
+            filter_field='task_id',
+            target_id=task_id,
+            item_ids=selected_part_ids,
+            assoc_field='part_id',
+            assoc_data_func=lambda tid, partid: PartTaskAssociation(task_id=tid, part_id=partid),
+            assoc_name='PartTaskAssociation'
+        )
+        update_associations(
+            session=session,
+            model=DrawingTaskAssociation,
+            filter_field='task_id',
+            target_id=task_id,
+            item_ids=selected_drawing_ids,
+            assoc_field='drawing_id',
+            assoc_data_func=lambda tid, drawingid: DrawingTaskAssociation(task_id=tid, drawing_id=drawingid),
+            assoc_name='DrawingTaskAssociation'
+        )
+        update_associations(
+            session=session,
+            model=TaskToolAssociation,
+            filter_field='task_id',
+            target_id=task_id,
+            item_ids=selected_tool_ids,
+            assoc_field='tool_id',
+            assoc_data_func=lambda tid, toolid: TaskToolAssociation(task_id=tid, tool_id=toolid),
+            assoc_name='TaskToolAssociation'
+        )
 
         # Commit transaction
         session.commit()
@@ -1041,6 +1052,167 @@ def remove_task_image():
         session.rollback()
         logger.exception("An unexpected error occurred while removing image from task.")
         return jsonify({'status': 'error', 'message': 'An unexpected error occurred.'}), 500
+
+    finally:
+        session.close()
+
+@pst_troubleshooting_guide_edit_update_bp.route('/search_tools', methods=['GET'])
+def search_tools():
+    # Get the search query parameter from the request
+    search_term = request.args.get('q', '').strip()
+    logger.info(f"Searching tools with term: '{search_term}'")
+
+    # Start a database session
+    session = db_config.get_main_session()
+
+    try:
+        if not search_term:
+            logger.warning("Empty search term received for tools.")
+            return jsonify({'error': 'No search term provided.'}), 400
+
+        # Query to find tools by name or description
+        tools = session.query(Tool).filter(
+            or_(
+                Tool.name.ilike(f'%{search_term}%'),
+                Tool.description.ilike(f'%{search_term}%')
+            )
+        ).limit(10).all()
+
+        # Format results for JSON response
+        results = [{
+            'id': tool.id,
+            'name': tool.name,
+            'size': tool.size,
+            'type': tool.type,
+            'material': tool.material,
+            'description': tool.description
+        } for tool in tools]
+
+        logger.info(f"Found {len(results)} tools matching search term '{search_term}'")
+
+        return jsonify(results), 200
+
+    except Exception as e:
+        error_trace = traceback.format_exc()
+        logger.error(f"Error occurred while searching tools: {error_trace}")
+        return jsonify({'error': 'An error occurred while searching for tools.'}), 500
+
+    finally:
+        session.close()
+
+@pst_troubleshooting_guide_edit_update_bp.route('/save_task_tools', methods=['POST'])
+def save_task_tools():
+    """Save selected tools for a specific task."""
+    data = request.get_json()
+    task_id = data.get('task_id')
+    tool_ids = data.get('tool_ids', [])
+
+    # Validate inputs
+    if not task_id or not isinstance(tool_ids, list):
+        logger.warning("Invalid input data received in save_task_tools.")
+        return jsonify({'status': 'error', 'message': 'Invalid input data.'}), 400
+
+    # Start a database session
+    # Start a database session
+    session = db_config.get_main_session()
+
+    try:
+        # Retrieve the task
+        task = session.query(Task).filter_by(id=task_id).first()
+        if not task:
+            logger.warning(f"Task with ID {task_id} not found.")
+            return jsonify({'status': 'error', 'message': 'Task not found.'}), 404
+
+        # Retrieve existing tool associations for the task
+        existing_associations = session.query(TaskToolAssociation).filter_by(task_id=task_id).all()
+        existing_tool_ids = {assoc.tool_id for assoc in existing_associations}
+
+        # Convert tool_ids to integers and remove duplicates
+        new_tool_ids = set(map(int, tool_ids))
+
+        # Determine which tool associations to add and which to remove
+        to_add = new_tool_ids - existing_tool_ids
+        to_remove = existing_tool_ids - new_tool_ids
+
+        # Remove associations that are no longer selected
+        if to_remove:
+            session.query(TaskToolAssociation).filter(
+                TaskToolAssociation.task_id == task_id,
+                TaskToolAssociation.tool_id.in_(to_remove)
+            ).delete(synchronize_session='fetch')
+            logger.debug(f"Removed tool associations for task ID {task_id}: {to_remove}")
+
+        # Add new tool associations
+        for tool_id in to_add:
+            # Verify that the tool exists
+            tool = session.query(Tool).filter_by(id=tool_id).first()
+            if tool:
+                new_assoc = TaskToolAssociation(task_id=task_id, tool_id=tool_id)
+                session.add(new_assoc)
+                logger.debug(f"Added tool association: Task ID {task_id}, Tool ID {tool_id}")
+            else:
+                logger.warning(f"Tool with ID {tool_id} does not exist and cannot be associated with Task ID {task_id}.")
+
+        # Commit the transaction
+        session.commit()
+        logger.info(f"Saved {len(new_tool_ids)} tool associations for Task ID {task_id}")
+        return jsonify({'status': 'success', 'message': 'Tools saved successfully.'}), 200
+
+    except SQLAlchemyError as e:
+        session.rollback()  # Roll back in case of error
+        error_trace = traceback.format_exc()
+        logger.error(f"Database error occurred while saving tools for Task ID {task_id}: {error_trace}")
+        return jsonify({'status': 'error', 'message': 'Database error occurred while saving tools.'}), 500
+
+    except Exception as e:
+        session.rollback()  # Roll back in case of error
+        error_trace = traceback.format_exc()
+        logger.error(f"Unexpected error occurred while saving tools for Task ID {task_id}: {error_trace}")
+        return jsonify({'status': 'error', 'message': 'An error occurred while saving tools.'}), 500
+
+    finally:
+        session.close()  # Ensure the session is closed after the request
+
+@pst_troubleshooting_guide_edit_update_bp.route('/remove_task_tools', methods=['POST'])
+def remove_task_tool():
+    """Remove a specific tool association from a task."""
+    data = request.get_json()
+    task_id = data.get('task_id')
+    tool_id = data.get('tool_id')
+
+    logger.info(f"Attempting to remove Tool ID: {tool_id} from Task ID: {task_id}")
+
+    # Validate inputs
+    if not task_id or not tool_id:
+        logger.error("Task ID and Tool ID are required.")
+        return jsonify({'status': 'error', 'message': 'Task ID and Tool ID are required.'}), 400
+
+    # Start a database session
+    session = db_config.get_main_session()
+
+    try:
+        # Fetch the task
+        task = session.query(Task).filter_by(id=task_id).first()
+        if not task:
+            logger.error(f"Task with ID {task_id} not found.")
+            return jsonify({'status': 'error', 'message': 'Task not found.'}), 404
+
+        # Fetch the association using the session
+        association = session.query(TaskToolAssociation).filter_by(task_id=task_id, tool_id=tool_id).first()
+        if not association:
+            logger.error(f"Tool ID {tool_id} is not associated with Task ID {task_id}.")
+            return jsonify({'status': 'error', 'message': 'Tool not associated with the specified task.'}), 404
+
+        # Remove the association
+        session.delete(association)
+        session.commit()
+        logger.info(f"Successfully removed Tool ID {tool_id} from Task ID {task_id}.")
+        return jsonify({'status': 'success', 'message': 'Tool removed successfully.'}), 200
+
+    except Exception as e:
+        session.rollback()  # Roll back in case of error
+        logger.error(f"Error occurred while removing tool from task ID {task_id}: {traceback.format_exc()}")
+        return jsonify({'status': 'error', 'message': 'An error occurred while removing the tool.'}), 500
 
     finally:
         session.close()

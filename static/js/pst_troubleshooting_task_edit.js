@@ -17,10 +17,14 @@ document.addEventListener('DOMContentLoaded', () => {
         searchImages: '/pst_troubleshooting_guide_edit_update/search_images', // Added line for image search
         saveImages: '/pst_troubleshooting_guide_edit_update/save_task_images',
         removePosition: '/pst_troubleshooting_guide_edit_update/remove_position', // Corrected line
+        searchTool: '/pst_troubleshooting_guide_edit_update/search_tools', // searches for tools
+        saveTool: '/pst_troubleshooting_guide_edit_update/save_task_tools', //saves tools
         removePart: '/pst_troubleshooting_guide_edit_update/remove_task_part', // New endpoint for removing a part
         removeDrawing: '/pst_troubleshooting_guide_edit_update/remove_task_drawing', // New endpoint for removing a drawing
         removeImage: '/pst_troubleshooting_guide_edit_update/remove_task_image', // New endpoint for removing an image
-        removeDocument: '/pst_troubleshooting_guide_edit_update/remove_task_document' // New endpoint for removing a document
+        removeDocument: '/pst_troubleshooting_guide_edit_update/remove_task_document', // New endpoint for removing a document
+        removeTool: '/pst_troubleshooting_guide_edit_update/remove_task_tools' // remove Tool
+
     }
 };
 
@@ -52,7 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
         console.warn("Positions container with ID 'pst_task_edit_positions_container' not found.");
     }
 
-        // === 3. Initialize Select2 for Document Search ===
+    // === 3. Initialize Select2 for Document Search ===
     // Initialize Select2 for Document Search with empty placeholder for selected items
     $('#pst_task_edit_task_documents').select2({
         placeholder: 'Select or search for documents',
@@ -235,7 +239,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-function collectPositionsData() {
+    function collectPositionsData() {
     const positionsContainer = document.getElementById('pst_task_edit_positions_container');
     const positionsData = [];
 
@@ -457,7 +461,6 @@ function collectPositionsData() {
     } else {
         console.warn("Save Drawings button with ID 'saveDrawingsBtn' not found.");
     }
-
 
     // Initialize Select2 for Part Search
     $('#pst_task_edit_task_parts').select2({
@@ -812,7 +815,6 @@ function collectPositionsData() {
     // Event listener for Select2 change event on images
     $('#pst_task_edit_task_images').on('change', updateSelectedImagesDisplay);
 
-
     // Event listener for Select2 change event on images
     $('#pst_task_edit_task_images').on('change', updateSelectedImagesDisplay);
 
@@ -855,6 +857,170 @@ function collectPositionsData() {
                 );
             selectedDocumentsContainer.append(documentDiv);
         });
+    }
+
+    // Listen for change events on the select2 element
+    $('#pst_task_edit_task_images').on('change', updateSelectedImagesDisplay);
+
+    // === 8. Initialize Select2 for Tools ===
+    // Initialize Select2 for Tool Search
+    $('#pst_task_edit_task_tools').select2({
+        placeholder: 'Select or search for tools',
+        allowClear: true,
+        ajax: {
+            url: ENDPOINTS.tasks.searchTool, // Ensure this endpoint is correctly defined in ENDPOINTS
+            dataType: 'json',
+            delay: 250,
+            data: params => ({ q: params.term }), // 'q' is the query parameter expected by the backend
+            processResults: data => ({
+                results: data.map(tool => ({
+                    id: tool.id,
+                    text: `${tool.name} (${tool.type || 'No Type'})` // Customize as needed
+                }))
+            }),
+            cache: true
+        }
+    });
+
+    // Listen for change events on the Select2 element
+    $('#pst_task_edit_task_tools').on('change', updateSelectedToolsDisplay);
+
+    /**
+     * Function to update the selected tools display with Remove buttons
+     */
+    function updateSelectedToolsDisplay() {
+        const selectedToolIds = $('#pst_task_edit_task_tools').val() || [];
+        const selectedToolsContainer = $('#pst_task_edit_selected_tools');
+        const taskId = window.AppState.currentTaskId;
+
+        // Clear the container first
+        selectedToolsContainer.empty();
+
+        if (!taskId) {
+            SolutionTaskCommon.showAlert('No task selected to manage tools.', 'warning');
+            return;
+        }
+
+        selectedToolIds.forEach(id => {
+            const toolText = $('#pst_task_edit_task_tools option[value="' + id + '"]').text();
+            const toolDiv = $('<div class="selected-item d-flex align-items-center mb-2"></div>')
+                .text(toolText)
+                .append(
+                    $('<button type="button" class="btn btn-sm btn-danger ms-2">Remove</button>')
+                        .on('click', function () {
+                            // Confirm removal
+                            const confirmDeletion = confirm('Are you sure you want to remove this tool?');
+                            if (!confirmDeletion) return;
+
+                            // Optimistically remove the item from the UI
+                            toolDiv.remove();
+
+                            // Call the backend to remove the association
+                            removeTaskTool(taskId, id);
+                        })
+                );
+            selectedToolsContainer.append(toolDiv);
+        });
+    }
+
+    /**
+     * Function to save selected tools for a task
+     */
+    async function saveSelectedTools() {
+        const selectedToolIds = $('#pst_task_edit_task_tools').val(); // Array of selected tool IDs
+        const taskId = window.AppState.currentTaskId;
+
+        if (!taskId) {
+            SolutionTaskCommon.showAlert('No task selected to save tools.', 'warning');
+            return;
+        }
+
+        const payload = {
+            task_id: taskId,
+            tool_ids: selectedToolIds
+        };
+
+        // Get CSRF token if using Flask-WTF
+        const csrfToken = $('input[name="csrf_token"]').val();
+        if (csrfToken) {
+            payload.csrf_token = csrfToken;
+        }
+
+        try {
+            const response = await fetch(ENDPOINTS.tasks.saveTool, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken // Include CSRF token in headers if needed
+                },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await response.json();
+            if (data.status === 'success') {
+                SolutionTaskCommon.showAlert('Tools saved successfully.', 'success');
+                console.log('Tools saved:', data);
+                updateSelectedToolsDisplay(); // Refresh the display
+            } else {
+                SolutionTaskCommon.showAlert(data.message || 'Failed to save tools.', 'danger');
+                console.error('Failed to save tools:', data.message);
+            }
+        } catch (error) {
+            console.error('Error saving tools:', error);
+            SolutionTaskCommon.showAlert('An error occurred while saving tools.', 'danger');
+        }
+    }
+
+    // Attach event listener to the Save Tools button
+    const saveToolsBtn = document.getElementById('saveToolsBtn');
+    if (saveToolsBtn) {
+        saveToolsBtn.addEventListener('click', saveSelectedTools);
+    } else {
+        console.warn("Save Tools button with ID 'saveToolsBtn' not found.");
+    }
+
+    /**
+     * Function to remove a tool from a task by calling the backend endpoint
+     * @param {number} taskId - The ID of the task
+     * @param {number} toolId - The ID of the tool to remove
+     */
+    async function removeTaskTool(taskId, toolId) {
+        const payload = {
+            task_id: taskId,
+            tool_id: toolId
+        };
+
+        // Get CSRF token if using Flask-WTF
+        const csrfToken = $('input[name="csrf_token"]').val();
+        if (csrfToken) {
+            payload.csrf_token = csrfToken;
+        }
+
+        try {
+            const response = await fetch(ENDPOINTS.tasks.removeTool, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken // Include CSRF token in headers if needed
+                },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await response.json();
+            if (data.status === 'success') {
+                SolutionTaskCommon.showAlert('Tool removed successfully.', 'success');
+                console.log(`Tool ID ${toolId} removed from Task ID ${taskId}.`);
+                updateSelectedToolsDisplay(); // Refresh the display
+            } else {
+                SolutionTaskCommon.showAlert(data.message || 'Failed to remove tool.', 'danger');
+                console.error('Failed to remove tool:', data.message);
+                updateSelectedToolsDisplay(); // Re-render to reflect actual state
+            }
+        } catch (error) {
+            console.error('Error removing tool:', error);
+            SolutionTaskCommon.showAlert('An error occurred while removing the tool.', 'danger');
+            updateSelectedToolsDisplay(); // Re-render to reflect actual state
+        }
     }
 
     /**
