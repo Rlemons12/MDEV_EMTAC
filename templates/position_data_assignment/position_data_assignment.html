@@ -39,6 +39,7 @@
         <div class="tab-container">
             <ul class="tab-list">
                 <li class="tab-item active" data-tab="search-tab">Search Position</li>
+                <li class="tab-item" data-tab="create-position-tab">Create New Position</li>
                 <li class="tab-item" data-tab="add-dependencies-tab">Add Position Dependencies</li>
                 <li class="tab-item" data-tab="update-tab">Update Position Data</li>
                 <li class="tab-item" data-tab="documents-tab">Manage Documents</li>
@@ -911,6 +912,12 @@
             {% include '/position_data_assignment/pda_partials/position_data_assignment_tool_management.html' %}
         </div>
 
+        <!--Create New Position-->
+        <div id="create-position-tab" class="tab-content">
+            {% include '/position_data_assignment/pda_partials/pda_create_position_form.html'%}
+        </div>
+
+
 
     </div>
 </div>
@@ -936,7 +943,8 @@
 <script src="{{ url_for('static', filename='js/position_data_assignment/get_position_data_assignment_data_image.js') }}"></script>
 <script src="{{ url_for('static', filename='js/position_data_assignment/get_position_data_assignment_data_drawing.js') }}"></script>
 <script src="{{ url_for('static', filename='js/position_data_assignment/get_position_data_assignment_data_document.js') }}"></script>
- <script src="{{ url_for('static', filename='js/position_data_assignment/pda_partials_tool_management.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/position_data_assignment/pda_partials_tool_management.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/position_data_assignment/pda_partial_create_position_form.js') }}"></script>
 
 <!-- Tab Functionality Script -->
 <script>

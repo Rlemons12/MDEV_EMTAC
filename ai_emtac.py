@@ -22,6 +22,7 @@ from modules.emtacdb.utlity.revision_database.event_listeners import register_ev
 from modules.configuration.config import UPLOAD_FOLDER, DATABASE_URL, REVISION_CONTROL_DB_PATH
 from utilities.auth_utils import requires_roles
 from modules.configuration.config_env import DatabaseConfig
+from modules.configuration.log_config import initial_log_cleanup
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -201,6 +202,12 @@ def open_browser():
 
 
 if __name__ == '__main__':
+    print(f'Perform initial log cleanup (compress old logs and delete old backups)')# Perform initial log cleanup (compress old logs and delete old backups)
+    initial_log_cleanup()
+
+    # Optional: Open the browser after a slight delay (1 second)
     Timer(1, open_browser).start()
+
+    # Create and run your application
     app = create_app()
     app.run(debug=True)

@@ -13,13 +13,10 @@ from sqlalchemy.ext.mutable import MutableList
 from sqlalchemy.orm import declarative_base, configure_mappers, relationship, scoped_session, sessionmaker
 from modules.configuration.config import (OPENAI_API_KEY, BASE_DIR, COPY_FILES, DATABASE_URL,DATABASE_PATH)
 from modules.configuration.base import Base
+from modules.configuration.log_config import logger
 
 # Configure mappers (must be called after all ORM classes are defined)
 configure_mappers()
-
-# Configure logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
 
 # Load the English language model
 nlp = spacy.load('en_core_web_sm')
@@ -351,6 +348,7 @@ class Task(Base):
     complete_document_task = relationship("CompleteDocumentTaskAssociation", back_populates="task")
     drawing_task = relationship("DrawingTaskAssociation", back_populates="task")
     part_task = relationship("PartTaskAssociation", back_populates="task")
+    tool_tasks = relationship("TaskToolAssociation", back_populates="task", cascade="all, delete-orphan")
 
 class TaskSolutionAssociation(Base):
     __tablename__ = 'task_solution_association'
@@ -441,6 +439,17 @@ class ImageTaskAssociation(Base):
 
     image = relationship("Image", back_populates="image_task")
     task = relationship("Task", back_populates="image_task")
+
+class TaskToolAssociation(Base):
+    __tablename__ = 'tool_task'
+
+    id = Column(Integer, primary_key=True)
+    tool_id = Column(Integer, ForeignKey('tool.id'), nullable=False)
+    task_id = Column(Integer, ForeignKey('task.id'), nullable=False)
+
+    # Relationships
+    tool = relationship("Tool", back_populates="tool_tasks")
+    task = relationship("Task", back_populates="tool_tasks")
 
 class DrawingProblemAssociation(Base):
     __tablename__ = 'drawing_problem'
@@ -791,6 +800,7 @@ class Tool(Base):
     packages = relationship('ToolPackage', secondary=tool_package_association, back_populates='tools')
     tool_image_association = relationship('ToolImageAssociation', back_populates='tool')
     tool_position_association = relationship('ToolPositionAssociation',back_populates='tool',)
+    tool_tasks = relationship('TaskToolAssociation', back_populates='tool', cascade="all, delete-orphan")
 
 class ToolPackage(Base):
     __tablename__ = 'tool_package'

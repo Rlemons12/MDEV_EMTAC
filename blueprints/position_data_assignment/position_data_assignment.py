@@ -1,4 +1,5 @@
 from flask import Blueprint, request, redirect, flash, jsonify, render_template, url_for
+from flask_wtf import FlaskForm
 from werkzeug.utils import secure_filename
 import os
 import logging
@@ -15,6 +16,8 @@ from sqlalchemy import or_
 from blueprints.position_data_assignment import position_data_assignment_bp
 from modules.configuration.log_config import logger
 from modules.tool_module.forms import ToolSearchForm
+from modules.emtacdb.forms import CreatePositionForm
+from modules.emtacdb.forms import SearchPositionForm
 
 
 # Initialize DatabaseConfig
@@ -25,12 +28,17 @@ def allowed_file(filename, allowed_extensions=ALLOWED_EXTENSIONS):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
 
 # Route for displaying and submitting position data assignment form
-@position_data_assignment_bp.route('/position_data_assignment', methods=['GET', 'POST'])
+
 @position_data_assignment_bp.route('/position_data_assignment', methods=['GET', 'POST'])
 def position_data_assignment():
     db_session = db_config.get_main_session()
 
     position_id = request.args.get('position_id')  # Get position ID from query parameters
+
+    # Instantiate CreatePositionForm
+    logger.info("Loading CreatePositionForm and SearchPositionForm")
+    form_create_position = CreatePositionForm()
+    form_search_position = SearchPositionForm()
 
     if request.method == 'POST':
         try:
@@ -147,6 +155,7 @@ def position_data_assignment():
 
     # If it's a GET request, load the form with initial data
     else:
+
         try:
             logger.info("Handling GET request for position_data_assignment.")
             areas = db_session.query(Area).all()
@@ -195,7 +204,9 @@ def position_data_assignment():
                 assembly_views=assembly_views,
                 site_locations=site_locations,
                 position=position,
-                tool_search_form=tool_search_form  # Pass the form to the template
+                tool_search_form=tool_search_form,  # Pass the form to the template
+                form_create_position=form_create_position, #pass the form to the template
+                form_search_position= form_search_position
             )
 
         except Exception as e:
@@ -1178,7 +1189,6 @@ def add_document_to_position():
         logger.error(f"Error adding document to position: {e}", exc_info=True)
         return jsonify({'message': 'Failed to add document to position'}), 500
 
-
 @position_data_assignment_bp.route('/pda_remove_document_from_position', methods=['POST'])
 def remove_document_from_position():
     try:
@@ -1250,4 +1260,306 @@ def pda_get_documents_by_position():
     finally:
         db_session.close()
 
+@position_data_assignment_bp.route('/create_position_form', methods=['GET', 'POST'])
+def create_position_form():
+    # Initialize DatabaseConfig and session
+    db_config = DatabaseConfig()
+    session = db_config.get_main_session()
+
+    # Instantiate CreatePositionForm
+    form_create_position = CreatePositionForm()
+
+    if form_create_position.validate_on_submit():
+        try:
+            # Check for an existing position to prevent duplicates
+            existing_position = session.query(Position).filter_by(
+                area_id=form_create_position.area.data.id if form_create_position.area.data else None,
+                equipment_group_id=form_create_position.equipment_group.data.id if form_create_position.equipment_group.data else None,
+                model_id=form_create_position.model.data.id if form_create_position.model.data else None,
+                asset_number_id=form_create_position.asset_number.data.id if form_create_position.asset_number.data else None,
+                location_id=form_create_position.location.data.id if form_create_position.location.data else None,
+                assembly_id=form_create_position.assembly.data.id if form_create_position.assembly.data else None,
+                subassembly_id=form_create_position.subassembly.data.id if form_create_position.subassembly.data else None,
+                assembly_view_id=form_create_position.assembly_view.data.id if form_create_position.assembly_view.data else None,
+                site_location_id=form_create_position.site_location.data.id if form_create_position.site_location.data else None
+            ).first()
+
+            if existing_position:
+                flash(f"Position already exists with ID {existing_position.id}.", "info")
+                return redirect(url_for('position_data_assignment_bp.create_position_form'))
+
+            # Create a new position instance
+            new_position = Position(
+                area_id=form_create_position.area.data.id if form_create_position.area.data else None,
+                equipment_group_id=form_create_position.equipment_group.data.id if form_create_position.equipment_group.data else None,
+                model_id=form_create_position.model.data.id if form_create_position.model.data else None,
+                asset_number_id=form_create_position.asset_number.data.id if form_create_position.asset_number.data else None,
+                location_id=form_create_position.location.data.id if form_create_position.location.data else None,
+                assembly_id=form_create_position.assembly.data.id if form_create_position.assembly.data else None,
+                subassembly_id=form_create_position.subassembly.data.id if form_create_position.subassembly.data else None,
+                assembly_view_id=form_create_position.assembly_view.data.id if form_create_position.assembly_view.data else None,
+                site_location_id=form_create_position.site_location.data.id if form_create_position.site_location.data else None
+            )
+
+            # Add to the database and commit
+            session.add(new_position)
+            session.commit()
+
+            flash(f"Position created successfully with ID {new_position.id}.", "success")
+            return redirect(url_for('position_data_assignment_bp.create_position_form'))
+
+        except SQLAlchemyError as e:
+            session.rollback()
+            flash(f"Database error: {str(e)}", "danger")
+
+        except Exception as e:
+            flash(f"An unexpected error occurred: {str(e)}", "danger")
+
+        finally:
+            session.close()
+
+    # Pass the form as 'form' to the template
+    logger.info(f'Pass form as "form" as form')
+    return render_template('pda_create_position_form.html', form=form_create_position)
+
+@position_data_assignment_bp.route('/search_position', methods=['GET', 'POST'])
+def search_position():
+    db_session = db_config.get_main_session()
+
+    try:
+        logger.info("Loading forms in search_position route.")
+
+        # Instantiate both forms with consistent variable names
+        form_search_position = SearchPositionForm()
+        form_create_position = CreatePositionForm()
+
+        # Populate QuerySelectField choices for SearchPositionForm
+        form_search_position.area.query_factory = lambda: db_session.query(Area).order_by(Area.name).all()
+        form_search_position.equipment_group.query_factory = lambda: db_session.query(EquipmentGroup).order_by(EquipmentGroup.name).all()
+        form_search_position.model.query_factory = lambda: db_session.query(Model).order_by(Model.name).all()
+
+        # Populate QuerySelectField choices for CreatePositionForm
+        form_create_position.area.query_factory = lambda: db_session.query(Area).order_by(Area.name).all()
+        form_create_position.equipment_group.query_factory = lambda: db_session.query(EquipmentGroup).order_by(EquipmentGroup.name).all()
+        form_create_position.model.query_factory = lambda: db_session.query(Model).order_by(Model.name).all()
+        form_create_position.location.query_factory = lambda: db_session.query(Location).order_by(Location.name).all()
+        form_create_position.assembly.query_factory = lambda: db_session.query(Assembly).order_by(Assembly.name).all()
+        form_create_position.subassembly.query_factory = lambda: db_session.query(SubAssembly).order_by(SubAssembly.name).all()
+        form_create_position.assembly_view.query_factory = lambda: db_session.query(AssemblyView).order_by(AssemblyView.name).all()
+        form_create_position.site_location.query_factory = lambda: db_session.query(SiteLocation).order_by(SiteLocation.title, SiteLocation.room_number).all()
+
+        if request.method == 'POST':
+            # Determine if the request is AJAX
+            is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+
+            # Determine which form was submitted based on the submit button's name
+            if 'search' in request.form and form_search_position.validate_on_submit():
+                # Handle search form submission
+                logger.info("Handling search form submission.")
+
+                position_id = form_search_position.position_id.data
+                position_name = form_search_position.position_name.data
+                area = form_search_position.area.data
+                equipment_group = form_search_position.equipment_group.data
+                model = form_search_position.model.data
+                start_date = form_search_position.start_date.data
+                end_date = form_search_position.end_date.data
+
+                # Build the query
+                query = db_session.query(Position)
+
+                if position_id:
+                    query = query.filter(Position.id == position_id)
+                if position_name:
+                    query = query.filter(Position.name.ilike(f"%{position_name}%"))
+                if area:
+                    query = query.filter(Position.area_id == area.id)
+                if equipment_group:
+                    query = query.filter(Position.equipment_group_id == equipment_group.id)
+                if model:
+                    query = query.filter(Position.model_id == model.id)
+                if start_date:
+                    query = query.filter(Position.created_at >= start_date)
+                if end_date:
+                    query = query.filter(Position.created_at <= end_date)
+
+                # Execute the query
+                results = query.all()
+
+                logger.info(f"Search returned {len(results)} results.")
+
+                if is_ajax:
+                    # Prepare JSON response
+                    positions = []
+                    for position in results:
+                        positions.append({
+                            'id': position.id,
+                            'name': position.name,
+                            'area': position.area.name if position.area else None,
+                            'equipment_group': position.equipment_group.name if position.equipment_group else None,
+                            'model': position.model.name if position.model else None,
+                            'created_at': position.created_at.strftime('%Y-%m-%d') if position.created_at else None
+                        })
+
+                    return jsonify({'success': True, 'results': positions}), 200
+                else:
+                    # Render template with search results
+                    return render_template(
+                        'position_data_assignment/pda_partials/pda_create_position_form.html',
+                        form_search_position=form_search_position,
+                        form_create_position=form_create_position,
+                        results=results
+                    )
+
+            elif 'submit_create_position' in request.form and form_create_position.validate_on_submit():
+                # Handle create position form submission
+                logger.info("Handling create position form submission.")
+
+                # Extract form data
+                area = form_create_position.area.data
+                equipment_group = form_create_position.equipment_group.data
+                model = form_create_position.model.data
+                asset_number = form_create_position.asset_number.data
+                asset_number_input = form_create_position.asset_number_input.data or None
+                location = form_create_position.location.data
+                location_input = form_create_position.location_input.data or None
+                assembly = form_create_position.assembly.data
+                assembly_input = form_create_position.assembly_input.data or None
+                subassembly = form_create_position.subassembly.data
+                subassembly_input = form_create_position.subassembly_input.data or None
+                assembly_view = form_create_position.assembly_view.data
+                site_location = form_create_position.site_location.data
+                position_name = form_create_position.position.data
+                part_numbers = form_create_position.part_numbers.data or ''
+                images = form_create_position.images.data
+                drawings = form_create_position.drawings.data
+
+                # Handle manual inputs for Asset Number and Location
+                if not asset_number and asset_number_input:
+                    new_asset = AssetNumber(number=asset_number_input, model_id=model.id if model else None)
+                    db_session.add(new_asset)
+                    db_session.commit()
+                    asset_number = new_asset
+                    logger.info(f"Created new AssetNumber with ID {new_asset.id}.")
+
+                if not location and location_input:
+                    new_location = Location(name=location_input, model_id=model.id if model else None)
+                    db_session.add(new_location)
+                    db_session.commit()
+                    location = new_location
+                    logger.info(f"Created new Location with ID {new_location.id}.")
+
+                if not assembly and assembly_input:
+                    new_assembly = Assembly(name=assembly_input, location_id=location.id if location else None)
+                    db_session.add(new_assembly)
+                    db_session.commit()
+                    assembly = new_assembly
+                    logger.info(f"Created new Assembly with ID {new_assembly.id}.")
+
+                if not subassembly and subassembly_input:
+                    new_subassembly = SubAssembly(name=subassembly_input, assembly_id=assembly.id if assembly else None)
+                    db_session.add(new_subassembly)
+                    db_session.commit()
+                    subassembly = new_subassembly
+                    logger.info(f"Created new SubAssembly with ID {new_subassembly.id}.")
+
+                # Handle file uploads
+                saved_image_paths = []
+                for image in images:
+                    if image and allowed_file(image.filename, ALLOWED_IMAGE_EXTENSIONS):
+                        filename = secure_filename(image.filename)
+                        image_dir = os.path.join('static', 'uploads', 'images')
+                        os.makedirs(image_dir, exist_ok=True)  # Ensure directory exists
+                        image_path = os.path.join(image_dir, filename)
+                        image.save(image_path)
+                        saved_image_paths.append(image_path)
+                        logger.info(f"Saved image: {image_path}")
+                    else:
+                        logger.warning(f"Invalid image file: {image.filename}")
+
+                saved_drawing_paths = []
+                for drawing in drawings:
+                    if drawing and allowed_file(drawing.filename, ALLOWED_DRAWING_EXTENSIONS):
+                        filename = secure_filename(drawing.filename)
+                        drawing_dir = os.path.join('static', 'uploads', 'drawings')
+                        os.makedirs(drawing_dir, exist_ok=True)  # Ensure directory exists
+                        drawing_path = os.path.join(drawing_dir, filename)
+                        drawing.save(drawing_path)
+                        saved_drawing_paths.append(drawing_path)
+                        logger.info(f"Saved drawing: {drawing_path}")
+                    else:
+                        logger.warning(f"Invalid drawing file: {drawing.filename}")
+
+                # Create a new Position
+                new_position = Position(
+                    name=position_name,
+                    area_id=area.id if area else None,
+                    equipment_group_id=equipment_group.id if equipment_group else None,
+                    model_id=model.id if model else None,
+                    asset_number_id=asset_number.id if asset_number else None,
+                    location_id=location.id if location else None,
+                    assembly_id=assembly.id if assembly else None,
+                    subassembly_id=subassembly.id if subassembly else None,
+                    assembly_view_id=assembly_view.id if assembly_view else None,
+                    site_location_id=site_location.id if site_location else None,
+                    parts=part_numbers  # Ensure this is handled correctly
+                )
+                db_session.add(new_position)
+                db_session.commit()
+                logger.info(f"Created new Position with ID {new_position.id} successfully.")
+
+                # Handle Image and Drawing Relationships
+                for image_path in saved_image_paths:
+                    new_image = Image(path=image_path, position_id=new_position.id)
+                    db_session.add(new_image)
+
+                for drawing_path in saved_drawing_paths:
+                    new_drawing = Drawing(path=drawing_path, position_id=new_position.id)
+                    db_session.add(new_drawing)
+
+                db_session.commit()  # Commit the new Image and Drawing records
+
+                if is_ajax:
+                    return jsonify({'success': True, 'message': 'Position Created Successfully!'}), 201
+                else:
+                    flash('Position Created Successfully!', 'success')
+                    return redirect(url_for('position_data_assignment_bp.search_position'))
+
+        elif request.method == 'GET':
+            try:
+                logger.info("Handling GET request for search_position.")
+
+                position_id = request.args.get('position_id')
+                position = None
+
+                # Load the position if position_id is provided (for updating)
+                if position_id:
+                    position = db_session.query(Position).filter_by(id=position_id).first()
+                    if not position:
+                        flash('Position not found.', 'error')
+                        logger.error(f"Position with ID {position_id} not found.")
+                        return redirect(url_for('position_data_assignment_bp.search_position'))
+                    logger.info(f"Loaded Position ID {position_id} for updating.")
+
+                # Render the template with forms and optional position data
+                return render_template(
+                    'position_data_assignment/pda_partials/pda_create_position_form.html',
+                    form_search_position=form_search_position,
+                    form_create_position=form_create_position,
+                    results=None,
+                    position=position  # Pass position if needed for updating
+                )
+
+            except Exception as e:
+                logger.error(f"Error loading forms: {e}")
+                flash('Error loading the form.', 'error')
+                return redirect(url_for('position_data_assignment_bp.search_position'))
+
+    except Exception as e:
+        logger.error(f"Unhandled exception in search_position route: {e}")
+        flash('An unexpected error occurred.', 'error')
+        return redirect(url_for('position_data_assignment_bp.search_position'))
+
+    finally:
+        db_session.close()
 
