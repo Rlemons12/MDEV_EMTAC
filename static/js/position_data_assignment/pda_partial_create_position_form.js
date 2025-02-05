@@ -1,164 +1,54 @@
-// static/js/position_data_assignment/pda_partial_create_position_form.js
-
 document.addEventListener('DOMContentLoaded', function () {
     /**
-     * Utility Functions
+     * Toggle between the existing entry (dropdown) and the new entry input.
+     * Assumes that for a given field, there are two elements:
+     * - An "existing" container with id: <fieldName>_existing
+     * - A "new" container with id: <fieldName>_new
+     *
+     * @param {string} fieldName - The base name of the field (e.g., "area").
      */
+    function toggleNewEntry(fieldName) {
+        const existingDiv = document.getElementById(fieldName + "_existing");
+        const newDiv = document.getElementById(fieldName + "_new");
+        if (!existingDiv || !newDiv) {
+            console.warn(`Elements for field ${fieldName} not found.`);
+            return;
+        }
 
-    /**
-     * Toggle the visibility of a specific section based on the selected value.
-     * @param {HTMLElement} selectElement - The dropdown element.
-     * @param {HTMLElement} targetElement - The element to show/hide.
-     */
-    function toggleSection(selectElement, targetElement) {
-        if (selectElement.value === 'new') {
-            targetElement.style.display = 'block';
+        // Toggle visibility: if the existing div is visible, hide it and show the new entry div.
+        if (existingDiv.style.display === "none" || newDiv.style.display === "block") {
+            // Hide new entry and show existing dropdown
+            existingDiv.style.display = "block";
+            newDiv.style.display = "none";
+            // Optionally clear the new input(s)
+            const inputs = newDiv.querySelectorAll("input, textarea");
+            inputs.forEach(input => input.value = "");
         } else {
-            targetElement.style.display = 'none';
-            // Clear input fields when hiding
-            const inputs = targetElement.querySelectorAll('input, textarea');
-            inputs.forEach(input => input.value = '');
+            // Hide existing dropdown and show new entry
+            existingDiv.style.display = "none";
+            newDiv.style.display = "block";
         }
     }
 
     /**
-     * Remove a parent element (used for removing dynamically added fields).
-     * @param {HTMLElement} button - The remove button that was clicked.
+     * Optionally, handle form submission.
+     * This simple handler shows a loading spinner when the form is submitted.
+     * You can extend this to perform an AJAX submission if needed.
      */
-    function removeParentElement(button) {
-        const parent = button.closest('.form-group');
-        if (parent) {
-            parent.remove();
-        }
-    }
-
-    /**
-     * Initialize event listeners for "Add New..." dropdowns.
-     */
-    function initializeAddNewDropdowns() {
-        const addNewDropdowns = document.querySelectorAll('select[id$="Dropdown"]');
-
-        addNewDropdowns.forEach(dropdown => {
-            dropdown.addEventListener('change', function () {
-                const targetId = dropdown.id.replace('Dropdown', 'Fields');
-                const targetElement = document.getElementById(targetId);
-                toggleSection(dropdown, targetElement);
-            });
-        });
-    }
-
-    /**
-     * Initialize event listeners for dynamically added remove buttons.
-     */
-    function initializeRemoveButtons(containerId) {
-        const container = document.getElementById(containerId);
-        container.addEventListener('click', function (e) {
-            if (e.target && e.target.matches('.remove-field-btn')) {
-                removeParentElement(e.target);
+    const form = document.getElementById('positionForm');
+    if (form) {
+        form.addEventListener('submit', function () {
+            const spinner = document.getElementById('loadingSpinner');
+            if (spinner) {
+                spinner.style.display = "block";
             }
+            // If you want to use AJAX, you would prevent the default here and use fetch.
+            // For a standard submission, let the browser handle it.
         });
+    } else {
+        console.warn('Form with id "positionForm" not found.');
     }
 
-    /**
-     * Handle form submission via AJAX.
-     * @param {HTMLFormElement} form - The form element to submit.
-     */
-    function handleFormSubmission(form) {
-        form.addEventListener('submit', async function (event) {
-            event.preventDefault(); // Prevent default form submission
-
-            const formData = new FormData(form);
-            const actionUrl = form.getAttribute('action');
-
-            try {
-                // Show loading indicator
-                toggleLoadingSpinner(true);
-
-                const response = await fetch(actionUrl, {
-                    method: 'POST',
-                    body: formData,
-                    headers: {
-                        'X-CSRFToken': formData.get('csrf_token') // CSRF token for security
-                    }
-                });
-
-                const result = await response.json();
-
-                if (response.ok) {
-                    if (result.success) {
-                        toastr.success(result.message || 'Position created successfully!');
-                        form.reset(); // Reset the form after success
-
-                        // Hide all new entity input fields
-                        const newFields = form.querySelectorAll('[id$="Fields"]');
-                        newFields.forEach(field => field.style.display = 'none');
-
-                        // Optionally, switch to the Search Positions tab to view the new entry
-                        // Assuming Bootstrap is used for tabs
-                        $('#positionTabs a[href="#search-positions"]').tab('show');
-                    } else {
-                        toastr.error(result.message || 'Failed to create position.');
-                    }
-                } else {
-                    toastr.error(result.message || 'An error occurred while creating the position.');
-                }
-            } catch (err) {
-                console.error('Error submitting form:', err);
-                toastr.error('An unexpected error occurred. Please try again.');
-            } finally {
-                // Hide loading indicator
-                toggleLoadingSpinner(false);
-            }
-        });
-    }
-
-    /**
-     * Initialize all functionalities.
-     */
-    function initialize() {
-        initializeAddNewDropdowns();
-
-        // Initialize remove buttons for all entity containers
-        initializeRemoveButtons('newAreaFields');
-        initializeRemoveButtons('newEquipmentGroupFields');
-        initializeRemoveButtons('newModelFields');
-        initializeRemoveButtons('newAssetNumberFields');
-        initializeRemoveButtons('newLocationFields');
-        initializeRemoveButtons('newAssemblyFields');
-        initializeRemoveButtons('newSubassemblyFields');
-        initializeRemoveButtons('newAssemblyViewFields');
-        initializeRemoveButtons('newSiteLocationFields');
-
-        // Initialize form submission handler
-        const createPositionForm = document.getElementById('positionForm');
-        if (createPositionForm) {
-            handleFormSubmission(createPositionForm);
-        }
-
-        // Initialize event listeners for dynamically added remove buttons (if cloning is implemented)
-        // For example, if using cloned templates:
-        /*
-        const areaFieldsWrapper = document.getElementById('areaFieldsWrapper');
-        areaFieldsWrapper.addEventListener('click', function (e) {
-            if (e.target && e.target.matches('.remove-field-btn')) {
-                removeParentElement(e.target);
-            }
-        });
-        */
-    }
-
-    /**
-     * Function to toggle loading spinner visibility.
-     * Assumes there's an element with ID 'loadingSpinner' in your template.
-     * @param {boolean} show - Whether to show or hide the spinner.
-     */
-    function toggleLoadingSpinner(show) {
-        const spinner = document.getElementById('loadingSpinner');
-        if (spinner) {
-            spinner.style.display = show ? 'block' : 'none';
-        }
-    }
-
-    // Initialize all components
-    initialize();
+    // Expose the toggleNewEntry function globally if you need to call it from inline HTML.
+    window.toggleNewEntry = toggleNewEntry;
 });

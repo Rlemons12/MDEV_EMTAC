@@ -29,9 +29,7 @@ from .init_app import *
 from .install_requirements import *
 from .keyword_upload import *
 from .list_sqlite_tables_and_relationships import *
-from .load_active_drawing_list import *
 from .load_equipment_relationships_table_data import *
-from .Load_Parts_Sheet import*
 from .mspeedtest import *
 from .ppt_image_extraction import*
 from .ppt_to_pdf import *

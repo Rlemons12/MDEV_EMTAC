@@ -1,4 +1,4 @@
-# base.py
+# modules/configuration/base.py
 import sys
 import os
 # Determine the root directory based on whether the code is frozen (e.g., PyInstaller .exe)

@@ -1,231 +1,177 @@
-<!-- templates/position_data_assignment/pda_partials/pda_create_position_form.html -->
+{% extends "base.html" %}
 
-<div id="positionManagementContainer">
-    <h3>Position Management</h3>
+{% macro render_field_with_toggle(field, input_field, label_text, placeholder_text) %}
+  <div class="form-group" id="{{ field.name }}_group">
+      <label class="form-label">{{ label_text }}</label>
+      <div class="existing-entry" id="{{ field.name }}_existing">
+          {{ field(class="form-control") }}
+          {% for error in field.errors %}
+              <span class="text-danger">{{ error }}</span>
+          {% endfor %}
+          <small>
+              <a href="javascript:void(0)" onclick="toggleNewEntry('{{ field.name }}')">
+                  Add new {{ label_text }}
+              </a>
+          </small>
+      </div>
+      <div class="new-entry" id="{{ field.name }}_new" style="display: none;">
+          {{ input_field(class="form-control", placeholder=placeholder_text) }}
+          {% for error in input_field.errors %}
+              <span class="text-danger">{{ error }}</span>
+          {% endfor %}
+          <small>
+              <a href="javascript:void(0)" onclick="toggleNewEntry('{{ field.name }}')">
+                  Cancel
+              </a>
+          </small>
+      </div>
+  </div>
+{% endmacro %}
 
-    <!-- Sub-Tab Navigation -->
-    <div class="sub-tab-container">
-        <ul class="sub-tab-list">
-            <!-- 1) Create Position tab (default) -->
-            <li class="sub-tab-item active" data-subtab="create-position">Create Position</li>
-            <!-- 2) Search Positions tab -->
-            <li class="sub-tab-item" data-subtab="search-positions">Search Positions</li>
-            <!-- 3) Edit Position tab -->
-            <li class="sub-tab-item" data-subtab="edit-positions">Edit Position</li>
-        </ul>
+{% macro render_field_with_toggle_and_description(field, input_field, desc_field, label_text, placeholder_text, desc_placeholder) %}
+  <div class="form-group" id="{{ field.name }}_group">
+      <label class="form-label">{{ label_text }}</label>
+      <div class="existing-entry" id="{{ field.name }}_existing">
+          {{ field(class="form-control") }}
+          {% for error in field.errors %}
+              <span class="text-danger">{{ error }}</span>
+          {% endfor %}
+          <small>
+              <a href="javascript:void(0)" onclick="toggleNewEntry('{{ field.name }}')">
+                  Add new {{ label_text }}
+              </a>
+          </small>
+      </div>
+      <div class="new-entry" id="{{ field.name }}_new" style="display: none;">
+          {{ input_field(class="form-control", placeholder=placeholder_text) }}
+          {% for error in input_field.errors %}
+              <span class="text-danger">{{ error }}</span>
+          {% endfor %}
+          <br>
+          {{ desc_field.label(class="form-label") }}
+          {{ desc_field(class="form-control", placeholder=desc_placeholder) }}
+          {% for error in desc_field.errors %}
+              <span class="text-danger">{{ error }}</span>
+          {% endfor %}
+          <small>
+              <a href="javascript:void(0)" onclick="toggleNewEntry('{{ field.name }}')">
+                  Cancel
+              </a>
+          </small>
+      </div>
+  </div>
+{% endmacro %}
+
+{% block content %}
+<div class="container">
+  <h2>Create a New Position</h2>
+  <form id="positionForm" method="POST" action="{{ url_for('position_data_assignment_bp.create_position_form') }}">
+      {{ form_create_position.hidden_tag() }}
+
+      {# Render Related Fields #}
+      {{ render_field_with_toggle(form_create_position.area, form_create_position.area_input, "Area", "Enter new Area if not listed") }}
+      {{ render_field_with_toggle(form_create_position.equipment_group, form_create_position.equipment_group_input, "Equipment Group", "Enter new Equipment Group if not listed") }}
+      {{ render_field_with_toggle_and_description(form_create_position.model, form_create_position.model_input, form_create_position.model_description, "Model", "Enter new Model if not listed", "Enter Model Description") }}
+      {{ render_field_with_toggle(form_create_position.asset_number, form_create_position.asset_number_input, "Asset Number", "Enter new Asset Number if not listed") }}
+      {{ render_field_with_toggle(form_create_position.location, form_create_position.location_input, "Location", "Enter new Location if not listed") }}
+      {{ render_field_with_toggle(form_create_position.assembly, form_create_position.assembly_input, "Assembly", "Enter new Assembly if not listed") }}
+      {{ render_field_with_toggle(form_create_position.subassembly, form_create_position.subassembly_input, "Subassembly", "Enter new Subassembly if not listed") }}
+      {{ render_field_with_toggle(form_create_position.assembly_view, form_create_position.assembly_view_input, "Assembly View", "Enter new Assembly View if not listed") }}
+
+      <!-- Custom Block for Site Location (Title and Room Number) -->
+      <div class="form-group" id="{{ form_create_position.site_location.name }}_group">
+          <label class="form-label">Site Location</label>
+          <div class="existing-entry" id="{{ form_create_position.site_location.name }}_existing">
+              {{ form_create_position.site_location(class="form-control") }}
+              {% for error in form_create_position.site_location.errors %}
+                  <span class="text-danger">{{ error }}</span>
+              {% endfor %}
+              <small>
+                  <a href="javascript:void(0)" onclick="toggleNewEntry('{{ form_create_position.site_location.name }}')">
+                      Add new Site Location
+                  </a>
+              </small>
+          </div>
+          <div class="new-entry" id="{{ form_create_position.site_location.name }}_new" style="display: none;">
+              {{ form_create_position.site_location_input(class="form-control", placeholder="Enter new Site Location title if not listed") }}
+              {% for error in form_create_position.site_location_input.errors %}
+                  <span class="text-danger">{{ error }}</span>
+              {% endfor %}
+              <br>
+              {{ form_create_position.site_location_room.label(class="form-label") }}
+              {{ form_create_position.site_location_room(class="form-control", placeholder="Enter Room Number") }}
+              {% for error in form_create_position.site_location_room.errors %}
+                  <span class="text-danger">{{ error }}</span>
+              {% endfor %}
+              <small>
+                  <a href="javascript:void(0)" onclick="toggleNewEntry('{{ form_create_position.site_location.name }}')">
+                      Cancel
+                  </a>
+              </small>
+          </div>
+      </div>
+
+      <!-- Submit Button -->
+      <div class="form-group">
+          {{ form_create_position.submit(class="btn btn-primary") }}
+      </div>
+  </form>
+</div>
+
+<!-- Loading Spinner (for visual feedback on submission) -->
+<div id="loadingSpinner" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 9999;">
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
     </div>
+</div>
 
-    <!-- Sub-Tab Content Sections -->
+<!-- JavaScript for toggling new inputs and showing the spinner -->
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    /**
+     * Toggle between the existing entry and new entry for a field.
+     * Expects element IDs in the format <fieldName>_existing and <fieldName>_new.
+     *
+     * @param {string} fieldName - The base name of the field.
+     */
+    function toggleNewEntry(fieldName) {
+        var existingDiv = document.getElementById(fieldName + "_existing");
+        var newDiv = document.getElementById(fieldName + "_new");
+        if (!existingDiv || !newDiv) {
+            console.warn(`Elements for field ${fieldName} not found.`);
+            return;
+        }
+        if (existingDiv.style.display === "none" || newDiv.style.display === "block") {
+            // Hide new entry and show existing dropdown
+            existingDiv.style.display = "block";
+            newDiv.style.display = "none";
+            // Clear input fields in the new entry section
+            var inputs = newDiv.querySelectorAll("input, textarea");
+            inputs.forEach(function(input) {
+                input.value = "";
+            });
+        } else {
+            // Hide existing dropdown and show new entry
+            existingDiv.style.display = "none";
+            newDiv.style.display = "block";
+        }
+    }
 
-    <!-- 1) Create Position -->
-    <div id="create-position" class="sub-tab-content active">
-        <h4>Create a New Position</h4>
+    // Expose the toggleNewEntry function globally so inline HTML can call it.
+    window.toggleNewEntry = toggleNewEntry;
 
-        <form id="positionForm" method="POST" action="{{ url_for('position_data_assignment_bp.search_position') }}" enctype="multipart/form-data">
-            {{ form_create_position.hidden_tag() }}
-
-            <!-- Area Field -->
-            <div class="form-group">
-                {{ form_create_position.area.label(class="form-label") }}
-                {{ form_create_position.area(class="form-control") }}
-            </div>
-
-            <!-- Equipment Group Field -->
-            <div class="form-group">
-                {{ form_create_position.equipment_group.label(class="form-label") }}
-                {{ form_create_position.equipment_group(class="form-control") }}
-            </div>
-
-            <!-- Model Field -->
-            <div class="form-group">
-                {{ form_create_position.model.label(class="form-label") }}
-                {{ form_create_position.model(class="form-control") }}
-            </div>
-
-            <!-- Asset Number Field -->
-            <div class="form-group">
-                {{ form_create_position.asset_number.label(class="form-label") }}
-                {{ form_create_position.asset_number(class="form-control") }}
-            </div>
-
-            <!-- Asset Number Input (Manual) -->
-            <div class="form-group">
-                {{ form_create_position.asset_number_input.label(class="form-label") }}
-                {{ form_create_position.asset_number_input(class="form-control") }}
-            </div>
-
-            <!-- Location Field -->
-            <div class="form-group">
-                {{ form_create_position.location.label(class="form-label") }}
-                {{ form_create_position.location(class="form-control") }}
-            </div>
-
-            <!-- Location Input (Manual) -->
-            <div class="form-group">
-                {{ form_create_position.location_input.label(class="form-label") }}
-                {{ form_create_position.location_input(class="form-control") }}
-            </div>
-
-            <!-- Assembly Field -->
-            <div class="form-group">
-                {{ form_create_position.assembly.label(class="form-label") }}
-                {{ form_create_position.assembly(class="form-control") }}
-            </div>
-
-            <!-- Assembly Input (Manual) -->
-            <div class="form-group">
-                {{ form_create_position.assembly_input.label(class="form-label") }}
-                {{ form_create_position.assembly_input(class="form-control") }}
-            </div>
-
-            <!-- Subassembly Field -->
-            <div class="form-group">
-                {{ form_create_position.subassembly.label(class="form-label") }}
-                {{ form_create_position.subassembly(class="form-control") }}
-            </div>
-
-            <!-- Subassembly Input (Manual) -->
-            <div class="form-group">
-                {{ form_create_position.subassembly_input.label(class="form-label") }}
-                {{ form_create_position.subassembly_input(class="form-control") }}
-            </div>
-
-            <!-- Assembly View Field -->
-            <div class="form-group">
-                {{ form_create_position.assembly_view.label(class="form-label") }}
-                {{ form_create_position.assembly_view(class="form-control") }}
-            </div>
-
-            <!-- Site Location Field -->
-            <div class="form-group">
-                {{ form_create_position.site_location.label(class="form-label") }}
-                {{ form_create_position.site_location(class="form-control") }}
-            </div>
-
-            <!-- Position Name Field -->
-            <div class="form-group">
-                {{ form_create_position.position.label(class="form-label") }}
-                {{ form_create_position.position(class="form-control", placeholder="Enter Position Name") }}
-            </div>
-
-            <!-- Part Numbers Field -->
-            <div class="form-group">
-                {{ form_create_position.part_numbers.label(class="form-label") }}
-                {{ form_create_position.part_numbers(class="form-control", placeholder="Enter Part Numbers separated by commas") }}
-            </div>
-
-            <!-- Images Upload Field -->
-            <div class="form-group">
-                {{ form_create_position.images.label(class="form-label") }}
-                {{ form_create_position.images(class="form-control-file", multiple=True) }}
-            </div>
-
-            <!-- Drawings Upload Field -->
-            <div class="form-group">
-                {{ form_create_position.drawings.label(class="form-label") }}
-                {{ form_create_position.drawings(class="form-control-file", multiple=True) }}
-            </div>
-
-            <!-- Submit Button -->
-            <button type="submit" name="submit_create_position" class="btn btn-primary">{{ form_create_position.submit.label.text }}</button>
-        </form>
-    </div>
-
-    <!-- 2) Search Positions -->
-    <div id="search-positions" class="sub-tab-content" style="display:none;">
-        <h4>Search Positions</h4>
-
-        <form id="positionSearchForm" method="POST" action="{{ url_for('position_data_assignment_bp.search_position') }}">
-            {{ form_search_position.hidden_tag() }}
-
-            <!-- Position ID Field -->
-            <div class="form-group">
-                {{ form_search_position.position_id.label(class="form-label") }}
-                {{ form_search_position.position_id(class="form-control", placeholder="Enter Position ID") }}
-            </div>
-
-            <!-- Position Name Field -->
-            <div class="form-group">
-                {{ form_search_position.position_name.label(class="form-label") }}
-                {{ form_search_position.position_name(class="form-control", placeholder="Enter Position Name") }}
-            </div>
-
-            <!-- Area Field -->
-            <div class="form-group">
-                {{ form_search_position.area.label(class="form-label") }}
-                {{ form_search_position.area(class="form-control") }}
-            </div>
-
-            <!-- Equipment Group Field -->
-            <div class="form-group">
-                {{ form_search_position.equipment_group.label(class="form-label") }}
-                {{ form_search_position.equipment_group(class="form-control") }}
-            </div>
-
-            <!-- Model Field -->
-            <div class="form-group">
-                {{ form_search_position.model.label(class="form-label") }}
-                {{ form_search_position.model(class="form-control") }}
-            </div>
-
-            <!-- Start Date Field -->
-            <div class="form-group">
-                {{ form_search_position.start_date.label(class="form-label") }}
-                {{ form_search_position.start_date(class="form-control", placeholder="YYYY-MM-DD") }}
-            </div>
-
-            <!-- End Date Field -->
-            <div class="form-group">
-                {{ form_search_position.end_date.label(class="form-label") }}
-                {{ form_search_position.end_date(class="form-control", placeholder="YYYY-MM-DD") }}
-            </div>
-
-            <!-- Submit Button -->
-            <button type="submit" name="search" class="btn btn-secondary">{{ form_search_position.search.label.text }}</button>
-        </form>
-
-        <!-- Results Section -->
-        <div id="positionSearchResults" style="margin-top: 20px;">
-            {% if results is not none %}
-                {% if results %}
-                    <table class="table table-bordered">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Name</th>
-                                <th>Area</th>
-                                <th>Equipment Group</th>
-                                <th>Model</th>
-                                <th>Created At</th>
-                                <!-- Add other headers as necessary -->
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for position in results %}
-                                <tr>
-                                    <td>{{ position.id }}</td>
-                                    <td>{{ position.name }}</td>
-                                    <td>{{ position.area.name if position.area else 'N/A' }}</td>
-                                    <td>{{ position.equipment_group.name if position.equipment_group else 'N/A' }}</td>
-                                    <td>{{ position.model.name if position.model else 'N/A' }}</td>
-                                    <td>{{ position.created_at.strftime('%Y-%m-%d') if position.created_at else 'N/A' }}</td>
-                                    <!-- Add other data as necessary -->
-                                </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                {% else %}
-                    <p>No positions found matching the search criteria.</p>
-                {% endif %}
-            {% else %}
-                <p>No search results yet...</p>
-            {% endif %}
-        </div>
-    </div>
-
-
-
-<!-- JavaScript for Sub-Tab Navigation and AJAX Form Handling -->
-{% block extra_scripts %}
-<script src="{{ url_for('static', filename='js/position_data_assignment/pda_partial_create_position_form.js') }}"></script>
+    // Show loading spinner on form submission.
+    var form = document.getElementById("positionForm");
+    if (form) {
+        form.addEventListener("submit", function() {
+            var spinner = document.getElementById("loadingSpinner");
+            if (spinner) {
+                spinner.style.display = "block";
+            }
+        });
+    } else {
+        console.warn('Form with id "positionForm" not found.');
+    }
+});
+</script>
 {% endblock %}

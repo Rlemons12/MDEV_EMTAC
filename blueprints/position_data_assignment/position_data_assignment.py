@@ -1,5 +1,6 @@
 from flask import Blueprint, request, redirect, flash, jsonify, render_template, url_for
 from flask_wtf import FlaskForm
+from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.utils import secure_filename
 import os
 import logging
@@ -18,6 +19,8 @@ from modules.configuration.log_config import logger
 from modules.tool_module.forms import ToolSearchForm
 from modules.emtacdb.forms import CreatePositionForm
 from modules.emtacdb.forms import SearchPositionForm
+from modules.emtacdb.forms.create_position_form import cnp_form_create_position
+
 
 
 # Initialize DatabaseConfig
@@ -32,132 +35,115 @@ def allowed_file(filename, allowed_extensions=ALLOWED_EXTENSIONS):
 @position_data_assignment_bp.route('/position_data_assignment', methods=['GET', 'POST'])
 def position_data_assignment():
     db_session = db_config.get_main_session()
-
     position_id = request.args.get('position_id')  # Get position ID from query parameters
 
-    # Instantiate CreatePositionForm
+    # Instantiate the forms
     logger.info("Loading CreatePositionForm and SearchPositionForm")
     form_create_position = CreatePositionForm()
     form_search_position = SearchPositionForm()
 
+    # Set query factories on the create form so its dropdowns work properly
+    form_create_position.set_query_factories(db_session)
+
+    # Determine if the request expects JSON (for AJAX)
+    expects_json = 'application/json' in request.headers.get('Accept', '').lower()
+
     if request.method == 'POST':
-        try:
-            logger.info("Handling POST request for position_data_assignment.")
+        # Use the form's built-in validation
+        if form_create_position.validate_on_submit():
+            try:
+                logger.info("Handling POST request for position_data_assignment with validated form.")
 
-            # Handle form submission
-            area_id = request.form.get('area_id')
-            equipment_group_id = request.form.get('equipment_group_id')
-            model_id = request.form.get('model_id')
-            asset_number_id = request.form.get('asset_number_id') or None
-            asset_number_input = request.form.get('asset_number_input') or None
-            location_id = request.form.get('location_id') or None
-            location_input = request.form.get('location_input') or None
-            assembly_id = request.form.get('assembly_id') or None
-            assembly_input = request.form.get('assembly_input') or None
-            subassembly_id = request.form.get('subassembly_id') or None
-            subassembly_input = request.form.get('subassembly_input') or None
-            site_location_id = request.form.get('site_location_id')
-            position_id = request.form.get('position_id')
-            part_numbers = request.form.getlist('part_numbers[]')
+                # Use the form's save() method to create a new Position.
+                # (This method uses the related fields and calls create_position_func internally.)
+                new_position_id = form_create_position.save(db_session, cnp_form_create_position)
+                logger.info(f"New Position created with ID {new_position_id}")
 
-            # Handle manual input for Asset Number and Location
-            if not asset_number_id and asset_number_input:
-                new_asset = AssetNumber(number=asset_number_input, model_id=model_id)
-                db_session.add(new_asset)
-                db_session.commit()
-                asset_number_id = new_asset.id
-                logger.info(f"Created new AssetNumber with ID {asset_number_id}.")
+                # Handle file uploads for images and drawings, if any.
+                images = request.files.getlist('images[]')
+                drawings = request.files.getlist('drawings[]')
+                saved_image_paths = []
+                for image in images:
+                    if image and allowed_file(image.filename, ALLOWED_IMAGE_EXTENSIONS):
+                        filename = secure_filename(image.filename)
+                        image_path = os.path.join('static/uploads/images/', filename)
+                        image.save(image_path)
+                        saved_image_paths.append(image_path)
+                        logger.info(f"Saved image: {image_path}")
 
-            if not location_id and location_input:
-                new_location = Location(name=location_input, model_id=model_id)
-                db_session.add(new_location)
-                db_session.commit()
-                location_id = new_location.id
-                logger.info(f"Created new Location with ID {location_id}.")
+                saved_drawing_paths = []
+                for drawing in drawings:
+                    if drawing and allowed_file(drawing.filename, ALLOWED_DRAWING_EXTENSIONS):
+                        filename = secure_filename(drawing.filename)
+                        drawing_path = os.path.join('static/uploads/drawings/', filename)
+                        drawing.save(drawing_path)
+                        saved_drawing_paths.append(drawing_path)
+                        logger.info(f"Saved drawing: {drawing_path}")
 
-            # Handle file uploads
-            images = request.files.getlist('images[]')
-            drawings = request.files.getlist('drawings[]')
+                # Check if we're updating an existing Position (or PositionDataAssignment)
+                # or creating a new PositionDataAssignment record.
+                if position_id:
+                    # Updating an existing Position record.
+                    position = db_session.query(Position).filter_by(id=position_id).first()
+                    if not position:
+                        flash('Position not found.', 'error')
+                        logger.error(f"Position with ID {position_id} not found for update.")
+                        return redirect(url_for('position_data_assignment_bp.position_data_assignment'))
 
-            saved_image_paths = []
-            for image in images:
-                if image and allowed_file(image.filename, ALLOWED_IMAGE_EXTENSIONS):
-                    filename = secure_filename(image.filename)
-                    image_path = os.path.join('static/uploads/images/', filename)
-                    image.save(image_path)
-                    saved_image_paths.append(image_path)
-                    logger.info(f"Saved image: {image_path}")
+                    # (If you have additional fields to update—such as file paths—handle them here.)
+                    # For example, if your Position model has image/drawing fields:
+                    # position.images = saved_image_paths
+                    # position.drawings = saved_drawing_paths
+                    db_session.commit()
+                    flash('Position Data Updated Successfully!', 'success')
+                    logger.info(f"Updated Position ID {position_id} successfully.")
+                else:
+                    # Creating a new PositionDataAssignment record (if used)
+                    # Adjust this block if you store extra data in a separate model.
+                    new_pda = PositionDataAssignment(
+                        position_id=new_position_id,
+                        images=saved_image_paths,
+                        drawings=saved_drawing_paths
+                        # Include any other extra fields as needed.
+                    )
+                    db_session.add(new_pda)
+                    db_session.commit()
+                    flash('Position Data Assigned Successfully!', 'success')
+                    logger.info("Created new PositionDataAssignment successfully.")
 
-            saved_drawing_paths = []
-            for drawing in drawings:
-                if drawing and allowed_file(drawing.filename, ALLOWED_DRAWING_EXTENSIONS):
-                    filename = secure_filename(drawing.filename)
-                    drawing_path = os.path.join('static/uploads/drawings/', filename)
-                    drawing.save(drawing_path)
-                    saved_drawing_paths.append(drawing_path)
-                    logger.info(f"Saved drawing: {drawing_path}")
+                if expects_json:
+                    return jsonify({'success': True, 'message': 'Position created/updated successfully.'}), 200
+                return redirect(url_for('position_data_assignment_bp.position_data_assignment'))
 
-            # Check if we're updating an existing position or creating a new one
-            if position_id:
-                # Updating an existing position
-                position = db_session.query(Position).filter_by(id=position_id).first()
-                if not position:
-                    flash('Position not found.', 'error')
-                    logger.error(f"Position with ID {position_id} not found for update.")
-                    return redirect(url_for('position_data_assignment_bp.position_data_assignment'))
-
-                # Update position fields
-                position.area_id = area_id
-                position.equipment_group_id = equipment_group_id
-                position.model_id = model_id
-                position.asset_number_id = asset_number_id
-                position.location_id = location_id
-                position.assembly_id = assembly_id
-                position.subassembly_id = subassembly_id
-                position.assembly_view_id = assembly_id
-                position.site_location_id = site_location_id
-                position.parts = part_numbers  # Ensure this is handled correctly
-
-                db_session.commit()
-                flash('Position Data Updated Successfully!', 'success')
-                logger.info(f"Updated Position ID {position_id} successfully.")
-
-            else:
-                # Creating a new position
-                new_pda = PositionDataAssignment(
-                    area_id=area_id,
-                    equipment_group_id=equipment_group_id,
-                    model_id=model_id,
-                    asset_number_id=asset_number_id,
-                    location_id=location_id,
-                    site_location_id=site_location_id,
-                    position_id=position_id,
-                    parts=part_numbers,
-                    images=saved_image_paths,
-                    drawings=saved_drawing_paths
-                )
-                db_session.add(new_pda)
-                db_session.commit()
-
-                flash('Position Data Assigned Successfully!', 'success')
-                logger.info("Created new PositionDataAssignment successfully.")
-
-            return redirect(url_for('position_data_assignment_bp.position_data_assignment'))
-
-        except Exception as e:
-            db_session.rollback()
-            logger.error(f"Error during form submission: {e}")
-            flash('An error occurred while processing your request.', 'error')
-            return redirect(url_for('position_data_assignment_bp.position_data_assignment'))
-
-        finally:
-            db_session.close()
-
-    # If it's a GET request, load the form with initial data
+            except Exception as e:
+                db_session.rollback()
+                logger.error(f"Error during form submission: {e}", exc_info=True)
+                flash('An error occurred while processing your request.', 'error')
+                if expects_json:
+                    return jsonify({'success': False, 'message': str(e)}), 500
+                return redirect(url_for('position_data_assignment_bp.position_data_assignment'))
+            finally:
+                logger.debug("Closing database session.")
+                db_session.close()
+        else:
+            logger.warning("CreatePositionForm validation failed.")
+            if expects_json:
+                return jsonify({
+                    'success': False,
+                    'message': 'Form validation failed.',
+                    'errors': form_create_position.errors
+                }), 400
+            flash('Form validation failed. Please correct the errors and try again.', 'error')
+            return render_template(
+                'position_data_assignment/position_data_assignment.html',
+                form_create_position=form_create_position,
+                form_search_position=form_search_position
+            )
     else:
-
+        # For GET requests, load the form with initial data.
         try:
             logger.info("Handling GET request for position_data_assignment.")
+            # Query for objects to populate the Search Position Form and other parts of the template.
             areas = db_session.query(Area).all()
             equipment_groups = db_session.query(EquipmentGroup).all()
             models = db_session.query(Model).all()
@@ -169,8 +155,6 @@ def position_data_assignment():
             site_locations = db_session.query(SiteLocation).all()
 
             position = None
-
-            # Load the position if position_id is provided (for updating)
             if position_id:
                 position = db_session.query(Position).filter_by(id=position_id).first()
                 if not position:
@@ -179,11 +163,8 @@ def position_data_assignment():
                     return redirect(url_for('position_data_assignment_bp.position_data_assignment'))
                 logger.info(f"Loaded Position ID {position_id} for updating.")
 
-            # Instantiate the ToolSearchForm
+            # Instantiate and populate the ToolSearchForm
             tool_search_form = ToolSearchForm()
-            logger.debug("Instantiated ToolSearchForm.")
-
-            # Populate choices for SelectMultipleFields
             tool_search_form.tool_category.choices = [
                 (c.id, c.name) for c in db_session.query(ToolCategory).order_by(ToolCategory.name).all()
             ]
@@ -204,16 +185,14 @@ def position_data_assignment():
                 assembly_views=assembly_views,
                 site_locations=site_locations,
                 position=position,
-                tool_search_form=tool_search_form,  # Pass the form to the template
-                form_create_position=form_create_position, #pass the form to the template
-                form_search_position= form_search_position
+                tool_search_form=tool_search_form,  # For the search form
+                form_create_position=form_create_position,
+                form_search_position=form_search_position
             )
-
         except Exception as e:
-            logger.error(f"Error fetching areas or position: {e}")
+            logger.error(f"Error fetching data for position_data_assignment: {e}", exc_info=True)
             flash('Error loading the form', 'error')
             return redirect(url_for('position_data_assignment_bp.position_data_assignment'))
-
         finally:
             db_session.close()
 
@@ -1262,65 +1241,64 @@ def pda_get_documents_by_position():
 
 @position_data_assignment_bp.route('/create_position_form', methods=['GET', 'POST'])
 def create_position_form():
-    # Initialize DatabaseConfig and session
-    db_config = DatabaseConfig()
+    logger.info("Entering create_position_form route.")
+
+    # Initialize database session
     session = db_config.get_main_session()
+    logger.debug("Database session initialized.")
 
-    # Instantiate CreatePositionForm
-    form_create_position = CreatePositionForm()
+    # Instantiate the form and set query factories
+    form = CreatePositionForm()
+    form.set_query_factories(session)
+    logger.debug("CreatePositionForm instance created and query factories set.")
 
-    if form_create_position.validate_on_submit():
-        try:
-            # Check for an existing position to prevent duplicates
-            existing_position = session.query(Position).filter_by(
-                area_id=form_create_position.area.data.id if form_create_position.area.data else None,
-                equipment_group_id=form_create_position.equipment_group.data.id if form_create_position.equipment_group.data else None,
-                model_id=form_create_position.model.data.id if form_create_position.model.data else None,
-                asset_number_id=form_create_position.asset_number.data.id if form_create_position.asset_number.data else None,
-                location_id=form_create_position.location.data.id if form_create_position.location.data else None,
-                assembly_id=form_create_position.assembly.data.id if form_create_position.assembly.data else None,
-                subassembly_id=form_create_position.subassembly.data.id if form_create_position.subassembly.data else None,
-                assembly_view_id=form_create_position.assembly_view.data.id if form_create_position.assembly_view.data else None,
-                site_location_id=form_create_position.site_location.data.id if form_create_position.site_location.data else None
-            ).first()
+    # Determine if the request expects JSON
+    expects_json = 'application/json' in request.headers.get('Accept', '').lower()
 
-            if existing_position:
-                flash(f"Position already exists with ID {existing_position.id}.", "info")
-                return redirect(url_for('position_data_assignment_bp.create_position_form'))
-
-            # Create a new position instance
-            new_position = Position(
-                area_id=form_create_position.area.data.id if form_create_position.area.data else None,
-                equipment_group_id=form_create_position.equipment_group.data.id if form_create_position.equipment_group.data else None,
-                model_id=form_create_position.model.data.id if form_create_position.model.data else None,
-                asset_number_id=form_create_position.asset_number.data.id if form_create_position.asset_number.data else None,
-                location_id=form_create_position.location.data.id if form_create_position.location.data else None,
-                assembly_id=form_create_position.assembly.data.id if form_create_position.assembly.data else None,
-                subassembly_id=form_create_position.subassembly.data.id if form_create_position.subassembly.data else None,
-                assembly_view_id=form_create_position.assembly_view.data.id if form_create_position.assembly_view.data else None,
-                site_location_id=form_create_position.site_location.data.id if form_create_position.site_location.data else None
-            )
-
-            # Add to the database and commit
-            session.add(new_position)
-            session.commit()
-
-            flash(f"Position created successfully with ID {new_position.id}.", "success")
-            return redirect(url_for('position_data_assignment_bp.create_position_form'))
-
-        except SQLAlchemyError as e:
-            session.rollback()
-            flash(f"Database error: {str(e)}", "danger")
-
-        except Exception as e:
-            flash(f"An unexpected error occurred: {str(e)}", "danger")
-
-        finally:
-            session.close()
-
-    # Pass the form as 'form' to the template
-    logger.info(f'Pass form as "form" as form')
-    return render_template('pda_create_position_form.html', form=form_create_position)
+    if request.method == 'POST':
+        if form.validate_on_submit():
+            logger.info("Form submitted and validation passed.")
+            try:
+                # Use the new chain-based save() method.
+                pos_id = form.save(session, cnp_form_create_position)
+                logger.info(f"Position created successfully with ID {pos_id}.")
+                flash(f"Position created successfully with ID {pos_id}.", "success")
+                if expects_json:
+                    return jsonify({'success': True, 'message': f"Position created successfully with ID {pos_id}."}), 200
+                return redirect(url_for('position_data_assignment_bp.position_data_assignment'))
+            except SQLAlchemyError as e:
+                session.rollback()
+                logger.error(f"Database error: {str(e)}", exc_info=True)
+                message = f"Database error: {str(e)}"
+                flash(message, "danger")
+                if expects_json:
+                    return jsonify({'success': False, 'message': message}), 500
+                return redirect(url_for('position_data_assignment_bp.position_data_assignment'))
+            except Exception as e:
+                session.rollback()
+                logger.error(f"Unexpected error: {str(e)}", exc_info=True)
+                message = f"An unexpected error occurred: {str(e)}"
+                flash(message, "danger")
+                if expects_json:
+                    return jsonify({'success': False, 'message': message}), 500
+                return redirect(url_for('position_data_assignment_bp.position_data_assignment'))
+            finally:
+                logger.debug("Closing database session.")
+                session.close()
+        else:
+            logger.warning("Form validation failed.")
+            if expects_json:
+                return jsonify({
+                    'success': False,
+                    'message': 'Form validation failed.',
+                    'errors': form.errors
+                }), 400
+            else:
+                flash("Form validation failed. Please correct the errors and try again.", "error")
+                return render_template('position_data_assignment/pda_partials/pda_create_position_form.html', form_create_position=form)
+    else:
+        logger.info("Handling GET request for create_position_form.")
+        return render_template('position_data_assignment/pda_partials/pda_create_position_form.html', form_create_position=form)
 
 @position_data_assignment_bp.route('/search_position', methods=['GET', 'POST'])
 def search_position():
@@ -1562,4 +1540,20 @@ def search_position():
 
     finally:
         db_session.close()
+
+@position_data_assignment_bp.route('/test_session')
+def test_session():
+    session = db_config.get_main_session()
+    try:
+        areas = session.query(Area).order_by(Area.name).all()
+        return jsonify({
+            "areas_count": len(areas),
+            "areas": [area.name for area in areas]
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        session.close()
+
+
 

@@ -16,7 +16,7 @@ sys.path.append(BASE_DIR)
 TEMPLATE_FOLDER_PATH = os.path.join(BASE_DIR, 'templates')
 KEYWORDS_FILE_PATH = os.path.join(BASE_DIR,"static", 'keywords_file.xlsx')  # Update with the actual filename or path
 DATABASE_DIR = os.path.join(BASE_DIR, 'Database')
-DATABASE_PATH = os.path.join(DATABASE_DIR, 'emtac_dbR1.db')
+DATABASE_PATH = os.path.join(DATABASE_DIR, 'emtac_db.db')
 REVISION_CONTROL_DB_PATH = os.path.join(DATABASE_DIR, 'emtac_revision_control_db.db')
 CSV_DIR = DATABASE_DIR
 COMMENT_IMAGES_FOLDER = os.path.join(BASE_DIR,'static', 'comment_images')
@@ -30,7 +30,7 @@ ALLOWED_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif'}  # Allowed image file extensi
 TEMPORARY_FILES = os.path.join(DATABASE_DIR, 'temp_files')
 PPT2PDF_PPT_FILES_PROCESS = os.path.join(DATABASE_DIR, 'PPT_FILES')
 PPT2PDF_PDF_FILES_PROCESS = os.path.join(DATABASE_DIR, 'PDF_FILES')
-DATABASE_URL = f'sqlite:///{os.path.join(BASE_DIR, "Database", "emtac_dbR1.db")}'
+DATABASE_URL = f'sqlite:///{os.path.join(BASE_DIR, "Database", "emtac_db.db")}'
 DATABASE_DOC = os.path.join(DATABASE_DIR, 'DB_DOC')
 TEMPORARY_UPLOAD_FILES = os.path.join(DATABASE_DIR, 'temp_upload_files')
 DB_LOADSHEET = os.path.join(DATABASE_DIR, "DB_LOADSHEETS")
@@ -38,6 +38,7 @@ DB_LOADSHEETS_BACKUP = os.path.join(DATABASE_DIR, "DB_LOADSHEETS_BACKUP")
 DB_LOADSHEET_BOMS = os.path.join(DATABASE_DIR, "DB_LOADSHEET_BOMS")
 BACKUP_DIR = os.path.join(DATABASE_DIR, "db_backup")
 Utility_tools = os.path.join(BASE_DIR, "utility_tools")
+UTILITIES = os.path.join(BASE_DIR,'utilities')
 OPENAI_MODEL_NAME = "text-embedding-3-small"
 NUM_VERSIONS_TO_KEEP = 3
 ADMIN_CREATION_PASSWORD= "12345"
@@ -70,5 +71,6 @@ directories_to_check = [
     DB_LOADSHEET,
     DB_LOADSHEETS_BACKUP,
     BACKUP_DIR,
-    Utility_tools
+    Utility_tools,
+    UTILITIES
 ]

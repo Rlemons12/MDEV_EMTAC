@@ -22,6 +22,7 @@ import time
 from modules.emtacdb.emtac_revision_control_db import (VersionInfo, RevisionControlSession)
 from modules.emtacdb.utlity.revision_database.auditlog import commit_audit_logs, add_audit_log_entry
 from modules.configuration.config_env import DatabaseConfig
+import traceback
 
 POST_URL = os.getenv('IMAGE_POST_URL', 'http://localhost:5000/image/add_image')
 REQUEST_DELAY = float(os.getenv('REQUEST_DELAY', '1.0'))  # in seconds

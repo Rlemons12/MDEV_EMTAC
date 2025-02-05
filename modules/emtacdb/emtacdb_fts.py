@@ -132,7 +132,7 @@ class Model(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
-    description = Column(String)
+    description = Column(String,nullable=True)
     equipment_group_id = Column(Integer, ForeignKey('equipment_group.id'))
     
     equipment_group = relationship("EquipmentGroup", back_populates="model")
@@ -809,12 +809,6 @@ class ToolPackage(Base):
     description = Column(Text)
 
     tools = relationship('Tool', secondary=tool_package_association, back_populates='packages')
-
-class ToolUsed(Base):
-    __tablename__ = 'tool_used'
-    id = Column(Integer, primary_key=True)
-    tool_id = Column(Integer, ForeignKey('tool.id'))
-    position_id = Column(Integer, ForeignKey('position.id'))
 
 # Bind the engine to the Base class
 Base.metadata.bind = engine

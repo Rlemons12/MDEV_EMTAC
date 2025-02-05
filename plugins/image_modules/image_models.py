@@ -7,9 +7,11 @@ import logging
 from PIL import ImageFile
 from abc import ABC, abstractmethod
 import torch
-
+import os
 # Import config variables from config.py
 from modules.configuration.config import DATABASE_URL, ALLOWED_EXTENSIONS
+from modules.emtacdb.emtacdb_fts import Image, ImageEmbedding  # Import here to avoid circular import
+from modules.configuration.config import BASE_DIR  # Import BASE_DIR
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
@@ -18,7 +20,6 @@ logger = logging.getLogger(__name__)
 # SQLAlchemy setup
 engine = create_engine(DATABASE_URL)
 Session = sessionmaker(bind=engine)
-
 # Function to dynamically import and instantiate the correct model handler
 def get_image_model_handler(model_name):
     module = sys.modules[__name__]
@@ -52,10 +53,17 @@ class BaseImageModelHandler(ABC):
         pass
 
     def store_image_metadata(self, session, title, description, file_path, embedding, model_name):
-        from modules.emtacdb.emtacdb_fts import Image, ImageEmbedding  # Import here to avoid circular import
-        
-        # Create Image entry
-        image = Image(title=title, description=description, file_path=file_path)
+
+        # Ensure file_path is relative
+        if os.path.isabs(file_path):
+            relative_file_path = os.path.relpath(file_path, BASE_DIR)
+            logger.debug(f"Converted absolute file path '{file_path}' to relative path '{relative_file_path}'.")
+        else:
+            relative_file_path = file_path
+            logger.debug(f"Using existing relative file path '{relative_file_path}'.")
+
+        # Create Image entry with relative path
+        image = Image(title=title, description=description, file_path=relative_file_path)
         session.add(image)
         session.commit()
 
@@ -64,7 +72,7 @@ class BaseImageModelHandler(ABC):
         session.add(image_embedding)
         session.commit()
 
-        logger.info(f"Stored image metadata and embedding for {file_path} using {model_name}.")
+        logger.info(f"Stored image metadata and embedding for '{relative_file_path}' using '{model_name}'.")
 
 # Implement the NoImageModel handler
 class NoImageModel(BaseImageModelHandler):
@@ -133,4 +141,5 @@ class CLIPModelHandler(BaseImageModelHandler):
             return False
 
         return True
+
 

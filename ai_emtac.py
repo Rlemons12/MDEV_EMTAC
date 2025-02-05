@@ -2,7 +2,6 @@
 
 import sys
 import os
-import logging
 import webbrowser
 from threading import Timer
 from flask import Flask, render_template, flash
@@ -22,11 +21,8 @@ from modules.emtacdb.utlity.revision_database.event_listeners import register_ev
 from modules.configuration.config import UPLOAD_FOLDER, DATABASE_URL, REVISION_CONTROL_DB_PATH
 from utilities.auth_utils import requires_roles
 from modules.configuration.config_env import DatabaseConfig
-from modules.configuration.log_config import initial_log_cleanup
+from modules.configuration.log_config import initial_log_cleanup,logger
 
-# Set up logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
 
 # Initialize database engines
 engine = create_engine(DATABASE_URL)

@@ -24,8 +24,8 @@ from modules.configuration.config import KEYWORDS_FILE_PATH, DATABASE_PATH_IMAGE
     CURRENT_EMBEDDING_MODEL, TEMPORARY_UPLOAD_FILES,DATABASE_DIR
 from modules.emtacdb.emtac_revision_control_db import CompleteDocumentSnapshot, AreaSnapshot, EquipmentGroupSnapshot, \
     ModelSnapshot, AssetNumberSnapshot, LocationSnapshot
-from modules.emtacdb.emtacdb_fts import Area, EquipmentGroup, Model, AssetNumber, Location, \
-    SiteLocation, Position, KeywordAction, nlp, session, PowerPoint, Image,  \
+from modules.emtacdb.emtacdb_fts import Area, EquipmentGroup, Model, AssetNumber, Location, Assembly,SubAssembly, \
+    SiteLocation, Position, KeywordAction, nlp, session, PowerPoint, Image, AssemblyView,  \
     load_image_model_config_from_db, ImageEmbedding, ImagePositionAssociation, ImageCompletedDocumentAssociation, \
     CompleteDocument, CompletedDocumentPositionAssociation, Document, VersionInfo, \
     DocumentEmbedding, ChatSession, PartsPositionImageAssociation
@@ -116,21 +116,50 @@ def create_image_position_association(image_id: int, position_id: int,
         # Close the session
         session.close()
 
-def create_position(area_id, equipment_group_id, model_id, asset_number_id, location_id, site_location_id, session):
+
+def create_position(area_id, equipment_group_id, model_id, asset_number_id, location_id,site_location_id, assembly_id,
+                    subassembly_id, assembly_view_id, session):
+    """
+    Creates or retrieves an existing Position record based on the given parameters.
+
+    :param area_id: int or None
+    :param equipment_group_id: int or None
+    :param model_id: int or None
+    :param asset_number_id: int or None
+    :param location_id: int or None
+    :param site_location_id: int or None
+    :param assembly_id: int or None
+    :param subassembly_id: int or None
+    :param assembly_view_id: int or None
+    :param session: SQLAlchemy session
+    :return: The ID of the existing or newly created Position.
+    """
+
     try:
         logger.debug('Starting create_position function')
 
         # Log the input parameters
-        logger.debug(f"area_id: {area_id}, equipment_group_id: {equipment_group_id}, model_id: {model_id}, "
-                     f"asset_number_id: {asset_number_id}, location_id: {location_id}, site_location_id: {site_location_id}")
+        logger.debug(
+            f"area_id={area_id}, equipment_group_id={equipment_group_id}, "
+            f"model_id={model_id}, asset_number_id={asset_number_id}, "
+            f"location_id={location_id}, site_location_id={site_location_id}, "
+            f"assembly_id={assembly_id}, subassembly_id={subassembly_id}, assembly_view_id={assembly_view_id}"
+        )
 
-        # Retrieve the related entities by their IDs
+        # Retrieve the related entities by their IDs (if provided)
         area_entity = session.query(Area).filter_by(id=area_id).first() if area_id else None
-        equipment_group_entity = session.query(EquipmentGroup).filter_by(id=equipment_group_id).first() if equipment_group_id else None
+        equipment_group_entity = session.query(EquipmentGroup).filter_by(
+            id=equipment_group_id).first() if equipment_group_id else None
         model_entity = session.query(Model).filter_by(id=model_id).first() if model_id else None
-        asset_number_entity = session.query(AssetNumber).filter_by(id=asset_number_id).first() if asset_number_id else None
+        asset_number_entity = session.query(AssetNumber).filter_by(
+            id=asset_number_id).first() if asset_number_id else None
         location_entity = session.query(Location).filter_by(id=location_id).first() if location_id else None
-        site_location_entity = session.query(SiteLocation).filter_by(id=site_location_id).first() if site_location_id else None
+        site_location_entity = session.query(SiteLocation).filter_by(
+            id=site_location_id).first() if site_location_id else None
+        assembly_entity = session.query(Assembly).filter_by(id=assembly_id).first() if assembly_id else None
+        subassembly_entity = session.query(SubAssembly).filter_by(id=subassembly_id).first() if subassembly_id else None
+        assembly_view_entity = session.query(AssemblyView).filter_by(
+            id=assembly_view_id).first() if assembly_view_id else None
 
         # Log the retrieved entities
         logger.debug(f"Retrieved area_entity: {area_entity}")
@@ -139,6 +168,9 @@ def create_position(area_id, equipment_group_id, model_id, asset_number_id, loca
         logger.debug(f"Retrieved asset_number_entity: {asset_number_entity}")
         logger.debug(f"Retrieved location_entity: {location_entity}")
         logger.debug(f"Retrieved site_location_entity: {site_location_entity}")
+        logger.debug(f"Retrieved assembly_entity: {assembly_entity}")
+        logger.debug(f"Retrieved subassembly_entity: {subassembly_entity}")
+        logger.debug(f"Retrieved assembly_view_entity: {assembly_view_entity}")
 
         # Check for an existing Position with the same attributes
         existing_position = session.query(Position).filter_by(
@@ -147,31 +179,38 @@ def create_position(area_id, equipment_group_id, model_id, asset_number_id, loca
             model=model_entity,
             asset_number=asset_number_entity,
             location=location_entity,
-            site_location=site_location_entity
+            site_location=site_location_entity,
+            assembly=assembly_entity,
+            subassembly=subassembly_entity,
+            assembly_view=assembly_view_entity
         ).first()
 
         if existing_position:
             logger.info(f"Found existing Position with ID: {existing_position.id}")
             return existing_position.id
         else:
-            # Create and add the Position entry
+            # Create and add the new Position entry
             position = Position(
                 area=area_entity,
                 equipment_group=equipment_group_entity,
                 model=model_entity,
                 asset_number=asset_number_entity,
                 location=location_entity,
-                site_location=site_location_entity
+                site_location=site_location_entity,
+                assembly=assembly_entity,
+                subassembly=subassembly_entity,
+                assembly_view=assembly_view_entity
             )
             session.add(position)
-            session.commit()  # Commit changes to get the position ID
+            session.commit()  # Commit to generate the position.id
             logger.info(f"Created new Position with ID: {position.id}")
             return position.id
 
     except Exception as e:
         logger.error(f"An error occurred in create_position: {e}")
         session.rollback()
-        raise  # Re-raise the exception to let the caller handle it
+        raise  # Re-raise to let caller handle
+
 
 def load_keywords_to_db(session):
     try:
@@ -400,9 +439,7 @@ def get_total_images_count(description=''):
 def add_image_to_db(title: str,file_path: str,position_id: int = None,
                     completed_document_position_association_id: int = None,
                     complete_document_id: int = None, description: str = "") -> int:
-
     new_image_id = None  # Initialize the new_image_id outside the session scope
-
     try:
         # Obtain a session using the getter method
         with db_config.get_main_session() as session:
@@ -442,17 +479,43 @@ def add_image_to_db(title: str,file_path: str,position_id: int = None,
                 with open(error_file_path, 'a') as error_file:
                     error_file.write(
                         f"Image with title '{title}', description '{description}', and file path '{file_path}' already exists.\n")
+
             else:
-                # Step 4: Add the new image to the database
+
+                # Step 4: Ensure file_path is relative before storing
+
+                if os.path.isabs(file_path):
+
+                    relative_file_path = os.path.relpath(file_path, DATABASE_DIR)
+
+                    logger.debug(f"Converted absolute file path '{file_path}' to relative path '{relative_file_path}'")
+
+                else:
+
+                    relative_file_path = file_path
+
+                    logger.debug(f"Using existing relative file path '{relative_file_path}'")
+
+                # Step 4.1: Add the new image to the database with relative file path
+
                 logger.info("Adding a new image to the database")
+
                 new_image = Image(
+
                     title=title,
+
                     description=description,
-                    file_path=file_path
+
+                    file_path=relative_file_path  # Store relative path
+
                 )
+
                 session.add(new_image)
+
                 session.commit()
+
                 new_image_id = new_image.id  # Assign the ID to new_image_id
+
                 logger.info(f"Added image: {title}, ID: {new_image_id}")
 
             # Step 5: Process the image and generate the embedding
@@ -909,7 +972,6 @@ def add_text_file_to_db(title, txt_file_path, position_id):
     except Exception as e:
         logger.error(f"An error occurred while processing text file: {e}")
         return False
-
 
 def add_csv_data_to_db(csv_file, position_id, max_words=300, pad_token=""):
     try:
