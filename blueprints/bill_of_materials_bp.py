@@ -103,15 +103,9 @@ def bill_of_materials():
         session = db_config.get_main_session()
 
         # Create the Position using the create_position function
-        position_id = create_position(
-            area_id=area_id,
-            equipment_group_id=equipment_group_id,
-            model_id=model_id,
-            asset_number_id=asset_number_id,
-            location_id=location_id,
-            site_location_id=site_location_id,
-            session=session
-        )
+        position_id = create_position(area_id=area_id, equipment_group_id=equipment_group_id, model_id=model_id,
+                                      asset_number_id=asset_number_id, location_id=location_id,
+                                      site_location_id=site_location_id, session=session)
 
         if position_id is None:
             flash('Error creating position')

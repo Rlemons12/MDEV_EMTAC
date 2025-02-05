@@ -38,15 +38,10 @@ def handle_position_and_part_upload():
         }
 
         # Create or get the Position based on the form data
-        position_id = create_position(
-            area_id=form_data['area_id'],
-            equipment_group_id=form_data['equipment_group_id'],
-            model_id=form_data['model_id'],
-            asset_number_id=form_data.get('asset_number_id'),
-            location_id=form_data.get('location_id'),
-            site_location_id=form_data.get('site_location_id'),
-            session=session
-        )
+        position_id = create_position(area_id=form_data['area_id'], equipment_group_id=form_data['equipment_group_id'],
+                                      model_id=form_data['model_id'], asset_number_id=form_data.get('asset_number_id'),
+                                      location_id=form_data.get('location_id'),
+                                      site_location_id=form_data.get('site_location_id'), session=session)
 
         if position_id is None:
             print("Failed to create or retrieve Position.")

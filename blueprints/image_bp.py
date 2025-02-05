@@ -121,8 +121,8 @@ def upload_image():
                              f"site_location_id={site_location_id}")
 
                 # Retrieve or create the position and get the ID
-                position_id = create_position(area_id, equipment_group_id, model_id,
-                                             asset_number_id, location_id, site_location_id, session)
+                position_id = create_position(area_id, equipment_group_id, model_id, asset_number_id, location_id,
+                                              site_location_id, session)
 
                 if position_id:
                     logger.info(f'Position ID: {position_id}')

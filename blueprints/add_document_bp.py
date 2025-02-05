@@ -84,11 +84,8 @@ def add_document():
                     session.commit()
                 logger.info(f"Processed site location: {site_location_title}")
 
-            position_id = create_position(
-                area, equipment_group, model, asset_number, location,
-                site_location.id if site_location else None,
-                session
-            )
+            position_id = create_position(area, equipment_group, model, asset_number, location,
+                                          site_location.id if site_location else None, session,)
             logger.info(f"Processed position ID: {position_id}")
 
         cpu_count = os.cpu_count()

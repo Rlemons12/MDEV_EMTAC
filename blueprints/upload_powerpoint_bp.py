@@ -121,7 +121,7 @@ def upload_powerpoint():
         logger.debug(f"area_id: {area_id}, equipment_group_id: {equipment_group_id}, model_id: {model_id}, asset_number_id: {asset_number_id}, location_id: {location_id}, site_location: {site_location}")
 
         logger.debug(f"Creating position with parameters - area: {area}, equipment_group: {equipment_group}, model: {model}, asset_number: {asset_number}, location: {location}, site_location: {site_location}")
-        position_id = create_position(area, equipment_group, model, asset_number, location, site_location)
+        position_id = create_position(area, equipment_group, model, asset_number, location, site_location, )
         logger.debug(f"Position ID created: {position_id}")
 
         if not position_id:

@@ -86,7 +86,7 @@ def upload_image():
         asset_number_id = int(asset_number) if asset_number else None
         location_id = int(location) if location else None
         
-        position_id = create_position(area_id, equipment_group_id, model_id, asset_number_id, location_id)
+        position_id = create_position(area_id, equipment_group_id, model_id, asset_number_id, location_id,,
         
         if 'image' not in request.files:
             return redirect(request.url)

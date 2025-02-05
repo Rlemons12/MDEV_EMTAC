@@ -117,8 +117,8 @@ def create_image_position_association(image_id: int, position_id: int,
         session.close()
 
 
-def create_position(area_id, equipment_group_id, model_id, asset_number_id, location_id,site_location_id, assembly_id,
-                    subassembly_id, assembly_view_id, session):
+def create_position(area_id, equipment_group_id, model_id, asset_number_id, location_id,
+                    site_location_id, session, assembly_id=None, subassembly_id=None, assembly_view_id=None):
     """
     Creates or retrieves an existing Position record based on the given parameters.
 

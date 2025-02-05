@@ -150,7 +150,8 @@ def add_tsg_loadsheet_to_document_table_db(file_path, area_data, equipment_group
                 continue
 
             # Create a new position if required
-            position_id = create_position(area_id, equipment_group_id, model_id, asset_number_id, location_id, None, session)
+            position_id = create_position(area_id, equipment_group_id, model_id, asset_number_id, location_id, None,
+                                          session)
             if not position_id:
                 logger.error("Failed to create or retrieve position.")
                 continue

@@ -147,7 +147,6 @@ def run_setup_scripts():
     else:
         initializer_logger.warning(f"⚠️ No logs directory found at {logs_directory}.")
 
-
 def main():
     # Ensure all required directories exist before running the database setup
     create_directories()
