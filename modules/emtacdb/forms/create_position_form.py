@@ -135,13 +135,19 @@ class CreatePositionForm(FlaskForm):
         allow_blank=True,
         blank_text="Select an Asset Number",
         validators=[Optional()],
-        get_label="number",
+        get_label=lambda asset: f"{asset.number} - {asset.description}" if asset.description else asset.number,
         render_kw={"id": "assetNumberDropdown", "data-toggle-input": "create_position_form-asset_number_input"}
     )
     asset_number_input = StringField(
         label="New Asset Number",
         validators=[Optional()],
         render_kw={"id": "assetNumberInput", "placeholder": "Enter new Asset Number if not listed"}
+    )
+    asset_number_description = TextAreaField(
+        label="Asset Number Description",
+        validators=[Optional()],
+        render_kw={"id": "assetNumberDescription",
+                   "placeholder": "Enter description for new Asset Number if not listed"}
     )
 
     # LOCATION
@@ -327,11 +333,15 @@ class CreatePositionForm(FlaskForm):
         # 4. Process ASSET NUMBER
         if self.asset_number_input.data:
             logger.debug("New Asset Number input provided: %s", self.asset_number_input.data)
-            new_asset_number = AssetNumber(number=self.asset_number_input.data, description="")
+            new_asset_number = AssetNumber(
+                number=self.asset_number_input.data,
+                description=self.asset_number_description.data or "",
+                model_id=model_id  # Store the model ID here
+            )
             session.add(new_asset_number)
             session.commit()
             asset_number_id = new_asset_number.id
-            logger.debug("Created new AssetNumber with ID: %s", asset_number_id)
+            logger.debug("Created new AssetNumber with ID: %s (linked to Model ID: %s)", asset_number_id, model_id)
         elif self.asset_number.data:
             asset_number_id = self.asset_number.data.id
             logger.debug("Using selected AssetNumber with ID: %s", asset_number_id)

@@ -72,7 +72,10 @@
       {{ render_field_with_toggle(form_create_position.area, form_create_position.area_input, "Area", "Enter new Area if not listed") }}
       {{ render_field_with_toggle(form_create_position.equipment_group, form_create_position.equipment_group_input, "Equipment Group", "Enter new Equipment Group if not listed") }}
       {{ render_field_with_toggle_and_description(form_create_position.model, form_create_position.model_input, form_create_position.model_description, "Model", "Enter new Model if not listed", "Enter Model Description") }}
-      {{ render_field_with_toggle(form_create_position.asset_number, form_create_position.asset_number_input, "Asset Number", "Enter new Asset Number if not listed") }}
+
+      {# Updated asset number field to include description input #}
+      {{ render_field_with_toggle_and_description(form_create_position.asset_number, form_create_position.asset_number_input, form_create_position.asset_number_description, "Asset Number", "Enter new Asset Number if not listed", "Enter description for new Asset Number if not listed") }}
+
       {{ render_field_with_toggle(form_create_position.location, form_create_position.location_input, "Location", "Enter new Location if not listed") }}
       {{ render_field_with_toggle(form_create_position.assembly, form_create_position.assembly_input, "Assembly", "Enter new Assembly if not listed") }}
       {# Updated field: previously subassembly, now component_assembly #}
