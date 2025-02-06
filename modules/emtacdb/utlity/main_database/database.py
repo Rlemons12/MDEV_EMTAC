@@ -118,7 +118,7 @@ def create_image_position_association(image_id: int, position_id: int,
 
 
 def create_position(area_id, equipment_group_id, model_id, asset_number_id, location_id,
-                    site_location_id, session, assembly_id=None, subassembly_id=None, assembly_view_id=None):
+                    site_location_id, session, assembly_id=None, component_assembly=None, assembly_view_id=None):
     """
     Creates or retrieves an existing Position record based on the given parameters.
 
@@ -129,7 +129,7 @@ def create_position(area_id, equipment_group_id, model_id, asset_number_id, loca
     :param location_id: int or None
     :param site_location_id: int or None
     :param assembly_id: int or None
-    :param subassembly_id: int or None
+    :param component_assembly: int or None
     :param assembly_view_id: int or None
     :param session: SQLAlchemy session
     :return: The ID of the existing or newly created Position.
@@ -143,7 +143,7 @@ def create_position(area_id, equipment_group_id, model_id, asset_number_id, loca
             f"area_id={area_id}, equipment_group_id={equipment_group_id}, "
             f"model_id={model_id}, asset_number_id={asset_number_id}, "
             f"location_id={location_id}, site_location_id={site_location_id}, "
-            f"assembly_id={assembly_id}, subassembly_id={subassembly_id}, assembly_view_id={assembly_view_id}"
+            f"assembly_id={assembly_id}, component_assembly={component_assembly}, assembly_view_id={assembly_view_id}"
         )
 
         # Retrieve the related entities by their IDs (if provided)
@@ -157,7 +157,7 @@ def create_position(area_id, equipment_group_id, model_id, asset_number_id, loca
         site_location_entity = session.query(SiteLocation).filter_by(
             id=site_location_id).first() if site_location_id else None
         assembly_entity = session.query(Assembly).filter_by(id=assembly_id).first() if assembly_id else None
-        subassembly_entity = session.query(ComponentAssembly).filter_by(id=subassembly_id).first() if subassembly_id else None
+        component_assembly_entity = session.query(ComponentAssembly).filter_by(id=component_assembly).first() if component_assembly else None
         assembly_view_entity = session.query(AssemblyView).filter_by(
             id=assembly_view_id).first() if assembly_view_id else None
 
@@ -169,7 +169,7 @@ def create_position(area_id, equipment_group_id, model_id, asset_number_id, loca
         logger.debug(f"Retrieved location_entity: {location_entity}")
         logger.debug(f"Retrieved site_location_entity: {site_location_entity}")
         logger.debug(f"Retrieved assembly_entity: {assembly_entity}")
-        logger.debug(f"Retrieved subassembly_entity: {subassembly_entity}")
+        logger.debug(f"Retrieved component_assembly_entity: {component_assembly_entity}")
         logger.debug(f"Retrieved assembly_view_entity: {assembly_view_entity}")
 
         # Check for an existing Position with the same attributes
@@ -181,7 +181,7 @@ def create_position(area_id, equipment_group_id, model_id, asset_number_id, loca
             location=location_entity,
             site_location=site_location_entity,
             assembly=assembly_entity,
-            subassembly=subassembly_entity,
+            component_assembly=component_assembly_entity,
             assembly_view=assembly_view_entity
         ).first()
 
@@ -198,7 +198,7 @@ def create_position(area_id, equipment_group_id, model_id, asset_number_id, loca
                 location=location_entity,
                 site_location=site_location_entity,
                 assembly=assembly_entity,
-                subassembly=subassembly_entity,
+                component_assembly=component_assembly_entity,
                 assembly_view=assembly_view_entity
             )
             session.add(position)
