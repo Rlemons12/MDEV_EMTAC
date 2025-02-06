@@ -17,7 +17,7 @@ class Assembly(Base):
     name = Column(String, nullable=False)
 
     # Relationships
-    subassemblies = relationship("SubAssembly", back_populates="assembly")
+    subassemblies = relationship("ComponentAssembly", back_populates="assembly")
     
 class SubAssembly(Base):
     #specific group of components of an assembly
@@ -38,7 +38,7 @@ class AssemblyView(Base):
     name = Column(String, nullable=False)
 
     # Relationships
-    subassemblies = relationship("SubAssembly", back_populates="assembly_view")
+    subassemblies = relationship("ComponentAssembly", back_populates="assembly_view")
 
 
 

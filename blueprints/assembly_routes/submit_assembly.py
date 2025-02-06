@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, jsonify
 from modules.configuration.config_env import DatabaseConfig
-from modules.emtacdb.emtacdb_fts import Assembly, AssemblyView, SubAssembly
+from modules.emtacdb.emtacdb_fts import Assembly, AssemblyView, ComponentAssembly
 from blueprints.assembly_routes import assembly_model_bp
 
 # Initialize the DatabaseConfig instance
@@ -31,8 +31,8 @@ def submit_assembly():
             session.add(assembly)
             session.flush()  # Flush to assign an ID without committing
 
-            # Create SubAssembly
-            subassembly = SubAssembly(
+            # Create ComponentAssembly
+            subassembly = ComponentAssembly(
                 name=subassembly_name,
                 assembly_id=assembly.id,
                 assembly_view_id=assembly_view.id

@@ -3,7 +3,7 @@ from wtforms import SubmitField
 from wtforms.validators import Optional
 from wtforms_sqlalchemy.fields import QuerySelectField
 from modules.emtacdb.emtacdb_fts import (Area, EquipmentGroup, Model, AssetNumber, Location, Assembly,
-                                         SubAssembly, AssemblyView, SiteLocation)
+                                         ComponentAssembly, AssemblyView, SiteLocation)
 from flask import current_app  # To access the app's config
 
 class PositionForm(FlaskForm):
@@ -63,7 +63,7 @@ class PositionForm(FlaskForm):
 
     subassembly = QuerySelectField(
         label="Subassembly",
-        query_factory=lambda: current_app.config['db_config'].get_main_session().query(SubAssembly).order_by(SubAssembly.name).all(),
+        query_factory=lambda: current_app.config['db_config'].get_main_session().query(ComponentAssembly).order_by(ComponentAssembly.name).all(),
         allow_blank=True,
         blank_text="Select a Subassembly",
         validators=[Optional()],

@@ -6,8 +6,8 @@ from werkzeug.utils import secure_filename
 from sqlalchemy.orm import joinedload  # Import for eager loading
 from modules.tool_module.forms import ToolForm, ToolCategoryForm, ToolManufacturerForm, ToolSearchForm
 from modules.emtacdb.emtacdb_fts import (Tool, ToolCategory, ToolManufacturer, ToolPositionAssociation, Position,
-                                        Area, EquipmentGroup, Model, AssetNumber,
-                                        Location, Assembly, SubAssembly, AssemblyView, SiteLocation, Image)
+                                         Area, EquipmentGroup, Model, AssetNumber,
+                                         Location, Assembly, ComponentAssembly, AssemblyView, SiteLocation, Image)
 from modules.configuration.log_config import logger
 from modules.emtacdb.forms.position_form import PositionForm
 
@@ -128,7 +128,7 @@ def submit_tool_data():
         print("Populating position_form.subassembly.choices...")
         position_form.subassembly.choices = [
             (sasm.id, sasm.name)
-            for sasm in main_session.query(SubAssembly).order_by(SubAssembly.name)
+            for sasm in main_session.query(ComponentAssembly).order_by(ComponentAssembly.name)
         ]
         print("position_form.subassembly.choices populated.")
 

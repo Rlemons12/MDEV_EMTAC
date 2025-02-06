@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify
 from modules.configuration.config_env import DatabaseConfig
 from modules.emtacdb.emtacdb_fts import (Area, EquipmentGroup, Model, AssetNumber, Location,
-                                        Assembly,AssemblyView,SubAssembly)
+                                         Assembly, AssemblyView, ComponentAssembly)
 
 # Blueprint for the assembly model
 assembly_model_bp = Blueprint('assembly_model', __name__)
@@ -12,7 +12,7 @@ db_config = DatabaseConfig()
 def get_list_data():
     """
     Fetch and return data for all entities: Area, EquipmentGroup, Model, AssetNumber,
-    Location, Assembly, AssemblyView, and SubAssembly.
+    Location, Assembly, AssemblyView, and ComponentAssembly.
     """
     try:
         with db_config.get_main_session() as session:
@@ -24,7 +24,7 @@ def get_list_data():
             locations = session.query(Location).all()
             assemblies = session.query(Assembly).all()
             assembly_views = session.query(AssemblyView).all()
-            subassemblies = session.query(SubAssembly).all()
+            subassemblies = session.query(ComponentAssembly).all()
 
             # Convert queried data to a list of dictionaries
             areas_list = [{'id': area.id, 'name': area.name} for area in areas]

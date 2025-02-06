@@ -83,7 +83,7 @@ class Position(Base):
     asset_number_id = Column(Integer, ForeignKey('asset_number.id'), nullable=True)
     location_id = Column(Integer, ForeignKey('location.id'), nullable=True)
     assembly_id = Column(Integer, ForeignKey('assembly.id'), nullable=True)
-    subassembly_id = Column(Integer, ForeignKey('subassembly.id'), nullable=True)
+    component_assembly_id = Column(Integer, ForeignKey('component_assembly.id'), nullable=True)
     assembly_view_id = Column(Integer, ForeignKey('assembly_view.id'), nullable=True)
     site_location_id = Column(Integer, ForeignKey('site_location.id'), nullable=True)
 
@@ -102,7 +102,7 @@ class Position(Base):
     position_tasks = relationship("TaskPositionAssociation", back_populates="position", cascade="all, delete-orphan")
     tool_position_association = relationship("ToolPositionAssociation", back_populates="position")
     assembly = relationship("Assembly", back_populates="position")
-    subassembly = relationship("SubAssembly", back_populates="position")
+    component_assembly = relationship("ComponentAssembly", back_populates="position")
     assembly_view = relationship("AssemblyView", back_populates="position")
 
 class Area(Base):
@@ -174,21 +174,21 @@ class Assembly(Base):
     description = Column(String, nullable=False)
     # Relationships
     location =relationship("Location", back_populates="assembly")
-    subassembly = relationship("SubAssembly", back_populates="assembly")
+    component_assembly = relationship("ComponentAssembly", back_populates="assembly")
     position = relationship("Position", back_populates="assembly")
 
-class SubAssembly(Base):
+class ComponentAssembly(Base):
     # specific group of components of an assembly
-    __tablename__ = 'subassembly'
+    __tablename__ = 'component_assembly'
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
     description = Column(String, nullable=False)
     assembly_id = Column(Integer, ForeignKey('assembly.id'), nullable=False)
 
     # Relationships
-    assembly = relationship("Assembly", back_populates="subassembly")
-    assembly_view = relationship("AssemblyView", back_populates="subassembly")
-    position = relationship("Position", back_populates="subassembly")
+    assembly = relationship("Assembly", back_populates="component_assembly")
+    assembly_view = relationship("AssemblyView", back_populates="component_assembly")
+    position = relationship("Position", back_populates="component_assembly")
 
 class AssemblyView(Base):
     __tablename__ = 'assembly_view'
@@ -196,9 +196,9 @@ class AssemblyView(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
     description = Column(String, nullable=False)
-    subassembly_id = Column(Integer, ForeignKey('subassembly.id'), nullable=False)
+    component_assembly_id = Column(Integer, ForeignKey('component_assembly.id'), nullable=False)
     # Relationships
-    subassembly = relationship("SubAssembly", back_populates="assembly_view")
+    component_assembly = relationship("ComponentAssembly", back_populates="assembly_view")
     position = relationship("Position", back_populates="assembly_view")
 
 class Part(Base):
@@ -797,7 +797,7 @@ class Tool(Base):
     # Relationships
     tool_category = relationship('ToolCategory', back_populates='tools')
     tool_manufacturer = relationship('ToolManufacturer', back_populates='tools')
-    packages = relationship('ToolPackage', secondary=tool_package_association, back_populates='tools')
+    tool_packages = relationship('ToolPackage', secondary=tool_package_association, back_populates='tools')
     tool_image_association = relationship('ToolImageAssociation', back_populates='tool')
     tool_position_association = relationship('ToolPositionAssociation',back_populates='tool',)
     tool_tasks = relationship('TaskToolAssociation', back_populates='tool', cascade="all, delete-orphan")
@@ -808,7 +808,7 @@ class ToolPackage(Base):
     name = Column(String, nullable=False)
     description = Column(Text)
 
-    tools = relationship('Tool', secondary=tool_package_association, back_populates='packages')
+    tools = relationship('Tool', secondary=tool_package_association, back_populates='tool_packages')
 
 # Bind the engine to the Base class
 Base.metadata.bind = engine

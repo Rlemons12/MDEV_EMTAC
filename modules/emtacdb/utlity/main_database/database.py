@@ -24,7 +24,7 @@ from modules.configuration.config import KEYWORDS_FILE_PATH, DATABASE_PATH_IMAGE
     CURRENT_EMBEDDING_MODEL, TEMPORARY_UPLOAD_FILES,DATABASE_DIR
 from modules.emtacdb.emtac_revision_control_db import CompleteDocumentSnapshot, AreaSnapshot, EquipmentGroupSnapshot, \
     ModelSnapshot, AssetNumberSnapshot, LocationSnapshot
-from modules.emtacdb.emtacdb_fts import Area, EquipmentGroup, Model, AssetNumber, Location, Assembly,SubAssembly, \
+from modules.emtacdb.emtacdb_fts import Area, EquipmentGroup, Model, AssetNumber, Location, Assembly,ComponentAssembly, \
     SiteLocation, Position, KeywordAction, nlp, session, PowerPoint, Image, AssemblyView,  \
     load_image_model_config_from_db, ImageEmbedding, ImagePositionAssociation, ImageCompletedDocumentAssociation, \
     CompleteDocument, CompletedDocumentPositionAssociation, Document, VersionInfo, \
@@ -157,7 +157,7 @@ def create_position(area_id, equipment_group_id, model_id, asset_number_id, loca
         site_location_entity = session.query(SiteLocation).filter_by(
             id=site_location_id).first() if site_location_id else None
         assembly_entity = session.query(Assembly).filter_by(id=assembly_id).first() if assembly_id else None
-        subassembly_entity = session.query(SubAssembly).filter_by(id=subassembly_id).first() if subassembly_id else None
+        subassembly_entity = session.query(ComponentAssembly).filter_by(id=subassembly_id).first() if subassembly_id else None
         assembly_view_entity = session.query(AssemblyView).filter_by(
             id=assembly_view_id).first() if assembly_view_id else None
 

@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from modules.configuration.config_env import DatabaseConfig  # Import your DatabaseConfig class
 from modules.emtacdb.emtacdb_fts import (Position, Area, EquipmentGroup, Model, AssetNumber, Location, SiteLocation,
-                                        Assembly,SubAssembly,AssemblyView)
+                                         Assembly, ComponentAssembly, AssemblyView)
 import logging
 
 # Configure logging
@@ -170,7 +170,7 @@ def add_position():
                 if name:
                     # If subassemblies are linked to an assembly
                     assembly_fk = new_assembly_ids[0] if new_assembly_ids else None
-                    new_subassembly = SubAssembly(
+                    new_subassembly = ComponentAssembly(
                         name=name,
                         description=description,
                         assembly_id=assembly_fk  # if needed
@@ -453,9 +453,9 @@ def get_subassemblies():
     try:
         assembly_id = request.args.get('assembly_id')
         if assembly_id:
-            subassemblies = session.query(SubAssembly).filter_by(assembly_id=assembly_id).all()
+            subassemblies = session.query(ComponentAssembly).filter_by(assembly_id=assembly_id).all()
         else:
-            subassemblies = session.query(SubAssembly).all()
+            subassemblies = session.query(ComponentAssembly).all()
 
         data = [{'id': subassembly.id, 'name': subassembly.name} for subassembly in subassemblies]
         return jsonify(data)
@@ -506,16 +506,16 @@ def add_assembly():
 @position_data_assignment_data_add_dependencies_bp.route('/add_subassembly', methods=['GET', 'POST'])
 def add_subassembly():
     """
-    Allows creation of a new SubAssembly record.
-    Optionally links the SubAssembly to an existing Assembly, if needed.
+    Allows creation of a new ComponentAssembly record.
+    Optionally links the ComponentAssembly to an existing Assembly, if needed.
     """
     if request.method == 'POST':
         subassembly_name = request.form.get('subassembly_name')
         subassembly_description = request.form.get('subassembly_description')
         assembly_id = request.form.get('assembly_id')  # If your schema links subassembly to an assembly
 
-        # Create the new SubAssembly object
-        new_subassembly = SubAssembly(
+        # Create the new ComponentAssembly object
+        new_subassembly = ComponentAssembly(
             name=subassembly_name,
             description=subassembly_description,
             assembly_id=assembly_id if assembly_id else None
@@ -561,7 +561,7 @@ def add_assembly_view():
         return redirect(url_for('position_data_assignment_data_add_dependencies_bp.add_assembly_view'))
 
     # If GET, render a template
-    subassemblies = session.query(SubAssembly).all()
+    subassemblies = session.query(ComponentAssembly).all()
     return render_template('add_assembly_view.html', subassemblies=subassemblies)
 
 

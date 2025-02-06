@@ -6,7 +6,7 @@ from wtforms.validators import Optional, DataRequired
 from wtforms_sqlalchemy.fields import QuerySelectField
 from modules.emtacdb.emtacdb_fts import (
     Area, EquipmentGroup, Model, AssetNumber, Location,
-    Assembly, SubAssembly, AssemblyView, SiteLocation, Position
+    Assembly, ComponentAssembly, AssemblyView, SiteLocation, Position
 )
 from modules.configuration.log_config import logger
 from modules.configuration.config_env import DatabaseConfig
@@ -15,10 +15,10 @@ database_config = DatabaseConfig()
 
 def cnp_form_create_position(area_id, equipment_group_id, model_id, asset_number_id,
                              location_id, site_location_id, assembly_id,
-                             subassembly_id, assembly_view_id, session):
+                             component_assembly_id, assembly_view_id, session):
     try:
-        logger.debug("Entering cnp_form_create_position with IDs: Area=%s, EquipmentGroup=%s, Model=%s, AssetNumber=%s, Location=%s, SiteLocation=%s, Assembly=%s, Subassembly=%s, AssemblyView=%s",
-                     area_id, equipment_group_id, model_id, asset_number_id, location_id, site_location_id, assembly_id, subassembly_id, assembly_view_id)
+        logger.debug("Entering cnp_form_create_position with IDs: Area=%s, EquipmentGroup=%s, Model=%s, AssetNumber=%s, Location=%s, SiteLocation=%s, Assembly=%s, ComponentAssembly=%s, AssemblyView=%s",
+                     area_id, equipment_group_id, model_id, asset_number_id, location_id, site_location_id, assembly_id, component_assembly_id, assembly_view_id)
 
         # Retrieve the related objects by their IDs (if provided)
         area_entity = session.query(Area).filter_by(id=area_id).first() if area_id else None
@@ -28,11 +28,11 @@ def cnp_form_create_position(area_id, equipment_group_id, model_id, asset_number
         location_entity = session.query(Location).filter_by(id=location_id).first() if location_id else None
         site_location_entity = session.query(SiteLocation).filter_by(id=site_location_id).first() if site_location_id else None
         assembly_entity = session.query(Assembly).filter_by(id=assembly_id).first() if assembly_id else None
-        subassembly_entity = session.query(SubAssembly).filter_by(id=subassembly_id).first() if subassembly_id else None
+        component_assembly_entity = session.query(ComponentAssembly).filter_by(id=component_assembly_id).first() if component_assembly_id else None
         assembly_view_entity = session.query(AssemblyView).filter_by(id=assembly_view_id).first() if assembly_view_id else None
 
-        logger.debug("Retrieved related objects: Area=%s, EquipmentGroup=%s, Model=%s, AssetNumber=%s, Location=%s, SiteLocation=%s, Assembly=%s, Subassembly=%s, AssemblyView=%s",
-                     area_entity, equipment_group_entity, model_entity, asset_number_entity, location_entity, site_location_entity, assembly_entity, subassembly_entity, assembly_view_entity)
+        logger.debug("Retrieved related objects: Area=%s, EquipmentGroup=%s, Model=%s, AssetNumber=%s, Location=%s, SiteLocation=%s, Assembly=%s, ComponentAssembly=%s, AssemblyView=%s",
+                     area_entity, equipment_group_entity, model_entity, asset_number_entity, location_entity, site_location_entity, assembly_entity, component_assembly_entity, assembly_view_entity)
 
         # Check for an existing Position with the same relationships.
         existing_position = session.query(Position).filter_by(
@@ -43,7 +43,7 @@ def cnp_form_create_position(area_id, equipment_group_id, model_id, asset_number
             location=location_entity,
             site_location=site_location_entity,
             assembly=assembly_entity,
-            subassembly=subassembly_entity,
+            component_assembly=component_assembly_entity,  # Assuming Position still has an attribute named "subassembly"
             assembly_view=assembly_view_entity
         ).first()
 
@@ -59,7 +59,7 @@ def cnp_form_create_position(area_id, equipment_group_id, model_id, asset_number
                 location=location_entity,
                 site_location=site_location_entity,
                 assembly=assembly_entity,
-                subassembly=subassembly_entity,
+                component_assembly=component_assembly_entity,  # Even if the attribute name in Position remains "subassembly", the underlying FK now points to component_assembly.id
                 assembly_view=assembly_view_entity
             )
             session.add(new_position)
@@ -71,6 +71,7 @@ def cnp_form_create_position(area_id, equipment_group_id, model_id, asset_number
         logger.error("Error in cnp_form_create_position: %s", str(e), exc_info=True)
         session.rollback()
         raise e
+
 
 class CreatePositionForm(FlaskForm):
     # --- Define fields for each related table ---
@@ -175,20 +176,21 @@ class CreatePositionForm(FlaskForm):
         render_kw={"id": "assemblyInput", "placeholder": "Enter new Assembly if not listed"}
     )
 
-    # SUBASSEMBLY
-    subassembly = QuerySelectField(
-        label="Subassembly",
+    # COMPONENT ASSEMBLY
+    component_assembly = QuerySelectField(
+        label="Component Assembly",
         query_factory=lambda: [],
         allow_blank=True,
-        blank_text="Select a Subassembly",
+        blank_text="Select a Component Assembly",
         validators=[Optional()],
         get_label="name",
-        render_kw={"id": "subassemblyDropdown", "data-toggle-input": "create_position_form-subassembly_input"}
+        render_kw={"id": "componentAssemblyDropdown",
+                   "data-toggle-input": "create_position_form-component_assembly_input"}
     )
-    subassembly_input = StringField(
-        label="New Subassembly",
+    component_assembly_input = StringField(
+        label="New Component Assembly",
         validators=[Optional()],
-        render_kw={"id": "subassemblyInput", "placeholder": "Enter new Subassembly if not listed"}
+        render_kw={"id": "componentAssemblyInput", "placeholder": "Enter new Component Assembly if not listed"}
     )
 
     # ASSEMBLY VIEW
@@ -242,7 +244,7 @@ class CreatePositionForm(FlaskForm):
             (self.asset_number, self.asset_number_input, "Asset Number"),
             (self.location, self.location_input, "Location"),
             (self.assembly, self.assembly_input, "Assembly"),
-            (self.subassembly, self.subassembly_input, "Subassembly"),
+            (self.component_assembly, self.component_assembly_input, "Component Assembly"),
             (self.assembly_view, self.assembly_view_input, "Assembly View"),
             (self.site_location, self.site_location_input, "Site Location"),
         ]
@@ -261,14 +263,14 @@ class CreatePositionForm(FlaskForm):
         self.asset_number.query_factory = lambda: session.query(AssetNumber).order_by(AssetNumber.number).all()
         self.location.query_factory = lambda: session.query(Location).order_by(Location.name).all()
         self.assembly.query_factory = lambda: session.query(Assembly).order_by(Assembly.name).all()
-        self.subassembly.query_factory = lambda: session.query(SubAssembly).order_by(SubAssembly.name).all()
+        self.component_assembly.query_factory = lambda: session.query(ComponentAssembly).order_by(ComponentAssembly.name).all()
         self.assembly_view.query_factory = lambda: session.query(AssemblyView).order_by(AssemblyView.name).all()
         self.site_location.query_factory = lambda: session.query(SiteLocation).order_by(
             SiteLocation.title, SiteLocation.room_number
         ).all()
 
     def save(self, session, cnp_form_create_position):
-        logger.debug("Starting save() in CreatePositionForm - processing chain of related records.")
+        logger.debug("=== Starting save() in CreatePositionForm ===")
 
         # 1. Process AREA first.
         if self.area_input.data:
@@ -285,7 +287,7 @@ class CreatePositionForm(FlaskForm):
             area_id = None
             logger.debug("No Area provided.")
 
-        # 2. Process EQUIPMENT GROUP (link to Area via area_id)
+        # 2. Process EQUIPMENT GROUP (linked to Area via area_id)
         if self.equipment_group_input.data:
             logger.debug("New Equipment Group input provided: %s", self.equipment_group_input.data)
             new_eq_group = EquipmentGroup(
@@ -295,7 +297,7 @@ class CreatePositionForm(FlaskForm):
             session.add(new_eq_group)
             session.commit()
             equipment_group_id = new_eq_group.id
-            logger.debug("Created new EquipmentGroup with ID: %s, linked to Area ID: %s", equipment_group_id, area_id)
+            logger.debug("Created new EquipmentGroup with ID: %s (Area ID: %s)", equipment_group_id, area_id)
         elif self.equipment_group.data:
             equipment_group_id = self.equipment_group.data.id
             logger.debug("Using selected EquipmentGroup with ID: %s", equipment_group_id)
@@ -314,7 +316,7 @@ class CreatePositionForm(FlaskForm):
             session.add(new_model)
             session.commit()
             model_id = new_model.id
-            logger.debug("Created new Model with ID: %s, linked to EquipmentGroup ID: %s", model_id, equipment_group_id)
+            logger.debug("Created new Model with ID: %s (EquipmentGroup ID: %s)", model_id, equipment_group_id)
         elif self.model.data:
             model_id = self.model.data.id
             logger.debug("Using selected Model with ID: %s", model_id)
@@ -337,7 +339,7 @@ class CreatePositionForm(FlaskForm):
             asset_number_id = None
             logger.debug("No AssetNumber provided.")
 
-        # 5. Process LOCATION (linking to Model if applicable)
+        # 5. Process LOCATION (optionally linking to Model)
         if self.location_input.data:
             logger.debug("New Location input provided: %s", self.location_input.data)
             new_location = Location(
@@ -348,7 +350,7 @@ class CreatePositionForm(FlaskForm):
             session.add(new_location)
             session.commit()
             location_id = new_location.id
-            logger.debug("Created new Location with ID: %s, linked to Model ID: %s", location_id, model_id)
+            logger.debug("Created new Location with ID: %s (linked to Model ID: %s)", location_id, model_id)
         elif self.location.data:
             location_id = self.location.data.id
             logger.debug("Using selected Location with ID: %s", location_id)
@@ -367,7 +369,7 @@ class CreatePositionForm(FlaskForm):
             session.add(new_assembly)
             session.commit()
             assembly_id = new_assembly.id
-            logger.debug("Created new Assembly with ID: %s, linked to Location ID: %s", assembly_id, location_id)
+            logger.debug("Created new Assembly with ID: %s (linked to Location ID: %s)", assembly_id, location_id)
         elif self.assembly.data:
             assembly_id = self.assembly.data.id
             logger.debug("Using selected Assembly with ID: %s", assembly_id)
@@ -375,39 +377,41 @@ class CreatePositionForm(FlaskForm):
             assembly_id = None
             logger.debug("No Assembly provided.")
 
-        # 7. Process SUBASSEMBLY (linking to Assembly)
-        if self.subassembly_input.data:
-            logger.debug("New Subassembly input provided: %s", self.subassembly_input.data)
-            new_subassembly = SubAssembly(
-                name=self.subassembly_input.data,
+        # 7. Process COMPONENT ASSEMBLY (linking to Assembly)
+        if self.component_assembly_input.data:
+            logger.debug("New Component Assembly input provided: %s", self.component_assembly_input.data)
+            new_component_assembly = ComponentAssembly(
+                name=self.component_assembly_input.data,
                 description="",
                 assembly_id=assembly_id
             )
-            session.add(new_subassembly)
+            session.add(new_component_assembly)
             session.commit()
-            subassembly_id = new_subassembly.id
-            logger.debug("Created new Subassembly with ID: %s, linked to Assembly ID: %s", subassembly_id, assembly_id)
-        elif self.subassembly.data:
-            subassembly_id = self.subassembly.data.id
-            logger.debug("Using selected Subassembly with ID: %s", subassembly_id)
+            component_assembly_id = new_component_assembly.id
+            logger.debug("Created new Component Assembly with ID: %s (linked to Assembly ID: %s)",
+                         component_assembly_id, assembly_id)
+        elif self.component_assembly.data:
+            component_assembly_id = self.component_assembly.data.id
+            logger.debug("Using selected Component Assembly with ID: %s", component_assembly_id)
         else:
-            subassembly_id = None
-            logger.debug("No Subassembly provided.")
+            component_assembly_id = None
+            logger.debug("No Component Assembly provided.")
 
-        # 8. Process ASSEMBLY VIEW (linking to Subassembly)
+        # 8. Process ASSEMBLY VIEW (linking to Component Assembly)
         if self.assembly_view_input.data:
-            if subassembly_id is None:
-                raise ValueError("A Subassembly is required to create a new Assembly View.")
+            if component_assembly_id is None:
+                raise ValueError("A Component Assembly is required to create a new Assembly View.")
             logger.debug("New Assembly View input provided: %s", self.assembly_view_input.data)
             new_assembly_view = AssemblyView(
                 name=self.assembly_view_input.data,
                 description="",
-                subassembly_id=subassembly_id
+                component_assembly_id=component_assembly_id
             )
             session.add(new_assembly_view)
             session.commit()
             assembly_view_id = new_assembly_view.id
-            logger.debug("Created new Assembly View with ID: %s, linked to Subassembly ID: %s", assembly_view_id, subassembly_id)
+            logger.debug("Created new Assembly View with ID: %s (linked to Component Assembly ID: %s)",
+                         assembly_view_id, component_assembly_id)
         elif self.assembly_view.data:
             assembly_view_id = self.assembly_view.data.id
             logger.debug("Using selected Assembly View with ID: %s", assembly_view_id)
@@ -434,11 +438,12 @@ class CreatePositionForm(FlaskForm):
             logger.debug("No Site Location provided.")
 
         logger.debug(
-            "Final IDs - Area: %s, EquipmentGroup: %s, Model: %s, AssetNumber: %s, Location: %s, SiteLocation: %s, Assembly: %s, Subassembly: %s, AssemblyView: %s",
-            area_id, equipment_group_id, model_id, asset_number_id, location_id, site_location_id, assembly_id, subassembly_id, assembly_view_id
+            "Final IDs - Area: %s, EquipmentGroup: %s, Model: %s, AssetNumber: %s, Location: %s, SiteLocation: %s, Assembly: %s, ComponentAssembly: %s, AssemblyView: %s",
+            area_id, equipment_group_id, model_id, asset_number_id, location_id, site_location_id, assembly_id,
+            component_assembly_id, assembly_view_id
         )
 
-        # Now call the helper function to create the Position record.
+        # Call the helper function to create the Position record.
         pos_id = cnp_form_create_position(
             area_id=area_id,
             equipment_group_id=equipment_group_id,
@@ -447,12 +452,14 @@ class CreatePositionForm(FlaskForm):
             location_id=location_id,
             site_location_id=site_location_id,
             assembly_id=assembly_id,
-            subassembly_id=subassembly_id,
+            component_assembly_id=component_assembly_id,  # new parameter name
             assembly_view_id=assembly_view_id,
             session=session
         )
         logger.debug("Created Position with ID: %s", pos_id)
+        logger.debug("=== Finished save() in CreatePositionForm ===")
         return pos_id
+
 
 
 

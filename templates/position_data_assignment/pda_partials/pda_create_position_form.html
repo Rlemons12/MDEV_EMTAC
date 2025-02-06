@@ -75,7 +75,8 @@
       {{ render_field_with_toggle(form_create_position.asset_number, form_create_position.asset_number_input, "Asset Number", "Enter new Asset Number if not listed") }}
       {{ render_field_with_toggle(form_create_position.location, form_create_position.location_input, "Location", "Enter new Location if not listed") }}
       {{ render_field_with_toggle(form_create_position.assembly, form_create_position.assembly_input, "Assembly", "Enter new Assembly if not listed") }}
-      {{ render_field_with_toggle(form_create_position.subassembly, form_create_position.subassembly_input, "Subassembly", "Enter new Subassembly if not listed") }}
+      {# Updated field: previously subassembly, now component_assembly #}
+      {{ render_field_with_toggle(form_create_position.component_assembly, form_create_position.component_assembly_input, "Component Assembly", "Enter new Component Assembly if not listed") }}
       {{ render_field_with_toggle(form_create_position.assembly_view, form_create_position.assembly_view_input, "Assembly View", "Enter new Assembly View if not listed") }}
 
       <!-- Custom Block for Site Location (Title and Room Number) -->

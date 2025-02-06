@@ -108,7 +108,7 @@
                     </select>
                 </div>
 
-                <!-- SubAssembly Dropdown -->
+                <!-- ComponentAssembly Dropdown -->
                 <div>
                     <label for="pda_subAssemblyDropdown">SubAssembly:</label>
                     <select name="subassembly_id" id="pda_subAssemblyDropdown" disabled>
@@ -978,7 +978,7 @@
     var getPositionsUrl = "{{ url_for('position_data_assignment_bp.get_positions') }}";
     var removeImageFromPositionUrl = "{{ url_for('position_data_assignment_bp.remove_image_from_position') }}";
 
-    // New Routes for Assembly, SubAssembly, and AssemblyView
+    // New Routes for Assembly, ComponentAssembly, and AssemblyView
     var getAssembliesUrl = "{{ url_for('position_data_assignment_bp.get_assemblies') }}";
     var getSubAssembliesUrl = "{{ url_for('position_data_assignment_bp.get_subassemblies') }}";
     var getAssemblyViewsUrl = "{{ url_for('position_data_assignment_bp.get_assembly_views') }}";

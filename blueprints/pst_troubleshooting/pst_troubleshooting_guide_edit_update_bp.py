@@ -7,8 +7,8 @@ from blueprints.assembly_routes import submit_assembly
 from modules.configuration.config_env import DatabaseConfig
 from modules.emtacdb.emtacdb_fts import (Drawing, Task, ImageTaskAssociation, Part, Solution, Position, Image,
                                          TaskPositionAssociation, PartTaskAssociation, DrawingTaskAssociation, CompleteDocumentTaskAssociation, CompleteDocument,
-                                         Area, EquipmentGroup, AssetNumber,Assembly,SubAssembly,AssemblyView,
-                                         Model, Location, SiteLocation, TaskSolutionAssociation,Tool, TaskToolAssociation)
+                                         Area, EquipmentGroup, AssetNumber, Assembly, ComponentAssembly, AssemblyView,
+                                         Model, Location, SiteLocation, TaskSolutionAssociation, Tool, TaskToolAssociation)
 from sqlalchemy import or_
 from sqlalchemy.exc import SQLAlchemyError
 from modules.configuration.log_config import logger
@@ -386,7 +386,7 @@ def get_subassemblies():
         return jsonify({'error': 'assembly_id must be an integer.'}), 400
 
     # Query subassemblies based on assembly_id
-    subassemblies = session.query(SubAssembly).filter_by(assembly_id=assembly_id).all()
+    subassemblies = session.query(ComponentAssembly).filter_by(assembly_id=assembly_id).all()
 
     # Corrected list comprehension with proper variable naming
     data = [{'id': subassembly.id, 'name': subassembly.name} for subassembly in subassemblies]

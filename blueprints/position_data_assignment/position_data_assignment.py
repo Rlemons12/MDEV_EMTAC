@@ -9,7 +9,7 @@ from modules.emtacdb.emtacdb_fts import (Drawing, Part, PartsPositionImageAssoci
                                          CompletedDocumentPositionAssociation,
                                          Area, EquipmentGroup, Model, AssetNumber, Location, SiteLocation,
                                          CompleteDocument,
-                                         Image, Position, ImagePositionAssociation, Assembly, AssemblyView, SubAssembly,
+                                         Image, Position, ImagePositionAssociation, Assembly, AssemblyView, ComponentAssembly,
                                          ToolCategory, ToolManufacturer)
 from modules.configuration.config_env import DatabaseConfig
 from modules.configuration.config import ALLOWED_EXTENSIONS
@@ -150,7 +150,7 @@ def position_data_assignment():
             asset_numbers = db_session.query(AssetNumber).all()
             locations = db_session.query(Location).all()
             assemblies = db_session.query(Assembly).all()
-            subassemblies = db_session.query(SubAssembly).all()
+            subassemblies = db_session.query(ComponentAssembly).all()
             assembly_views = db_session.query(AssemblyView).all()
             site_locations = db_session.query(SiteLocation).all()
 
@@ -257,7 +257,7 @@ def get_subassemblies():
     assembly_id = request.args.get('assembly_id')
     db_session = db_config.get_main_session()
     try:
-        subassemblies = db_session.query(SubAssembly).filter(SubAssembly.assembly_id == assembly_id).all()
+        subassemblies = db_session.query(ComponentAssembly).filter(ComponentAssembly.assembly_id == assembly_id).all()
         data = [{'id': subassembly.id, 'name': subassembly.name, 'description': subassembly.description} for subassembly in subassemblies]
         return jsonify(data)
     finally:
@@ -1322,7 +1322,7 @@ def search_position():
         form_create_position.model.query_factory = lambda: db_session.query(Model).order_by(Model.name).all()
         form_create_position.location.query_factory = lambda: db_session.query(Location).order_by(Location.name).all()
         form_create_position.assembly.query_factory = lambda: db_session.query(Assembly).order_by(Assembly.name).all()
-        form_create_position.subassembly.query_factory = lambda: db_session.query(SubAssembly).order_by(SubAssembly.name).all()
+        form_create_position.subassembly.query_factory = lambda: db_session.query(ComponentAssembly).order_by(ComponentAssembly.name).all()
         form_create_position.assembly_view.query_factory = lambda: db_session.query(AssemblyView).order_by(AssemblyView.name).all()
         form_create_position.site_location.query_factory = lambda: db_session.query(SiteLocation).order_by(SiteLocation.title, SiteLocation.room_number).all()
 
@@ -1435,7 +1435,7 @@ def search_position():
                     logger.info(f"Created new Assembly with ID {new_assembly.id}.")
 
                 if not subassembly and subassembly_input:
-                    new_subassembly = SubAssembly(name=subassembly_input, assembly_id=assembly.id if assembly else None)
+                    new_subassembly = ComponentAssembly(name=subassembly_input, assembly_id=assembly.id if assembly else None)
                     db_session.add(new_subassembly)
                     db_session.commit()
                     subassembly = new_subassembly

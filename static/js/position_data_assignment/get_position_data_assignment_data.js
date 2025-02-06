@@ -10,7 +10,7 @@
     var getPositionsUrl = "{{ url_for('position_data_assignment_bp.get_positions') }}";
     var removeImageFromPositionUrl = "{{ url_for('position_data_assignment_bp.remove_image_from_position') }}";
 
-    // New Routes for Assembly, SubAssembly, and AssemblyView
+    // New Routes for Assembly, ComponentAssembly, and AssemblyView
     var getAssembliesUrl = "{{ url_for('position_data_assignment_bp.get_assemblies') }}";
     var getSubAssembliesUrl = "{{ url_for('position_data_assignment_bp.get_subassemblies') }}";
     var getAssemblyViewsUrl = "{{ url_for('position_data_assignment_bp.get_assembly_views') }}";
@@ -225,7 +225,7 @@
                     success: function(data) {
                         var subAssemblyDropdown = $('#pda_subAssemblyDropdown');
                         subAssemblyDropdown.empty();
-                        subAssemblyDropdown.append('<option value="">Select SubAssembly</option>');
+                        subAssemblyDropdown.append('<option value="">Select ComponentAssembly</option>');
                         $.each(data, function(index, subassembly) {
                             subAssemblyDropdown.append('<option value="' + subassembly.id + '">' + subassembly.name + '</option>');
                         });
@@ -241,7 +241,7 @@
         });
 
         // ============================
-        // SubAssembly Change Event
+        // ComponentAssembly Change Event
         // ============================
         $('#pda_subAssemblyDropdown').change(function() {
             var subAssemblyId = $(this).val();
