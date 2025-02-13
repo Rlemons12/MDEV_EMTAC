@@ -100,11 +100,11 @@
                     <input type="text" name="location_input" id="pda_locationInput" placeholder="Or type Location">
                 </div>
 
-            <!-- Assembly Dropdown -->
+            <!-- Subassembly Dropdown -->
                 <div>
-                    <label for="pda_assemblyDropdown">Assembly:</label>
+                    <label for="pda_assemblyDropdown">Subassembly:</label>
                     <select name="assembly_id" id="pda_assemblyDropdown" disabled>
-                        <option value="">Select Assembly</option>
+                        <option value="">Select Subassembly</option>
                     </select>
                 </div>
 
@@ -116,11 +116,11 @@
                     </select>
                 </div>
 
-                <!-- Assembly View Dropdown -->
+                <!-- Subassembly View Dropdown -->
                 <div>
-                    <label for="pda_assemblyViewDropdown">Assembly View:</label>
+                    <label for="pda_assemblyViewDropdown">Subassembly View:</label>
                     <select name="assembly_view_id" id="pda_assemblyViewDropdown" disabled>
-                        <option value="">Select Assembly View</option>
+                        <option value="">Select Subassembly View</option>
                     </select>
                 </div>
 
@@ -290,36 +290,36 @@
                         <button type="button" id="addAnotherLocationBtn">Add Another Location</button>
                     </div>
                 </div>
-                <!-- Add Assembly Section -->
+                <!-- Add Subassembly Section -->
                 <div class="collapsible-section">
-                    <h4>Select or Add Assembly</h4>
+                    <h4>Select or Add Subassembly</h4>
                     <div id="assemblyContainer">
                         <div id="assemblyFieldsWrapper">
                             <!-- Loop for adding multiple assemblies -->
                             <div class="assemblyFields">
-                                <label for="new_assemblyDropdown">Select Assembly:</label>
+                                <label for="new_assemblyDropdown">Select Subassembly:</label>
                                 <select name="assembly_id[]" id="new_assemblyDropdown">
-                                    <option value="">Select Assembly</option>
+                                    <option value="">Select Subassembly</option>
                                     {% for assembly in assemblies %}
                                         <option value="{{ assembly.id }}">{{ assembly.name }}</option>
                                     {% endfor %}
-                                    <option value="new">New Assembly...</option>
+                                    <option value="new">New Subassembly...</option>
                                 </select>
 
-                                <!-- Fields for creating a new Assembly -->
+                                <!-- Fields for creating a new Subassembly -->
                                 <div id="newAssemblyFields" style="display:none;">
-                                    <h4>New Assembly</h4>
-                                    <label for="new_assembly_name">New Assembly Name:</label>
+                                    <h4>New Subassembly</h4>
+                                    <label for="new_assembly_name">New Subassembly Name:</label>
                                     <input type="text" id="new_assembly_name" name="new_assembly_name[]">
 
-                                    <label for="new_assembly_description">New Assembly Description:</label>
+                                    <label for="new_assembly_description">New Subassembly Description:</label>
                                     <textarea id="new_assembly_description" name="new_assembly_description[]"></textarea>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Button to add another Assembly -->
-                        <button type="button" id="addAnotherAssemblyBtn">Add Another Assembly</button>
+                        <!-- Button to add another Subassembly -->
+                        <button type="button" id="addAnotherAssemblyBtn">Add Another Subassembly</button>
                     </div>
                 </div>
 
@@ -356,36 +356,36 @@
                     </div>
                 </div>
 
-                <!-- Add Assembly View Section -->
+                <!-- Add Subassembly View Section -->
                 <div class="collapsible-section">
-                    <h4>Select or Add Assembly View</h4>
+                    <h4>Select or Add Subassembly View</h4>
                     <div id="assemblyViewContainer">
                         <div id="assemblyViewFieldsWrapper">
                             <!-- Loop for adding multiple assembly views -->
                             <div class="assemblyViewFields">
-                                <label for="new_assemblyViewDropdown">Select Assembly View:</label>
+                                <label for="new_assemblyViewDropdown">Select Subassembly View:</label>
                                 <select name="assembly_view_id[]" id="new_assemblyViewDropdown" >
-                                    <option value="">Select Assembly View</option>
+                                    <option value="">Select Subassembly View</option>
                                     {% for av in assembly_views %}
                                         <option value="{{ av.id }}">{{ av.name }}</option>
                                     {% endfor %}
-                                    <option value="new">New Assembly View...</option>
+                                    <option value="new">New Subassembly View...</option>
                                 </select>
 
-                                <!-- Fields for creating a new Assembly View -->
+                                <!-- Fields for creating a new Subassembly View -->
                                 <div id="newAssemblyViewFields" style="display:none;">
-                                    <h4>New Assembly View</h4>
-                                    <label for="new_assemblyView_name">New Assembly View Name:</label>
+                                    <h4>New Subassembly View</h4>
+                                    <label for="new_assemblyView_name">New Subassembly View Name:</label>
                                     <input type="text" id="new_assemblyView_name" name="new_assemblyView_name[]">
 
-                                    <label for="new_assemblyView_description">New Assembly View Description:</label>
+                                    <label for="new_assemblyView_description">New Subassembly View Description:</label>
                                     <textarea id="new_assemblyView_description" name="new_assemblyView_description[]"></textarea>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Button to add another Assembly View -->
-                        <button type="button" id="addAnotherAssemblyViewBtn">Add Another Assembly View</button>
+                        <!-- Button to add another Subassembly View -->
+                        <button type="button" id="addAnotherAssemblyViewBtn">Add Another Subassembly View</button>
                     </div>
                 </div>
 
@@ -644,13 +644,13 @@
                     </div>
                 </div>
 
-                <!-- Update Assembly Section -->
+                <!-- Update Subassembly Section -->
                 <div class="collapsible-section">
-                    <h4>Update Assembly</h4>
+                    <h4>Update Subassembly</h4>
                     <div>
-                        <label for="edit_assemblyDropdown">Edit Assembly:</label>
+                        <label for="edit_assemblyDropdown">Edit Subassembly:</label>
                         <select name="assembly_id" id="edit_assemblyDropdown">
-                            <option value="">Select Assembly</option>
+                            <option value="">Select Subassembly</option>
                             {% for assembly in assemblies %}
                                 <option
                                     value="{{ assembly.id }}"
@@ -661,8 +661,8 @@
                             {% endfor %}
                         </select>
 
-                        <!-- Name and Description for Assembly -->
-                        <label for="edit_assembly_name">Assembly Name:</label>
+                        <!-- Name and Description for Subassembly -->
+                        <label for="edit_assembly_name">Subassembly Name:</label>
                         <input
                             type="text"
                             id="edit_assembly_name"
@@ -670,7 +670,7 @@
                             value="{{ position.assembly.name if position.assembly else '' }}"
                         >
 
-                        <label for="edit_assembly_description">Assembly Description:</label>
+                        <label for="edit_assembly_description">Subassembly Description:</label>
                         <textarea
                             id="edit_assembly_description"
                             name="assembly_description"
@@ -712,13 +712,13 @@
                     </div>
                 </div>
 
-                <!-- Update Assembly View Section -->
+                <!-- Update Subassembly View Section -->
                 <div class="collapsible-section">
-                    <h4>Update Assembly View</h4>
+                    <h4>Update Subassembly View</h4>
                     <div>
-                        <label for="edit_assemblyViewDropdown">Edit Assembly View:</label>
+                        <label for="edit_assemblyViewDropdown">Edit Subassembly View:</label>
                         <select name="assembly_view_id" id="edit_assemblyViewDropdown">
-                            <option value="">Select Assembly View</option>
+                            <option value="">Select Subassembly View</option>
                             {% for av in assembly_views %}
                                 <option
                                     value="{{ av.id }}"
@@ -729,8 +729,8 @@
                             {% endfor %}
                         </select>
 
-                        <!-- Name and Description for Assembly View -->
-                        <label for="edit_assemblyView_name">Assembly View Name:</label>
+                        <!-- Name and Description for Subassembly View -->
+                        <label for="edit_assemblyView_name">Subassembly View Name:</label>
                         <input
                             type="text"
                             id="edit_assemblyView_name"
@@ -738,7 +738,7 @@
                             value="{{ position.assembly_view.name if position.assembly_view else '' }}"
                         >
 
-                        <label for="edit_assemblyView_description">Assembly View Description:</label>
+                        <label for="edit_assemblyView_description">Subassembly View Description:</label>
                         <textarea
                             id="edit_assemblyView_description"
                             name="assembly_view_description"
@@ -978,7 +978,7 @@
     var getPositionsUrl = "{{ url_for('position_data_assignment_bp.get_positions') }}";
     var removeImageFromPositionUrl = "{{ url_for('position_data_assignment_bp.remove_image_from_position') }}";
 
-    // New Routes for Assembly, ComponentAssembly, and AssemblyView
+    // New Routes for Subassembly, ComponentAssembly, and AssemblyView
     var getAssembliesUrl = "{{ url_for('position_data_assignment_bp.get_assemblies') }}";
     var getSubAssembliesUrl = "{{ url_for('position_data_assignment_bp.get_subassemblies') }}";
     var getAssemblyViewsUrl = "{{ url_for('position_data_assignment_bp.get_assembly_views') }}";

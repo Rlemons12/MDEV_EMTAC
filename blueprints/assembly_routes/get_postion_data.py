@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify
 from modules.configuration.config_env import DatabaseConfig
 from modules.emtacdb.emtacdb_fts import (Area, EquipmentGroup, Model, AssetNumber, Location,
-                                         Assembly, AssemblyView, ComponentAssembly)
+                                         Subassembly, AssemblyView, ComponentAssembly)
 
 # Blueprint for the assembly model
 assembly_model_bp = Blueprint('assembly_model', __name__)
@@ -12,7 +12,7 @@ db_config = DatabaseConfig()
 def get_list_data():
     """
     Fetch and return data for all entities: Area, EquipmentGroup, Model, AssetNumber,
-    Location, Assembly, AssemblyView, and ComponentAssembly.
+    Location, Subassembly, AssemblyView, and ComponentAssembly.
     """
     try:
         with db_config.get_main_session() as session:
@@ -22,7 +22,7 @@ def get_list_data():
             models = session.query(Model).all()
             asset_numbers = session.query(AssetNumber).all()
             locations = session.query(Location).all()
-            assemblies = session.query(Assembly).all()
+            assemblies = session.query(Subassembly).all()
             assembly_views = session.query(AssemblyView).all()
             subassemblies = session.query(ComponentAssembly).all()
 

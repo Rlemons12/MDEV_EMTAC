@@ -8,7 +8,7 @@ $(document).ready(function () {
     $('#addAnotherAssetNumberBtn').hide();
     $('#addAnotherLocationBtn').hide();
     $('#addAnotherSiteLocationBtn').hide();
-    // NEW: for Assembly, Subassembly, Assembly View
+    // NEW: for Subassembly, Subassembly, Subassembly View
     $('#addAnotherAssemblyBtn').hide();
     $('#addAnotherSubassemblyBtn').hide();
     $('#addAnotherAssemblyViewBtn').hide();
@@ -224,12 +224,12 @@ $(document).ready(function () {
     //------------------------------------------------
     // 5) ASSEMBLY → SUBASSEMBLY → ASSEMBLY VIEW
     //------------------------------------------------
-    // A) Assembly change => fetch Subassemblies
+    // A) Subassembly change => fetch Subassemblies
     $('#new_assemblyDropdown').on('change', function () {
         var assemblyId = $(this).val();
 
         if (assemblyId === 'new') {
-            // Show "New Assembly" fields
+            // Show "New Subassembly" fields
             $('#newAssemblyFields').show();
             $('#addAnotherAssemblyBtn').show();
 
@@ -278,7 +278,7 @@ $(document).ready(function () {
         }
     });
 
-    // B) Subassembly change => fetch Assembly Views
+    // B) Subassembly change => fetch Subassembly Views
     $('#new_subassemblyDropdown').on('change', function () {
         var subassemblyId = $(this).val();
 
@@ -304,14 +304,14 @@ $(document).ready(function () {
             $.getJSON('/get_assembly_views', { subassembly_id: subassemblyId }, function (data) {
                 $('#new_assemblyViewDropdown')
                     .empty()
-                    .append('<option value="">Select Assembly View</option>');
+                    .append('<option value="">Select Subassembly View</option>');
 
                 $.each(data, function (index, av) {
                     $('#new_assemblyViewDropdown')
                         .append('<option value="' + av.id + '">' + av.name + '</option>');
                 });
-                // "New Assembly View"
-                $('#new_assemblyViewDropdown').append('<option value="new">New Assembly View...</option>');
+                // "New Subassembly View"
+                $('#new_assemblyViewDropdown').append('<option value="new">New Subassembly View...</option>');
             }).fail(function () {
                 alert('Error fetching assembly views');
             });
@@ -326,7 +326,7 @@ $(document).ready(function () {
         }
     });
 
-    // C) Assembly View change => show "New..." fields
+    // C) Subassembly View change => show "New..." fields
     $('#new_assemblyViewDropdown').on('change', function () {
         var avId = $(this).val();
         if (avId === 'new') {

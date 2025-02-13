@@ -7,7 +7,7 @@ from sqlalchemy.orm import joinedload  # Import for eager loading
 from modules.tool_module.forms import ToolForm, ToolCategoryForm, ToolManufacturerForm, ToolSearchForm
 from modules.emtacdb.emtacdb_fts import (Tool, ToolCategory, ToolManufacturer, ToolPositionAssociation, Position,
                                          Area, EquipmentGroup, Model, AssetNumber,
-                                         Location, Assembly, ComponentAssembly, AssemblyView, SiteLocation, Image)
+                                         Location, Subassembly, ComponentAssembly, AssemblyView, SiteLocation, Image)
 from modules.configuration.log_config import logger
 from modules.emtacdb.forms.position_form import PositionForm
 
@@ -121,7 +121,7 @@ def submit_tool_data():
         print("Populating position_form.assembly.choices...")
         position_form.assembly.choices = [
             (asm.id, asm.name)
-            for asm in main_session.query(Assembly).order_by(Assembly.name)
+            for asm in main_session.query(Subassembly).order_by(Subassembly.name)
         ]
         print("position_form.assembly.choices populated.")
 
@@ -376,11 +376,11 @@ def submit_tool_data():
 
                             ('Location', selected_locations),
 
-                            ('Assembly', selected_assemblies),
+                            ('Subassembly', selected_assemblies),
 
                             ('Subassembly', selected_subassemblies),
 
-                            ('Assembly View', selected_assembly_views),
+                            ('Subassembly View', selected_assembly_views),
 
                             ('Site Location', selected_site_locations)
 

@@ -1,4 +1,5 @@
 // Function to fetch data and populate dropdowns for the image form
+// TODO Need to add Subassembly, Component_Assembly and (new) assembly_view
 function populateDropdownsimage() {
     // Define an array of dropdown elements along with their corresponding data keys
     var dropdowns = [

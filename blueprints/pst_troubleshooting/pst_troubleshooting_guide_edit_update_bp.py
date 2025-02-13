@@ -7,7 +7,7 @@ from blueprints.assembly_routes import submit_assembly
 from modules.configuration.config_env import DatabaseConfig
 from modules.emtacdb.emtacdb_fts import (Drawing, Task, ImageTaskAssociation, Part, Solution, Position, Image,
                                          TaskPositionAssociation, PartTaskAssociation, DrawingTaskAssociation, CompleteDocumentTaskAssociation, CompleteDocument,
-                                         Area, EquipmentGroup, AssetNumber, Assembly, ComponentAssembly, AssemblyView,
+                                         Area, EquipmentGroup, AssetNumber, Subassembly, ComponentAssembly, AssemblyView,
                                          Model, Location, SiteLocation, TaskSolutionAssociation, Tool, TaskToolAssociation)
 from sqlalchemy import or_
 from sqlalchemy.exc import SQLAlchemyError
@@ -366,7 +366,7 @@ def get_locations():
 def get_assemblies():
     session = db_config.get_main_session()
     location_id = request.args.get('location_id')  # No presence or type check
-    assemblies = session.query(Assembly).filter_by(location_id=location_id).all()
+    assemblies = session.query(Subassembly).filter_by(location_id=location_id).all()
     data = [{'id': assembly.id, 'name': assembly.name} for assembly in assemblies]
     return jsonify(data)  # Return a 200 implicitly
 

@@ -28,7 +28,7 @@ class SubAssembly(Base):
     assembly_view_id = Column(Integer, ForeignKey('assembly_view.id'), nullable=False)
 
     # Relationships
-    assembly = relationship("Assembly", back_populates="subassemblies")
+    assembly = relationship("Subassembly", back_populates="subassemblies")
     assembly_view = relationship("AssemblyView", back_populates="subassemblies")
 
 class AssemblyView(Base):

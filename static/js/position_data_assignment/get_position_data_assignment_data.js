@@ -10,7 +10,7 @@
     var getPositionsUrl = "{{ url_for('position_data_assignment_bp.get_positions') }}";
     var removeImageFromPositionUrl = "{{ url_for('position_data_assignment_bp.remove_image_from_position') }}";
 
-    // New Routes for Assembly, ComponentAssembly, and AssemblyView
+    // New Routes for Subassembly, ComponentAssembly, and AssemblyView
     var getAssembliesUrl = "{{ url_for('position_data_assignment_bp.get_assemblies') }}";
     var getSubAssembliesUrl = "{{ url_for('position_data_assignment_bp.get_subassemblies') }}";
     var getAssemblyViewsUrl = "{{ url_for('position_data_assignment_bp.get_assembly_views') }}";
@@ -179,7 +179,7 @@
             var locationId = $(this).val();
 
             if (locationId) {
-                // Enable the Assembly Dropdown
+                // Enable the Subassembly Dropdown
                 $('#pda_assemblyDropdown').prop('disabled', false);
 
                 // Fetch Assemblies based on the selected Location
@@ -190,7 +190,7 @@
                     success: function(data) {
                         var assemblyDropdown = $('#pda_assemblyDropdown');
                         assemblyDropdown.empty();
-                        assemblyDropdown.append('<option value="">Select Assembly</option>');
+                        assemblyDropdown.append('<option value="">Select Subassembly</option>');
 
                         $.each(data, function(index, assembly) {
                             assemblyDropdown.append('<option value="' + assembly.id + '">' + assembly.name + '</option>');
@@ -205,13 +205,13 @@
                     }
                 });
             } else {
-                // If no location is selected, reset and disable the Assembly Dropdown and its dependents
+                // If no location is selected, reset and disable the Subassembly Dropdown and its dependents
                 resetDropdowns(['#pda_assemblyDropdown', '#pda_subAssemblyDropdown', '#pda_assemblyViewDropdown']);
             }
         });
 
         // ============================
-        // Assembly Change Event
+        // Subassembly Change Event
         // ============================
         $('#pda_assemblyDropdown').change(function() {
             var assemblyId = $(this).val();
@@ -255,7 +255,7 @@
                     success: function(data) {
                         var assemblyViewDropdown = $('#pda_assemblyViewDropdown');
                         assemblyViewDropdown.empty();
-                        assemblyViewDropdown.append('<option value="">Select Assembly View</option>');
+                        assemblyViewDropdown.append('<option value="">Select Subassembly View</option>');
                         $.each(data, function(index, assemblyView) {
                             assemblyViewDropdown.append('<option value="' + assemblyView.id + '">' + assemblyView.name + '</option>');
                         });

@@ -1,3 +1,5 @@
+#plugins/image_modules/image_handler.py
+
 import os
 import imghdr
 from PIL import Image, UnidentifiedImageError

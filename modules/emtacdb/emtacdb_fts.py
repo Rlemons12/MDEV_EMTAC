@@ -71,6 +71,7 @@ class SiteLocation(Base):
     id = Column(Integer, primary_key=True)
     title = Column(String, nullable=False)
     room_number = Column(String, nullable=False)
+    site_area = Column(String, nullable=False)
     
     position = relationship('Position', back_populates="site_location")
 
@@ -82,7 +83,7 @@ class Position(Base):
     model_id = Column(Integer, ForeignKey('model.id'), nullable=True)
     asset_number_id = Column(Integer, ForeignKey('asset_number.id'), nullable=True)
     location_id = Column(Integer, ForeignKey('location.id'), nullable=True)
-    assembly_id = Column(Integer, ForeignKey('assembly.id'), nullable=True)
+    subassembly_id = Column(Integer, ForeignKey('subassembly.id'), nullable=True)
     component_assembly_id = Column(Integer, ForeignKey('component_assembly.id'), nullable=True)
     assembly_view_id = Column(Integer, ForeignKey('assembly_view.id'), nullable=True)
     site_location_id = Column(Integer, ForeignKey('site_location.id'), nullable=True)
@@ -101,7 +102,7 @@ class Position(Base):
     site_location = relationship("SiteLocation", back_populates="position")
     position_tasks = relationship("TaskPositionAssociation", back_populates="position", cascade="all, delete-orphan")
     tool_position_association = relationship("ToolPositionAssociation", back_populates="position")
-    assembly = relationship("Assembly", back_populates="position")
+    subassembly = relationship("Subassembly", back_populates="position")
     component_assembly = relationship("ComponentAssembly", back_populates="position")
     assembly_view = relationship("AssemblyView", back_populates="position")
 
@@ -161,41 +162,40 @@ class Location(Base):
     
     model = relationship("Model", back_populates="location")
     position = relationship("Position", back_populates="location")
-    assembly = relationship("Assembly", back_populates="location")
+    subassembly = relationship("Subassembly", back_populates="location")
 
 #class's dealing with machine subassemblies.
 
-class Assembly(Base):
-    # main assembly of a location
-    __tablename__ = 'assembly'
+class Subassembly(Base):
+    __tablename__ = 'subassembly'
     id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False)
+    name = Column(String, nullable=True)
     location_id = Column(Integer, ForeignKey('location.id'))
-    description = Column(String, nullable=False)
+    description = Column(String, nullable=True)  # CHANGED to allow NULL
     # Relationships
-    location =relationship("Location", back_populates="assembly")
-    component_assembly = relationship("ComponentAssembly", back_populates="assembly")
-    position = relationship("Position", back_populates="assembly")
+    location = relationship("Location", back_populates="subassembly")
+    component_assembly = relationship("ComponentAssembly", back_populates="subassembly")
+    position = relationship("Position", back_populates="subassembly")
 
 class ComponentAssembly(Base):
-    # specific group of components of an assembly
+    # specific group of components of a subassembly
     __tablename__ = 'component_assembly'
     id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False)
-    description = Column(String, nullable=False)
-    assembly_id = Column(Integer, ForeignKey('assembly.id'), nullable=False)
+    name = Column(String, nullable=True)
+    description = Column(String, nullable=True)
+    subassembly_id = Column(Integer, ForeignKey('subassembly.id'), nullable=False)
 
     # Relationships
-    assembly = relationship("Assembly", back_populates="component_assembly")
+    subassembly = relationship("Subassembly", back_populates="component_assembly")
     assembly_view = relationship("AssemblyView", back_populates="component_assembly")
     position = relationship("Position", back_populates="component_assembly")
 
-class AssemblyView(Base):
+class AssemblyView(Base): # # TODO Rename to ComponentView
     __tablename__ = 'assembly_view'
-    # location within assembly. example front,back,right-side top left ect...
+    # location within component_assembly. example front,back,right-side top left ect...
     id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False)
-    description = Column(String, nullable=False)
+    name = Column(String, nullable=True)
+    description = Column(String, nullable=True)
     component_assembly_id = Column(Integer, ForeignKey('component_assembly.id'), nullable=False)
     # Relationships
     component_assembly = relationship("ComponentAssembly", back_populates="assembly_view")

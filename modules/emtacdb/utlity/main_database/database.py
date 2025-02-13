@@ -24,7 +24,7 @@ from modules.configuration.config import KEYWORDS_FILE_PATH, DATABASE_PATH_IMAGE
     CURRENT_EMBEDDING_MODEL, TEMPORARY_UPLOAD_FILES,DATABASE_DIR
 from modules.emtacdb.emtac_revision_control_db import CompleteDocumentSnapshot, AreaSnapshot, EquipmentGroupSnapshot, \
     ModelSnapshot, AssetNumberSnapshot, LocationSnapshot
-from modules.emtacdb.emtacdb_fts import Area, EquipmentGroup, Model, AssetNumber, Location, Assembly,ComponentAssembly, \
+from modules.emtacdb.emtacdb_fts import Area, EquipmentGroup, Model, AssetNumber, Location, Subassembly,ComponentAssembly, \
     SiteLocation, Position, KeywordAction, nlp, session, PowerPoint, Image, AssemblyView,  \
     load_image_model_config_from_db, ImageEmbedding, ImagePositionAssociation, ImageCompletedDocumentAssociation, \
     CompleteDocument, CompletedDocumentPositionAssociation, Document, VersionInfo, \
@@ -118,7 +118,7 @@ def create_image_position_association(image_id: int, position_id: int,
 
 
 def create_position(area_id, equipment_group_id, model_id, asset_number_id, location_id,
-                    site_location_id, session, assembly_id=None, component_assembly=None, assembly_view_id=None):
+                    site_location_id, session, subassembly_id=None, component_assembly=None, assembly_view_id=None):
     """
     Creates or retrieves an existing Position record based on the given parameters.
 
@@ -128,13 +128,12 @@ def create_position(area_id, equipment_group_id, model_id, asset_number_id, loca
     :param asset_number_id: int or None
     :param location_id: int or None
     :param site_location_id: int or None
-    :param assembly_id: int or None
+    :param session: SQLAlchemy session
+    :param subassembly_id: int or None  (formerly assembly_id)
     :param component_assembly: int or None
     :param assembly_view_id: int or None
-    :param session: SQLAlchemy session
     :return: The ID of the existing or newly created Position.
     """
-
     try:
         logger.debug('Starting create_position function')
 
@@ -143,23 +142,19 @@ def create_position(area_id, equipment_group_id, model_id, asset_number_id, loca
             f"area_id={area_id}, equipment_group_id={equipment_group_id}, "
             f"model_id={model_id}, asset_number_id={asset_number_id}, "
             f"location_id={location_id}, site_location_id={site_location_id}, "
-            f"assembly_id={assembly_id}, component_assembly={component_assembly}, assembly_view_id={assembly_view_id}"
+            f"subassembly_id={subassembly_id}, component_assembly={component_assembly}, assembly_view_id={assembly_view_id}"
         )
 
         # Retrieve the related entities by their IDs (if provided)
         area_entity = session.query(Area).filter_by(id=area_id).first() if area_id else None
-        equipment_group_entity = session.query(EquipmentGroup).filter_by(
-            id=equipment_group_id).first() if equipment_group_id else None
+        equipment_group_entity = session.query(EquipmentGroup).filter_by(id=equipment_group_id).first() if equipment_group_id else None
         model_entity = session.query(Model).filter_by(id=model_id).first() if model_id else None
-        asset_number_entity = session.query(AssetNumber).filter_by(
-            id=asset_number_id).first() if asset_number_id else None
+        asset_number_entity = session.query(AssetNumber).filter_by(id=asset_number_id).first() if asset_number_id else None
         location_entity = session.query(Location).filter_by(id=location_id).first() if location_id else None
-        site_location_entity = session.query(SiteLocation).filter_by(
-            id=site_location_id).first() if site_location_id else None
-        assembly_entity = session.query(Assembly).filter_by(id=assembly_id).first() if assembly_id else None
+        site_location_entity = session.query(SiteLocation).filter_by(id=site_location_id).first() if site_location_id else None
+        subassembly_entity = session.query(Subassembly).filter_by(id=subassembly_id).first() if subassembly_id else None
         component_assembly_entity = session.query(ComponentAssembly).filter_by(id=component_assembly).first() if component_assembly else None
-        assembly_view_entity = session.query(AssemblyView).filter_by(
-            id=assembly_view_id).first() if assembly_view_id else None
+        assembly_view_entity = session.query(AssemblyView).filter_by(id=assembly_view_id).first() if assembly_view_id else None
 
         # Log the retrieved entities
         logger.debug(f"Retrieved area_entity: {area_entity}")
@@ -168,7 +163,7 @@ def create_position(area_id, equipment_group_id, model_id, asset_number_id, loca
         logger.debug(f"Retrieved asset_number_entity: {asset_number_entity}")
         logger.debug(f"Retrieved location_entity: {location_entity}")
         logger.debug(f"Retrieved site_location_entity: {site_location_entity}")
-        logger.debug(f"Retrieved assembly_entity: {assembly_entity}")
+        logger.debug(f"Retrieved subassembly_entity: {subassembly_entity}")
         logger.debug(f"Retrieved component_assembly_entity: {component_assembly_entity}")
         logger.debug(f"Retrieved assembly_view_entity: {assembly_view_entity}")
 
@@ -180,7 +175,7 @@ def create_position(area_id, equipment_group_id, model_id, asset_number_id, loca
             asset_number=asset_number_entity,
             location=location_entity,
             site_location=site_location_entity,
-            assembly=assembly_entity,
+            subassembly=subassembly_entity,
             component_assembly=component_assembly_entity,
             assembly_view=assembly_view_entity
         ).first()
@@ -197,7 +192,7 @@ def create_position(area_id, equipment_group_id, model_id, asset_number_id, loca
                 asset_number=asset_number_entity,
                 location=location_entity,
                 site_location=site_location_entity,
-                assembly=assembly_entity,
+                subassembly=subassembly_entity,
                 component_assembly=component_assembly_entity,
                 assembly_view=assembly_view_entity
             )

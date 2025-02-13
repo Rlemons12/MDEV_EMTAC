@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from modules.configuration.config_env import DatabaseConfig  # Import your DatabaseConfig class
 from modules.emtacdb.emtacdb_fts import (Position, Area, EquipmentGroup, Model, AssetNumber, Location, SiteLocation,
-                                         Assembly, ComponentAssembly, AssemblyView)
+                                         Subassembly, ComponentAssembly, AssemblyView)
 import logging
 
 # Configure logging
@@ -28,7 +28,7 @@ def add_position():
     asset_number_ids = request.form.getlist('asset_number_id[]')
     location_ids = request.form.getlist('location_id[]')
 
-    # NEW: Assembly, Subassembly, Assembly View
+    # NEW: Subassembly, Subassembly, Subassembly View
     assembly_ids = request.form.getlist('assembly_id[]')
     subassembly_ids = request.form.getlist('subassembly_id[]')
     assembly_view_ids = request.form.getlist('assembly_view_id[]')
@@ -150,7 +150,7 @@ def add_position():
                 if name:
                     # If your schema has assembly.location_id or something, link as needed
                     # location_fk = new_location_ids[0] if new_location_ids else None
-                    new_assembly = Assembly(
+                    new_assembly = Subassembly(
                         name=name,
                         description=description
                         # location_id=location_fk, # if needed
@@ -212,7 +212,7 @@ def add_position():
         asset_number_id=new_asset_number_ids[0] if new_asset_number_ids else None,
         location_id=new_location_ids[0] if new_location_ids else None,
 
-        # NEW: link newly created or selected Assembly / Subassembly / AssemblyView
+        # NEW: link newly created or selected Subassembly / Subassembly / AssemblyView
         assembly_id=new_assembly_ids[0] if new_assembly_ids else None,
         subassembly_id=new_subassembly_ids[0] if new_subassembly_ids else None,
         assembly_view_id=new_assembly_view_ids[0] if new_assembly_view_ids else None
@@ -432,10 +432,10 @@ def get_assemblies():
 
         if location_id:
             # If the route is called like /get_assemblies?location_id=123
-            assemblies = session.query(Assembly).filter_by(location_id=location_id).all()
+            assemblies = session.query(Subassembly).filter_by(location_id=location_id).all()
         else:
             # Otherwise, return all assemblies
-            assemblies = session.query(Assembly).all()
+            assemblies = session.query(Subassembly).all()
 
         data = [{'id': assembly.id, 'name': assembly.name} for assembly in assemblies]
         return jsonify(data)
@@ -489,7 +489,7 @@ def add_assembly():
         assembly_description = request.form.get('assembly_description')
         location_id = request.form.get('location_id')  # if assembly is tied to a location, for example
 
-        new_assembly = Assembly(
+        new_assembly = Subassembly(
             name=assembly_name,
             description=assembly_description,
             location_id=location_id
@@ -497,7 +497,7 @@ def add_assembly():
         session.add(new_assembly)
         session.commit()
 
-        flash('New Assembly added successfully!')
+        flash('New Subassembly added successfully!')
         return redirect(url_for('position_data_assignment_data_add_dependencies_bp.add_assembly'))
 
     # If GET request, load a simple form (similar to add_area.html)
@@ -507,7 +507,7 @@ def add_assembly():
 def add_subassembly():
     """
     Allows creation of a new ComponentAssembly record.
-    Optionally links the ComponentAssembly to an existing Assembly, if needed.
+    Optionally links the ComponentAssembly to an existing Subassembly, if needed.
     """
     if request.method == 'POST':
         subassembly_name = request.form.get('subassembly_name')
@@ -532,9 +532,9 @@ def add_subassembly():
         return redirect(url_for('position_data_assignment_data_add_dependencies_bp.add_subassembly'))
 
     # If GET request, load the form
-    # If subassemblies must be tied to an existing Assembly,
+    # If subassemblies must be tied to an existing Subassembly,
     # pass a list of assemblies to the template for a dropdown
-    assemblies = session.query(Assembly).all()
+    assemblies = session.query(Subassembly).all()
     return render_template('add_subassembly.html', assemblies=assemblies)
 
 @position_data_assignment_data_add_dependencies_bp.route('/add_assembly_view', methods=['GET', 'POST'])
@@ -557,7 +557,7 @@ def add_assembly_view():
         session.add(new_assembly_view)
         session.commit()
 
-        flash('New Assembly View added successfully!')
+        flash('New Subassembly View added successfully!')
         return redirect(url_for('position_data_assignment_data_add_dependencies_bp.add_assembly_view'))
 
     # If GET, render a template

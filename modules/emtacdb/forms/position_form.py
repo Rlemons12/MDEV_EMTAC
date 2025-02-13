@@ -2,7 +2,7 @@ from flask_wtf import FlaskForm
 from wtforms import SubmitField
 from wtforms.validators import Optional
 from wtforms_sqlalchemy.fields import QuerySelectField
-from modules.emtacdb.emtacdb_fts import (Area, EquipmentGroup, Model, AssetNumber, Location, Assembly,
+from modules.emtacdb.emtacdb_fts import (Area, EquipmentGroup, Model, AssetNumber, Location, Subassembly,
                                          ComponentAssembly, AssemblyView, SiteLocation)
 from flask import current_app  # To access the app's config
 
@@ -53,10 +53,10 @@ class PositionForm(FlaskForm):
     )
 
     assembly = QuerySelectField(
-        label="Assembly",
-        query_factory=lambda: current_app.config['db_config'].get_main_session().query(Assembly).order_by(Assembly.name).all(),
+        label="Subassembly",
+        query_factory=lambda: current_app.config['db_config'].get_main_session().query(Subassembly).order_by(Subassembly.name).all(),
         allow_blank=True,
-        blank_text="Select an Assembly",
+        blank_text="Select an Subassembly",
         validators=[Optional()],
         get_label="name"
     )
@@ -71,10 +71,10 @@ class PositionForm(FlaskForm):
     )
 
     assembly_view = QuerySelectField(
-        label="Assembly View",
+        label="Subassembly View",
         query_factory=lambda: current_app.config['db_config'].get_main_session().query(AssemblyView).order_by(AssemblyView.name).all(),
         allow_blank=True,
-        blank_text="Select an Assembly View",
+        blank_text="Select an Subassembly View",
         validators=[Optional()],
         get_label="name"
     )

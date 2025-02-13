@@ -14,6 +14,10 @@ sys.path.append(BASE_DIR)
 
 #Important pathways
 TEMPLATE_FOLDER_PATH = os.path.join(BASE_DIR, 'templates')
+LOAD_FOLDER = os.path.join(BASE_DIR, 'load_process')
+LOAD_FOLDER_REFERENCE = os.path.join(BASE_DIR, 'load_process', 'load_reference')
+LOAD_FOLDER_INTAKE = os.path.join(BASE_DIR, 'load_process', 'load_intake_sheets')
+LOAD_FOLDER_OUTPUT = os.path.join(BASE_DIR, 'load_process', 'load_output')
 KEYWORDS_FILE_PATH = os.path.join(BASE_DIR,"static", 'keywords_file.xlsx')  # Update with the actual filename or path
 DATABASE_DIR = os.path.join(BASE_DIR, 'Database')
 DATABASE_PATH = os.path.join(DATABASE_DIR, 'emtac_db.db')

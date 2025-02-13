@@ -64,7 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
         .then(response => response.json())
         .then(data => {
             console.log('Success:', data);
-            alert('Assembly submitted successfully!');
+            alert('Subassembly submitted successfully!');
             assemblyForm.reset(); // Reset the form
         })
         .catch((error) => {

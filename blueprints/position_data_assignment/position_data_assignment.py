@@ -9,7 +9,7 @@ from modules.emtacdb.emtacdb_fts import (Drawing, Part, PartsPositionImageAssoci
                                          CompletedDocumentPositionAssociation,
                                          Area, EquipmentGroup, Model, AssetNumber, Location, SiteLocation,
                                          CompleteDocument,
-                                         Image, Position, ImagePositionAssociation, Assembly, AssemblyView, ComponentAssembly,
+                                         Image, Position, ImagePositionAssociation, Subassembly, AssemblyView, ComponentAssembly,
                                          ToolCategory, ToolManufacturer)
 from modules.configuration.config_env import DatabaseConfig
 from modules.configuration.config import ALLOWED_EXTENSIONS
@@ -80,8 +80,7 @@ def position_data_assignment():
                         saved_drawing_paths.append(drawing_path)
                         logger.info(f"Saved drawing: {drawing_path}")
 
-                # Check if we're updating an existing Position (or PositionDataAssignment)
-                # or creating a new PositionDataAssignment record.
+                # Check if we're updating an existing Position or creating a new PositionDataAssignment record.
                 if position_id:
                     # Updating an existing Position record.
                     position = db_session.query(Position).filter_by(id=position_id).first()
@@ -91,15 +90,11 @@ def position_data_assignment():
                         return redirect(url_for('position_data_assignment_bp.position_data_assignment'))
 
                     # (If you have additional fields to update—such as file paths—handle them here.)
-                    # For example, if your Position model has image/drawing fields:
-                    # position.images = saved_image_paths
-                    # position.drawings = saved_drawing_paths
                     db_session.commit()
                     flash('Position Data Updated Successfully!', 'success')
                     logger.info(f"Updated Position ID {position_id} successfully.")
                 else:
                     # Creating a new PositionDataAssignment record (if used)
-                    # Adjust this block if you store extra data in a separate model.
                     new_pda = PositionDataAssignment(
                         position_id=new_position_id,
                         images=saved_image_paths,
@@ -143,15 +138,15 @@ def position_data_assignment():
         # For GET requests, load the form with initial data.
         try:
             logger.info("Handling GET request for position_data_assignment.")
-            # Query for objects to populate the Search Position Form and other parts of the template.
             areas = db_session.query(Area).all()
             equipment_groups = db_session.query(EquipmentGroup).all()
             models = db_session.query(Model).all()
             asset_numbers = db_session.query(AssetNumber).all()
             locations = db_session.query(Location).all()
-            assemblies = db_session.query(Assembly).all()
-            subassemblies = db_session.query(ComponentAssembly).all()
-            assembly_views = db_session.query(AssemblyView).all()
+            # Updated names for subassembly-related queries:
+            subassemblies = db_session.query(Subassembly).all()  # formerly 'assemblies'
+            component_subassemblies = db_session.query(ComponentAssembly).all()  # formerly 'subassemblies'
+            subassembly_views = db_session.query(AssemblyView).all()  # formerly 'assembly_views'
             site_locations = db_session.query(SiteLocation).all()
 
             position = None
@@ -180,9 +175,9 @@ def position_data_assignment():
                 models=models,
                 asset_numbers=asset_numbers,
                 locations=locations,
-                assemblies=assemblies,
                 subassemblies=subassemblies,
-                assembly_views=assembly_views,
+                component_subassemblies=component_subassemblies,
+                subassembly_views=subassembly_views,
                 site_locations=site_locations,
                 position=position,
                 tool_search_form=tool_search_form,  # For the search form
@@ -241,35 +236,47 @@ def get_locations():
     finally:
         db_session.close()
 
-@position_data_assignment_bp.route('/get_assemblies')
+@position_data_assignment_bp.route('/get_assemblies') # TODO remane to Subassembly
 def get_assemblies():
     location_id = request.args.get('location_id')
     db_session = db_config.get_main_session()
     try:
-        assembly = db_session.query(Assembly).filter_by(location_id=location_id).all()
+        assembly = db_session.query(Subassembly).filter_by(location_id=location_id).all()
         data = [{'id': assembly.id, 'name': assembly.name, 'description': assembly.description} for assembly in assembly]
         return jsonify(data)
     finally:
         db_session.close()
 
-@position_data_assignment_bp.route('/get_subassemblies')
+@position_data_assignment_bp.route('/get_subassemblies') # TODO Rename to Component_Assembly
 def get_subassemblies():
     assembly_id = request.args.get('assembly_id')
     db_session = db_config.get_main_session()
     try:
-        subassemblies = db_session.query(ComponentAssembly).filter(ComponentAssembly.assembly_id == assembly_id).all()
+        # Use the assembly_id value (which is acting as the subassembly_id here)
+        subassemblies = db_session.query(ComponentAssembly).filter(ComponentAssembly.subassembly_id == assembly_id).all()
         data = [{'id': subassembly.id, 'name': subassembly.name, 'description': subassembly.description} for subassembly in subassemblies]
         return jsonify(data)
     finally:
         db_session.close()
 
-@position_data_assignment_bp.route('/get_assembly_views')
+
+@position_data_assignment_bp.route('/get_assembly_views') # TODO Rename to component_view
 def get_assembly_views():
     subassembly_id = request.args.get('subassembly_id')
     db_session = db_config.get_main_session()
     try:
-        assembly_views = db_session.query(AssemblyView).filter(AssemblyView.subassembly_id == subassembly_id).all()
-        data = [{'id': assembly_view.id, 'name': assembly_view.name} for assembly_view in assembly_views]
+        # First, retrieve all ComponentAssembly records that belong to the given subassembly.
+        component_assemblies = db_session.query(ComponentAssembly).filter(
+            ComponentAssembly.subassembly_id == subassembly_id
+        ).all()
+        component_ids = [comp.id for comp in component_assemblies]
+
+        # Then, retrieve all AssemblyView records where the component_assembly_id is in the list.
+        assembly_views = db_session.query(AssemblyView).filter(
+            AssemblyView.component_assembly_id.in_(component_ids)
+        ).all()
+
+        data = [{'id': av.id, 'name': av.name} for av in assembly_views]
         return jsonify(data)
     finally:
         db_session.close()
@@ -1321,7 +1328,7 @@ def search_position():
         form_create_position.equipment_group.query_factory = lambda: db_session.query(EquipmentGroup).order_by(EquipmentGroup.name).all()
         form_create_position.model.query_factory = lambda: db_session.query(Model).order_by(Model.name).all()
         form_create_position.location.query_factory = lambda: db_session.query(Location).order_by(Location.name).all()
-        form_create_position.assembly.query_factory = lambda: db_session.query(Assembly).order_by(Assembly.name).all()
+        form_create_position.assembly.query_factory = lambda: db_session.query(Subassembly).order_by(Subassembly.name).all()
         form_create_position.subassembly.query_factory = lambda: db_session.query(ComponentAssembly).order_by(ComponentAssembly.name).all()
         form_create_position.assembly_view.query_factory = lambda: db_session.query(AssemblyView).order_by(AssemblyView.name).all()
         form_create_position.site_location.query_factory = lambda: db_session.query(SiteLocation).order_by(SiteLocation.title, SiteLocation.room_number).all()
@@ -1428,11 +1435,11 @@ def search_position():
                     logger.info(f"Created new Location with ID {new_location.id}.")
 
                 if not assembly and assembly_input:
-                    new_assembly = Assembly(name=assembly_input, location_id=location.id if location else None)
+                    new_assembly = Subassembly(name=assembly_input, location_id=location.id if location else None)
                     db_session.add(new_assembly)
                     db_session.commit()
                     assembly = new_assembly
-                    logger.info(f"Created new Assembly with ID {new_assembly.id}.")
+                    logger.info(f"Created new Subassembly with ID {new_assembly.id}.")
 
                 if not subassembly and subassembly_input:
                     new_subassembly = ComponentAssembly(name=subassembly_input, assembly_id=assembly.id if assembly else None)

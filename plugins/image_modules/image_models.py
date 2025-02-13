@@ -1,4 +1,4 @@
-# image_modules.py
+# plugins/image_modules/image_models.py
 import sys
 from transformers import CLIPProcessor, CLIPModel
 from sqlalchemy.orm import sessionmaker

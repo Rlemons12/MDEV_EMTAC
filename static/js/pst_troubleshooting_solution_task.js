@@ -1097,7 +1097,7 @@ async fetchInitialSiteLocations() {
             const assemblies = await SolutionTaskCommon.fetchInitialAssembliesByLocation(locationId);
             console.log('Fetched Assemblies:', assemblies);
 
-            window.SolutionTaskCommon.populateDropdown(assembliesDropdown, assemblies, 'Select Assembly');
+            window.SolutionTaskCommon.populateDropdown(assembliesDropdown, assemblies, 'Select Subassembly');
             console.log(`Dropdown options after populating Assemblies Dropdown (ID: ${assembliesDropdown.id}):`, assembliesDropdown.options);
 
             // Validate assembly_id exists in fetched assemblies
@@ -1120,7 +1120,7 @@ async fetchInitialSiteLocations() {
         } catch (error) {
             console.error('Error fetching Assemblies:', error);
             window.SolutionTaskCommon.showAlert('Failed to load assemblies.', 'danger');
-            window.SolutionTaskCommon.populateDropdown(assembliesDropdown, [], 'Select Assembly');
+            window.SolutionTaskCommon.populateDropdown(assembliesDropdown, [], 'Select Subassembly');
             //assembliesDropdown.disabled = true;
             console.log('async function populatePositionFields disabled')
             console.log(`Assemblies Dropdown (ID: ${assembliesDropdown.id}) has been disabled due to error.`);
@@ -1129,7 +1129,7 @@ async fetchInitialSiteLocations() {
         console.warn('Assemblies Dropdown element not found in position section.');
     }
 
-    // === 7. Populate Subassemblies based on selected Assembly ===
+    // === 7. Populate Subassemblies based on selected Subassembly ===
     const subassembliesDropdown = positionSection.querySelector('.subassembliesDropdown');
     if (subassembliesDropdown && positionData.assembly_id) {
         try {
@@ -1151,36 +1151,36 @@ async fetchInitialSiteLocations() {
             console.log(`Subassemblies Dropdown (ID: ${subassembliesDropdown.id}) has been disabled due to error.`);
         }
     } else if (!positionData.assembly_id) {
-        console.warn('Assembly ID is missing in positionData; cannot populate Subassemblies Dropdown.');
+        console.warn('Subassembly ID is missing in positionData; cannot populate Subassemblies Dropdown.');
     } else {
         console.warn('Subassemblies Dropdown element not found in position section.');
     }
 
-    // === 8. Populate Assembly Views based on selected Subassembly ===
+    // === 8. Populate Subassembly Views based on selected Subassembly ===
     const assemblyViewsDropdown = positionSection.querySelector('.assemblyViewsDropdown');
     if (assemblyViewsDropdown && positionData.subassembly_id) {
         try {
             console.log(`Attempting to fetch Assembly Views for Subassembly ID: ${positionData.subassembly_id}`);
             const assemblyViews = await SolutionTaskCommon.fetchInitialAssemblyViews(positionData.subassembly_id);
-            console.log('Fetched Assembly Views:', assemblyViews);
+            console.log('Fetched Subassembly Views:', assemblyViews);
 
-            window.SolutionTaskCommon.populateDropdown(assemblyViewsDropdown, assemblyViews, 'Select Assembly View');
+            window.SolutionTaskCommon.populateDropdown(assemblyViewsDropdown, assemblyViews, 'Select Subassembly View');
             console.log(`Dropdown options after populating Assembly Views Dropdown (ID: ${assemblyViewsDropdown.id}):`, assemblyViewsDropdown.options);
 
             assemblyViewsDropdown.value = positionData.assembly_view_id || '';
             assemblyViewsDropdown.disabled = false;
             console.log(`Set Assembly Views Dropdown (ID: ${assemblyViewsDropdown.id}) to value: ${positionData.assembly_view_id}`);
         } catch (error) {
-            console.error('Error fetching Assembly Views:', error);
+            console.error('Error fetching Subassembly Views:', error);
             window.SolutionTaskCommon.showAlert('Failed to load assembly views.', 'danger');
-            window.SolutionTaskCommon.populateDropdown(assemblyViewsDropdown, [], 'Select Assembly View');
+            window.SolutionTaskCommon.populateDropdown(assemblyViewsDropdown, [], 'Select Subassembly View');
             assemblyViewsDropdown.disabled = true;
             console.log(`Assembly Views Dropdown (ID: ${assemblyViewsDropdown.id}) has been disabled due to error.`);
         }
     } else if (!positionData.subassembly_id) {
-        console.warn('Subassembly ID is missing in positionData; cannot populate Assembly Views Dropdown.');
+        console.warn('Subassembly ID is missing in positionData; cannot populate Subassembly Views Dropdown.');
     } else {
-        console.warn('Assembly Views Dropdown element not found in position section.');
+        console.warn('Subassembly Views Dropdown element not found in position section.');
     }
 
     // === 9. Populate Site Location Dropdown Independently ===
@@ -1326,7 +1326,7 @@ async fetchInitialSiteLocations() {
     const assembliesDropdown = positionSection.querySelector('.assembliesDropdown');
     if (assembliesDropdown) {
         try {
-            window.SolutionTaskCommon.populateDropdown(assembliesDropdown, [], 'Select Assembly');
+            window.SolutionTaskCommon.populateDropdown(assembliesDropdown, [], 'Select Subassembly');
             //assembliesDropdown.disabled = true;
             console.log(`Initialized and disabled Assemblies Dropdown (ID: ${assembliesDropdown.id})`);
         } catch (error) {
@@ -1350,18 +1350,18 @@ async fetchInitialSiteLocations() {
         console.warn('Subassemblies Dropdown element not found in position section.');
     }
 
-    // === 8. Populate Assembly Views Dropdown ===
+    // === 8. Populate Subassembly Views Dropdown ===
     const assemblyViewsDropdown = positionSection.querySelector('.assemblyViewsDropdown');
     if (assemblyViewsDropdown) {
         try {
-            window.SolutionTaskCommon.populateDropdown(assemblyViewsDropdown, [], 'Select Assembly View');
+            window.SolutionTaskCommon.populateDropdown(assemblyViewsDropdown, [], 'Select Subassembly View');
             assemblyViewsDropdown.disabled = true;
             console.log(`Initialized and disabled Assembly Views Dropdown (ID: ${assemblyViewsDropdown.id})`);
         } catch (error) {
-            console.error('Error initializing Assembly Views Dropdown:', error);
+            console.error('Error initializing Subassembly Views Dropdown:', error);
         }
     } else {
-        console.warn('Assembly Views Dropdown element not found in position section.');
+        console.warn('Subassembly Views Dropdown element not found in position section.');
     }
 
     // === 9. Populate Site Location Dropdown Independently ===
@@ -1566,7 +1566,7 @@ async fetchInitialSiteLocations() {
                     locationInput.disabled = locations.length === 0;
                     console.log(`Populated Location Dropdown (ID: ${locationInput.id}) with Locations for Model ID ${selectedModelId}`);
 
-                    // Reset and disable Assembly-related Dropdowns
+                    // Reset and disable Subassembly-related Dropdowns
                     /** resetDropdowns([
                         //assembliesDropdown,
                         subassembliesDropdown,
@@ -1614,13 +1614,13 @@ async fetchInitialSiteLocations() {
             if (selectedLocationId) {
                 try {
                     const assemblies = await SolutionTaskCommon.fetchInitialAssembliesByLocation(selectedLocationId);
-                    SolutionTaskCommon.populateDropdown(assembliesDropdown, assemblies, 'Select Assembly');
+                    SolutionTaskCommon.populateDropdown(assembliesDropdown, assemblies, 'Select Subassembly');
                     console.log(`assembliesDropdown assemblies.length = ${assemblies.length}`);
                     //assembliesDropdown.disabled = assemblies.length === 0;
 
                     console.log(`Populated Assemblies Dropdown (ID: ${assembliesDropdown.id}) with Assemblies for Location ID ${selectedLocationId}`);
 
-                    // Reset and disable Subassemblies and Assembly Views Dropdowns
+                    // Reset and disable Subassemblies and Subassembly Views Dropdowns
                     /** resetDropdowns([
                         subassembliesDropdown,
                         assemblyViewsDropdown
@@ -1628,17 +1628,17 @@ async fetchInitialSiteLocations() {
                 } catch (error) {
                     console.error(`Error fetching Assemblies for Location ID ${selectedLocationId}:`, error);
                     SolutionTaskCommon.showAlert('Failed to load assemblies.', 'danger');
-                    SolutionTaskCommon.populateDropdown(assembliesDropdown, [], 'Select Assembly');
+                    SolutionTaskCommon.populateDropdown(assembliesDropdown, [], 'Select Subassembly');
                     //assembliesDropdown.disabled = true;
 
-                    // Reset and disable Subassemblies and Assembly Views Dropdowns
+                    // Reset and disable Subassemblies and Subassembly Views Dropdowns
                     /** resetDropdowns([
                         subassembliesDropdown,
                         assemblyViewsDropdown
                     ]); */
                 }
             } else {
-                // Reset and disable Assemblies, Subassemblies, and Assembly Views Dropdowns
+                // Reset and disable Assemblies, Subassemblies, and Subassembly Views Dropdowns
                 /** resetDropdowns([
                     //assembliesDropdown,
                     subassembliesDropdown,
@@ -1661,7 +1661,7 @@ async fetchInitialSiteLocations() {
                     subassembliesDropdown.disabled = subassemblies.length === 0;
                     console.log(`Populated Subassemblies Dropdown (ID: ${subassembliesDropdown.id}) with Subassemblies for Assembly ID ${selectedAssemblyId}`);
 
-                    // Reset and disable Assembly Views Dropdown
+                    // Reset and disable Subassembly Views Dropdown
                     /** resetDropdowns([assemblyViewsDropdown]);*/
                 } catch (error) {
                     console.error(`Error fetching Subassemblies for Assembly ID ${selectedAssemblyId}:`, error);
@@ -1669,11 +1669,11 @@ async fetchInitialSiteLocations() {
                     SolutionTaskCommon.populateDropdown(subassembliesDropdown, [], 'Select Subassembly');
                     subassembliesDropdown.disabled = true;
 
-                    // Reset and disable Assembly Views Dropdown
+                    // Reset and disable Subassembly Views Dropdown
                     /** resetDropdowns([assemblyViewsDropdown]); */
                 }
             } else {
-                // Reset and disable Subassemblies and Assembly Views Dropdowns
+                // Reset and disable Subassemblies and Subassembly Views Dropdowns
                 /** resetDropdowns([subassembliesDropdown, assemblyViewsDropdown]); */
             }
         });
@@ -1686,17 +1686,17 @@ async fetchInitialSiteLocations() {
             if (selectedSubassemblyId) {
                 try {
                     const assemblyViews = await SolutionTaskCommon.fetchInitialAssemblyViews(selectedSubassemblyId);
-                    SolutionTaskCommon.populateDropdown(assemblyViewsDropdown, assemblyViews, 'Select Assembly View');
+                    SolutionTaskCommon.populateDropdown(assemblyViewsDropdown, assemblyViews, 'Select Subassembly View');
                     assemblyViewsDropdown.disabled = assemblyViews.length === 0;
                     console.log(`Populated Assembly Views Dropdown (ID: ${assemblyViewsDropdown.id}) with Assembly Views for Subassembly ID ${selectedSubassemblyId}`);
                 } catch (error) {
                     console.error(`Error fetching Assembly Views for Subassembly ID ${selectedSubassemblyId}:`, error);
                     SolutionTaskCommon.showAlert('Failed to load assembly views.', 'danger');
-                    SolutionTaskCommon.populateDropdown(assemblyViewsDropdown, [], 'Select Assembly View');
+                    SolutionTaskCommon.populateDropdown(assemblyViewsDropdown, [], 'Select Subassembly View');
                     assemblyViewsDropdown.disabled = true;
                 }
             } else {
-                // Reset and disable Assembly Views Dropdown
+                // Reset and disable Subassembly Views Dropdown
                 /** resetDropdowns([assemblyViewsDropdown]); */
             }
         });
