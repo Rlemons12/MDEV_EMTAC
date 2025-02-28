@@ -2,6 +2,7 @@ import logging
 from flask import Blueprint, send_file, request, redirect, url_for, flash, render_template, session as flask_session
 from modules.emtacdb.emtacdb_fts import PartsPositionImageAssociation, Position, Part, Image, BOMResult, AssetNumber
 from modules.configuration.config_env import DatabaseConfig
+from modules.configuration.config import BASE_DIR
 import json
 import os
 
@@ -28,13 +29,14 @@ logger.addHandler(file_handler)
 
 
 # Function to serve an image from the database based on its ID
-def serve_image(session, image_id):
+def serve_bom_image(session, image_id):
     logger.info(f"Attempting to serve image with ID: {image_id}")
     try:
         image = session.query(Image).filter_by(id=image_id).first()
         if image:
             logger.debug(f"Image found: {image.title}, File path: {image.file_path}")
-            file_path = os.path.join(os.getenv('DATABASE_DIR'), image.file_path)
+            file_path = os.path.join(BASE_DIR, image.file_path)
+            logger.debug(f"File path: {file_path}")
             if os.path.exists(file_path):
                 logger.info(f"Serving file: {file_path}")
                 return send_file(file_path, mimetype='image/jpeg', as_attachment=False)
@@ -49,12 +51,12 @@ def serve_image(session, image_id):
         return "Internal Server Error", 500
 
 
-@create_bill_of_material_bp.route('/serve_image/<int:image_id>')
-def serve_image_route(image_id):
+@create_bill_of_material_bp.route('/bom_serve_image/<int:image_id>')
+def bom_serve_image_route(image_id):
     logger.debug(f"Request to serve image with ID: {image_id}")
     db_session = db_config.get_main_session()
     try:
-        response = serve_image(db_session, image_id)
+        response = serve_bom_image(db_session, image_id)
         return response
     except Exception as e:
         logger.error(f"Error serving image {image_id}: {e}")

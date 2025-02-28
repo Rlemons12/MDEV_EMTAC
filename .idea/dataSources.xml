@@ -36,5 +36,12 @@
       <jdbc-url>jdbc:sqlite:$PROJECT_DIR$/models/tool_model/tools_inventory.db</jdbc-url>
       <working-dir>$ProjectFileDir$</working-dir>
     </data-source>
+    <data-source source="LOCAL" name="assignments.db" uuid="e82a6bc6-f0c9-4477-98b9-44f29f25a732">
+      <driver-ref>sqlite.xerial</driver-ref>
+      <synchronize>true</synchronize>
+      <jdbc-driver>org.sqlite.JDBC</jdbc-driver>
+      <jdbc-url>jdbc:sqlite:$PROJECT_DIR$/Prototypes/RCM_reading/assignments.db</jdbc-url>
+      <working-dir>$ProjectFileDir$</working-dir>
+    </data-source>
   </component>
 </project>

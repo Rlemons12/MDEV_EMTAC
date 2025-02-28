@@ -58,6 +58,7 @@ def check_and_install_requirements():
     else:
         initializer_logger.warning("⚠️ No requirements.txt file found. Skipping dependency installation.")
 
+
 def create_directories():
     """
     Ensures all required directories exist, creating them if necessary.

@@ -145,8 +145,8 @@ def get_tool_position_associations():
                 model=form.model.data,
                 asset_number=form.asset_number.data,
                 location=form.location.data,
-                assembly=form.assembly.data,
                 subassembly=form.subassembly.data,
+                component_assembly=form.component_assembly.data,
                 assembly_view=form.assembly_view.data,
                 site_location=form.site_location.data
             ).first()
@@ -159,8 +159,8 @@ def get_tool_position_associations():
                     model=form.model.data,
                     asset_number=form.asset_number.data,
                     location=form.location.data,
-                    assembly=form.assembly.data,
                     subassembly=form.subassembly.data,
+                    component_assembly=form.component_assembly.data,
                     assembly_view=form.assembly_view.data,
                     site_location=form.site_location.data
                 )

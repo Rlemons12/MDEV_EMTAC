@@ -3,7 +3,7 @@
 from flask_wtf import FlaskForm
 from wtforms import StringField, TextAreaField, SelectField, FileField, SubmitField, SelectMultipleField
 from wtforms.validators import DataRequired, Length, Optional
-from flask_wtf.file import FileAllowed, FileRequired  # If you plan to use these validators
+from flask_wtf.file import MultipleFileField, FileAllowed,FileRequired  # If you plan to use these validators
 
 
 class ToolForm(FlaskForm):
@@ -14,6 +14,8 @@ class ToolForm(FlaskForm):
     tool_description = TextAreaField('Tool Description', validators=[Optional()])
     tool_category = SelectField('Tool Category', coerce=int, validators=[DataRequired()])
     tool_manufacturer = SelectField('Tool Manufacturer', coerce=int, validators=[DataRequired()])
-    tool_image = FileField('Tool Image', validators=[Optional()])
+    tool_images = MultipleFileField('Tool Images', validators=[
+        Optional(), FileAllowed(['jpg', 'jpeg', 'png', 'gif'], 'Images only!')
+    ])
     image_description = TextAreaField('Image Description', validators=[Optional()])
     submit_tool = SubmitField('Submit Tool Data')

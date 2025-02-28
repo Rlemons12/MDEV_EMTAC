@@ -9,8 +9,10 @@ from PIL import Image as PILImage
 from werkzeug.utils import secure_filename
 from modules.emtacdb.emtacdb_fts import Image, ImageEmbedding, load_image_model_config_from_db
 from plugins.image_modules.image_models import get_image_model_handler
-from modules.configuration.config import DATABASE_URL, DATABASE_PATH_IMAGES_FOLDER, DATABASE_DIR
+from modules.configuration.config import (DATABASE_URL, DATABASE_PATH_IMAGES_FOLDER, BASE_DIR,
+                                          DATABASE_DIR)
 from modules.configuration.log_config import logger
+
 
 # Create SQLAlchemy engine
 engine = create_engine(DATABASE_URL)
@@ -149,7 +151,7 @@ def serve_image(session, image_id):
     try:
         image = session.query(Image).filter_by(id=image_id).first()
         if image:
-            file_path = os.path.join(DATABASE_DIR, image.file_path)
+            file_path = os.path.join(BASE_DIR, image.file_path)
             if os.path.exists(file_path):
                 logger.info(f"Serving file: {file_path}")
                 return send_file(file_path, mimetype='image/jpeg', as_attachment=False)

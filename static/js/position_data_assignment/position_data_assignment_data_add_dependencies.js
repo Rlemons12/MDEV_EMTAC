@@ -247,7 +247,7 @@ $(document).ready(function () {
             $('#addAnotherSubassemblyBtn').hide();
 
             // Clear & fetch subassemblies
-            $.getJSON('/get_subassemblies', { assembly_id: assemblyId }, function (data) {
+            $.getJSON('/component_assemblies', { assembly_id: assemblyId }, function (data) {
                 $('#new_subassemblyDropdown')
                     .empty()
                     .append('<option value="">Select Subassembly</option>');

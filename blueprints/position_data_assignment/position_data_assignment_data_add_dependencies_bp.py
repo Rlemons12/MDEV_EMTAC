@@ -417,7 +417,7 @@ def search_site_locations():
     return jsonify([])  # Return an empty list if no search term is provided
 
 
-@position_data_assignment_data_add_dependencies_bp.route('/get_assemblies', methods=['GET'])
+@position_data_assignment_data_add_dependencies_bp.route('/get_subassemblies', methods=['GET'])
 def get_assemblies():
     """
     Returns a JSON list of assemblies.
@@ -444,7 +444,7 @@ def get_assemblies():
         logger.error(f"Error fetching assemblies: {e}")
         return jsonify({"error": "An error occurred while fetching assemblies"}), 500
 
-@position_data_assignment_data_add_dependencies_bp.route('/get_subassemblies', methods=['GET'])
+@position_data_assignment_data_add_dependencies_bp.route('/component_assemblies', methods=['GET'])
 def get_subassemblies():
     """
     Returns a JSON list of subassemblies.

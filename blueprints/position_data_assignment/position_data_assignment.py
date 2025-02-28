@@ -5,12 +5,13 @@ from werkzeug.utils import secure_filename
 import os
 import logging
 from sqlalchemy.orm import joinedload
+#from win32comext.shell.demos.IActiveDesktop import component
+
 from modules.emtacdb.emtacdb_fts import (Drawing, Part, PartsPositionImageAssociation, DrawingPositionAssociation,
                                          CompletedDocumentPositionAssociation,
                                          Area, EquipmentGroup, Model, AssetNumber, Location, SiteLocation,
-                                         CompleteDocument,
-                                         Image, Position, ImagePositionAssociation, Subassembly, AssemblyView, ComponentAssembly,
-                                         ToolCategory, ToolManufacturer)
+                                         CompleteDocument,Image, Position, ImagePositionAssociation, Subassembly,
+                                         AssemblyView, ComponentAssembly,ToolCategory, ToolManufacturer)
 from modules.configuration.config_env import DatabaseConfig
 from modules.configuration.config import ALLOWED_EXTENSIONS
 from sqlalchemy import or_
@@ -236,19 +237,19 @@ def get_locations():
     finally:
         db_session.close()
 
-@position_data_assignment_bp.route('/get_assemblies') # TODO remane to Subassembly
-def get_assemblies():
+@position_data_assignment_bp.route('/get_subassemblies') # TODO rename to Subassembly
+def get_subassemblies():
     location_id = request.args.get('location_id')
     db_session = db_config.get_main_session()
     try:
-        assembly = db_session.query(Subassembly).filter_by(location_id=location_id).all()
-        data = [{'id': assembly.id, 'name': assembly.name, 'description': assembly.description} for assembly in assembly]
+        subassembly = db_session.query(Subassembly).filter_by(location_id=location_id).all()
+        data = [{'id': subassembly.id, 'name': subassembly.name, 'description': subassembly.description} for subassembly in subassembly]
         return jsonify(data)
     finally:
         db_session.close()
 
-@position_data_assignment_bp.route('/get_subassemblies') # TODO Rename to Component_Assembly
-def get_subassemblies():
+@position_data_assignment_bp.route('/component_assemblies') # TODO Rename to Component_Assembly
+def get_component_assemblies():
     assembly_id = request.args.get('assembly_id')
     db_session = db_config.get_main_session()
     try:
@@ -313,8 +314,8 @@ def get_positions():
         model_id = request.args.get('model_id')
         asset_number_id = request.args.get('asset_number_id')
         location_id = request.args.get('location_id')
-        assembly_id = request.args.get('assembly_id')
         subassembly_id = request.args.get('subassembly_id')
+        component_assembly_id = request.args.get('component_assembly_id')
         assembly_view_id = request.args.get('assembly_view_id')
 
         logger.info(f"Received GET request with filters: site_location_id={site_location_id}, area_id={area_id}, equipment_group_id={equipment_group_id}, model_id={model_id}, asset_number_id={asset_number_id}, location_id={location_id}")
@@ -336,10 +337,10 @@ def get_positions():
             query = query.filter(Position.asset_number_id == asset_number_id)
         if location_id:
             query = query.filter(Position.location_id == location_id)
-        if assembly_id:
-            query = query.filter(Position.assembly_id == assembly_id)
         if subassembly_id:
             query = query.filter(Position.subassembly_id == subassembly_id)
+        if component_assembly_id:
+            query = query.filter(Position.component_assembly_id == component_assembly_id)
         if assembly_view_id:
             query = query.filter(Position.assembly_view_id == assembly_view_id)
 
@@ -1328,8 +1329,8 @@ def search_position():
         form_create_position.equipment_group.query_factory = lambda: db_session.query(EquipmentGroup).order_by(EquipmentGroup.name).all()
         form_create_position.model.query_factory = lambda: db_session.query(Model).order_by(Model.name).all()
         form_create_position.location.query_factory = lambda: db_session.query(Location).order_by(Location.name).all()
-        form_create_position.assembly.query_factory = lambda: db_session.query(Subassembly).order_by(Subassembly.name).all()
-        form_create_position.subassembly.query_factory = lambda: db_session.query(ComponentAssembly).order_by(ComponentAssembly.name).all()
+        form_create_position.subassembly.query_factory = lambda: db_session.query(Subassembly).order_by(Subassembly.name).all()
+        form_create_position.component_assembly.query_factory = lambda: db_session.query(ComponentAssembly).order_by(ComponentAssembly.name).all()
         form_create_position.assembly_view.query_factory = lambda: db_session.query(AssemblyView).order_by(AssemblyView.name).all()
         form_create_position.site_location.query_factory = lambda: db_session.query(SiteLocation).order_by(SiteLocation.title, SiteLocation.room_number).all()
 
@@ -1408,10 +1409,10 @@ def search_position():
                 asset_number_input = form_create_position.asset_number_input.data or None
                 location = form_create_position.location.data
                 location_input = form_create_position.location_input.data or None
-                assembly = form_create_position.assembly.data
-                assembly_input = form_create_position.assembly_input.data or None
                 subassembly = form_create_position.subassembly.data
                 subassembly_input = form_create_position.subassembly_input.data or None
+                component_assembly = form_create_position.component_assembly.data
+                component_assembly_input = form_create_position.component_assembly_input.data or None
                 assembly_view = form_create_position.assembly_view.data
                 site_location = form_create_position.site_location.data
                 position_name = form_create_position.position.data
@@ -1434,19 +1435,19 @@ def search_position():
                     location = new_location
                     logger.info(f"Created new Location with ID {new_location.id}.")
 
-                if not assembly and assembly_input:
-                    new_assembly = Subassembly(name=assembly_input, location_id=location.id if location else None)
-                    db_session.add(new_assembly)
-                    db_session.commit()
-                    assembly = new_assembly
-                    logger.info(f"Created new Subassembly with ID {new_assembly.id}.")
-
                 if not subassembly and subassembly_input:
-                    new_subassembly = ComponentAssembly(name=subassembly_input, assembly_id=assembly.id if assembly else None)
+                    new_subassembly = Subassembly(name=subassembly_input, location_id=location.id if location else None)
                     db_session.add(new_subassembly)
                     db_session.commit()
-                    subassembly = new_subassembly
-                    logger.info(f"Created new SubAssembly with ID {new_subassembly.id}.")
+                    assembly = new_subassembly
+                    logger.info(f"Created new Subassembly with ID {new_subassembly.id}.")
+
+                if not component_assembly and component_assembly_input:
+                    new_component_assembly = ComponentAssembly(name=component_assembly_input, subassembly_id=subassembly.id if subassembly else None)
+                    db_session.add(new_component_assembly)
+                    db_session.commit()
+                    component_assembly = new_component_assembly
+                    logger.info(f"Created new SubAssembly with ID {new_component_assembly.id}.")
 
                 # Handle file uploads
                 saved_image_paths = []
@@ -1484,7 +1485,7 @@ def search_position():
                     asset_number_id=asset_number.id if asset_number else None,
                     location_id=location.id if location else None,
                     assembly_id=assembly.id if assembly else None,
-                    subassembly_id=subassembly.id if subassembly else None,
+                    component_assembly_id= component_assembly_id if component_assembly else None,
                     assembly_view_id=assembly_view.id if assembly_view else None,
                     site_location_id=site_location.id if site_location else None,
                     parts=part_numbers  # Ensure this is handled correctly

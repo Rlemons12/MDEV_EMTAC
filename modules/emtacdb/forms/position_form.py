@@ -52,29 +52,29 @@ class PositionForm(FlaskForm):
         get_label="name"
     )
 
-    assembly = QuerySelectField(
+    subassembly = QuerySelectField(  # Kept for actual Subassembly
         label="Subassembly",
         query_factory=lambda: current_app.config['db_config'].get_main_session().query(Subassembly).order_by(Subassembly.name).all(),
-        allow_blank=True,
-        blank_text="Select an Subassembly",
-        validators=[Optional()],
-        get_label="name"
-    )
-
-    subassembly = QuerySelectField(
-        label="Subassembly",
-        query_factory=lambda: current_app.config['db_config'].get_main_session().query(ComponentAssembly).order_by(ComponentAssembly.name).all(),
         allow_blank=True,
         blank_text="Select a Subassembly",
         validators=[Optional()],
         get_label="name"
     )
 
+    component_assembly = QuerySelectField(  # Renamed from `assembly`
+        label="Component Assembly",
+        query_factory=lambda: current_app.config['db_config'].get_main_session().query(ComponentAssembly).order_by(ComponentAssembly.name).all(),
+        allow_blank=True,
+        blank_text="Select a Component Assembly",
+        validators=[Optional()],
+        get_label="name"
+    )
+
     assembly_view = QuerySelectField(
-        label="Subassembly View",
+        label="Assembly View",
         query_factory=lambda: current_app.config['db_config'].get_main_session().query(AssemblyView).order_by(AssemblyView.name).all(),
         allow_blank=True,
-        blank_text="Select an Subassembly View",
+        blank_text="Select an Assembly View",
         validators=[Optional()],
         get_label="name"
     )

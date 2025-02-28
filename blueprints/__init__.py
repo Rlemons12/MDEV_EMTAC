@@ -145,7 +145,8 @@ def register_blueprints(app):
     app.register_blueprint(bill_of_materials_bp,url_prefix='/')  # Registering the bill_of_materials blueprint
     app.register_blueprint(bill_of_materials_data_bp,url_prefix='/')
     app.register_blueprint(get_bill_of_material_query_data_bp)
-    app.register_blueprint(create_bill_of_material_bp)
+    app.register_blueprint(create_bill_of_material_bp, url_prefix='/bill_of_materials')
+
     app.register_blueprint(enter_new_part_bp)
     app.register_blueprint(comment_pop_up_bp)
     app.register_blueprint(update_part_bp)

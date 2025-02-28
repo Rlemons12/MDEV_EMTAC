@@ -362,7 +362,7 @@ def get_locations():
     data = [{'id': location.id, 'name': location.name} for location in locations]
     return jsonify(data)
 
-@pst_troubleshooting_guide_edit_update_bp.route('/get_assemblies', methods=['GET'])
+@pst_troubleshooting_guide_edit_update_bp.route('/get_subassemblies', methods=['GET'])
 def get_assemblies():
     session = db_config.get_main_session()
     location_id = request.args.get('location_id')  # No presence or type check
@@ -370,7 +370,7 @@ def get_assemblies():
     data = [{'id': assembly.id, 'name': assembly.name} for assembly in assemblies]
     return jsonify(data)  # Return a 200 implicitly
 
-@pst_troubleshooting_guide_edit_update_bp.route('/get_subassemblies', methods=['GET'])
+@pst_troubleshooting_guide_edit_update_bp.route('/component_assemblies', methods=['GET'])
 def get_subassemblies():
     session = db_config.get_main_session()
     assembly_id = request.args.get('assembly_id')

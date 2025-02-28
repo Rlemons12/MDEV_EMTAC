@@ -85,8 +85,8 @@
                     <td>{{ item.part.documentation }}</td>
                     <td>
                         {% if item.image %}
-                            <a href="{{ url_for('create_bill_of_material_bp.serve_image_route', image_id=item.image.id) }}" target="_blank">
-                                <img class="thumbnail" src="{{ url_for('create_bill_of_material_bp.serve_image_route', image_id=item.image.id) }}" alt="{{ item.image.title }}" />
+                            <a href="{{ url_for('create_bill_of_material_bp.bom_serve_image_route', image_id=item.image.id) }}" target="_blank">
+                                <img class="thumbnail" src="{{ url_for('create_bill_of_material_bp.bom_serve_image_route', image_id=item.image.id) }}" alt="{{ item.image.title }}" />
                             </a>
                         {% else %}
                             <p>No image available</p>

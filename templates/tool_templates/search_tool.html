@@ -1,5 +1,4 @@
 <!-- templates/tool_templates/search_tool.html -->
-
 {% set tools = tools | default([]) %}
 {% set page = page | default(1) %}
 {% set per_page = per_page | default(20) %}
@@ -100,7 +99,7 @@
                             <th>Category</th>
                             <th>Manufacturer</th>
                             <th>Description</th>
-                            <th>Image</th>
+                            <th>Images</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -114,8 +113,10 @@
                                 <td>{{ tool.manufacturer.name if tool.manufacturer else 'N/A' }}</td>
                                 <td>{{ tool.description or 'N/A' }}</td>
                                 <td>
-                                    {% if tool.image %}
-                                        <img src="{{ url_for('static', filename=tool.image) }}" alt="{{ tool.name }}" width="100">
+                                    {% if tool.images and tool.images|length > 0 %}
+                                        {% for image in tool.images %}
+                                            <img src="{{ url_for('static', filename=image.file_path) }}" alt="{{ image.title }}" width="100">
+                                        {% endfor %}
                                     {% else %}
                                         No Image
                                     {% endif %}
