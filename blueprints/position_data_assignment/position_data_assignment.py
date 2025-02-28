@@ -237,7 +237,7 @@ def get_locations():
     finally:
         db_session.close()
 
-@position_data_assignment_bp.route('/get_subassemblies') # TODO rename to Subassembly
+@position_data_assignment_bp.route('/get_subassemblies')
 def get_subassemblies():
     location_id = request.args.get('location_id')
     db_session = db_config.get_main_session()
@@ -248,7 +248,7 @@ def get_subassemblies():
     finally:
         db_session.close()
 
-@position_data_assignment_bp.route('/component_assemblies') # TODO Rename to Component_Assembly
+@position_data_assignment_bp.route('/component_assemblies')
 def get_component_assemblies():
     assembly_id = request.args.get('assembly_id')
     db_session = db_config.get_main_session()
