@@ -39,12 +39,12 @@
         <button class="toggle-btn" onclick="toggleSidebar()">Toggle Sidebar</button>
         <h2>Menu</h2>
         {% if session['user_level'] == 'ADMIN' or session['user_level'] == 'LEVEL_III' %}
-            <a href="/" style="color:  #FFFFFF;">Return to Main Page</a>
+            <a href="/static" style="color:  #FFFFFF;">Return to Main Page</a>
         {%  endif %}
         <a href="#search-bill-of-materials" onclick="showForm('search-bill-of-materials')">Search Bill of Materials</a>
         <a href="#upload-bill-of-materials" onclick="showForm('upload-bill-of-materials')">Upload Bill of Materials</a>
         {% if session['user_level'] == 'ADMIN' or session['user_level'] == 'LEVEL_III' %}
-            <a href="#enter-new-part-number" onclick="showForm('enter-new-part-number')">Enter New Part</a>
+            <a href="#1enter-new-part-number" onclick="showForm('1enter-new-part-number')">Enter New Part</a>
             <a href="#edit-part" onclick="showForm('edit-part')" >Edit Part</a>
             <!-- New link to open Position Data Assignment page -->
             <a href="/position_data_assignment" style="color: #39FF14;">To Position data Assignment</a>
@@ -135,32 +135,11 @@
         </div>
 
         <!-- Enter New Part Form -->
-        <div id="enter-new-part-number" class="form-container">
-            <h1>Enter New Part</h1>
-            <form method="POST" action="{{ url_for('enter_new_part_bp.enter_part') }}">
-                <label for="part_number" style="color: Yellow;">Part Number:</label>
-                <input type="text" id="part_number" name="part_number" required><br>
-                <label for="name" style="color: Yellow;">Name:</label>
-                <input type="text" id="name" name="name" required><br>
-                <label for="oem_mfg" style="color: Yellow;">OEM Manufacturer:</label>
-                <input type="text" id="oem_mfg" name="oem_mfg"><br>
-                <label for="model" style="color: Yellow;">Model:</label>
-                <input type="text" id="model" name="model"><br>
-                <label for="class_flag" style="color: Yellow;">Category:</label>
-                <input type="text" id="class_flag" name="class_flag"><br>
-                <label for="ud6" style="color: Yellow;">UD6:</label>
-                <input type="text" id="ud6" name="ud6"><br>
-                <label for="type" style="color: Yellow;">Type:</label>
-                <input type="text" id="type" name="type"><br>
-                <label for="notes" style="color: Yellow;">Long Description:</label>
-                <textarea id="notes" name="notes"></textarea><br>
-                <label for="documentation" style="color: Yellow;">Specifications:</label>
-                <textarea id="documentation" name="documentation"></textarea><br>
-                <input type="submit" value="Submit">
-            </form>
+        <div id="1enter-new-part-number" class="form-container">
+            {% include 'bill_of_materials/bom_partials/enter_new_part.html' %}
         </div>
 
-<div class="content-wrapper">
+    <div class="content-wrapper">
     <!-- Search and Edit Part Form -->
     <div id="edit-part" class="form-container">
         <h1>Search and Edit Part</h1>
@@ -184,41 +163,10 @@
             <input type="submit" value="Edit Selected Part">
         </form>
         {% endif %}
+
+        <!-- Include the edit part form partial -->
+        {% include '/bill_of_materials/bom_partials/edit_part.html' %}
     </div>
-
-    <!-- Form to edit part details after selecting a part -->
-    {% if part %}
-    <form action="{{ url_for('update_part_bp.edit_part', part_id=part.id) }}" method="POST">
-        <label for="part_number">Part Number:</label>
-        <input type="text" id="part_number" name="part_number" value="{{ part.part_number }}" required><br>
-
-        <label for="name">Name:</label>
-        <input type="text" id="name" name="name" value="{{ part.name }}" required><br>
-
-        <label for="oem_mfg">OEM Manufacturer:</label>
-        <input type="text" id="oem_mfg" name="oem_mfg" value="{{ part.oem_mfg }}"><br>
-
-        <label for="model">Model:</label>
-        <input type="text" id="model" name="model" value="{{ part.model }}"><br>
-
-        <label for="class_flag">Category:</label>
-        <input type="text" id="class_flag" name="class_flag" value="{{ part.class_flag }}"><br>
-
-        <label for="ud6">UD6:</label>
-        <input type="text" id="ud6" name="ud6" value="{{ part.ud6 }}"><br>
-
-        <label for="type">Type:</label>
-        <input type="text" id="type" name="type" value="{{ part.type }}"><br>
-
-        <label for="notes">Long Description:</label>
-        <textarea id="notes" name="notes">{{ part.notes }}</textarea><br>
-
-        <label for="documentation">Specifications:</label>
-        <textarea id="documentation" name="documentation">{{ part.documentation }}</textarea><br>
-
-        <input type="submit" value="Update Part">
-    </form>
-    {% endif %}
 </div>
 
 

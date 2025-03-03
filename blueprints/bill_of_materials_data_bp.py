@@ -2,6 +2,7 @@ import logging
 from flask import Blueprint, jsonify
 from modules.emtacdb.emtacdb_fts import Area, EquipmentGroup, Model, AssetNumber, Location
 from modules.configuration.config_env import DatabaseConfig  # Assuming this is your config file
+from modules.configuration.log_config import logger
 
 # Initialize the database configuration
 db_config = DatabaseConfig()
@@ -10,36 +11,30 @@ bill_of_materials_data_bp = Blueprint('bill_of_materials_data_bp', __name__)
 
 @bill_of_materials_data_bp.route('/get_bom_list_data', methods=['GET'])
 def get_bom_list_data():
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.DEBUG)
-    handler = logging.StreamHandler()
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
-
+   
     logger.info("Received request to fetch BOM list data")
     session = db_config.get_main_session()  # Use the main database session
 
     try:
-        logger.debug("Querying areas from the database")
+        logger.info("Querying areas from the database")
         areas = session.query(Area).all()
-        logger.debug(f"Fetched {len(areas)} areas")
+        logger.info(f"Fetched {len(areas)} areas")
 
-        logger.debug("Querying equipment groups from the database")
+        logger.info("Querying equipment groups from the database")
         equipment_groups = session.query(EquipmentGroup).all()
-        logger.debug(f"Fetched {len(equipment_groups)} equipment groups")
+        logger.info(f"Fetched {len(equipment_groups)} equipment groups")
 
-        logger.debug("Querying models from the database")
+        logger.info("Querying models from the database")
         models = session.query(Model).all()
-        logger.debug(f"Fetched {len(models)} models")
+        logger.info(f"Fetched {len(models)} models")
 
-        logger.debug("Querying asset numbers from the database")
+        logger.info("Querying asset numbers from the database")
         asset_numbers = session.query(AssetNumber).all()
-        logger.debug(f"Fetched {len(asset_numbers)} asset numbers")
+        logger.info(f"Fetched {len(asset_numbers)} asset numbers")
 
-        logger.debug("Querying locations from the database")
+        logger.info("Querying locations from the database")
         locations = session.query(Location).all()
-        logger.debug(f"Fetched {len(locations)} locations")
+        logger.info(f"Fetched {len(locations)} locations")
 
         data = {
             'areas': [{'id': area.id, 'name': area.name} for area in areas],
@@ -55,5 +50,5 @@ def get_bom_list_data():
         logger.error(f"Error occurred while fetching BOM list data: {e}")
         return jsonify({'error': str(e)})
     finally:
-        logger.debug("Closing the database session")
+        logger.info("Closing the database session")
         session.close()

@@ -10,22 +10,17 @@ from modules.emtacdb.utlity.main_database.database import create_position, add_i
 from sqlalchemy.orm.exc import NoResultFound
 import shutil  # Added to handle file copying
 from utilities.auth_utils import login_required
+from modules.configuration.log_config import logger
 bill_of_materials_bp = Blueprint('bill_of_materials_bp', __name__, template_folder='templates')
 
-# Setup logging
-log_file_path = os.path.join(DB_LOADSHEET_BOMS, 'bom_loadsheet.log')
-logging.basicConfig(
-    filename=log_file_path,
-    level=logging.DEBUG,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+
 
 db_config = DatabaseConfig()
 
 def allowed_file(filename):
-    logging.debug(f"Checking if file {filename} is allowed.")
+    logger.info(f"Checking if file {filename} is allowed.")
     allowed = '.' in filename and filename.rsplit('.', 1)[1].lower() in {'xlsx'}
-    logging.debug(f"File {filename} allowed: {allowed}")
+    logger.info(f"File {filename} allowed: {allowed}")
     return allowed
 
 def prompt_for_target_file(source_file):
@@ -77,13 +72,13 @@ def copy_bom_sheet_to_target(source_path, target_path):
 @bill_of_materials_bp.route('/bill_of_materials', methods=['GET', 'POST'])
 @login_required
 def bill_of_materials():
-    logging.debug("Accessed bill_of_materials route.")
+    logger.info("Accessed bill_of_materials route.")
     if request.method == 'POST':
-        logging.debug("Received POST request.")
+        logger.info("Received POST request.")
 
         # Retrieve the image path from the form
         image_path = request.form.get('image_path')
-        logging.debug(f"Image path received: {image_path}")
+        logger.info(f"Image path received: {image_path}")
         if not image_path:
             flash('Image path is required')
             logging.error("Image path is required but not provided.")
@@ -96,7 +91,7 @@ def bill_of_materials():
         asset_number_id = request.form.get('asset_number')
         location_id = request.form.get('location')
         site_location_id = request.form.get('site_location')
-        logging.debug(f"Received Position data: Area ID={area_id}, Equipment Group ID={equipment_group_id}, "
+        logger.info(f"Received Position data: Area ID={area_id}, Equipment Group ID={equipment_group_id}, "
                       f"Model ID={model_id}, Asset Number ID={asset_number_id}, Location ID={location_id}, "
                       f"Site Location ID={site_location_id}")
 
@@ -144,7 +139,7 @@ def bill_of_materials():
 
         return redirect(url_for('bill_of_materials_bp.bill_of_materials'))
 
-    return render_template('bill_of_materials.html')
+    return render_template('bill_of_materials/bill_of_materials.html')
 
 def process_bom_loadsheet(source_file, image_path, position_id):
     logging.info(f"Starting BOM loadsheet process for file: {source_file}")
@@ -190,7 +185,7 @@ def match_items_in_part_list_image(target_path, image_path, position_id):
         # Process all rows in the BOM sheet
         for row_idx, row in enumerate(bom_sheet.iter_rows(min_row=2, values_only=True), start=2):
             item_number = str(row[3]).strip()  # Assuming "Item Number" is the fourth column in BOM sheet
-            logging.debug(f"Processing item_number: '{item_number}' at BOM row {row_idx}")
+            logger.info(f"Processing item_number: '{item_number}' at BOM row {row_idx}")
 
             # Remove the leading "A" and get the first 6 characters
             part_number_prefix = item_number[1:7].upper()  # Strip the leading "A" and get the next 6 characters
@@ -198,11 +193,11 @@ def match_items_in_part_list_image(target_path, image_path, position_id):
 
             for photo_row in photo_list_sheet.iter_rows(min_row=2, values_only=True):
                 photo_part_number_prefix = str(photo_row[0])[:6].strip().upper()  # First 6 characters of Part #
-                logging.debug(
+                logger.info(
                     f"Comparing BOM prefix '{part_number_prefix}' with Part # prefix '{photo_part_number_prefix}'")
 
                 if part_number_prefix == photo_part_number_prefix:
-                    logging.debug(
+                    logger.info(
                         f"Match found in part_list_image for item number prefix: {part_number_prefix} at BOM row {row_idx}")
 
                     # Process photos from the Excel file
@@ -221,20 +216,20 @@ def match_items_in_part_list_image(target_path, image_path, position_id):
 
                     # Log and process each photo
                     if prefixed_photo_a:
-                        logging.debug(f"Passing prefixed photo name to process_part_position_image: {prefixed_photo_a}")
+                        logger.info(f"Passing prefixed photo name to process_part_position_image: {prefixed_photo_a}")
                         process_part_position_image(item_number, position_id, prefixed_photo_a, image_path)
                     if prefixed_photo_b:
-                        logging.debug(f"Passing prefixed photo name to process_part_position_image: {prefixed_photo_b}")
+                        logger.info(f"Passing prefixed photo name to process_part_position_image: {prefixed_photo_b}")
                         process_part_position_image(item_number, position_id, prefixed_photo_b, image_path)
                     if prefixed_photo_c:
-                        logging.debug(f"Passing prefixed photo name to process_part_position_image: {prefixed_photo_c}")
+                        logger.info(f"Passing prefixed photo name to process_part_position_image: {prefixed_photo_c}")
                         process_part_position_image(item_number, position_id, prefixed_photo_c, image_path)
 
                     match_found = True
                     break  # Stop searching once a match is found
 
             if not match_found:
-                logging.debug(f"No match found in part_list_image for item number: {item_number} at BOM row {row_idx}")
+                logger.info(f"No match found in part_list_image for item number: {item_number} at BOM row {row_idx}")
 
         # Save the final workbook after processing all rows
         wb_target.save(target_path)
@@ -248,7 +243,7 @@ def match_items_in_part_list_image(target_path, image_path, position_id):
         logging.error(f"An error occurred: {e}")
 
 def process_row(part_position_image_sheet, item_number, photo, description, manufacturer_description, position_id):
-    logging.debug(
+    logger.info(
         f"Preparing to process row: Item Number: {item_number}, Photo: {photo}, Description: {description}, Manufacturer Description: {manufacturer_description}, Position ID: {position_id}")
 
     if photo:
@@ -260,13 +255,13 @@ def process_row(part_position_image_sheet, item_number, photo, description, manu
         logging.warning(f"No photo provided for Item Number: {item_number}. Row not added.")
 
 def find_image_in_subfolders(image_title, base_path):
-    logging.debug(f"Searching for image '{image_title}' in '{base_path}' and its subfolders.")
+    logger.info(f"Searching for image '{image_title}' in '{base_path}' and its subfolders.")
     """
     Search for the image in the given base_path and its subfolders.
     Returns the full file path if found, otherwise returns None.
     """
     for root, dirs, files in os.walk(base_path):
-        logging.debug(f"Searching in directory: {root}")  # Log each directory being searched
+        logger.info(f"Searching in directory: {root}")  # Log each directory being searched
         for file in files:
             # Get the file name without extension
             file_name_without_ext = os.path.splitext(file)[0]
@@ -287,11 +282,11 @@ def process_remaining_items_in_image_folder(target_path, image_path, position_id
 
     for row_idx, row in enumerate(bom_sheet.iter_rows(min_row=2, values_only=True), start=2):
         item_number = str(row[3])  # Assuming "Item Number" is the fourth column in BOM sheet
-        logging.debug(f"Processing BOM item_number: '{item_number}' at row {row_idx}")
+        logger.info(f"Processing BOM item_number: '{item_number}' at row {row_idx}")
 
         if item_number:
             first_seven_chars = item_number[:7]  # Extract first 7 characters from the item number
-            logging.debug(f"Attempting to match BOM item '{item_number}' with files in image folder using '{first_seven_chars}'.")
+            logger.info(f"Attempting to match BOM item '{item_number}' with files in image folder using '{first_seven_chars}'.")
 
             # Search for a matching image in the folder
             image_file_path = find_image_in_subfolders(first_seven_chars, image_path)
@@ -333,7 +328,7 @@ def process_part_position_image(part_number, position_id, image_title, base_imag
     logging.info(f"Starting to process part position image for Part Number: {part_number}, Position ID: {position_id}, Image Title: {image_title}")
 
     # Locate the image file in the base path or its subfolders
-    logging.debug(f"Attempting to locate image '{image_title}' in '{base_image_path}' or its subfolders.")
+    logger.info(f"Attempting to locate image '{image_title}' in '{base_image_path}' or its subfolders.")
     image_file_path = find_image_in_subfolders(image_title, base_image_path)
 
     if not image_file_path:
@@ -348,7 +343,7 @@ def process_part_position_image(part_number, position_id, image_title, base_imag
 
     # Use the file name (without extension) as the title
     file_name_without_ext = os.path.splitext(os.path.basename(saved_image_path))[0]
-    logging.debug(f"Using file name without extension as the image title: {file_name_without_ext}")
+    logger.info(f"Using file name without extension as the image title: {file_name_without_ext}")
 
     # **Updated**: Add the image to the database with the new path
     image_id = add_image_to_db(title=file_name_without_ext, file_path=saved_image_path, position_id=position_id)
@@ -365,7 +360,7 @@ def create_part_position_image_association(image_title, position_id, image_id, s
     logging.info(f"Creating part_position_image association for image title: {image_title}, position ID: {position_id}, image ID: {image_id}")
     # Extract the part number from the image title (first 7 characters)
     part_number = image_title[:7]
-    logging.debug(f"Extracted part number from image title: {part_number}")
+    logger.info(f"Extracted part number from image title: {part_number}")
 
     # Look for the part in the Part table
     try:

@@ -171,7 +171,7 @@ def create_app():
     @app.route('/bill_of_materials')
     def bill_of_materials():
         logger.debug("Rendering bill_of_materials page.")
-        return render_template('bill_of_materials.html')
+        return render_template('bill_of_materials/bill_of_materials.html')
 
     @app.route('/position_data_assignment')
     def position_data_assignment():
