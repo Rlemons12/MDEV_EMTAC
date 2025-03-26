@@ -1,6 +1,16 @@
 import openpyxl
 from openpyxl import Workbook
 
+
+"""
+This script generates an Excel workbook containing two sheets:
+1. 'Image Load Sheet': Provides a structured template for entering image file names and corresponding EXIF metadata tags.
+2. 'EXIF Reference': Includes a detailed reference of commonly used EXIF metadata tags, specifying their Tag Names, Tag IDs, IFD sections, Data Types, and Descriptions.
+
+This workbook serves as a structured tool for managing and organizing EXIF metadata before embedding it into image files.
+"""
+
+
 # Define the EXIF tags as provided
 exif_tags = [
     {"Tag Name": "ImageDescription", "Tag ID": "0x010E", "IFD": "0th", "Data Type": "ASCII", "Description": "Image title or caption"},

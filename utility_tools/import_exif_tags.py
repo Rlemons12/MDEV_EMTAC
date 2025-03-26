@@ -4,6 +4,19 @@ import pillow_heif
 from PIL import Image
 from openpyxl import Workbook
 
+
+"""
+This script processes images in a user-specified folder by performing the following steps:
+1. Converts any .HEIC images to .JPG format using `pillow_heif`, and copies non-HEIC images to a 'converted' subfolder.
+2. Extracts predefined EXIF metadata from each processed image using the `Pillow` library.
+3. Generates an Excel workbook with two sheets:
+   - 'Image Load Sheet': Lists image names, a blank column for new image names, and extracted EXIF tag values.
+   - 'EXIF Reference': Describes each supported EXIF tag, including its name, tag ID, IFD section, data type, and description.
+
+The final Excel file, `exif_load_sheet_with_reference.xlsx`, is saved in the 'converted' folder alongside the processed images.
+"""
+
+
 # ----- Configuration -----
 # Predefined EXIF tags (for both reference and load sheet)
 exif_tags = [

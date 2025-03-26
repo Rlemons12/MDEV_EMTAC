@@ -2,6 +2,14 @@ import csv
 import os
 import pyexiv2
 
+
+"""
+This script reads metadata from a CSV file and inserts it into image files located in the same directory.
+The CSV file must contain a column with 'file name' (case-insensitive), which specifies the target images.
+Metadata from each CSV row is combined into a single string and added to each corresponding image's EXIF 'ImageDescription' tag using pyexiv2.
+"""
+
+
 # Function to load metadata from CSV file
 def load_metadata_from_csv(csv_file_path):
     metadata = []
