@@ -48,7 +48,7 @@ def update_associations(session, model, filter_field, target_id, item_ids, assoc
 
 def handle_save_position(session, task_id, solution_id, area_id, equipment_group_id, model_id,
                         asset_number_id, location_id, site_location_id,
-                        assembly_id=None, subassembly_id=None, assembly_view_id=None):
+                        subassembly_id=None, component_assembly_id=None, assembly_view_id=None):
     """
        Handles saving a position to the database.
 
@@ -62,8 +62,8 @@ def handle_save_position(session, task_id, solution_id, area_id, equipment_group
            asset_number_id (int): ID of the asset number.
            location_id (int): ID of the location.
            site_location_id (int): ID of the site location.
-           assembly_id (int, optional): ID of the assembly.
            subassembly_id (int, optional): ID of the subassembly.
+           component_assembly_id (int, optional): ID of the component assembly.
            assembly_view_id (int, optional): ID of the assembly view.
 
        Returns:
@@ -102,9 +102,9 @@ def handle_save_position(session, task_id, solution_id, area_id, equipment_group
             asset_number_id=asset_number_id,
             location_id=location_id,
             site_location_id=site_location_id,
-            assembly_id = assembly_id,
-            subassembly_id = subassembly_id,
-            assembly_view_id = assembly_view_id
+            subassembly_id=subassembly_id,
+            component_assembly_id=component_assembly_id,
+            assembly_view_id=assembly_view_id
         ).first()
 
         if not position:
@@ -116,9 +116,9 @@ def handle_save_position(session, task_id, solution_id, area_id, equipment_group
                 asset_number_id=asset_number_id,
                 location_id=location_id,
                 site_location_id=site_location_id,
-                assembly_id = assembly_id,
-                subassembly_id = subassembly_id,
-                assembly_view_id = assembly_view_id
+                subassembly_id=subassembly_id,
+                component_assembly_id=component_assembly_id,
+                assembly_view_id=assembly_view_id
             )
             session.add(position)
             session.flush()  # Flush to get the position ID
@@ -397,26 +397,25 @@ def get_subassemblies():
 @pst_troubleshooting_guide_edit_update_bp.route('/get_assembly_views', methods=['GET'])
 def get_assembly_views():
     session = db_config.get_main_session()
-    subassembly_id = request.args.get('subassembly_id')
+    component_assembly_id = request.args.get('component_assembly_id')
 
-    # Validate the presence of subassembly_id
-    if not subassembly_id:
-        return jsonify({'error': 'subassembly_id is required.'}), 400
+    # Validate the presence of component_assembly_id
+    if not component_assembly_id:
+        return jsonify({'error': 'component_assembly_id is required.'}), 400
 
-    # Validate that subassembly_id is an integer
+    # Validate that component_assembly_id is an integer
     try:
-        subassembly_id = int(subassembly_id)
+        component_assembly_id = int(component_assembly_id)
     except ValueError:
-        return jsonify({'error': 'subassembly_id must be an integer.'}), 400
+        return jsonify({'error': 'component_assembly_id must be an integer.'}), 400
 
-    # Query assembly views based on subassembly_id
-    assembly_views = session.query(AssemblyView).filter_by(subassembly_id=subassembly_id).all()
+    # Query assembly views based on component_assembly_id
+    assembly_views = session.query(AssemblyView).filter_by(component_assembly_id=component_assembly_id).all()
 
-    # Corrected list comprehension with proper variable naming
+    # Format the data for response
     data = [{'id': av.id, 'name': av.name} for av in assembly_views]
 
     return jsonify(data), 200
-
 
 @pst_troubleshooting_guide_edit_update_bp.route('/get_site_locations', methods=['GET'])
 def get_site_locations():
@@ -502,10 +501,10 @@ def save_position():
         area_id = position_data.get('area_id')
         equipment_group_id = position_data.get('equipment_group_id')
         model_id = position_data.get('model_id')
-        asset_number_id = position_data.get('asset_number_id')  # Updated key
-        location_id = position_data.get('location_id')          # Updated key
-        assembly_id = position_data.get('assembly_id')
+        asset_number_id = position_data.get('asset_number_id')
+        location_id = position_data.get('location_id')
         subassembly_id = position_data.get('subassembly_id')
+        component_assembly_id = position_data.get('component_assembly_id')
         assembly_view_id = position_data.get('assembly_view_id')
         site_location_id = position_data.get('site_location_id')
 
@@ -514,7 +513,7 @@ def save_position():
             f"equipment_group_id: {equipment_group_id}, model_id: {model_id}, "
             f"asset_number_id: {asset_number_id}, location_id: {location_id}, "
             f"site_location_id: {site_location_id}, "
-            f"assembly_id: {assembly_id}, subassembly_id: {subassembly_id}, "
+            f"subassembly_id: {subassembly_id}, component_assembly_id: {component_assembly_id}, "
             f"assembly_view_id: {assembly_view_id}"
         )
 
@@ -528,7 +527,7 @@ def save_position():
             f"area_id: {area_id}, equipment_group_id: {equipment_group_id}, "
             f"model_id: {model_id}, asset_number_id: {asset_number_id}, "
             f"location_id: {location_id}, site_location_id: {site_location_id}, "
-            f"assembly_id: {assembly_id}, subassembly_id: {subassembly_id}, "
+            f"subassembly_id: {subassembly_id}, component_assembly_id: {component_assembly_id}, "
             f"assembly_view_id: {assembly_view_id}"
         )
 
@@ -543,8 +542,8 @@ def save_position():
             asset_number_id=asset_number_id,
             location_id=location_id,
             site_location_id=site_location_id,
-            assembly_id=assembly_id,
             subassembly_id=subassembly_id,
+            component_assembly_id=component_assembly_id,
             assembly_view_id=assembly_view_id,
         )
 

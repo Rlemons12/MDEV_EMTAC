@@ -390,7 +390,7 @@ def pst_troubleshooting_page(problem_id=None):
         else:
             # Handle GET request
             return render_template(
-                'pst_troubleshooting.html',
+                'pst_troubleshooting/pst_troubleshooting.html',
                 problem=problem,
                 areas=areas,
                 parts=parts,
