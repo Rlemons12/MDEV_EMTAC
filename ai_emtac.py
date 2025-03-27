@@ -1,8 +1,7 @@
-# ai_emtac.py
-
 import sys
 import os
 import webbrowser
+import socket
 from threading import Timer
 from flask import Flask, render_template, flash
 from sqlalchemy import create_engine, event
@@ -21,13 +20,11 @@ from modules.emtacdb.utlity.revision_database.event_listeners import register_ev
 from modules.configuration.config import UPLOAD_FOLDER, DATABASE_URL, REVISION_CONTROL_DB_PATH
 from utilities.auth_utils import requires_roles
 from modules.configuration.config_env import DatabaseConfig
-from modules.configuration.log_config import initial_log_cleanup,logger
-
+from modules.configuration.log_config import initial_log_cleanup, logger
 
 # Initialize database engines
 engine = create_engine(DATABASE_URL)
 revision_control_engine = create_engine(f'sqlite:///{REVISION_CONTROL_DB_PATH}')
-
 
 # Log SQL queries executed by SQLAlchemy
 @event.listens_for(engine, "before_cursor_execute")
@@ -35,17 +32,37 @@ def before_cursor_execute(conn, cursor, statement, parameters, context, executem
     logger.debug(f"Executing query: {statement}")
     logger.debug(f"With parameters: {parameters}")
 
-
 # Create session factories
 SessionFactory = sessionmaker(bind=engine)
 RevisionControlSessionFactory = sessionmaker(bind=revision_control_engine)
 
+def get_local_ip():
+    """
+    Dynamically retrieves the local IP address by creating a temporary socket
+    to a public DNS server (8.8.8.8).
+    """
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(('8.8.8.8', 80))
+        local_ip = s.getsockname()[0]
+    except Exception:
+        local_ip = '127.0.0.1'
+    finally:
+        s.close()
+    return local_ip
+
+def open_browser():
+    port = int(os.environ.get('PORT', 5000))
+    ip = get_local_ip()
+    url = f'http://{ip}:{port}/'
+    logger.info(f"Opening browser at {url}")
+    webbrowser.open_new(url)
 
 def create_app():
     app = Flask(__name__)
 
     # Set the secret key for session encryption
-    app.secret_key = '1234'  # You should use a more secure and random secret key in production
+    app.secret_key = '1234'  # Replace with a secure secret key for production
 
     # Set the upload folder in the app's configuration
     app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -54,20 +71,15 @@ def create_app():
     db_config = DatabaseConfig()
     app.config['db_config'] = db_config
 
-    # Set the session lifetime (e.g., 1 day)
-    #app.permanent_session_lifetime = timedelta(days=1)
-
     # Register blueprints and event listeners
     register_blueprints(app)
     register_event_listeners()
-    # Track if session has been cleared after app start
     app.has_cleared_session = True
 
     from flask import session, request, redirect, url_for
 
     @app.before_request
     def global_login_check():
-        # List of routes that do not require login
         allowed_routes = [
             'login_bp.login',
             'login_bp.logout',
@@ -88,53 +100,40 @@ def create_app():
             'image_bp.add_image',
             'image_bp.upload_image',
         ]
-
-        # Check if request.endpoint is None (which can happen for invalid requests)
         if request.endpoint is None:
             return
-
-        # If user is not logged in and the endpoint is not in the allowed routes, redirect to login
         if 'user_id' not in session and request.endpoint not in allowed_routes:
             return redirect(url_for('login_bp.login'))
-
-        # Make the session permanent to extend it on every request (useful for maintaining sessions)
         session.permanent = True
 
-    # Define routes
     @app.route('/')
     def index():
-        session.permanent = False  # Make the session non-permanent
+        session.permanent = False
         user_id = session.get('user_id', '')
-
-        # Ensure the session retrieves the correct user_level value
         user_level = session.get('user_level', UserLevel.STANDARD.value)
-
         if not user_id:
-            return redirect(url_for('login_bp.login'))  # Redirect to login page if user is not logged in
-
-        # Load the current AI and embedding models from the database
+            return redirect(url_for('login_bp.login'))
         current_ai_model, current_embedding_model = load_config_from_db()
-
         return render_template('index.html',
                                current_ai_model=current_ai_model,
                                current_embedding_model=current_embedding_model,
-                               user_level=user_level)  # Pass user_level to the template
+                               user_level=user_level)
 
     @app.route('/upload_search_database')
     def upload_image_page():
-        session.permanent = False  # Make the session non-permanent
+        session.permanent = False
         total_pages = 1
         page = 1
         return render_template('upload_search_database.html', total_pages=total_pages, page=page)
 
     @app.route('/success')
     def upload_success():
-        session.permanent = False  # Make the session non-permanent
+        session.permanent = False
         return render_template('success.html')
 
     @app.route('/view_pdf_by_title/<string:title>')
     def view_pdf_by_title_route(title):
-        session.permanent = False  # Make the session non-permanent
+        session.permanent = False
         return view_pdf_by_title(title)
 
     @app.route('/serve_image/<int:image_id>')
@@ -150,18 +149,18 @@ def create_app():
 
     @app.route('/document_success')
     def document_upload_success():
-        session.permanent = False  # Make the session non-permanent
+        session.permanent = False
         return render_template('success.html')
 
     @app.route('/troubleshooting_guide')
-    @requires_roles(UserLevel.ADMIN.value,UserLevel.LEVEL_III.value)
+    @requires_roles(UserLevel.ADMIN.value, UserLevel.LEVEL_III.value)
     def troubleshooting_guide():
-        session.permanent = False  # Make the session non-permanent
+        session.permanent = False
         return render_template('troubleshooting_guide.html')
 
     @app.route('/tsg_search_problems')
     def tsg_search_problems():
-        session.permanent = False  # Make the session non-permanent
+        session.permanent = False
         return render_template('tsg_search_problems.html')
 
     @app.route('/search_bill_of_material', methods=['GET'])
@@ -178,12 +177,6 @@ def create_app():
         logger.debug("Rendering position_data_assignment page.")
         return render_template('position_data_assignment/position_data_assignment.html')
 
-    """@app.route('/pst_troubleshooting')
-    def pst_troubleshooting_page():
-        session.permanent = False
-        logger.debug("Rendering pst Troubleshooting page.")
-        return render_template('pst_troubleshooting.html')"""
-
     @app.errorhandler(403)
     def forbidden(e):
         return render_template('403.html'), 403
@@ -191,18 +184,43 @@ def create_app():
     for rule in app.url_map.iter_rules():
         print(rule)
 
+    # Log configuration details after the app is created.
+    host = os.environ.get('HOST', '0.0.0.0')
+    port = int(os.environ.get('PORT', 5000))
+    ip = get_local_ip()
+    url = f'http://{ip}:{port}/'
+    logger.info(f"Starting application on host: {host}, port: {port}")
+    logger.info(f"Accessible at: {url}")
+    print(f"Starting application on host: {host}, port: {port}")
+    print(f"Accessible at: {url}")
+
     return app
 
-def open_browser():
-    webbrowser.open_new('http://127.0.0.1:5000/')
-
 if __name__ == '__main__':
-    print(f'Perform initial log cleanup (compress old logs and delete old backups)')# Perform initial log cleanup (compress old logs and delete old backups)
+    """Must runt in terminal python ai_emtac.py to allow remote access to local network"""
+
+    print('Perform initial log cleanup (compress old logs and delete old backups)')
     initial_log_cleanup()
+
+    # Read configuration from environment variables
+    host = os.environ.get('HOST', '0.0.0.0')
+    port = int(os.environ.get('PORT', 5000))
+    debug_mode = os.environ.get('FLASK_DEBUG', '1') == '1'  # Default to debug mode if not set
+
+    ip = get_local_ip()
+    url = f'http://{ip}:{port}/'
+
+    # Log the configuration details when running the script directly
+    logger.info(f"Starting application on host: {host}, port: {port}")
+    logger.info(f"Accessible at: {url}")
+    print(f"Starting application on host: {host}, port: {port}")
+    print(f"Accessible at: {url}")
 
     # Optional: Open the browser after a slight delay (1 second)
     Timer(1, open_browser).start()
 
-    # Create and run your application
+    # Create and run the application
     app = create_app()
-    app.run(debug=True)
+    app.run(host=host, port=port, debug=debug_mode)
+    # To disable the auto-reloader (if duplicate processes occur), use:
+    # app.run(host=host, port=port, debug=debug_mode, use_reloader=False)
