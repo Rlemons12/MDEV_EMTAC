@@ -18,29 +18,7 @@
 {% block content %}
 <div class="main-container">
 
-    <!-- Sidebar and Menu -->
-    <div class="sidebar" id="sidebar">
-        <button class="toggle-btn" onclick="toggleSidebar()">Toggle Sidebar</button>
-        <h3>User Level: {{ session['user_level'] }}</h3>
-        <h1>Tool Management</h1>
-        <h2>Welcome, {{ session['first_name'] }}!</h2>
 
-        {% if session['user_level'] in ['ADMIN', 'LEVEL_III'] %}
-            <a href="/">Return to Main Page</a>
-        {% endif %}
-        <a href="#search-documents" onclick="showForm('search-documents')">Search Documents</a>
-        <a href="#search-images" onclick="showForm('search-images')">Search Images</a>
-        <a href="#compare-images" onclick="showForm('compare-images')">Compare Images</a>
-        {% if session['user_level'] in ['ADMIN', 'LEVEL_III'] %}
-            <a href="/tool/submit_tool_data" class="highlight-link">Tools: Entry and Search</a>
-        {% endif %}
-        <a href="/tsg_search_problems" class="highlight-link">To Search Troubleshooting</a>
-        <a href="/bill_of_materials" class="highlight-link">To Parts and BOMs</a>
-        {% if session['user_level'] in ['ADMIN', 'LEVEL_III'] %}
-            <a href="/troubleshooting_guide" class="highlight-link">To Update Troubleshooting Guide</a>
-        {% endif %}
-        <a href="/logout" class="logout-button">Logout</a>
-    </div>
 
     <!-- Main Content -->
     <div class="content">

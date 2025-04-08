@@ -1,18 +1,15 @@
-{% extends "base.html" %}
-
-{% block title %}
-    Admin Dashboard
-{% endblock %}
-
-{% block extra_head %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Dashboard</title>
     <!-- Additional styles specific to admin dashboard if needed -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/admin_dashboard.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/bass.css')}}">
-{% endblock %}
-
-{% block content %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bass.css') }}">
+</head>
+<body>
     <!-- Admin Dashboard Content -->
-     <div class="sidebar" id="sidebar">
+    <div class="sidebar" id="sidebar">
         <a href="/">Return to Main Page</a>
         <a href="#set-models">Set Models</a>
         <a href="#users">Users</a>
@@ -120,11 +117,8 @@
             </table>
         </div>
     </div>
-{% endblock %}
 
-{% block extra_scripts %}
     <!-- Additional scripts specific to admin dashboard if needed -->
-
     <script src="{{ url_for('static', filename='js/base_sidebar.js') }}"></script>
-
-{% endblock %}
+</body>
+</html>

@@ -21,7 +21,7 @@
             <!-- Display the current user level -->
             <p>User Level: {{ session['user_level'] }}</p>
             <h2 style="color: Yellow;">Welcome {{ session['first_name'] }}! How can I assist you?</h2>
-            <a href="/tsg_search_problems"style="color: #39FF14;">Search Troubleshooting</a>
+            <a href="/pst_troubleshooting/"style="color: #39FF14;">Search Troubleshooting</a>
             <a href="/upload_search_database" style="color: #39FF14;" class="upload-button">Search and Upload </a>
             <a href="/bill_of_materials"style="color: #39FF14;">Parts and BOMs</a>
             {% if session['user_level'] != 'STANDARD' %}

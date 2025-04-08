@@ -2,36 +2,25 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Efficient Maintenance and Technical Assistance Chatbot{% endblock %}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/module_template/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
     {% block extra_head %}{% endblock %}
 </head>
-<body
-    style="
-        background: #222;
-        {% if chosen_image %}
-            background: url('{{ url_for('static', filename='background images/module_template/' ~ chosen_image) }}') no-repeat center center fixed;
-            background-size: cover;
-        {% endif %}
-    "
->
-    <!-- Header Section -->
-    <header>
-        <div class="banner" role="banner">
-            THIS IS FOR REFERENCE ONLY. ALL INFORMATION SHOULD BE VERIFIED WITH CURRENT SOP'S
-            <a href="#" id="commentPopupLink" style="color: #39FF14;">Leave a Comment</a>
-        </div>
-    </header>
+<body>
+    <!-- Top Banner -->
+    <div class="banner">
+        THIS IS FOR REFERENCE ONLY. ALL INFORMATION SHOULD BE VERIFIED WITH CURRENT SOP'S
+        <a href="#" id="commentPopupLink">Leave a Comment</a>
+    </div>
 
-    <!-- Hamburger icon to collapse sidebar -->
-    <button id="sidebarCollapse" class="hamburger" aria-label="Toggle sidebar" aria-expanded="false">
-        &#9776;
-    </button>
+    <!-- Hamburger Icon -->
+    <button id="sidebarCollapse" class="hamburger" aria-expanded="true" aria-label="Toggle sidebar">&#9776;</button>
 
     <!-- Comment Popup Modal -->
-    <div id="commentPopup" class="modal" aria-hidden="true" aria-labelledby="commentFormHeading">
-        <form id="commentForm" class="modal-content" aria-modal="true">
-            <h2 id="commentFormHeading">Leave a Comment</h2>
+    <div id="commentPopup" style="display: none;">
+        <form id="commentForm">
+            <h2>Leave a Comment</h2>
             <p>Instructions: You can write your comment, paste an image, or upload a file.</p>
 
             <textarea name="comment" id="comment" placeholder="Write your comment here..." required></textarea><br>
@@ -50,50 +39,34 @@
         </form>
     </div>
 
-    <!-- Main Container -->
     <div class="main-container">
-        <div class="sidebar">
-            <h3><p>User Level: {{ session.get('user_level', 'Guest') }}</p></h3>
-            <h1>Search</h1>
-            <h2>Welcome {{ session.get('first_name', 'Guest') }}! How can I assist you?</h2>
+        <!-- Sidebar Component -->
+        {% include 'module_template_html/base_sidebar.html' %}
 
-            {% if session['user_level'] == 'ADMIN' or session['user_level'] == 'LEVEL_III' %}
-                <hr>
-            {% endif %}
-
-            <!-- Preferences section for background images -->
-            <form method="POST">
-                <label for="background_choice" style="color:yellow;">Select Background:</label>
-                <select name="background_choice" id="background_choice" style="width:90%; margin-bottom:10px;">
-                    {% for img in images %}
-                        <option value="{{ img }}" {% if chosen_image == img %}selected{% endif %}>{{ img }}</option>
-                    {% endfor %}
-                </select>
-                <button type="submit" style="width:90%; background:#4CAF50; color:white;">Set Background</button>
-            </form>
+        <!-- Main Content -->
+        <div class="content">
+            {% block content %}{% endblock %}
         </div>
 
-        <main class="content">
-            {% block content %}
-            <h1>Welcome!</h1>
-            <p>Select a background from the sidebar dropdown.</p>
-            {% endblock %}
-        </main>
-
+        <!-- Results Container (optional, can be used in specific pages) -->
         <div class="results-container" id="results-container" style="display: none;">
-            <ul id="searchResults" style="color:white;"></ul>
-            <div id="thumbnails-section"></div>
-            <div id="drawingList"></div>
+            <ul id="searchResults" style="color:white;">
+                <!-- Search results will be populated here -->
+            </ul>
+
+            <!-- Thumbnails and Drawing List -->
+            <div id="thumbnails-section">
+                <!-- Thumbnails will be dynamically added here -->
+            </div>
+
+            <div id="drawingList">
+                <!-- Drawing search results will be dynamically added here -->
+            </div>
         </div>
     </div>
 
-    <!-- Footer -->
-    <footer>
-        <!-- Site-wide footer content -->
-    </footer>
-
     <!-- Include JavaScript -->
-    <script src="{{ url_for('static', filename='js/module_template/base_sidebar.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/base_sidebar.js') }}"></script>
     <script src="{{ url_for('static', filename='js/comment_pop_up.js') }}"></script>
     {% block extra_scripts %}{% endblock %}
 </body>

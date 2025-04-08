@@ -1,0 +1,68 @@
+<!-- base_sidebar.html - Template for sidebar component -->
+<div class="sidebar" id="mainSidebar">
+    <!-- Header Section -->
+    <div class="sidebar-header">
+        <h1>EMTAC</h1>
+        <p class="user-level">User Level: {{ session['user_level'] }}</p>
+        <h2 class="welcome-message">Welcome {{ session['first_name'] }}! How can I assist you?</h2>
+    </div>
+
+    <!-- Main Navigation Links -->
+    <div class="sidebar-nav">
+        <!-- Common links for all users -->
+        <a href="/pst_troubleshooting/" class="nav-link highlight">Search Troubleshooting</a>
+        <a href="/upload_search_database" class="nav-link highlight">Search and Upload</a>
+        <a href="/bill_of_materials" class="nav-link highlight">Parts and BOMs</a>
+
+        <!-- Advanced user links -->
+        {% if session['user_level'] != 'STANDARD' %}
+            <a href="/" class="nav-link">Return to Main Page</a>
+            <a href="/troubleshooting_guide" class="nav-link highlight">Update Troubleshooting Guide</a>
+
+            <!-- Admin and Level III specific links -->
+            {% if session['user_level'] == 'ADMIN' or session['user_level'] == 'LEVEL_III' %}
+                <a href="/position_data_assignment" class="nav-link highlight">Position Data Assignment</a>
+                <a href="/tool/submit_tool_data" class="nav-link highlight">Tools: Entry and Search</a>
+
+                <!-- BOM specific links that can be conditionally shown -->
+                {% if current_page == 'bom' %}
+                    <a href="#search-bill-of-materials" onclick="showForm('search-bill-of-materials')" class="nav-link">Search Bill of Materials</a>
+                    <a href="#upload-bill-of-materials" onclick="showForm('upload-bill-of-materials')" class="nav-link">Upload Bill of Materials</a>
+                    <a href="#1enter-new-part-number" onclick="showForm('1enter-new-part-number')" class="nav-link">Enter New Part</a>
+                    <a href="#edit-part" onclick="showForm('edit-part')" class="nav-link">Edit Part</a>
+                {% endif %}
+
+                <!-- Search specific links that can be conditionally shown -->
+                {% if current_page == 'search' %}
+                    <a href="#search-documents" onclick="showForm('search-documents')" class="nav-link">Search Documents</a>
+                    <a href="#search-images" onclick="showForm('search-images')" class="nav-link">Search Images</a>
+                    <a href="#compare-images" onclick="showForm('compare-images')" class="nav-link">Compare Images</a>
+                    <a href="#search-powerpoints" onclick="showForm('search-powerpoints')" class="nav-link">Search PowerPoints</a>
+                    <a href="#upload-image" onclick="showForm('upload-image')" class="nav-link">Upload Image</a>
+                    <a href="#upload-document" onclick="showForm('upload-document')" class="nav-link">Upload Document</a>
+                    <a href="#upload-powerpoint" onclick="showForm('upload-powerpoint')" class="nav-link">Upload PowerPoint</a>
+                    <a href="#batch-upload" onclick="showForm('batch-upload')" class="nav-link">Batch Upload Documents</a>
+                {% endif %}
+            {% endif %}
+        {% endif %}
+    </div>
+
+    <!-- Utility Section -->
+    <div class="sidebar-utils">
+        <!-- Voice controls section -->
+        <div class="voice-controls">
+            <button id="toggle-voice" class="toggle-button">Toggle Voice Recognition</button>
+            <button id="toggle-text-to-speech" class="toggle-button">Toggle Text-to-Speech</button>
+            <select id="voice-selection"></select>
+        </div>
+
+        <!-- Model display section for advanced users -->
+        <div class="model-display-section" {% if session['user_level'] != 'STANDARD' %} style="display: block;" {% else %} style="display: none;" {% endif %}>
+            <p>Current AI Model: {{ current_ai_model|default('Default Model') }}</p>
+            <p>Current Embedding Model: {{ current_embedding_model|default('Default Embedding') }}</p>
+        </div>
+
+        <!-- Logout button at the bottom -->
+        <a href="/logout" class="logout-button">Logout</a>
+    </div>
+</div>

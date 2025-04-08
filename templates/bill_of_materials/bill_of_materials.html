@@ -39,7 +39,7 @@
         <button class="toggle-btn" onclick="toggleSidebar()">Toggle Sidebar</button>
         <h2>Menu</h2>
         {% if session['user_level'] == 'ADMIN' or session['user_level'] == 'LEVEL_III' %}
-            <a href="/static" style="color:  #FFFFFF;">Return to Main Page</a>
+            <a href="/" style="color:  #FFFFFF;">Return to Main Page</a>
         {%  endif %}
         <a href="#search-bill-of-materials" onclick="showForm('search-bill-of-materials')">Search Bill of Materials</a>
         <a href="#upload-bill-of-materials" onclick="showForm('upload-bill-of-materials')">Upload Bill of Materials</a>
