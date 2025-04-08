@@ -49,12 +49,14 @@
 
     <!-- Utility Section -->
     <div class="sidebar-utils">
-        <!-- Voice controls section -->
+        {% if session['user_level'] == 'LEVEL_III' %}
+        <!-- Voice controls section available only to LEVEL_III -->
         <div class="voice-controls">
             <button id="toggle-voice" class="toggle-button">Toggle Voice Recognition</button>
             <button id="toggle-text-to-speech" class="toggle-button">Toggle Text-to-Speech</button>
             <select id="voice-selection"></select>
         </div>
+        {% endif %}
 
         <!-- Model display section for advanced users -->
         <div class="model-display-section" {% if session['user_level'] != 'STANDARD' %} style="display: block;" {% else %} style="display: none;" {% endif %}>
