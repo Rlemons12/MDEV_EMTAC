@@ -1,6 +1,7 @@
-from flask import Blueprint, render_template, request, redirect, url_for
+from flask import Blueprint, render_template, request, redirect, url_for, flash
 from modules.emtacdb.emtacdb_fts import Session, User, UserLevel  # Import the User model and Session
 from datetime import datetime
+from sqlalchemy.exc import IntegrityError  # Import the exception type
 
 create_user_bp = Blueprint('create_user_bp', __name__)
 
@@ -43,8 +44,18 @@ def submit_user_creation():
     session = Session()
     session.add(new_user)
 
-    # Commit the session to save the user data to the database
-    session.commit()
-    session.close()
+    try:
+        # Commit the session to save the user data to the database
+        session.commit()
+        flash("User created successfully!", "success")
+    except IntegrityError as e:
+        # Rollback the session if there is an IntegrityError (e.g. duplicate employee_id)
+        session.rollback()
+        if "UNIQUE constraint failed" in str(e):
+            flash(f"A user with employee ID {employee_id} already exists.", "error")
+        else:
+            flash("An error occurred while creating the user.", "error")
+    finally:
+        session.close()
 
     return redirect(url_for('create_user_bp.create_user'))

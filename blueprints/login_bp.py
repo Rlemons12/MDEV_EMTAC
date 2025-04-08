@@ -66,8 +66,8 @@ def login():
                         logger.info(f"Redirecting admin user {user.employee_id} to admin dashboard.")
                         return redirect(url_for('admin_bp.admin_dashboard'))
                     elif user.user_level == UserLevel.STANDARD:
-                        logger.info(f"Redirecting standard user {user.employee_id} to tsg_search_problems.")
-                        return redirect(url_for('tsg_search_problems'))
+                        logger.info(f"Redirecting standard user {user.employee_id} to upload_image_page.")
+                        return redirect(url_for('upload_image_page'))
 
                     # Redirect to the main index route
                     logger.info(f"Redirecting user {user.employee_id} to the index page.")
