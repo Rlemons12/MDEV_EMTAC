@@ -28,9 +28,9 @@ def add_position():
     asset_number_ids = request.form.getlist('asset_number_id[]')
     location_ids = request.form.getlist('location_id[]')
 
-    # NEW: Subassembly, Subassembly, Subassembly View
-    assembly_ids = request.form.getlist('assembly_id[]')
+    # UPDATED: Subassembly, ComponentAssembly, AssemblyView
     subassembly_ids = request.form.getlist('subassembly_id[]')
+    component_assembly_ids = request.form.getlist('component_assembly_id[]')
     assembly_view_ids = request.form.getlist('assembly_view_id[]')
 
     # Track newly created records
@@ -41,9 +41,9 @@ def add_position():
     new_asset_number_ids = []
     new_location_ids = []
 
-    # NEW: Track newly created assembly, subassembly, assembly_view
-    new_assembly_ids = []
+    # UPDATED: Track newly created records
     new_subassembly_ids = []
+    new_component_assembly_ids = []
     new_assembly_view_ids = []
 
     # Handle multiple areas, including new ones
@@ -139,47 +139,71 @@ def add_position():
                     session.commit()
                     new_location_ids.append(new_location.id)
 
-    # NEW: Handle assemblies, including new ones
-    for assembly_id in assembly_ids:
-        if assembly_id != 'new':
-            new_assembly_ids.append(assembly_id)
-        else:
-            new_assembly_names = request.form.getlist('new_assembly_name[]')
-            new_assembly_descriptions = request.form.getlist('new_assembly_description[]')
-            for name, description in zip(new_assembly_names, new_assembly_descriptions):
-                if name:
-                    # If your schema has assembly.location_id or something, link as needed
-                    # location_fk = new_location_ids[0] if new_location_ids else None
-                    new_assembly = Subassembly(
-                        name=name,
-                        description=description
-                        # location_id=location_fk, # if needed
-                    )
-                    session.add(new_assembly)
-                    session.commit()
-                    new_assembly_ids.append(new_assembly.id)
-
-    # NEW: Handle subassemblies, including new ones
+    # UPDATED: Handle subassemblies, including new ones
     for subassembly_id in subassembly_ids:
+        logger.info(f"Processing subassembly_id: {subassembly_id}")
+
         if subassembly_id != 'new':
+            logger.info(f"Using existing subassembly with ID: {subassembly_id}")
             new_subassembly_ids.append(subassembly_id)
         else:
+            logger.info("Creating new subassembly...")
             new_subassembly_names = request.form.getlist('new_subassembly_name[]')
             new_subassembly_descriptions = request.form.getlist('new_subassembly_description[]')
+
+            logger.info(f"Found {len(new_subassembly_names)} new subassembly names to process")
+
             for name, description in zip(new_subassembly_names, new_subassembly_descriptions):
-                if name:
-                    # If subassemblies are linked to an assembly
-                    assembly_fk = new_assembly_ids[0] if new_assembly_ids else None
-                    new_subassembly = ComponentAssembly(
+                if not name:
+                    logger.warning("Skipping subassembly creation - name is required")
+                    continue
+
+                # Validate that we have a location to link to
+                if not new_location_ids:
+                    error_msg = "Cannot create Subassembly - a Location is required"
+                    logger.error(error_msg)
+                    return jsonify({"error": error_msg}), 400
+
+                location_fk = new_location_ids[0]
+                logger.info(f"Creating subassembly '{name}' with location_id: {location_fk}")
+
+                try:
+                    new_subassembly = Subassembly(
                         name=name,
                         description=description,
-                        assembly_id=assembly_fk  # if needed
+                        location_id=location_fk
                     )
                     session.add(new_subassembly)
                     session.commit()
+                    logger.info(f"Successfully created subassembly with ID: {new_subassembly.id}")
                     new_subassembly_ids.append(new_subassembly.id)
+                except Exception as e:
+                    session.rollback()
+                    error_msg = f"Error creating subassembly: {str(e)}"
+                    logger.error(error_msg)
+                    return jsonify({"error": error_msg}), 500
 
-    # NEW: Handle assembly views, including new ones
+    # UPDATED: Handle component assemblies, including new ones
+    for component_assembly_id in component_assembly_ids:
+        if component_assembly_id != 'new':
+            new_component_assembly_ids.append(component_assembly_id)
+        else:
+            new_component_assembly_names = request.form.getlist('new_component_assembly_name[]')
+            new_component_assembly_descriptions = request.form.getlist('new_component_assembly_description[]')
+            for name, description in zip(new_component_assembly_names, new_component_assembly_descriptions):
+                if name:
+                    # Component assemblies are linked to a subassembly
+                    subassembly_fk = new_subassembly_ids[0] if new_subassembly_ids else None
+                    new_component_assembly = ComponentAssembly(
+                        name=name,
+                        description=description,
+                        subassembly_id=subassembly_fk  # Updated field name
+                    )
+                    session.add(new_component_assembly)
+                    session.commit()
+                    new_component_assembly_ids.append(new_component_assembly.id)
+
+    # Handle assembly views, including new ones
     for assembly_view_id in assembly_view_ids:
         if assembly_view_id != 'new':
             new_assembly_view_ids.append(assembly_view_id)
@@ -188,12 +212,12 @@ def add_position():
             new_assembly_view_descriptions = request.form.getlist('new_assemblyView_description[]')
             for name, description in zip(new_assembly_view_names, new_assembly_view_descriptions):
                 if name:
-                    # If assembly views are linked to a subassembly
-                    subassembly_fk = new_subassembly_ids[0] if new_subassembly_ids else None
+                    # Assembly views are linked to a component assembly
+                    component_assembly_fk = new_component_assembly_ids[0] if new_component_assembly_ids else None
                     new_assembly_view = AssemblyView(
                         name=name,
                         description=description,
-                        subassembly_id=subassembly_fk  # if needed
+                        component_assembly_id=component_assembly_fk  # Updated field name
                     )
                     session.add(new_assembly_view)
                     session.commit()
@@ -212,9 +236,9 @@ def add_position():
         asset_number_id=new_asset_number_ids[0] if new_asset_number_ids else None,
         location_id=new_location_ids[0] if new_location_ids else None,
 
-        # NEW: link newly created or selected Subassembly / Subassembly / AssemblyView
-        assembly_id=new_assembly_ids[0] if new_assembly_ids else None,
+        # UPDATED: link newly created or selected entities with correct names
         subassembly_id=new_subassembly_ids[0] if new_subassembly_ids else None,
+        component_assembly_id=new_component_assembly_ids[0] if new_component_assembly_ids else None,
         assembly_view_id=new_assembly_view_ids[0] if new_assembly_view_ids else None
     )
 
@@ -316,6 +340,87 @@ def add_location():
     models = Model.query.all()
     return render_template('add_location.html', models=models)
 
+@position_data_assignment_data_add_dependencies_bp.route('/add_subassembly', methods=['GET', 'POST'])
+def add_subassembly():
+    if request.method == 'POST':
+        subassembly_name = request.form.get('subassembly_name')
+        subassembly_description = request.form.get('subassembly_description')
+        location_id = request.form.get('location_id')  # if subassembly is tied to a location, for example
+
+        new_subassembly = Subassembly(
+            name=subassembly_name,
+            description=subassembly_description,
+            location_id=location_id
+        )
+        session.add(new_subassembly)
+        session.commit()
+
+        flash('New Subassembly added successfully!')
+        return redirect(url_for('position_data_assignment_data_add_dependencies_bp.add_subassembly'))
+
+    # If GET request, load a simple form
+    return render_template('add_subassembly.html')
+
+@position_data_assignment_data_add_dependencies_bp.route('/add_component_assembly', methods=['GET', 'POST'])
+def add_component_assembly():
+    """
+    Allows creation of a new ComponentAssembly record.
+    Links the ComponentAssembly to an existing Subassembly.
+    """
+    if request.method == 'POST':
+        component_assembly_name = request.form.get('component_assembly_name')
+        component_assembly_description = request.form.get('component_assembly_description')
+        subassembly_id = request.form.get('subassembly_id')  # Link to subassembly
+
+        # Create the new ComponentAssembly object
+        new_component_assembly = ComponentAssembly(
+            name=component_assembly_name,
+            description=component_assembly_description,
+            subassembly_id=subassembly_id
+        )
+
+        # Add to DB
+        session.add(new_component_assembly)
+        session.commit()
+
+        # Optionally display a success message
+        flash('New Component Assembly added successfully!')
+
+        # Redirect to the same page or somewhere else
+        return redirect(url_for('position_data_assignment_data_add_dependencies_bp.add_component_assembly'))
+
+    # If GET request, load the form
+    # Pass a list of subassemblies to the template for a dropdown
+    subassemblies = session.query(Subassembly).all()
+    return render_template('add_component_assembly.html', subassemblies=subassemblies)
+
+@position_data_assignment_data_add_dependencies_bp.route('/add_assembly_view', methods=['GET', 'POST'])
+def add_assembly_view():
+    """
+    Allows creation of a new AssemblyView record.
+    Links the AssemblyView to a component assembly.
+    """
+    if request.method == 'POST':
+        assembly_view_name = request.form.get('assembly_view_name')
+        assembly_view_description = request.form.get('assembly_view_description')
+        component_assembly_id = request.form.get('component_assembly_id')  # Link to component assembly
+
+        new_assembly_view = AssemblyView(
+            name=assembly_view_name,
+            description=assembly_view_description,
+            component_assembly_id=component_assembly_id
+        )
+
+        session.add(new_assembly_view)
+        session.commit()
+
+        flash('New Assembly View added successfully!')
+        return redirect(url_for('position_data_assignment_data_add_dependencies_bp.add_assembly_view'))
+
+    # If GET, render a template
+    component_assemblies = session.query(ComponentAssembly).all()
+    return render_template('add_assembly_view.html', component_assemblies=component_assemblies)
+
 @position_data_assignment_data_add_dependencies_bp.route('/get_equipment_groups', methods=['GET'])
 def get_equipment_groups():
     area_id = request.args.get('area_id')
@@ -387,7 +492,6 @@ def get_site_locations():
         logger.error(f"Error fetching site locations: {e}")
         return jsonify({"error": "An error occurred while fetching site locations"}), 500
 
-
 @position_data_assignment_data_add_dependencies_bp.route('/search_site_locations', methods=['GET'])
 def search_site_locations():
     search_term = request.args.get('search', '')
@@ -416,63 +520,62 @@ def search_site_locations():
     logger.info("No search term provided, returning an empty list.")
     return jsonify([])  # Return an empty list if no search term is provided
 
-
 @position_data_assignment_data_add_dependencies_bp.route('/get_subassemblies', methods=['GET'])
-def get_assemblies():
+def get_subassemblies():
     """
-    Returns a JSON list of assemblies.
+    Returns a JSON list of subassemblies.
 
-    If ?location_id=<some_id> is provided, only assemblies
+    If ?location_id=<some_id> is provided, only subassemblies
     with that location_id are returned.
-    Otherwise, all assemblies are returned.
+    Otherwise, all subassemblies are returned.
     """
     try:
         # Get the location_id from the query parameters
         location_id = request.args.get('location_id')
 
         if location_id:
-            # If the route is called like /get_assemblies?location_id=123
-            assemblies = session.query(Subassembly).filter_by(location_id=location_id).all()
+            # If the route is called like /get_subassemblies?location_id=123
+            subassemblies = session.query(Subassembly).filter_by(location_id=location_id).all()
         else:
-            # Otherwise, return all assemblies
-            assemblies = session.query(Subassembly).all()
-
-        data = [{'id': assembly.id, 'name': assembly.name} for assembly in assemblies]
-        return jsonify(data)
-
-    except Exception as e:
-        logger.error(f"Error fetching assemblies: {e}")
-        return jsonify({"error": "An error occurred while fetching assemblies"}), 500
-
-@position_data_assignment_data_add_dependencies_bp.route('/component_assemblies', methods=['GET'])
-def get_subassemblies():
-    """
-    Returns a JSON list of subassemblies.
-    Optionally, filter by an assembly_id if subassemblies belong to an assembly.
-    """
-    try:
-        assembly_id = request.args.get('assembly_id')
-        if assembly_id:
-            subassemblies = session.query(ComponentAssembly).filter_by(assembly_id=assembly_id).all()
-        else:
-            subassemblies = session.query(ComponentAssembly).all()
+            # Otherwise, return all subassemblies
+            subassemblies = session.query(Subassembly).all()
 
         data = [{'id': subassembly.id, 'name': subassembly.name} for subassembly in subassemblies]
         return jsonify(data)
+
     except Exception as e:
         logger.error(f"Error fetching subassemblies: {e}")
         return jsonify({"error": "An error occurred while fetching subassemblies"}), 500
+
+@position_data_assignment_data_add_dependencies_bp.route('/get_component_assemblies', methods=['GET'])
+def get_component_assemblies():
+    """
+    Returns a JSON list of component assemblies.
+    Optionally, filter by a subassembly_id if component assemblies belong to a subassembly.
+    """
+    try:
+        subassembly_id = request.args.get('subassembly_id')
+        if subassembly_id:
+            component_assemblies = session.query(ComponentAssembly).filter_by(subassembly_id=subassembly_id).all()
+        else:
+            component_assemblies = session.query(ComponentAssembly).all()
+
+        data = [{'id': component_assembly.id, 'name': component_assembly.name} for component_assembly in component_assemblies]
+        return jsonify(data)
+    except Exception as e:
+        logger.error(f"Error fetching component assemblies: {e}")
+        return jsonify({"error": "An error occurred while fetching component assemblies"}), 500
 
 @position_data_assignment_data_add_dependencies_bp.route('/get_assembly_views', methods=['GET'])
 def get_assembly_views():
     """
     Returns a JSON list of assembly views.
-    Optionally, filter by a subassembly_id if assembly views belong to a subassembly.
+    Optionally, filter by a component_assembly_id if assembly views belong to a component assembly.
     """
     try:
-        subassembly_id = request.args.get('subassembly_id')
-        if subassembly_id:
-            assembly_views = session.query(AssemblyView).filter_by(subassembly_id=subassembly_id).all()
+        component_assembly_id = request.args.get('component_assembly_id')
+        if component_assembly_id:
+            assembly_views = session.query(AssemblyView).filter_by(component_assembly_id=component_assembly_id).all()
         else:
             assembly_views = session.query(AssemblyView).all()
 
@@ -481,88 +584,5 @@ def get_assembly_views():
     except Exception as e:
         logger.error(f"Error fetching assembly views: {e}")
         return jsonify({"error": "An error occurred while fetching assembly views"}), 500
-
-@position_data_assignment_data_add_dependencies_bp.route('/add_assembly', methods=['GET', 'POST'])
-def add_assembly():
-    if request.method == 'POST':
-        assembly_name = request.form.get('assembly_name')
-        assembly_description = request.form.get('assembly_description')
-        location_id = request.form.get('location_id')  # if assembly is tied to a location, for example
-
-        new_assembly = Subassembly(
-            name=assembly_name,
-            description=assembly_description,
-            location_id=location_id
-        )
-        session.add(new_assembly)
-        session.commit()
-
-        flash('New Subassembly added successfully!')
-        return redirect(url_for('position_data_assignment_data_add_dependencies_bp.add_assembly'))
-
-    # If GET request, load a simple form (similar to add_area.html)
-    return render_template('add_assembly.html')
-
-@position_data_assignment_data_add_dependencies_bp.route('/add_subassembly', methods=['GET', 'POST'])
-def add_subassembly():
-    """
-    Allows creation of a new ComponentAssembly record.
-    Optionally links the ComponentAssembly to an existing Subassembly, if needed.
-    """
-    if request.method == 'POST':
-        subassembly_name = request.form.get('subassembly_name')
-        subassembly_description = request.form.get('subassembly_description')
-        assembly_id = request.form.get('assembly_id')  # If your schema links subassembly to an assembly
-
-        # Create the new ComponentAssembly object
-        new_subassembly = ComponentAssembly(
-            name=subassembly_name,
-            description=subassembly_description,
-            assembly_id=assembly_id if assembly_id else None
-        )
-
-        # Add to DB
-        session.add(new_subassembly)
-        session.commit()
-
-        # Optionally display a success message
-        flash('New Subassembly added successfully!')
-
-        # Redirect to the same page or somewhere else
-        return redirect(url_for('position_data_assignment_data_add_dependencies_bp.add_subassembly'))
-
-    # If GET request, load the form
-    # If subassemblies must be tied to an existing Subassembly,
-    # pass a list of assemblies to the template for a dropdown
-    assemblies = session.query(Subassembly).all()
-    return render_template('add_subassembly.html', assemblies=assemblies)
-
-@position_data_assignment_data_add_dependencies_bp.route('/add_assembly_view', methods=['GET', 'POST'])
-def add_assembly_view():
-    """
-    Allows creation of a new AssemblyView record.
-    Optionally links the AssemblyView to a subassembly if needed.
-    """
-    if request.method == 'POST':
-        assembly_view_name = request.form.get('assembly_view_name')
-        assembly_view_description = request.form.get('assembly_view_description')
-        subassembly_id = request.form.get('subassembly_id')  # If your schema links assembly view to subassembly
-
-        new_assembly_view = AssemblyView(
-            name=assembly_view_name,
-            description=assembly_view_description,
-            subassembly_id=subassembly_id if subassembly_id else None
-        )
-
-        session.add(new_assembly_view)
-        session.commit()
-
-        flash('New Subassembly View added successfully!')
-        return redirect(url_for('position_data_assignment_data_add_dependencies_bp.add_assembly_view'))
-
-    # If GET, render a template
-    subassemblies = session.query(ComponentAssembly).all()
-    return render_template('add_assembly_view.html', subassemblies=subassemblies)
-
 
 
