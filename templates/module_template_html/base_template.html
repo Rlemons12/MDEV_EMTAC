@@ -40,8 +40,10 @@
     </div>
 
     <div class="main-container">
-        <!-- Sidebar Component -->
-        {% include 'module_template_html/base_sidebar.html' %}
+        <!-- Sidebar Component (Override or extend this block in child templates) -->
+        {% block sidebar %}
+          {% include 'module_template_html/base_sidebar.html' %}
+        {% endblock %}
 
         <!-- Main Content -->
         <div class="content">
@@ -53,12 +55,10 @@
             <ul id="searchResults" style="color:white;">
                 <!-- Search results will be populated here -->
             </ul>
-
             <!-- Thumbnails and Drawing List -->
             <div id="thumbnails-section">
                 <!-- Thumbnails will be dynamically added here -->
             </div>
-
             <div id="drawingList">
                 <!-- Drawing search results will be dynamically added here -->
             </div>
