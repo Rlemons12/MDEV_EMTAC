@@ -5,7 +5,6 @@ from werkzeug.utils import secure_filename
 import os
 import logging
 from sqlalchemy.orm import joinedload
-#from win32comext.shell.demos.IActiveDesktop import component
 
 from modules.emtacdb.emtacdb_fts import (Drawing, Part, PartsPositionImageAssociation, DrawingPositionAssociation,
                                          CompletedDocumentPositionAssociation,
@@ -248,39 +247,76 @@ def get_subassemblies():
     finally:
         db_session.close()
 
+
 @position_data_assignment_bp.route('/component_assemblies')
 def get_component_assemblies():
-    assembly_id = request.args.get('assembly_id')
+    # Retrieve the parameter 'subassembly_id' and store it in a variable named assembly_id.
+    assembly_id = request.args.get('subassembly_id')
+    logger.info("Endpoint /component_assemblies called with subassembly_id (stored in assembly_id): %s",
+                            assembly_id)
+
     db_session = db_config.get_main_session()
     try:
-        # Use the assembly_id value (which is acting as the subassembly_id here)
-        subassemblies = db_session.query(ComponentAssembly).filter(ComponentAssembly.subassembly_id == assembly_id).all()
-        data = [{'id': subassembly.id, 'name': subassembly.name, 'description': subassembly.description} for subassembly in subassemblies]
+        logger.info("Querying ComponentAssembly records where subassembly_id == %s", assembly_id)
+        component_assemblies = db_session.query(ComponentAssembly) \
+            .filter(ComponentAssembly.subassembly_id == assembly_id).all()
+        logger.info("Query completed. Found %d record(s).", len(component_assemblies))
+
+        data = []
+        for comp in component_assemblies:
+            logger.info("Processing record: id=%s, name=%s, description=%s", comp.id, comp.name,
+                                    comp.description)
+            data.append({
+                'id': comp.id,
+                'name': comp.name,
+                'description': comp.description
+            })
+
+        logger.info("Returning data: %s", data)
         return jsonify(data)
+    except Exception as e:
+        current_app.logger.error("Error in get_component_assemblies: %s", str(e))
+        return jsonify({'error': 'An error occurred fetching component assemblies.'}), 500
     finally:
         db_session.close()
+        logger.info("Database session closed.")
 
 
-@position_data_assignment_bp.route('/get_assembly_views') # TODO Rename to component_view
+@position_data_assignment_bp.route('/get_assembly_views')
 def get_assembly_views():
-    subassembly_id = request.args.get('subassembly_id')
+    # Retrieve the 'component_assembly_id' parameter from the request.
+    component_assembly_id = request.args.get('component_assembly_id')
+    logger.info("Endpoint '/get_assembly_views' called with component_assembly_id: %s",
+                            component_assembly_id)
+
     db_session = db_config.get_main_session()
     try:
-        # First, retrieve all ComponentAssembly records that belong to the given subassembly.
-        component_assemblies = db_session.query(ComponentAssembly).filter(
-            ComponentAssembly.subassembly_id == subassembly_id
-        ).all()
-        component_ids = [comp.id for comp in component_assemblies]
+        # Log the start of the query.
+        logger.info("Querying AssemblyView where component_assembly_id == %s", component_assembly_id)
 
-        # Then, retrieve all AssemblyView records where the component_assembly_id is in the list.
+        # Query for assembly views using the provided component assembly id.
         assembly_views = db_session.query(AssemblyView).filter(
-            AssemblyView.component_assembly_id.in_(component_ids)
+            AssemblyView.component_assembly_id == component_assembly_id
         ).all()
 
-        data = [{'id': av.id, 'name': av.name} for av in assembly_views]
+        num_views = len(assembly_views)
+        logger.info("Query completed. Found %d AssemblyView record(s) for component_assembly_id %s",
+                                num_views, component_assembly_id)
+
+        data = []
+        for av in assembly_views:
+            logger.info("Processing AssemblyView record: id=%s, name=%s", av.id, av.name)
+            data.append({'id': av.id, 'name': av.name})
+
+        logger.info("Returning data: %s", data)
         return jsonify(data)
+    except Exception as e:
+        current_app.logger.error("Error in get_assembly_views: %s", str(e))
+        return jsonify({'error': 'An error occurred while fetching assembly views.'}), 500
     finally:
         db_session.close()
+        logger.info("Database session closed.")
+
 
 @position_data_assignment_bp.route('/get_site_locations')
 def get_site_locations():
