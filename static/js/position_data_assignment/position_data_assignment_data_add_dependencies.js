@@ -222,78 +222,78 @@ $(document).ready(function () {
     });
 
     //------------------------------------------------
-    // 5) ASSEMBLY → SUBASSEMBLY → ASSEMBLY VIEW
+    // 5) SUBASSEMBLY → COMPONENT ASSEMBLY → ASSEMBLY VIEW
     //------------------------------------------------
-    // A) Subassembly change => fetch Subassemblies
-    $('#new_assemblyDropdown').on('change', function () {
-        var assemblyId = $(this).val();
+    // A) Subassembly change => fetch Component Assemblies
+    $('#new_subassemblyDropdown').on('change', function () {
+        var subassemblyId = $(this).val();
 
-        if (assemblyId === 'new') {
+        if (subassemblyId === 'new') {
             // Show "New Subassembly" fields
-            $('#newAssemblyFields').show();
-            $('#addAnotherAssemblyBtn').show();
+            $('#newSubassemblyFields').show();
+            $('#addAnotherSubassemblyBtn').show();
 
-            // Disable Subassembly & AssemblyView
-            $('#new_subassemblyDropdown').prop('disabled', true).val('');
+            // Disable Component Assembly & AssemblyView
+            $('#new_componentAssemblyDropdown').prop('disabled', true).val('');
             $('#new_assemblyViewDropdown').prop('disabled', true).val('');
         }
-        else if (assemblyId) {
-            $('#newAssemblyFields').hide();
-            $('#addAnotherAssemblyBtn').hide();
-
-            // Enable subassembly dropdown
-            $('#new_subassemblyDropdown').prop('disabled', false);
+        else if (subassemblyId) {
             $('#newSubassemblyFields').hide();
             $('#addAnotherSubassemblyBtn').hide();
 
-            // Clear & fetch subassemblies
-            $.getJSON('/component_assemblies', { assembly_id: assemblyId }, function (data) {
-                $('#new_subassemblyDropdown')
+            // Enable component assembly dropdown
+            $('#new_componentAssemblyDropdown').prop('disabled', false);
+            $('#newComponentAssemblyFields').hide();
+            $('#addAnotherComponentAssemblyBtn').hide();
+
+            // Clear & fetch component assemblies
+            $.getJSON('/get_component_assemblies', { subassembly_id: subassemblyId }, function (data) {
+                $('#new_componentAssemblyDropdown')
                     .empty()
-                    .append('<option value="">Select Subassembly</option>');
+                    .append('<option value="">Select Component Assembly</option>');
 
-                $.each(data, function (index, subasm) {
-                    $('#new_subassemblyDropdown')
-                        .append('<option value="' + subasm.id + '">' + subasm.name + '</option>');
+                $.each(data, function (index, componentAssembly) {
+                    $('#new_componentAssemblyDropdown')
+                        .append('<option value="' + componentAssembly.id + '">' + componentAssembly.name + '</option>');
                 });
-                // Add "New Subassembly..."
-                $('#new_subassemblyDropdown').append('<option value="new">New Subassembly...</option>');
+                // Add "New Component Assembly..."
+                $('#new_componentAssemblyDropdown').append('<option value="new">New Component Assembly...</option>');
 
-                // Also disable assembly view until subassembly chosen
+                // Also disable assembly view until component assembly chosen
                 $('#new_assemblyViewDropdown').prop('disabled', true).val('');
             }).fail(function () {
-                alert('Error fetching subassemblies');
+                alert('Error fetching component assemblies');
             });
         }
         else {
             // If user selected nothing or cleared it
-            $('#newAssemblyFields').hide();
-            $('#addAnotherAssemblyBtn').hide();
-            $('#new_subassemblyDropdown').prop('disabled', true).val('');
             $('#newSubassemblyFields').hide();
             $('#addAnotherSubassemblyBtn').hide();
+            $('#new_componentAssemblyDropdown').prop('disabled', true).val('');
+            $('#newComponentAssemblyFields').hide();
+            $('#addAnotherComponentAssemblyBtn').hide();
             $('#new_assemblyViewDropdown').prop('disabled', true).val('');
             $('#newAssemblyViewFields').hide();
             $('#addAnotherAssemblyViewBtn').hide();
         }
     });
 
-    // B) Subassembly change => fetch Subassembly Views
-    $('#new_subassemblyDropdown').on('change', function () {
-        var subassemblyId = $(this).val();
+    // B) Component Assembly change => fetch Assembly Views
+    $('#new_componentAssemblyDropdown').on('change', function () {
+        var componentAssemblyId = $(this).val();
 
-        if (subassemblyId === 'new') {
-            $('#newSubassemblyFields').show();
-            $('#addAnotherSubassemblyBtn').show();
+        if (componentAssemblyId === 'new') {
+            $('#newComponentAssemblyFields').show();
+            $('#addAnotherComponentAssemblyBtn').show();
 
             // Disable assembly view
             $('#new_assemblyViewDropdown').prop('disabled', true).val('');
             $('#newAssemblyViewFields').hide();
             $('#addAnotherAssemblyViewBtn').hide();
         }
-        else if (subassemblyId) {
-            $('#newSubassemblyFields').hide();
-            $('#addAnotherSubassemblyBtn').hide();
+        else if (componentAssemblyId) {
+            $('#newComponentAssemblyFields').hide();
+            $('#addAnotherComponentAssemblyBtn').hide();
 
             // Enable assembly view dropdown
             $('#new_assemblyViewDropdown').prop('disabled', false);
@@ -301,32 +301,32 @@ $(document).ready(function () {
             $('#addAnotherAssemblyViewBtn').hide();
 
             // Clear & fetch assembly views
-            $.getJSON('/get_assembly_views', { subassembly_id: subassemblyId }, function (data) {
+            $.getJSON('/get_assembly_views', { component_assembly_id: componentAssemblyId }, function (data) {
                 $('#new_assemblyViewDropdown')
                     .empty()
-                    .append('<option value="">Select Subassembly View</option>');
+                    .append('<option value="">Select Assembly View</option>');
 
                 $.each(data, function (index, av) {
                     $('#new_assemblyViewDropdown')
                         .append('<option value="' + av.id + '">' + av.name + '</option>');
                 });
-                // "New Subassembly View"
-                $('#new_assemblyViewDropdown').append('<option value="new">New Subassembly View...</option>');
+                // "New Assembly View"
+                $('#new_assemblyViewDropdown').append('<option value="new">New Assembly View...</option>');
             }).fail(function () {
                 alert('Error fetching assembly views');
             });
         }
         else {
             // If user cleared
-            $('#newSubassemblyFields').hide();
-            $('#addAnotherSubassemblyBtn').hide();
+            $('#newComponentAssemblyFields').hide();
+            $('#addAnotherComponentAssemblyBtn').hide();
             $('#new_assemblyViewDropdown').prop('disabled', true).val('');
             $('#newAssemblyViewFields').hide();
             $('#addAnotherAssemblyViewBtn').hide();
         }
     });
 
-    // C) Subassembly View change => show "New..." fields
+    // C) Assembly View change => show "New..." fields
     $('#new_assemblyViewDropdown').on('change', function () {
         var avId = $(this).val();
         if (avId === 'new') {
