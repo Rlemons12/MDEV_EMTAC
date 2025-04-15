@@ -9,11 +9,11 @@
     var getSiteLocationsUrl = "{{ url_for('position_data_assignment_bp.get_site_locations') }}";
     var getPositionsUrl = "{{ url_for('position_data_assignment_bp.get_positions') }}";
     var removeImageFromPositionUrl = "{{ url_for('position_data_assignment_bp.remove_image_from_position') }}";
-
     // New Routes for Subassembly, ComponentAssembly, and AssemblyView
-    var getAssembliesUrl = "{{ url_for('position_data_assignment_bp.get_assemblies') }}";
-    var getSubAssembliesUrl = "{{ url_for('position_data_assignment_bp.get_subassemblies') }}";
+    var getSubassembliesUrl = "{{ url_for('position_data_assignment_bp.get_subassemblies') }}";
+    var getComponentAssembliesUrl = "{{ url_for('position_data_assignment_bp.get_component_assemblies') }}";
     var getAssemblyViewsUrl = "{{ url_for('position_data_assignment_bp.get_assembly_views') }}";
+
 
     $(document).ready(function() {
         // ============================
@@ -173,99 +173,118 @@
         });
 
         // ============================
-        // Location Dropdown Change Event (New)
+        // Location Dropdown Change Event
         // ============================
         $('#pda_locationDropdown').change(function() {
             var locationId = $(this).val();
+            console.log("Location dropdown changed. New value:", locationId);
 
             if (locationId) {
-                // Enable the Subassembly Dropdown
-                $('#pda_assemblyDropdown').prop('disabled', false);
+                console.log("Enabling the Subassembly dropdown.");
+                $('#pda_subassemblyDropdown').prop('disabled', false);
 
-                // Fetch Assemblies based on the selected Location
+                console.log("Initiating AJAX call to fetch subassemblies for location_id:", locationId);
                 $.ajax({
-                    url: getAssembliesUrl, // Updated to use getAssembliesUrl
+                    url: getSubassembliesUrl,
                     method: 'GET',
                     data: { location_id: locationId },
                     success: function(data) {
-                        var assemblyDropdown = $('#pda_assemblyDropdown');
-                        assemblyDropdown.empty();
-                        assemblyDropdown.append('<option value="">Select Subassembly</option>');
+                        console.log("Subassemblies data received:", data);
+                        var subassemblyDropdown = $('#pda_subassemblyDropdown');
+                        subassemblyDropdown.empty();
+                        subassemblyDropdown.append('<option value="">Select Subassembly</option>');
 
-                        $.each(data, function(index, assembly) {
-                            assemblyDropdown.append('<option value="' + assembly.id + '">' + assembly.name + '</option>');
+                        $.each(data, function(index, subassembly) {
+                            console.log("Adding subassembly at index " + index + ":", subassembly);
+                            subassemblyDropdown.append('<option value="' + subassembly.id + '">' + subassembly.name + '</option>');
                         });
 
-                        // Reset and disable dependent dropdowns
-                        resetDropdowns(['#pda_subAssemblyDropdown', '#pda_assemblyViewDropdown']);
+                        console.log("Resetting and disabling dependent dropdowns: Component Assembly and Assembly View.");
+                        resetDropdowns(['#pda_componentAssemblyDropdown', '#pda_assemblyViewDropdown']);
                     },
                     error: function(xhr, status, error) {
-                        console.error("Error fetching assemblies:", error);
-                        alert("An error occurred while fetching assemblies.");
+                        console.error("Error fetching subassemblies. Status:", status, "Error:", error);
+                        alert("An error occurred while fetching subassemblies.");
                     }
                 });
             } else {
-                // If no location is selected, reset and disable the Subassembly Dropdown and its dependents
-                resetDropdowns(['#pda_assemblyDropdown', '#pda_subAssemblyDropdown', '#pda_assemblyViewDropdown']);
+                console.log("No location selected. Resetting Subassembly, Component Assembly, and Assembly View dropdowns.");
+                resetDropdowns(['#pda_subassemblyDropdown', '#pda_componentAssemblyDropdown', '#pda_assemblyViewDropdown']);
             }
         });
 
         // ============================
         // Subassembly Change Event
         // ============================
-        $('#pda_assemblyDropdown').change(function() {
-            var assemblyId = $(this).val();
-            if (assemblyId) {
-                $('#pda_subAssemblyDropdown').prop('disabled', false);
-                // Fetch SubAssemblies
+        $('#pda_subassemblyDropdown').change(function() {
+            var subassemblyId = $(this).val();
+            console.log("Subassembly dropdown changed. New value:", subassemblyId);
+
+            if (subassemblyId) {
+                console.log("Enabling the Component Assembly dropdown.");
+                $('#pda_componentAssemblyDropdown').prop('disabled', false);
+
+                console.log("Initiating AJAX call to fetch component assemblies for subassembly_id:", subassemblyId);
                 $.ajax({
-                    url: getSubAssembliesUrl,
+                    url: getComponentAssembliesUrl,
                     method: 'GET',
-                    data: { assembly_id: assemblyId },
+                    data: { subassembly_id: subassemblyId },
                     success: function(data) {
-                        var subAssemblyDropdown = $('#pda_subAssemblyDropdown');
-                        subAssemblyDropdown.empty();
-                        subAssemblyDropdown.append('<option value="">Select ComponentAssembly</option>');
-                        $.each(data, function(index, subassembly) {
-                            subAssemblyDropdown.append('<option value="' + subassembly.id + '">' + subassembly.name + '</option>');
+                        console.log("Component assemblies data received:", data);
+                        var componentAssemblyDropdown = $('#pda_componentAssemblyDropdown');
+                        componentAssemblyDropdown.empty();
+                        componentAssemblyDropdown.append('<option value="">Select Component Assembly</option>');
+
+                        $.each(data, function(index, componentAssembly) {
+                            console.log("Adding component assembly at index " + index + ":", componentAssembly);
+                            componentAssemblyDropdown.append('<option value="' + componentAssembly.id + '">' + componentAssembly.name + '</option>');
                         });
                     },
                     error: function(xhr, status, error) {
-                        console.error("Error fetching subassemblies:", error);
-                        alert("An error occurred while fetching subassemblies.");
+                        console.error("Error fetching component assemblies. Status:", status, "Error:", error);
+                        alert("An error occurred while fetching component assemblies.");
                     }
                 });
             } else {
-                resetDropdowns(['#pda_subAssemblyDropdown', '#pda_assemblyViewDropdown']);
+                console.log("No subassembly selected. Resetting Component Assembly and Assembly View dropdowns.");
+                resetDropdowns(['#pda_componentAssemblyDropdown', '#pda_assemblyViewDropdown']);
             }
         });
 
         // ============================
-        // ComponentAssembly Change Event
+        // Component Assembly Change Event
         // ============================
-        $('#pda_subAssemblyDropdown').change(function() {
-            var subAssemblyId = $(this).val();
-            if (subAssemblyId) {
+        $('#pda_componentAssemblyDropdown').change(function() {
+            var componentAssemblyId = $(this).val();
+            console.log("Component Assembly dropdown changed. New value:", componentAssemblyId);
+
+            if (componentAssemblyId) {
+                console.log("Enabling the Assembly View dropdown.");
                 $('#pda_assemblyViewDropdown').prop('disabled', false);
-                // Fetch AssemblyViews
+
+                console.log("Initiating AJAX call to fetch assembly views for component_assembly_id:", componentAssemblyId);
                 $.ajax({
                     url: getAssemblyViewsUrl,
                     method: 'GET',
-                    data: { subassembly_id: subAssemblyId },
+                    data: { component_assembly_id: componentAssemblyId },
                     success: function(data) {
+                        console.log("Assembly views data received:", data);
                         var assemblyViewDropdown = $('#pda_assemblyViewDropdown');
                         assemblyViewDropdown.empty();
-                        assemblyViewDropdown.append('<option value="">Select Subassembly View</option>');
+                        assemblyViewDropdown.append('<option value="">Select Assembly View</option>');
+
                         $.each(data, function(index, assemblyView) {
+                            console.log("Adding assembly view at index " + index + ":", assemblyView);
                             assemblyViewDropdown.append('<option value="' + assemblyView.id + '">' + assemblyView.name + '</option>');
                         });
                     },
                     error: function(xhr, status, error) {
-                        console.error("Error fetching assembly views:", error);
+                        console.error("Error fetching assembly views. Status:", status, "Error:", error);
                         alert("An error occurred while fetching assembly views.");
                     }
                 });
             } else {
+                console.log("No component assembly selected. Resetting Assembly View dropdown.");
                 resetDropdowns(['#pda_assemblyViewDropdown']);
             }
         });
@@ -350,46 +369,46 @@
         }
 
        // ============================
-// Search Position Button Click Event
-// ============================
-$('#searchPositionBtn').click(function () {
-    $.ajax({
-        url: getPositionsUrl, // Ensure this variable is defined with the correct URL
-        method: 'GET',
-        data: $('#searchPositionForm').serialize(),
-        success: function (data) {
-            clearAllSections(); // Clear previous results
-
-            if (data && Array.isArray(data)) {
-                data.forEach(function (position) {
-                    console.log('Position Data:', position);
-
-                    // Populate position details on the page
-                    setPositionDetails(position); // Ensure this function sets the #position_id
-
-                    // Render associated entities
-                    renderParts(position.parts);
-                    renderImages(position.images);
-                    renderDocuments(position.documents);
-                    renderDrawings(position.drawings);
-
-                    // After setting the position details, fetch associated tools
-                    var positionId = $('#position_id').val();
-                    if (positionId) {
-                        // Call the global ToolManagement's fetchAssociatedTools method
-                        window.ToolManagement.fetchAssociatedTools(positionId);
-                    }
-                });
-            } else {
-                alert("No positions found.");
+    // Search Position Button Click Event
+    // ============================
+    $('#searchPositionBtn').click(function () {
+        $.ajax({
+            url: getPositionsUrl, // Ensure this variable is defined with the correct URL
+            method: 'GET',
+            data: $('#searchPositionForm').serialize(),
+            success: function (data) {
+                clearAllSections(); // Clear previous results
+    
+                if (data && Array.isArray(data)) {
+                    data.forEach(function (position) {
+                        console.log('Position Data:', position);
+    
+                        // Populate position details on the page
+                        setPositionDetails(position); // Ensure this function sets the #position_id
+    
+                        // Render associated entities
+                        renderParts(position.parts);
+                        renderImages(position.images);
+                        renderDocuments(position.documents);
+                        renderDrawings(position.drawings);
+    
+                        // After setting the position details, fetch associated tools
+                        var positionId = $('#position_id').val();
+                        if (positionId) {
+                            // Call the global ToolManagement's fetchAssociatedTools method
+                            window.ToolManagement.fetchAssociatedTools(positionId);
+                        }
+                    });
+                } else {
+                    alert("No positions found.");
+                }
+            },
+            error: function (xhr, status, error) {
+                console.error("Error fetching positions:", error);
+                alert("An error occurred while fetching positions.");
             }
-        },
-        error: function (xhr, status, error) {
-            console.error("Error fetching positions:", error);
-            alert("An error occurred while fetching positions.");
-        }
+        });
     });
-});
 
 
         // ============================
