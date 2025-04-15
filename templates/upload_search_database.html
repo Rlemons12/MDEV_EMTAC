@@ -38,32 +38,72 @@
     </div>
 
     <div class="sidebar" id="sidebar">
-        <button class="toggle-btn" onclick="toggleSidebar()">Toggle Sidebar</button>
-         <h3><!-- Display the current user level -->
-            <p>User Level: {{ session['user_level'] }}</p></h3>
-        <h1> Search </h1>
-        <h2 style="color: Yellow;">Welcome {{ session['first_name'] }}! How can I assist you?</h2>
-        {% if session['user_level'] == 'ADMIN' or session['user_level'] == 'LEVEL_III' %}
-            <a href="/" style="color:  #FFFFFF;">Return to Main Page</a>
-        {%  endif %}
-        <a href="#search-documents" onclick="showForm('search-documents')">Search Documents</a>
-        <a href="#search-images" onclick="showForm('search-images')">Search Images</a>
-        <a href="#compare-images" onclick="showForm('compare-images')">Compare Images</a>
-        {% if session['user_level'] == 'ADMIN' or session['user_level'] == 'LEVEL_III' %}
-            <a href="#search-powerpoints" onclick="showForm('search-powerpoints')">Search PowerPoints</a>
-            <a href="#upload-image" onclick="showForm('upload-image')">Upload Image</a>
-            <a href="#upload-document" onclick="showForm('upload-document')">Upload Document</a>
-            <a href="#upload-powerpoint" onclick="showForm('upload-powerpoint')">Upload PowerPoint</a>
-            <a href="#batch-upload" onclick="showForm('batch-upload')">Batch Upload Documents</a>
-            <a href="/tool/submit_tool_data" style="color: #39FF14;">Tools: Entry and Search</a>
-        {% endif %}
-        <a href="/tsg_search_problems"style="color: #39FF14;">To Search Troubleshooting</a>
-        <a href="/bill_of_materials" style="color: #39FF14;">To Parts and BOMs</a>
-        {% if session['user_level'] == 'ADMIN' or session['user_level'] == 'LEVEL_III' %}
-        <a href="/troubleshooting_guide" style="color: #39FF14;">To Update Troubleshooting Guide</a>
-        {% endif %}
-        <a href="/logout" style="color:  #FF5F1F;" class="logout-button">Logout</a>
+  <!-- Toggle Button -->
+  <button class="toggle-btn" onclick="toggleSidebar()">Toggle Sidebar</button>
+
+  <!-- User Information -->
+  <div class="sidebar-header">
+    <h3>User Level: {{ session['user_level'] }}</h3>
+    <h2 style="color: Yellow;">Welcome {{ session['first_name'] }}! How can I assist you?</h2>
+  </div>
+
+  <!-- Common Navigation Links -->
+  <div class="sidebar-nav">
+    <a href="/pst_troubleshooting/" class="nav-link highlight">Search Troubleshooting</a>
+    <a href="/upload_search_database" class="nav-link highlight">Search and Upload</a>
+    <a href="/bill_of_materials" class="nav-link highlight">Parts and BOMs</a>
+  </div>
+
+  <!-- Advanced Links (For Non-STANDARD Users) -->
+  {% if session['user_level'] != 'STANDARD' %}
+    <div class="sidebar-nav advanced-links">
+      <!-- Return link (for ADMIN or LEVEL_III, styled distinctly) -->
+      {% if session['user_level'] == 'ADMIN' or session['user_level'] == 'LEVEL_III' %}
+        <a href="/" class="nav-link" style="color: #FFFFFF;">Return to Main Page</a>
+      {% else %}
+        <a href="/" class="nav-link">Return to Main Page</a>
+      {% endif %}
+      <a href="/troubleshooting_guide" class="nav-link highlight">Update Troubleshooting Guide</a>
+
+      <!-- Additional Advanced Links for ADMIN and LEVEL_III -->
+      {% if session['user_level'] == 'ADMIN' or session['user_level'] == 'LEVEL_III' %}
+        <a href="/position_data_assignment" class="nav-link highlight">Position Data Assignment</a>
+        <a href="/tool/submit_tool_data" class="nav-link highlight">Tools: Entry and Search</a>
+      {% endif %}
     </div>
+  {% endif %}
+
+  <!-- Search Related Links -->
+  <div class="sidebar-nav search-links">
+    <a href="#search-documents" onclick="showForm('search-documents')" class="nav-link">Search Documents</a>
+    <a href="#search-images" onclick="showForm('search-images')" class="nav-link">Search Images</a>
+    <a href="#compare-images" onclick="showForm('compare-images')" class="nav-link">Compare Images</a>
+
+    {% if session['user_level'] == 'ADMIN' or session['user_level'] == 'LEVEL_III' %}
+      <a href="#search-powerpoints" onclick="showForm('search-powerpoints')" class="nav-link">Search PowerPoints</a>
+      <a href="#upload-image" onclick="showForm('upload-image')" class="nav-link">Upload Image</a>
+      <a href="#upload-document" onclick="showForm('upload-document')" class="nav-link">Upload Document</a>
+      <a href="#upload-powerpoint" onclick="showForm('upload-powerpoint')" class="nav-link">Upload PowerPoint</a>
+      <a href="#batch-upload" onclick="showForm('batch-upload')" class="nav-link">Batch Upload Documents</a>
+    {% endif %}
+  </div>
+
+  <!-- BOM Specific Links (Displayed only on the BOM Page) -->
+  {% if current_page == 'bom' %}
+    <div class="sidebar-nav bom-links">
+      <a href="#search-bill-of-materials" onclick="showForm('search-bill-of-materials')" class="nav-link">Search Bill of Materials</a>
+      <a href="#upload-bill-of-materials" onclick="showForm('upload-bill-of-materials')" class="nav-link">Upload Bill of Materials</a>
+      <a href="#1enter-new-part-number" onclick="showForm('1enter-new-part-number')" class="nav-link">Enter New Part</a>
+      <a href="#edit-part" onclick="showForm('edit-part')" class="nav-link">Edit Part</a>
+    </div>
+  {% endif %}
+
+  <!-- Logout Link (Always Displayed) -->
+  <div class="sidebar-nav">
+    <a href="/logout" class="logout-button" style="color: #FF5F1F;">Logout</a>
+  </div>
+</div>
+
     <!-- Popup Modal Structure -->
     <div id="commentPopup" style="display: none;">
         <form id="commentForm">
