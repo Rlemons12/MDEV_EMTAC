@@ -10,6 +10,7 @@
     <!-- Main Navigation Links -->
     <div class="sidebar-nav">
         <!-- Common links for all users -->
+        <a href="http://127.0.0.1:5000" class="nav-link highlight">Return to Main</a>
         <a href="/pst_troubleshooting/" class="nav-link highlight">Search Troubleshooting</a>
         <a href="/upload_search_database" class="nav-link highlight">Search and Upload</a>
         <a href="/bill_of_materials" class="nav-link highlight">Parts and BOMs</a>
@@ -17,7 +18,7 @@
         <!-- Advanced user links -->
         {% if session['user_level'] != 'STANDARD' %}
             <a href="/" class="nav-link">Return to Main Page</a>
-            <a href="/troubleshooting_guide" class="nav-link highlight">Update Troubleshooting Guide</a>
+            <a href="/pst_troubleshooting/" class="nav-link highlight">Search Troubleshooting</a>
 
             <!-- Admin and Level III specific links -->
             {% if session['user_level'] == 'ADMIN' or session['user_level'] == 'LEVEL_III' %}
