@@ -9,6 +9,8 @@ from modules.emtacdb.emtacdb_fts import PartsPositionImageAssociation, Image, Po
 from modules.configuration.config import UPLOAD_FOLDER, ALLOWED_EXTENSIONS,DATABASE_DIR, BASE_DIR
 from blueprints.bill_of_materials import update_part_bp
 from modules.configuration.log_config import logger
+from sqlalchemy import and_
+
 
 
 @update_part_bp.route('/edit_part/<int:part_id>', methods=['GET', 'POST'])
@@ -248,7 +250,7 @@ def serve_part_image(image_id):
         logger.error(f"An error occurred while serving the image: {e}")
         return "Internal Server Error", 500
 
-# Route: Search Part
+# fixme: returns white HTML page
 @update_part_bp.route('/search_part', methods=['GET'])
 def search_part():
     logger.info(f'start to search part')
