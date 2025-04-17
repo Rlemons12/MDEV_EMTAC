@@ -137,8 +137,8 @@ def get_problem_solution_data(problem_id):
     finally:
         session.close()
         logger.info('Database session closed')
-
-@get_troubleshooting_guide_data_bp.route('/search_documents', methods=['GET'])
+# region fixme: had to change to /search_document, endpoint issues with blueprints/search_documents_bp.py
+@get_troubleshooting_guide_data_bp.route('/search_document', methods=['GET'])
 def search_documents():
     query = request.args.get('query', '')
 
