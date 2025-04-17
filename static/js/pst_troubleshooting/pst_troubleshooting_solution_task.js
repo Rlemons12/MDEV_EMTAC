@@ -24,8 +24,8 @@ document.addEventListener('DOMContentLoaded', () => {
         assetNumbers: '/pst_troubleshooting_guide_edit_update/get_asset_numbers',
         locations: '/pst_troubleshooting_guide_edit_update/get_locations',
         siteLocations: '/pst_troubleshooting_guide_edit_update/get_site_locations',
-        assemblies: '/pst_troubleshooting_guide_edit_update/get_assemblies',
         subassemblies: '/pst_troubleshooting_guide_edit_update/get_subassemblies',
+        componetassemblies: '/pst_troubleshooting_guide_edit_update/component_assemblies',
         assemblyViews: '/pst_troubleshooting_guide_edit_update/get_assembly_views',
         },
         associations: { // Updated to use singular keys
@@ -401,31 +401,31 @@ async fetchInitialSiteLocations() {
     },
 
     /**
- * Fetch initial assemblies based on Location ID
+ * Fetch initial subassemblies based on Location ID
  * @param {string|number} locationId - The ID of the selected Location
  * @returns {Promise<Array>} - Array of assembly objects
  */
     async fetchInitialAssembliesByLocation(locationId) {
     try {
         // Build the request URL
-        const url = `${ENDPOINTS.initialData.assemblies}?location_id=${encodeURIComponent(locationId)}`;
+        const url = `${ENDPOINTS.initialData.subassemblies}?location_id=${encodeURIComponent(locationId)}`;
 
         // Use the fetchWithHandling helper for consistency
         // This will handle the fetch, parse JSON, check response.ok, etc.
         const data = await fetchWithHandling(url);
 
-        console.log(`Received assemblies:`, data);
+        console.log(`Received subassemblies:`, data);
 
         // If your endpoint returns an array directly (like your models endpoint):
         //   return Array.isArray(data) ? data : [];
         //
-        // If your endpoint wraps the array (like { assemblies: [...] } ):
-        //   return Array.isArray(data.assemblies) ? data.assemblies : [];
+        // If your endpoint wraps the array (like { subassemblies: [...] } ):
+        //   return Array.isArray(data.subassemblies) ? data.subassemblies : [];
 
         // Assuming your endpoint returns a simple array (like [ {id, name}, ... ])
         return Array.isArray(data) ? data : [];
     } catch (error) {
-        console.error(`Error fetching assemblies for Location ID ${locationId}:`, error);
+        console.error(`Error fetching subassemblies for Location ID ${locationId}:`, error);
         // Return an empty array if an error occurs
         return [];
     }
@@ -449,14 +449,14 @@ async fetchInitialSiteLocations() {
     },
 
     /**
-     * Fetch initial subassemblies based on assembly ID
+     * Fetch initial componetassemblies based on assembly ID
      * @param {string|number} assemblyId
      * @returns {Promise<Array>} - Array of subassembly objects
      */
     async fetchInitialSubassemblies(assemblyId) {
         try {
             // Build the request URL
-            const url = `${ENDPOINTS.initialData.subassemblies}?assembly_id=${encodeURIComponent(assemblyId)}`;
+            const url = `${ENDPOINTS.initialData.componetassemblies}?assembly_id=${encodeURIComponent(assemblyId)}`;
             // Use the fetchWithHandling helper for consistency
             const data = await fetchWithHandling(url);
             console.log(`Received Subassemblies:`, data);
@@ -820,7 +820,7 @@ async fetchInitialSiteLocations() {
     const uniqueId = `${Date.now()}_${index}`; // e.g., "1701234567890_0"
     console.log(`Generated uniqueId: ${uniqueId}`);
 
-    // Assign unique IDs to all select elements, including assemblies, subassemblies, and assemblyViews
+    // Assign unique IDs to all select elements, including subassemblies, componetassemblies, and assemblyViews
     const elementsToId = [
         'areaDropdown',
         'equipmentGroupDropdown',
@@ -1094,14 +1094,14 @@ async fetchInitialSiteLocations() {
             }
 
             console.log(`Fetching Assemblies for Location ID: ${locationId}`);
-            const assemblies = await SolutionTaskCommon.fetchInitialAssembliesByLocation(locationId);
-            console.log('Fetched Assemblies:', assemblies);
+            const subassemblies = await SolutionTaskCommon.fetchInitialAssembliesByLocation(locationId);
+            console.log('Fetched Assemblies:', subassemblies);
 
-            window.SolutionTaskCommon.populateDropdown(assembliesDropdown, assemblies, 'Select Subassembly');
+            window.SolutionTaskCommon.populateDropdown(assembliesDropdown, subassemblies, 'Select Subassembly');
             console.log(`Dropdown options after populating Assemblies Dropdown (ID: ${assembliesDropdown.id}):`, assembliesDropdown.options);
 
-            // Validate assembly_id exists in fetched assemblies
-            const isValidAssemblyId = assemblies.some(assembly => String(assembly.id) === String(positionData.assembly_id));
+            // Validate assembly_id exists in fetched subassemblies
+            const isValidAssemblyId = subassemblies.some(assembly => String(assembly.id) === String(positionData.assembly_id));
             if (isValidAssemblyId) {
                 assembliesDropdown.value = positionData.assembly_id;
                 console.log(`Set Assemblies Dropdown (ID: ${assembliesDropdown.id}) to value: ${positionData.assembly_id}`);
@@ -1109,17 +1109,17 @@ async fetchInitialSiteLocations() {
                 console.warn(`Invalid Assembly ID: ${positionData.assembly_id} for Assemblies Dropdown (ID: ${assembliesDropdown.id})`);
                 assembliesDropdown.value = '';
             }
-            console.log("Assemblies returned:", assemblies);
-            console.log("assemblies.length:", assemblies.length);
-            //assembliesDropdown.disabled = assemblies.length === 0;
+            console.log("Assemblies returned:", subassemblies);
+            console.log("subassemblies.length:", subassemblies.length);
+            //assembliesDropdown.disabled = subassemblies.length === 0;
             console.log('async function populatePositionFields disabled')
-            console.log(`Assemblies Dropdown (ID: ${assembliesDropdown.id}) has been ${assemblies.length === 0 ? 'disabled' : 'enabled'}.`);
+            console.log(`Assemblies Dropdown (ID: ${assembliesDropdown.id}) has been ${subassemblies.length === 0 ? 'disabled' : 'enabled'}.`);
 
 
-            console.log(`Assemblies Dropdown (ID: ${assembliesDropdown.id}) has been ${assemblies.length === 0 ? 'disabled' : 'enabled'}.`);
+            console.log(`Assemblies Dropdown (ID: ${assembliesDropdown.id}) has been ${subassemblies.length === 0 ? 'disabled' : 'enabled'}.`);
         } catch (error) {
             console.error('Error fetching Assemblies:', error);
-            window.SolutionTaskCommon.showAlert('Failed to load assemblies.', 'danger');
+            window.SolutionTaskCommon.showAlert('Failed to load subassemblies.', 'danger');
             window.SolutionTaskCommon.populateDropdown(assembliesDropdown, [], 'Select Subassembly');
             //assembliesDropdown.disabled = true;
             console.log('async function populatePositionFields disabled')
@@ -1134,10 +1134,10 @@ async fetchInitialSiteLocations() {
     if (subassembliesDropdown && positionData.assembly_id) {
         try {
             console.log(`Attempting to fetch Subassemblies for Assembly ID: ${positionData.assembly_id}`);
-            const subassemblies = await SolutionTaskCommon.fetchInitialSubassemblies(positionData.assembly_id);
-            console.log('Fetched Subassemblies:', subassemblies);
+            const componetassemblies = await SolutionTaskCommon.fetchInitialSubassemblies(positionData.assembly_id);
+            console.log('Fetched Subassemblies:', componetassemblies);
 
-            window.SolutionTaskCommon.populateDropdown(subassembliesDropdown, subassemblies, 'Select Subassembly');
+            window.SolutionTaskCommon.populateDropdown(subassembliesDropdown, componetassemblies, 'Select Subassembly');
             console.log(`Dropdown options after populating Subassemblies Dropdown (ID: ${subassembliesDropdown.id}):`, subassembliesDropdown.options);
 
             subassembliesDropdown.value = positionData.subassembly_id || '';
@@ -1145,7 +1145,7 @@ async fetchInitialSiteLocations() {
             console.log(`Set Subassemblies Dropdown (ID: ${subassembliesDropdown.id}) to value: ${positionData.subassembly_id}`);
         } catch (error) {
             console.error('Error fetching Subassemblies:', error);
-            window.SolutionTaskCommon.showAlert('Failed to load subassemblies.', 'danger');
+            window.SolutionTaskCommon.showAlert('Failed to load componetassemblies.', 'danger');
             window.SolutionTaskCommon.populateDropdown(subassembliesDropdown, [], 'Select Subassembly');
             subassembliesDropdown.disabled = true;
             console.log(`Subassemblies Dropdown (ID: ${subassembliesDropdown.id}) has been disabled due to error.`);
@@ -1613,10 +1613,10 @@ async fetchInitialSiteLocations() {
             console.log(`Location Input (ID: ${locationInput.id}) changed to: ${selectedLocationId}`);
             if (selectedLocationId) {
                 try {
-                    const assemblies = await SolutionTaskCommon.fetchInitialAssembliesByLocation(selectedLocationId);
-                    SolutionTaskCommon.populateDropdown(assembliesDropdown, assemblies, 'Select Subassembly');
-                    console.log(`assembliesDropdown assemblies.length = ${assemblies.length}`);
-                    //assembliesDropdown.disabled = assemblies.length === 0;
+                    const subassemblies = await SolutionTaskCommon.fetchInitialAssembliesByLocation(selectedLocationId);
+                    SolutionTaskCommon.populateDropdown(assembliesDropdown, subassemblies, 'Select Subassembly');
+                    console.log(`assembliesDropdown subassemblies.length = ${subassemblies.length}`);
+                    //assembliesDropdown.disabled = subassemblies.length === 0;
 
                     console.log(`Populated Assemblies Dropdown (ID: ${assembliesDropdown.id}) with Assemblies for Location ID ${selectedLocationId}`);
 
@@ -1627,7 +1627,7 @@ async fetchInitialSiteLocations() {
                     ]);*/
                 } catch (error) {
                     console.error(`Error fetching Assemblies for Location ID ${selectedLocationId}:`, error);
-                    SolutionTaskCommon.showAlert('Failed to load assemblies.', 'danger');
+                    SolutionTaskCommon.showAlert('Failed to load subassemblies.', 'danger');
                     SolutionTaskCommon.populateDropdown(assembliesDropdown, [], 'Select Subassembly');
                     //assembliesDropdown.disabled = true;
 
@@ -1656,16 +1656,16 @@ async fetchInitialSiteLocations() {
             console.log(`Assemblies Dropdown (ID: ${assembliesDropdown.id}) changed to: ${selectedAssemblyId}`);
             if (selectedAssemblyId) {
                 try {
-                    const subassemblies = await SolutionTaskCommon.fetchInitialSubassemblies(selectedAssemblyId);
-                    SolutionTaskCommon.populateDropdown(subassembliesDropdown, subassemblies, 'Select Subassembly');
-                    subassembliesDropdown.disabled = subassemblies.length === 0;
+                    const componetassemblies = await SolutionTaskCommon.fetchInitialSubassemblies(selectedAssemblyId);
+                    SolutionTaskCommon.populateDropdown(subassembliesDropdown, componetassemblies, 'Select Subassembly');
+                    subassembliesDropdown.disabled = componetassemblies.length === 0;
                     console.log(`Populated Subassemblies Dropdown (ID: ${subassembliesDropdown.id}) with Subassemblies for Assembly ID ${selectedAssemblyId}`);
 
                     // Reset and disable Subassembly Views Dropdown
                     /** resetDropdowns([assemblyViewsDropdown]);*/
                 } catch (error) {
                     console.error(`Error fetching Subassemblies for Assembly ID ${selectedAssemblyId}:`, error);
-                    SolutionTaskCommon.showAlert('Failed to load subassemblies.', 'danger');
+                    SolutionTaskCommon.showAlert('Failed to load componetassemblies.', 'danger');
                     SolutionTaskCommon.populateDropdown(subassembliesDropdown, [], 'Select Subassembly');
                     subassembliesDropdown.disabled = true;
 
