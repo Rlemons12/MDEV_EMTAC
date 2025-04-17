@@ -240,11 +240,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function collectPositionsData() {
-    const positionsContainer = document.getElementById('pst_task_edit_positions_container');
-    const positionsData = [];
+        const positionsContainer = document.getElementById('pst_task_edit_positions_container');
+        const positionsData = [];
 
-    positionsContainer.querySelectorAll('.position-section').forEach(section => {
-        // Retrieve dropdown and input elements
+        // Loop over all position sections (each representing one position entry)
+        positionsContainer.querySelectorAll('.position-section').forEach(section => {
+        // Retrieve base dropdown and input elements
         const areaDropdown = section.querySelector('.areaDropdown');
         const equipmentGroupDropdown = section.querySelector('.equipmentGroupDropdown');
         const modelDropdown = section.querySelector('.modelDropdown');
@@ -252,27 +253,27 @@ document.addEventListener('DOMContentLoaded', () => {
         const locationInput = section.querySelector('.locationInput');
         const siteLocationDropdown = section.querySelector('.siteLocationDropdown');
 
-        // **New Dropdowns**
+        // Retrieve additional dropdowns for assemblies and views
         const assemblyDropdown = section.querySelector('.assemblyDropdown');
         const subassemblyDropdown = section.querySelector('.subassemblyDropdown');
         const assemblyViewDropdown = section.querySelector('.assemblyViewDropdown');
 
-        // Parse integer values where necessary
+        // Parse integer values for base identifiers
         const areaId = parseInt(areaDropdown.value, 10) || null;
         const equipmentGroupId = parseInt(equipmentGroupDropdown.value, 10) || null;
         const modelId = parseInt(modelDropdown.value, 10) || null;
 
         // Adjust these based on backend expectations
-        const assetNumberId = assetNumberInput.value.trim() ? parseInt(assetNumberInput.value.trim(), 10) : null; // Integer
-        const locationId = locationInput.value.trim() ? parseInt(locationInput.value.trim(), 10) : null;           // Integer
+        const assetNumberId = assetNumberInput.value.trim() ? parseInt(assetNumberInput.value.trim(), 10) : null;
+        const locationId = locationInput.value.trim() ? parseInt(locationInput.value.trim(), 10) : null;
         const siteLocationId = parseInt(siteLocationDropdown.value, 10) || null;
 
-        // **Parse New Dropdowns**
-        const assemblyId = assemblyDropdown.value.trim() ? parseInt(assemblyDropdown.value.trim(), 10) : null; // Integer
-        const subassemblyId = subassemblyDropdown.value.trim() ? parseInt(subassemblyDropdown.value.trim(), 10) : null; // Integer
-        const assemblyViewId = assemblyViewDropdown.value.trim() ? parseInt(assemblyViewDropdown.value.trim(), 10) : null; // Integer
+        // Parse new dropdowns for assemblies
+        const assemblyId = assemblyDropdown.value.trim() ? parseInt(assemblyDropdown.value.trim(), 10) : null;
+        const subassemblyId = subassemblyDropdown.value.trim() ? parseInt(subassemblyDropdown.value.trim(), 10) : null;
+        const assemblyViewId = assemblyViewDropdown.value.trim() ? parseInt(assemblyViewDropdown.value.trim(), 10) : null;
 
-        // Optional: Validate parsed integers
+        // Optional: Validate parsed integer values and warn if any are invalid
         if (assetNumberInput.value.trim() && isNaN(assetNumberId)) {
             console.warn(`Invalid Asset Number ID in position section.`);
         }
@@ -289,27 +290,29 @@ document.addEventListener('DOMContentLoaded', () => {
             console.warn(`Invalid Assembly View ID in position section.`);
         }
 
+        // Construct the payload object; update keys if your backend requires a different name.
         const positionData = {
             area_id: areaId,
             equipment_group_id: equipmentGroupId,
             model_id: modelId,
-            asset_number_id: assetNumberId, // Renamed key to match backend
-            location_id: locationId,         // Renamed key to match backend
+            asset_number_id: assetNumberId,
+            location_id: locationId,
             site_location_id: siteLocationId,
 
-            // **Include New Fields**
+            // New fields for assembly information.
+            // If your backend now expects "component_assembly_id" instead of "subassembly_id", you can change the key here.
             assembly_id: assemblyId,
             subassembly_id: subassemblyId,
             assembly_view_id: assemblyViewId
         };
 
         console.log('Collected Position Data:', positionData);
-
         positionsData.push(positionData);
     });
 
     return positionsData;
 }
+
 
     async function fetchWithHandling(url, options = {}) {
         try {
