@@ -365,55 +365,75 @@ def get_locations():
 @pst_troubleshooting_guide_edit_update_bp.route('/get_subassemblies', methods=['GET'])
 def get_assemblies():
     session = db_config.get_main_session()
-    location_id = request.args.get('location_id')  # No presence or type check
+    location_id = request.args.get('location_id')
+    logger.info("get_assemblies called with location_id: %s", location_id)
+
+    # (No explicit type-check is done here; you might consider adding one if needed)
     assemblies = session.query(Subassembly).filter_by(location_id=location_id).all()
+    logger.info("Found %d assemblies for location_id %s", len(assemblies), location_id)
+
     data = [{'id': assembly.id, 'name': assembly.name} for assembly in assemblies]
-    return jsonify(data)  # Return a 200 implicitly
+    logger.info("Returning data: %s", data)
+    return jsonify(data)
+
 
 @pst_troubleshooting_guide_edit_update_bp.route('/component_assemblies', methods=['GET'])
 def get_subassemblies():
     session = db_config.get_main_session()
+    # Change this line from 'subassembly_id' to 'assembly_id' so it picks up the correct parameter.
     assembly_id = request.args.get('assembly_id')
+    logger.info("get_subassemblies called with assembly_id: %s", assembly_id)
 
     # Validate the presence of assembly_id
     if not assembly_id:
+        logger.error("Missing assembly_id in request")
         return jsonify({'error': 'assembly_id is required.'}), 400
 
     # Validate that assembly_id is an integer
     try:
-        assembly_id = int(assembly_id)
+        assembly_id_int = int(assembly_id)
     except ValueError:
+        logger.error("Invalid assembly_id (not an integer): %s", assembly_id)
         return jsonify({'error': 'assembly_id must be an integer.'}), 400
 
-    # Query subassemblies based on assembly_id
-    subassemblies = session.query(ComponentAssembly).filter_by(assembly_id=assembly_id).all()
+    # Query subassemblies based on assembly_id (filtering by the proper column in ComponentAssembly)
+    subassemblies = session.query(ComponentAssembly).filter_by(subassembly_id=assembly_id_int).all()
+    logger.info("Found %d subassemblies for assembly_id %d", len(subassemblies), assembly_id_int)
 
-    # Corrected list comprehension with proper variable naming
     data = [{'id': subassembly.id, 'name': subassembly.name} for subassembly in subassemblies]
-
+    logger.info("Returning data: %s", data)
     return jsonify(data), 200
-
 
 @pst_troubleshooting_guide_edit_update_bp.route('/get_assembly_views', methods=['GET'])
 def get_assembly_views():
     session = db_config.get_main_session()
-    component_assembly_id = request.args.get('component_assembly_id')
+    # Try retrieving "component_assembly_id", if not found, fall back to "subassembly_id"
+    component_assembly_id = request.args.get('component_assembly_id') or request.args.get('subassembly_id')
+    logger.info("get_assembly_views called with component_assembly_id/subassembly_id: %s", component_assembly_id)
 
-    # Validate the presence of component_assembly_id
     if not component_assembly_id:
+        logger.error("Missing component_assembly_id (or subassembly_id) in request")
         return jsonify({'error': 'component_assembly_id is required.'}), 400
 
-    # Validate that component_assembly_id is an integer
     try:
-        component_assembly_id = int(component_assembly_id)
+        component_assembly_id_int = int(component_assembly_id)
     except ValueError:
+        logger.error("Invalid component_assembly_id (not an integer): %s", component_assembly_id)
         return jsonify({'error': 'component_assembly_id must be an integer.'}), 400
 
-    # Query assembly views based on component_assembly_id
-    assembly_views = session.query(AssemblyView).filter_by(component_assembly_id=component_assembly_id).all()
+    try:
+        assembly_views = session.query(AssemblyView).filter_by(component_assembly_id=component_assembly_id_int).all()
+        logger.info("Found %d assembly views for component_assembly_id %d", len(assembly_views), component_assembly_id_int)
+    except Exception as e:
+        logger.exception("Error querying AssemblyView for component_assembly_id %d", component_assembly_id_int)
+        return jsonify({'error': 'Internal server error during query.'}), 500
 
-    # Format the data for response
-    data = [{'id': av.id, 'name': av.name} for av in assembly_views]
+    try:
+        data = [{'id': av.id, 'name': av.name} for av in assembly_views]
+        logger.info("Returning data: %s", data)
+    except Exception as e:
+        logger.exception("Error formatting assembly views data for component_assembly_id %d", component_assembly_id_int)
+        return jsonify({'error': 'Internal server error during data formatting.'}), 500
 
     return jsonify(data), 200
 
