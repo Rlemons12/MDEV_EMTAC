@@ -18,8 +18,6 @@
 {% block content %}
 <div class="main-container">
 
-
-
     <!-- Main Content -->
     <div class="content">
         <!-- Flash Messages -->
@@ -47,6 +45,7 @@
         <!-- Tab Content Sections -->
         <div class="tab-content-container">
             <!-- Add Tool Tab Content -->
+            <!-- region Review: Accordion layout is not working properly -->
             <div id="add-tool-tab" class="tab-content active">
                 {% if tool_form %}
                     <div class="form-container">
@@ -260,6 +259,7 @@
                     <p>Tool form is not available at the moment.</p>
                 {% endif %}
             </div>
+            <!-- endregion -->
 
             <!-- Search Tool Tab Content -->
             <div id="search-tool-tab" class="tab-content">
