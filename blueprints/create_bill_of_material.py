@@ -178,7 +178,7 @@ def view_bill_of_material():
     except Exception as e:
         logger.exception(f"Exception in view_bill_of_material: {e}")
         flash(f'An error occurred: {str(e)}', 'error')
-        return redirect(url_for('create_bill_of_materials_bp.bill_of_materials'))
+        return redirect(url_for('create_bill_of_material_bp.view_bill_of_material'))
     finally:
         db_session.close()
         logger.debug("Database session closed in view_bill_of_material.")
@@ -187,75 +187,126 @@ def view_bill_of_material():
 def bom_general_search():
     logger.info("Entered bom_general_search route.")
     db_session = db_config.get_main_session()
+
     try:
         clear_bom_results()
+
+        # 1) GRAB INPUTS
         general_asset_number = request.form.get('general_asset_number', '').strip()
-        general_location = request.form.get('general_location', '').strip()
+        general_location     = request.form.get('general_location', '').strip()
         logger.debug(f"General search parameters: asset_number='{general_asset_number}', location='{general_location}'")
 
-        query = db_session.query(Position)
+        # 2) ASSET-NUMBER-BASED SEARCH
+        positions = []
         if general_asset_number:
-            asset_number_records = db_session.query(AssetNumber).filter(AssetNumber.number == general_asset_number).all()
-            if not asset_number_records:
-                logger.warning("No AssetNumber records found for provided input.")
+            asset_ids = AssetNumber.get_ids_by_number(db_session, general_asset_number)
+            logger.debug(f"AssetNumber IDs: {asset_ids}")
+
+            if not asset_ids:
                 flash('No Asset Number found matching the provided input.', 'error')
                 return render_template('bill_of_materials/bill_of_materials.html')
-            asset_number_ids = [record.id for record in asset_number_records]
-            logger.debug(f"AssetNumber IDs retrieved: {asset_number_ids}")
-            query = query.filter(Position.asset_number_id.in_(asset_number_ids))
-        else:
-            query = query.filter(Position.asset_number_id.isnot(None))
-            logger.debug("Asset number not provided; excluding positions with NULL asset_number_id.")
 
+            # primary lookup by asset_number_id
+            positions = (
+                db_session
+                .query(Position)
+                .filter(Position.asset_number_id.in_(asset_ids))
+                .all()
+            )
+            logger.info(f"Found {len(positions)} positions by asset_number.")
+
+            # fallback to model if needed
+            if not positions:
+                logger.info("FALLBACK: No positions for the asset—trying by model")
+                model_id = AssetNumber.get_model_id_by_asset_number_id(db_session, asset_ids[0])
+                if model_id:
+                    logger.info(f"Falling back to model_id={model_id}")
+                    positions = (
+                        db_session
+                        .query(Position)
+                        .filter(Position.model_id == model_id)
+                        .all()
+                    )
+                    logger.info(f"Found {len(positions)} positions by model.")
+        else:
+            # no asset number → all positions that have *some* asset_number
+            positions = (
+                db_session
+                .query(Position)
+                .filter(Position.asset_number_id.isnot(None))
+                .all()
+            )
+            logger.debug("Asset number not provided; using all positions with an asset_number.")
+
+        # 3) LOCATION FILTER (only if user supplied one)
         if general_location:
-            # Note: Ensure you have imported Location from your models.
-            from modules.emtacdb.emtacdb_fts import Location  # Adjust the import as necessary
-            location_records = db_session.query(Location).filter(Location.name == general_location).all()
+            location_records = (
+                db_session
+                .query(Location)
+                .filter(Location.name == general_location)
+                .all()
+            )
             if not location_records:
-                logger.warning("No Location records found for provided input.")
                 flash('No Location found matching the provided input.', 'error')
                 return render_template('bill_of_materials/bill_of_materials.html')
-            location_ids = [record.id for record in location_records]
-            logger.debug(f"Location IDs retrieved: {location_ids}")
-            query = query.filter(Position.location_id.in_(location_ids))
-        else:
-            query = query.filter(Position.location_id.isnot(None))
-            logger.debug("Location not provided; excluding positions with NULL location_id.")
 
-        positions = query.all()
-        logger.info(f"Found {len(positions)} positions in general search.")
+            location_ids = [loc.id for loc in location_records]
+            logger.debug(f"Filtering positions by location_ids: {location_ids}")
+            positions = [pos for pos in positions if pos.location_id in location_ids]
+            logger.debug(f"Positions after location filter: {len(positions)}")
+        # otherwise: leave *all* positions (including those with NULL location_id)
+
+        # 4) NO POSITIONS → ERROR
+        logger.info(f"Total positions after filters: {len(positions)}")
         if not positions:
             flash('No results found for the given Asset Number or Location.', 'error')
             return render_template('bill_of_materials/bill_of_materials.html')
 
+        # 5) BUILD BOM RESULTS
         results = []
         for position in positions:
-            logger.debug(f"Processing position ID: {position.id} in general search.")
-            parts_images = db_session.query(PartsPositionImageAssociation).filter_by(position_id=position.id).all()
-            for association in parts_images:
-                part = db_session.query(Part).filter_by(id=association.part_id).first()
-                if part:
-                    store_bom_results(db_session, part_id=part.id, position_id=position.id,
-                                      image_id=association.image_id, description="General search result")
-                    results.append({'part_id': part.id, 'image_id': association.image_id})
-                    logger.debug(f"Stored general search BOM result for part ID: {part.id}")
-                else:
-                    logger.error(f"Part not found with ID: {association.part_id}")
+            logger.debug(f"Processing position ID: {position.id}")
+            associations = (
+                db_session
+                .query(PartsPositionImageAssociation)
+                .filter_by(position_id=position.id)
+                .all()
+            )
+            for assoc in associations:
+                part = db_session.query(Part).get(assoc.part_id)
+                if not part:
+                    logger.error(f"Part not found with ID: {assoc.part_id}")
+                    continue
+
+                store_bom_results(
+                    db_session,
+                    part_id=part.id,
+                    position_id=position.id,
+                    image_id=assoc.image_id,
+                    description="General search result"
+                )
+                results.append({
+                    'part_id': part.id,
+                    'image_id': assoc.image_id
+                })
+                logger.debug(f"Stored BOM result for part ID: {part.id}")
+
+        # 6) COMMIT & REDIRECT
         db_session.commit()
         logger.info("General search BOM results committed successfully.")
 
-        flask_session['results'] = json.dumps(results)
+        flask_session['results']              = json.dumps(results)
         flask_session['general_asset_number'] = general_asset_number
-        flask_session['general_location'] = general_location
-        logger.debug("General search results stored in session.")
+        flask_session['general_location']     = general_location
 
-        logger.info("Redirecting to view_bill_of_material route with index 0 for general search results.")
         return redirect(url_for('create_bill_of_material_bp.view_bill_of_material', index=0))
+
     except Exception as e:
         logger.exception(f"Exception in bom_general_search: {e}")
-        flash(f'An error occurred during general search: {str(e)}', 'error')
         db_session.rollback()
+        flash(f'An error occurred during general search: {e}', 'error')
         return render_template('bill_of_materials/bill_of_materials.html')
+
     finally:
         db_session.close()
         logger.debug("Database session closed in bom_general_search.")
