@@ -1,47 +1,39 @@
-from flask import Blueprint, jsonify, request, send_file
-from sqlalchemy.orm import sessionmaker, scoped_session, joinedload
-from sqlalchemy import create_engine
+from flask import Blueprint, jsonify, request, send_file, flash
+from sqlalchemy.orm import joinedload
 import os
-from modules.configuration.config import DATABASE_URL, DATABASE_DIR
-from modules.emtacdb.emtacdb_fts import CompleteDocument, Position, CompletedDocumentPositionAssociation  # Update with correct import paths
-import logging
+from modules.configuration.config import DATABASE_DIR
+from modules.emtacdb.emtacdb_fts import CompleteDocument, Position, CompletedDocumentPositionAssociation
+from modules.configuration.log_config import logger
+from modules.configuration.config_env import DatabaseConfig
 
-# Create a SQLAlchemy engine using the DATABASE_URL from your config
-engine = create_engine(DATABASE_URL)
-
-# Create a session factory
-Session = scoped_session(sessionmaker(bind=engine))
-
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+# Initialize DatabaseConfig
+db_config = DatabaseConfig()
 
 search_documents_bp = Blueprint('search_documents_bp', __name__)
 
-# Define the view_document route within the blueprint
 @search_documents_bp.route('/view_document/<int:document_id>')
 def view_document(document_id):
     logger.debug("Inside view_document route")
 
     # Create an SQLAlchemy session
-    session = Session()
+    session = db_config.get_main_session()
 
     try:
         # Fetch the document from the database based on the ID
         document = session.query(CompleteDocument).get(document_id)
-        
+
         if document:
-            logger.debug(f"Found document with ID {document_id}")
+            logger.info(f"Found document with ID {document_id}")
             file_path = os.path.join(DATABASE_DIR, document.file_path)
-            logger.debug(f"File path: {file_path}")
+            logger.info(f"File path: {file_path}")
             if os.path.exists(file_path):
-                logger.debug("File exists. Serving the document.")
+                logger.info("File exists. Serving the document.")
                 return send_file(file_path, as_attachment=True)
             else:
-                logger.debug("File not found.")
+                logger.error("File not found.")
                 return "File not found", 404
         else:
-            logger.debug("Document not found")
+            logger.info("Document not found")
             return "Document not found", 404
     except Exception as e:
         logger.error(f"An error occurred: {e}")
@@ -52,7 +44,7 @@ def view_document(document_id):
 # Define the search_documents route within the blueprint
 @search_documents_bp.route('/', methods=['GET'])
 def search_documents():
-    with Session() as session:
+    with db_config.get_main_session() as session:
         # Retrieve search parameters
         title = request.args.get('title', '')
         area = request.args.get('searchdocument_area', '')
@@ -61,11 +53,11 @@ def search_documents():
         asset_number = request.args.get('searchdocument_asset_number', '')
         location = request.args.get('searchdocument_location', '')
 
-        logger.debug(f"Search parameters - Title: {title}, Area: {area}, Equipment Group: {equipment_group}, Model: {model}, Asset Number: {asset_number}, Location: {location}")
-        
+        logger.info(f"Search parameters - Title: {title}, Area: {area}, Equipment Group: {equipment_group}, Model: {model}, Asset Number: {asset_number}, Location: {location}")
+
         # Perform search using the updated function
         result = search_documents_db(session, title=title, area=area, equipment_group=equipment_group, model=model, asset_number=asset_number, location=location)
-        
+
         if 'documents' in result:
             return jsonify(result)
         else:
@@ -73,7 +65,7 @@ def search_documents():
 
 def search_documents_db(session, title='', area='', equipment_group='', model='', asset_number='', location=''):
     logger.info("Starting search_documents_db")
-    logger.debug(f"Search parameters - title: {title}, area: {area}, equipment_group: {equipment_group}, model: {model}, asset_number: {asset_number}, location: {location}")
+    logger.info(f"Search parameters - title: {title}, area: {area}, equipment_group: {equipment_group}, model: {model}, asset_number: {asset_number}, location: {location}")
 
     try:
         # Create the base query with explicit join using .select_from and .join
