@@ -1,8 +1,7 @@
-from audioop import error
 
+# region todo: Clean up imports
+from audioop import error
 from flask import Blueprint, jsonify, request, send_from_directory, send_file, flash
-from sqlalchemy.orm import sessionmaker, scoped_session
-from sqlalchemy import create_engine
 import os
 import numpy as np
 from PIL import Image as PILImage
@@ -12,14 +11,10 @@ from plugins.image_modules.image_models import get_image_model_handler
 from modules.configuration.config import (DATABASE_URL, DATABASE_PATH_IMAGES_FOLDER, BASE_DIR,
                                           DATABASE_DIR)
 from modules.configuration.log_config import logger
+from modules.configuration.config_env import DatabaseConfig
+# end region
 
-
-# Create SQLAlchemy engine
-engine = create_engine(DATABASE_URL)
-
-# Create a session factory
-Session = scoped_session(sessionmaker(bind=engine))
-
+db_config = DatabaseConfig()
 
 image_compare_bp = Blueprint('image_compare_bp', __name__)
 
@@ -72,7 +67,8 @@ def upload_and_compare():
         logger.info('Starting comparison with stored images in the database.')
 
         try:
-            session = Session()
+            # Use db_config.get_main_session() to get the session
+            session = db_config.get_main_session()
             stored_images = session.query(Image).join(ImageEmbedding).all()
             logger.debug(f'Fetched {len(stored_images)} stored images from the database.')
 
@@ -134,11 +130,12 @@ def uploaded_file(filename):
     logger.info(f'Serving file {filename} from uploads.')
     return send_from_directory(DATABASE_PATH_IMAGES_FOLDER, filename)
 
+
 @image_compare_bp.route('/serve_image/<int:image_id>')
 def serve_image_route(image_id):
     logger.info(f"Received request to serve image with ID: {image_id}")
 
-    with Session() as session:
+    with db_config.get_main_session() as session:
         try:
             return serve_image(session, image_id)
         except Exception as e:
@@ -146,12 +143,13 @@ def serve_image_route(image_id):
             flash(f"Error serving image {image_id}", "error")
             return "Image not found", 404
 
+
 def serve_image(session, image_id):
     logger.info(f"Attempting to retrieve image with ID: {image_id}")
     try:
         image = session.query(Image).filter_by(id=image_id).first()
         if image:
-            file_path = os.path.join(BASE_DIR, image.file_path)
+            file_path = os.path.join(DATABASE_DIR, image.file_path)
             if os.path.exists(file_path):
                 logger.info(f"Serving file: {file_path}")
                 return send_file(file_path, mimetype='image/jpeg', as_attachment=False)
@@ -164,4 +162,5 @@ def serve_image(session, image_id):
     except Exception as e:
         logger.exception("Unhandled error while serving the image:")
         return "Internal Server Error", 500
+
 
