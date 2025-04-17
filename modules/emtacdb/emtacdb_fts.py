@@ -601,6 +601,9 @@ class Part(Base):
 
     __table_args__ = (UniqueConstraint('part_number', name='_part_number_uc'),)
 
+# region
+# Todo: create method for serving
+# todo: create method for searching image
 class Image(Base):
     __tablename__ = 'image'
 
@@ -617,7 +620,7 @@ class Image(Base):
     image_embedding = relationship("ImageEmbedding", back_populates="image")
     image_position_association = relationship("ImagePositionAssociation", back_populates= "image")
     tool_image_association = relationship("ToolImageAssociation", back_populates="image",cascade="all, delete-orphan")
-
+# end region
 class ImageEmbedding(Base):
     __tablename__ = 'image_embedding'
 
