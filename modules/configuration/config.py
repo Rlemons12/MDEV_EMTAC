@@ -55,6 +55,7 @@ CURRENT_EMBEDDING_MODEL="OpenAIEmbeddingModel"
 OPENAI_API_KEY = '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' #was API_KEY
 HUGGINGFACE_API_KEY="..."
 #Visual Code api = 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
+# api git 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
 
 # NLP model setup
 nlp_model_name = "mrm8488/t5-base-finetuned-question-generation-ap"
