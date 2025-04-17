@@ -1,11 +1,10 @@
-<!--templates/upload_search_database.html-->
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Database Entry</title>
-    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/redbanner.css') }}">
+{% extends "module_template_html/base_template.html" %}
+
+{% block title %}Database Entry{% endblock %}
+
+{% block extra_head %}
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/upload_styles.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" rel="stylesheet" />
     <style>
         .drop-zone {
             border: 2px dashed #ccc;
@@ -30,285 +29,178 @@
             margin-right: 20px;
         }
     </style>
-</head>
-<body>
-    <div class="banner">
-        THIS IS FOR REFERENCE ONLY. ALL INFORMATION SHOULD BE VERIFIED WITH CURRENT SOP'S
-        <a href="#" id="commentPopupLink" style="color: #39FF14;">Leave a Comment</a>
-    </div>
+{% endblock %}
 
-    <div class="sidebar" id="sidebar">
-  <!-- Toggle Button -->
-  <button class="toggle-btn" onclick="toggleSidebar()">Toggle Sidebar</button>
+{% block sidebar %}
+    {% set current_page = 'search' %}
+    {% include 'module_template_html/base_sidebar.html' %}
+{% endblock %}
 
-  <!-- User Information -->
-  <div class="sidebar-header">
-    <h3>User Level: {{ session['user_level'] }}</h3>
-    <h2 style="color: Yellow;">Welcome {{ session['first_name'] }}! How can I assist you?</h2>
-  </div>
-
-  <!-- Common Navigation Links -->
-  <div class="sidebar-nav">
-    <a href="/pst_troubleshooting/" class="nav-link highlight">Search Troubleshooting</a>
-    <a href="/upload_search_database" class="nav-link highlight">Search and Upload</a>
-    <a href="/bill_of_materials" class="nav-link highlight">Parts and BOMs</a>
-  </div>
-
-  <!-- Advanced Links (For Non-STANDARD Users) -->
-  {% if session['user_level'] != 'STANDARD' %}
-    <div class="sidebar-nav advanced-links">
-      <!-- Return link (for ADMIN or LEVEL_III, styled distinctly) -->
-      {% if session['user_level'] == 'ADMIN' or session['user_level'] == 'LEVEL_III' %}
-        <a href="/" class="nav-link" style="color: #FFFFFF;">Return to Main Page</a>
-      {% else %}
-        <a href="/" class="nav-link">Return to Main Page</a>
-      {% endif %}
-      <a href="/troubleshooting_guide" class="nav-link highlight">Update Troubleshooting Guide</a>
-
-      <!-- Additional Advanced Links for ADMIN and LEVEL_III -->
-      {% if session['user_level'] == 'ADMIN' or session['user_level'] == 'LEVEL_III' %}
-        <a href="/position_data_assignment" class="nav-link highlight">Position Data Assignment</a>
-        <a href="/tool/submit_tool_data" class="nav-link highlight">Tools: Entry and Search</a>
-      {% endif %}
-    </div>
-  {% endif %}
-
-  <!-- Search Related Links -->
-  <div class="sidebar-nav search-links">
-    <a href="#search-documents" onclick="showForm('search-documents')" class="nav-link">Search Documents</a>
-    <a href="#search-images" onclick="showForm('search-images')" class="nav-link">Search Images</a>
-    <a href="#compare-images" onclick="showForm('compare-images')" class="nav-link">Compare Images</a>
-
-    {% if session['user_level'] == 'ADMIN' or session['user_level'] == 'LEVEL_III' %}
-      <a href="#search-powerpoints" onclick="showForm('search-powerpoints')" class="nav-link">Search PowerPoints</a>
-      <a href="#upload-image" onclick="showForm('upload-image')" class="nav-link">Upload Image</a>
-      <a href="#upload-document" onclick="showForm('upload-document')" class="nav-link">Upload Document</a>
-      <a href="#upload-powerpoint" onclick="showForm('upload-powerpoint')" class="nav-link">Upload PowerPoint</a>
-      <a href="#batch-upload" onclick="showForm('batch-upload')" class="nav-link">Batch Upload Documents</a>
-    {% endif %}
-  </div>
-
-  <!-- BOM Specific Links (Displayed only on the BOM Page) -->
-  {% if current_page == 'bom' %}
-    <div class="sidebar-nav bom-links">
-      <a href="#search-bill-of-materials" onclick="showForm('search-bill-of-materials')" class="nav-link">Search Bill of Materials</a>
-      <a href="#upload-bill-of-materials" onclick="showForm('upload-bill-of-materials')" class="nav-link">Upload Bill of Materials</a>
-      <a href="#1enter-new-part-number" onclick="showForm('1enter-new-part-number')" class="nav-link">Enter New Part</a>
-      <a href="#edit-part" onclick="showForm('edit-part')" class="nav-link">Edit Part</a>
-    </div>
-  {% endif %}
-
-  <!-- Logout Link (Always Displayed) -->
-  <div class="sidebar-nav">
-    <a href="/logout" class="logout-button" style="color: #FF5F1F;">Logout</a>
-  </div>
-</div>
-
-    <!-- Popup Modal Structure -->
-    <div id="commentPopup" style="display: none;">
-        <form id="commentForm">
-            <h2>Leave a Comment</h2>
-            <!-- Instructions for filling out the form -->
-            <p>Instructions: You can write your comment, paste an image, or upload a file.</p>
-
-            <!-- Comment box where users can paste an image or type text -->
-            <textarea name="comment" id="comment" placeholder="Write your comment here..." required></textarea><br>
-
-            <!-- Hidden field to store base64 image data -->
-            <input type="hidden" id="imageData" name="imageData">
-
-            <!-- Display an indicator or preview if an image was pasted -->
-            <div id="pastedImageFeedback" style="display: none; color: green;">
-                Image snippet successfully added!
-            </div>
-            <img id="pastedImagePreview" src="" alt="Pasted Image Preview" style="display:none; max-width: 100px; margin-top: 10px;" />
-
-            <!-- Option to upload a file -->
-            <label for="fileUpload">Or upload an image:</label><br>
-            <input type="file" id="fileUpload" name="screenshot" accept="image/*" /><br><br>
-
-            <button type="submit">Send</button>
-            <button type="button" id="closePopup">Close</button>
+{% block content %}
+    <div id="upload-image" class="form-container">
+        <h2>Upload Image</h2>
+        <form id="upload-image-form" action="/image/upload_image" method="post" enctype="multipart/form-data">
+            <input type="text" name="title" placeholder="Image Title"><br>
+            <textarea name="description" placeholder="Image Description"></textarea><br>
+            <select name="area" id="image_areaDropdown"></select><br>
+            <select name="equipment_group" id="image_equipmentGroupDropdown"></select><br>
+            <select name="model" id="image_modelDropdown"></select><br>
+            <select name="asset_number" id="image_assetNumberDropdown"></select><br>
+            <select name="location" id="image_locationDropdown"></select><br>
+            <input type="file" name="image" accept="image/*" required><br>
+            <input type="submit" value="Upload Image">
         </form>
     </div>
-    <
 
+    <div id="upload-document" class="form-container">
+        <h2>Upload Document</h2>
+        <form action="/documents/add_document" method="post" enctype="multipart/form-data">
+            <label for="title" style="color: Yellow;">Document Title:</label>
+            <input type="text" name="title" id="title" placeholder="Document Title"><br>
+            <label for="areaDropdown" style="color: Yellow;">Area:</label>
+            <select name="area" id="areaDropdown"></select><br>
+            <label for="equipmentGroupDropdown" style="color: Yellow;">Equipment Group:</label>
+            <select name="equipment_group" id="equipmentGroupDropdown"></select><br>
+            <label for="modelDropdown" style="color: Yellow;">Model:</label>
+            <select name="model" id="modelDropdown"></select><br>
+            <label for="assetNumberDropdown" style="color: Yellow;">Asset Number:</label>
+            <select name="asset_number" id="assetNumberDropdown"></select><br>
+            <label for="locationDropdown" style="color: Yellow;">Location:</label>
+            <select name="location" id="locationDropdown"></select><br>
+            <input type="file" name="files" id="files" multiple><br>
+            <input type="submit" value="Upload Document">
+        </form>
+    </div>
 
-        <div id="upload-image" class="form-container">
-            <h2>Upload Image</h2>
-            <form id="upload-image-form" action="/image/upload_image" method="post" enctype="multipart/form-data">
-                <input type="text" name="title" placeholder="Image Title"><br>
-                <textarea name="description" placeholder="Image Description"></textarea><br>
-                <select name="area" id="image_areaDropdown"></select><br>
-                <select name="equipment_group" id="image_equipmentGroupDropdown"></select><br>
-                <select name="model" id="image_modelDropdown"></select><br>
-                <select name="asset_number" id="image_assetNumberDropdown"></select><br>
-                <select name="location" id="image_locationDropdown"></select><br>
-                <input type="file" name="image" accept="image/*" required><br>
-                <input type="submit" value="Upload Image">
-            </form>
-        </div>
+    <div id="upload-powerpoint" class="form-container">
+        <h2>Upload PowerPoint</h2>
+        <form action="/powerpoints/upload_powerpoint" method="post" enctype="multipart/form-data">
+            <input type="text" name="title" placeholder="PowerPoint Title"><br>
+            <label for="area" style="color: Yellow;">Area:</label><br>
+            <select name="area" id="uploadpowerpoint_areaDropdown"></select><br>
+            <label for="equipment_group" style="color: Yellow;">Equipment Group:</label><br>
+            <select name="equipment_group" id="uploadpowerpoint_equipmentGroupDropdown"></select><br>
+            <label for="model" style="color: Yellow;">Model:</label><br>
+            <select name="model" id="uploadpowerpoint_modelDropdown"></select><br>
+            <label for="asset_number" style="color: Yellow;">Asset Number:</label><br>
+            <select name="asset_number" id="uploadpowerpoint_assetNumberDropdown"></select><br>
+            <label for="location" style="color: Yellow;">Location:</label><br>
+            <select name="location" id="uploadpowerpoint_locationDropdown"></select><br>
+            <input type="text" name="description" placeholder="PowerPoint Description"><br>
+            <input type="file" name="powerpoint" accept=".pptx" required><br>
+            <input type="submit" value="Upload PowerPoint">
+        </form>
+    </div>
 
-        <div id="upload-image-folder" class="form-container">
-            <h2>Upload Image Folder</h2>
-            <form id="folder-upload-form" action="{{ url_for('folder_image_embedding_bp.process_folder') }}" method="post" enctype="multipart/form-data">
-                <input type="text" name="folder_path" placeholder="Enter folder path"><br>
-                <input type="text" name="model_name" placeholder="Model Name (optional)"><br>
-                <input type="submit" value="Process Folder">
-            </form>
-        </div>
+    <div id="batch-upload" class="form-container">
+        <h2>Batch Upload Documents</h2>
+        <form action="/batch_processing" method="post" enctype="multipart/form-data">
+            <label for="batchTitle" style="color: Yellow;">Document Title:</label>
+            <input type="text" name="batchTitle" id="batchTitle" placeholder="Document Title"><br>
+            <label for="batchAreaDropdown" style="color: Yellow;">Area:</label>
+            <select name="batchArea" id="batchAreaDropdown"></select><br>
+            <label for="batchEquipmentGroupDropdown" style="color: Yellow;">Equipment Group:</label>
+            <select name="batchEquipmentGroup" id="batchEquipmentGroupDropdown"></select><br>
+            <label for="batchModelDropdown" style="color: Yellow;">Model:</label>
+            <select name="batchModel" id="batchModelDropdown"></select><br>
+            <label for="batchAssetNumberDropdown" style="color: Yellow;">Asset Number:</label>
+            <select name="batchAssetNumber" id="batchAssetNumberDropdown"></select><br>
+            <label for="batchLocationDropdown" style="color: Yellow;">Location:</label>
+            <select name="batchLocation" id="batchLocationDropdown"></select><br>
+            <label for="batchFolderPath" style="color: Yellow;">Folder Path:</label>
+            <input type="text" name="batchFolderPath" id="batchFolderPath" placeholder="Absolute Folder Path"><br>
+            <input type="file" name="files" id="files" multiple><br>
+            <input type="submit" value="Process Folder">
+        </form>
+    </div>
 
-        <div id="upload-document" class="form-container">
-            <h2>Upload Document</h2>
-            <form action="/documents/add_document" method="post" enctype="multipart/form-data">
-                <label for="title" style="color: Yellow;">Document Title:</label>
-                <input type="text" name="title" id="title" placeholder="Document Title"><br>
-                <label for="areaDropdown" style="color: Yellow;">Area:</label>
-                <select name="area" id="areaDropdown"></select><br>
-                <label for="equipmentGroupDropdown" style="color: Yellow;">Equipment Group:</label>
-                <select name="equipment_group" id="equipmentGroupDropdown"></select><br>
-                <label for="modelDropdown" style="color: Yellow;">Model:</label>
-                <select name="model" id="modelDropdown"></select><br>
-                <label for="assetNumberDropdown" style="color: Yellow;">Asset Number:</label>
-                <select name="asset_number" id="assetNumberDropdown"></select><br>
-                <label for="locationDropdown" style="color: Yellow;">Location:</label>
-                <select name="location" id="locationDropdown"></select><br>
-                <input type="file" name="files" id="files" multiple><br>
-                <input type="submit" value="Upload Document">
-            </form>
-        </div>
+    <div id="search-powerpoints" class="form-container">
+        <h2>Search PowerPoints</h2>
+        <form id="search-powerpoints-form">
+            <label for="description" style="color: Yellow;">Description:</label><br>
+            <input type="text" name="description" id="search_powerpoints_description" placeholder="Search by Description"><br>
+            <label for="title" style="color: Yellow;">Title:</label><br>
+            <input type="text" name="title" id="search_powerpoints_title" placeholder="Search by Title"><br>
+            <label for="area" style="color: Yellow;">Area:</label><br>
+            <select name="searchpowerpoint_area" id="searchpowerpoint_areaDropdown"></select><br>
+            <label for="equipment_group" style="color: Yellow;">Equipment Group:</label><br>
+            <select name="searchpowerpoint_equipment_group" id="searchpowerpoint_equipmentGroupDropdown"></select><br>
+            <label for="model" style="color: Yellow;">Model:</label><br>
+            <select name="searchpowerpoint_model" id="searchpowerpoint_modelDropdown"></select><br>
+            <label for="asset_number" style="color: Yellow;">Asset Number:</label><br>
+            <select name="searchpowerpoint_asset_number" id="searchpower_assetNumberDropdown"></select><br>
+            <label for="location" style="color: Yellow;">Location:</label><br>
+            <select name="searchpowerpoint_location" id="searchpowerpoint_locationDropdown"></select><br>
+            <input type="submit" value="Search">
+        </form>
+    </div>
 
-        <div id="upload-powerpoint" class="form-container">
-            <h2>Upload PowerPoint</h2>
-            <form action="/powerpoints/upload_powerpoint" method="post" enctype="multipart/form-data">
-                <input type="text" name="title" placeholder="PowerPoint Title"><br>
-                <label for="area" style="color: Yellow;">Area:</label><br>
-                <select name="area" id="uploadpowerpoint_areaDropdown"></select><br>
-                <label for="equipment_group" style="color: Yellow;">Equipment Group:</label><br>
-                <select name="equipment_group" id="uploadpowerpoint_equipmentGroupDropdown"></select><br>
-                <label for="model" style="color: Yellow;">Model:</label><br>
-                <select name="model" id="uploadpowerpoint_modelDropdown"></select><br>
-                <label for="asset_number" style="color: Yellow;">Asset Number:</label><br>
-                <select name="asset_number" id="uploadpowerpoint_assetNumberDropdown"></select><br>
-                <label for="location" style="color: Yellow;">Location:</label><br>
-                <select name="location" id="uploadpowerpoint_locationDropdown"></select><br>
-                <input type="text" name="description" placeholder="PowerPoint Description"><br>
-                <input type="file" name="powerpoint" accept=".pptx" required><br>
-                <input type="submit" value="Upload PowerPoint">
-            </form>
-        </div>
+    <div id="search-images" class="form-container">
+        <h2>Search Images</h2>
+        <form id="search-images-form">
+            <label for="description" style="color: Yellow;">Description:</label><br>
+            <input type="text" name="description" id="search_images_description" placeholder="Search by Description"><br>
+            <label for="title" style="color: Yellow;">Title:</label><br>
+            <input type="text" name="title" id="search_images_title" placeholder="Search by Title"><br>
+            <label for="area" style="color: Yellow;">Area:</label><br>
+            <select name="searchimage_area" id="searchimage_areaDropdown"></select><br>
+            <label for="equipment_group" style="color: Yellow;">Equipment Group:</label><br>
+            <select name="searchimage_equipment_group" id="searchimage_equipmentGroupDropdown"></select><br>
+            <label for="model" style="color: Yellow;">Model:</label><br>
+            <select name="searchimage_model" id="searchimage_modelDropdown"></select><br>
+            <label for="asset_number" style="color: Yellow;">Asset Number:</label><br>
+            <select name="searchimage_asset_number" id="searchimage_assetNumberDropdown"></select><br>
+            <label for="location" style="color: Yellow;">Location:</label><br>
+            <select name="searchimage_location" id="searchimage_locationDropdown"></select><br>
+            <input type="submit" value="Search">
+        </form>
+    </div>
 
-        <div id="batch-upload" class="form-container">
-            <h2>Batch Upload Documents</h2>
-            <form action="/batch_processing" method="post" enctype="multipart/form-data">
-                <label for="batchTitle" style="color: Yellow;">Document Title:</label>
-                <input type="text" name="batchTitle" id="batchTitle" placeholder="Document Title"><br>
-                <label for="batchAreaDropdown" style="color: Yellow;">Area:</label>
-                <select name="batchArea" id="batchAreaDropdown"></select><br>
-                <label for="batchEquipmentGroupDropdown" style="color: Yellow;">Equipment Group:</label>
-                <select name="batchEquipmentGroup" id="batchEquipmentGroupDropdown"></select><br>
-                <label for="batchModelDropdown" style="color: Yellow;">Model:</label>
-                <select name="batchModel" id="batchModelDropdown"></select><br>
-                <label for="batchAssetNumberDropdown" style="color: Yellow;">Asset Number:</label>
-                <select name="batchAssetNumber" id="batchAssetNumberDropdown"></select><br>
-                <label for="batchLocationDropdown" style="color: Yellow;">Location:</label>
-                <select name="batchLocation" id="batchLocationDropdown"></select><br>
-                <label for="batchFolderPath" style="color: Yellow;">Folder Path:</label>
-                <input type="text" name="batchFolderPath" id="batchFolderPath" placeholder="Absolute Folder Path"><br>
-                <input type="file" name="files" id="files" multiple><br>
-                <input type="submit" value="Process Folder">
-            </form>
-        </div>
-
-        <div id="search-powerpoints" class="form-container">
-            <h2>Search PowerPoints</h2>
-            <form id="search-powerpoints-form">
-                <label for="description" style="color: Yellow;">Description:</label><br>
-                <input type="text" name="description" id="search_powerpoints_description" placeholder="Search by Description"><br>
-                <label for="title" style="color: Yellow;">Title:</label><br>
-                <input type="text" name="title" id="search_powerpoints_title" placeholder="Search by Title"><br>
-                <label for="area" style="color: Yellow;">Area:</label><br>
-                <select name="searchpowerpoint_area" id="searchpowerpoint_areaDropdown"></select><br>
-                <label for="equipment_group" style="color: Yellow;">Equipment Group:</label><br>
-                <select name="searchpowerpoint_equipment_group" id="searchpowerpoint_equipmentGroupDropdown"></select><br>
-                <label for="model" style="color: Yellow;">Model:</label><br>
-                <select name="searchpowerpoint_model" id="searchpowerpoint_modelDropdown"></select><br>
-                <label for="asset_number" style="color: Yellow;">Asset Number:</label><br>
-                <select name="searchpowerpoint_asset_number" id="searchpower_assetNumberDropdown"></select><br>
-                <label for="location" style="color: Yellow;">Location:</label><br>
-                <select name="searchpowerpoint_location" id="searchpowerpoint_locationDropdown"></select><br>
-                <input type="submit" value="Search">
-            </form>
-        </div>
-
-        <div id="search-images" class="form-container">
-            <h2>Search Images</h2>
-            <form id="search-images-form">
-                <label for="description" style="color: Yellow;">Description:</label><br>
-                <input type="text" name="description" id="search_images_description" placeholder="Search by Description"><br>
-                <label for="title" style="color: Yellow;">Title:</label><br>
-                <input type="text" name="title" id="search_images_title" placeholder="Search by Title"><br>
-                <label for="area" style="color: Yellow;">Area:</label><br>
-                <select name="searchimage_area" id="searchimage_areaDropdown"></select><br>
-                <label for="equipment_group" style="color: Yellow;">Equipment Group:</label><br>
-                <select name="searchimage_equipment_group" id="searchimage_equipmentGroupDropdown"></select><br>
-                <label for="model" style="color: Yellow;">Model:</label><br>
-                <select name="searchimage_model" id="searchimage_modelDropdown"></select><br>
-                <label for="asset_number" style="color: Yellow;">Asset Number:</label><br>
-                <select name="searchimage_asset_number" id="searchimage_assetNumberDropdown"></select><br>
-                <label for="location" style="color: Yellow;">Location:</label><br>
-                <select name="searchimage_location" id="searchimage_locationDropdown"></select><br>
-                <input type="submit" value="Search">
-            </form>
-        </div>
-
-        <div class="content" id="content">
-            <div id="compare-images" class="form-container">
-                <h2>Upload and Compare Image</h2>
-                <form id="upload-compare-form" action="/upload_and_compare" method="post" enctype="multipart/form-data">
-                    <div id="drop-zone" class="drop-zone">
-                        Drag & Drop your image here or click to upload
-                    </div>
-                    <input type="file" id="file-input" name="query_image" accept="image/*" style="display: none;">
-                    <input type="hidden" name="model_name" value="clip">
-                    <button type="submit" style="display: none;">Upload and Compare</button>
-                </form>
+    <div id="compare-images" class="form-container">
+        <h2>Upload and Compare Image</h2>
+        <form id="upload-compare-form" action="/upload_and_compare" method="post" enctype="multipart/form-data">
+            <div id="drop-zone" class="drop-zone">
+                Drag & Drop your image here or click to upload
             </div>
+            <input type="file" id="file-input" name="query_image" accept="image/*" style="display: none;">
+            <input type="hidden" name="model_name" value="clip">
+            <button type="submit" style="display: none;">Upload and Compare</button>
+        </form>
+    </div>
 
-        <div id="search-documents" class="form-container">
-            <h2>Search Documents</h2>
-            <form id="search-documents-form">
-                <label for="title" style="color: Yellow;">Title:</label><br>
-                <input type="text" name="title" id="search_documents_title" placeholder="Title"><br>
-                <label for="area" style="color: Yellow;">Area:</label><br>
-                <select name="searchdocument_area" id="searchdocument_areaDropdown"></select><br>
-                <label for="equipment_group" style="color: Yellow;">Equipment Group:</label><br>
-                <select name="searchdocument_equipmentgroup" id="searchdocument_equipmentGroupDropdown"></select><br>
-                <label for="model" style="color: Yellow;">Model:</label><br>
-                <select name="searchdocument_model" id="searchdocument_modelDropdown"></select><br>
-                <label for="asset_number" style="color: Yellow;">Asset Number:</label><br>
-                <select name="searchdocument_asset_number" id="searchdocument_assetNumberDropdown"></select><br>
-                <label for="location" style="color: Yellow;">Location:</label><br>
-                <select name="searchdocument_location" id="searchdocument_locationDropdown"></select><br>
-                <input type="submit" value="Search">
-            </form>
-        </div>
+    <div id="search-documents" class="form-container">
+        <h2>Search Documents</h2>
+        <form id="search-documents-form">
+            <label for="title" style="color: Yellow;">Title:</label><br>
+            <input type="text" name="title" id="search_documents_title" placeholder="Title"><br>
+            <label for="area" style="color: Yellow;">Area:</label><br>
+            <select name="searchdocument_area" id="searchdocument_areaDropdown"></select><br>
+            <label for="equipment_group" style="color: Yellow;">Equipment Group:</label><br>
+            <select name="searchdocument_equipmentgroup" id="searchdocument_equipmentGroupDropdown"></select><br>
+            <label for="model" style="color: Yellow;">Model:</label><br>
+            <select name="searchdocument_model" id="searchdocument_modelDropdown"></select><br>
+            <label for="asset_number" style="color: Yellow;">Asset Number:</label><br>
+            <select name="searchdocument_asset_number" id="searchdocument_assetNumberDropdown"></select><br>
+            <label for="location" style="color: Yellow;">Location:</label><br>
+            <select name="searchdocument_location" id="searchdocument_locationDropdown"></select><br>
+            <input type="submit" value="Search">
+        </form>
+    </div>
 
-        <div id="results" class="results-container">
-            <h2>Search Results</h2>
-            <ul id="documents-list"></ul>
-            <ul id="image-results" class="image-results-container"></ul>
-            <ul id="image-compare-results" class="image-compare-results-container"></ul>
-        </div>
+    <div id="results" class="results-container">
+        <h2>Search Results</h2>
+        <ul id="documents-list"></ul>
+        <ul id="image-results" class="image-results-container"></ul>
+        <ul id="image-compare-results" class="image-compare-results-container"></ul>
+    </div>
+{% endblock %}
 
-    <!-- Include jQuery using a CDN -->
+{% block extra_scripts %}
+    <!-- jQuery and Select2 -->
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
-
-    <!-- Include Select2 library -->
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" rel="stylesheet" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
-
-    <!-- Include your custom JavaScript file -->
+    
+    <!-- Custom JavaScript files -->
     <script src="{{ url_for('static', filename='js/batch_upload.js') }}"></script>
     <script src="{{ url_for('static', filename='js/upload_image.js') }}"></script>
     <script src="{{ url_for('static', filename='js/image_upload.js') }}"></script>
@@ -316,18 +208,9 @@
     <script src="{{ url_for('static', filename='js/document_search.js') }}"></script>
     <script src="{{ url_for('static', filename='js/image_search.js') }}"></script>
     <script src="{{ url_for('static', filename='js/powerpoint_search.js') }}"></script>
-    <!--<script src="{{ url_for('static', filename='drag_and_drop.js') }}"></script>-->
-    <!--<script src="{{ url_for('static', filename='upload_image_folder.js') }}"></script>-->
     <script src="{{ url_for('static', filename='js/image_compare.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/comment_pop_up.js')}}"></script>
 
     <script>
-        function toggleSidebar() {
-            var sidebar = document.getElementById('sidebar');
-            console.log('Toggling sidebar. Current state:', sidebar.classList.contains('collapsed') ? 'collapsed' : 'expanded');
-            sidebar.classList.toggle('collapsed');
-        }
-
         function showForm(formId) {
             console.log('Showing form:', formId);
             var forms = document.getElementsByClassName('form-container');
@@ -478,6 +361,4 @@
             showResults();
         }
     </script>
-
-</body>
-</html>
+{% endblock %}
