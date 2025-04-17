@@ -1,46 +1,142 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bill of Material Creation Results</title>
+{% extends "module_template_html/base_template.html" %}
+
+{% block title %}Bill of Material Creation Results{% endblock %}
+
+{% block extra_head %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/create_bill_of_material_results.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/redbanner.css')}}">
-</head>
-<body>
-    <div class="banner">
-        THIS IS FOR REFERENCE ONLY. ALL INFORMATION SHOULD BE VERIFIED WITH CURRENT SOP'S
-        <a href="#" id="commentPopupLink" style="color: #39FF14;">Leave a Comment</a>
-    </div>
-    <!-- Popup Modal Structure -->
-    <div id="commentPopup" style="display: none;">
-        <form id="commentForm">
-            <h2>Leave a Comment</h2>
-            <!-- Instructions for filling out the form -->
-            <p>Instructions: You can write your comment, paste an image, or upload a file.</p>
+    <style>
+        /* Ensure CSS is applied even if external stylesheet doesn't load */
+        body {
+            background-image: url("/static/background images/loadup.webp");
+            background-size: cover;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+            background-position: center;
+            font-family: Arial, sans-serif;
+            color: #333;
+        }
 
-            <!-- Comment box where users can paste an image or type text -->
-            <textarea name="comment" id="comment" placeholder="Write your comment here..." required></textarea><br>
+        .container {
+            max-width: 1800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #ffffff; /* Set background to solid white, no transparency */
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
 
-            <!-- Hidden field to store base64 image data -->
-            <input type="hidden" id="imageData" name="imageData">
+        .header-info {
+            padding: 10px 0;
+            text-align: center;
+            margin-bottom: 20px;
+            background-color: #f2f2f2; /* Optional: Adds a background color to the header section */
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
 
-            <!-- Display an indicator or preview if an image was pasted -->
-            <div id="pastedImageFeedback" style="display: none; color: green;">
-                Image snippet successfully added!
-            </div>
-            <img id="pastedImagePreview" src="" alt="Pasted Image Preview" style="display:none; max-width: 100px; margin-top: 10px;" />
+        h1 {
+            margin: 0;
+            font-size: 1.5em;
+            color: #333;
+        }
 
-            <!-- Option to upload a file -->
-            <label for="fileUpload">Or upload an image:</label><br>
-            <input type="file" id="fileUpload" name="screenshot" accept="image/*" /><br><br>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background-color: #ffffff; /* Ensuring table has solid white background */
+        }
 
-            <button type="submit">Send</button>
-            <button type="button" id="closePopup">Close</button>
-        </form>
-    </div>
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border: 1px solid #dddddd;
+            background-color: #ffffff; /* Ensuring cells have solid white background */
+        }
 
-    <div class="container"> <!-- Added container div for layout control -->
+        th {
+            background-color: #f2f2f2;
+        }
+
+        /* Adjust column widths */
+        th:nth-child(1), td:nth-child(1) { width: 15%; } /* Part Number */
+        th:nth-child(2), td:nth-child(2) { width: 20%; } /* Description */
+        th:nth-child(3), td:nth-child(3) { width: 15%; } /* OEM Manufacturer */
+        th:nth-child(4), td:nth-child(4) { width: 12%; } /* Model */
+        th:nth-child(5), td:nth-child(5) { width: 8%; }  /* Class Flag */
+        th:nth-child(6), td:nth-child(6) { width: 5%; }  /* UD6 */
+        th:nth-child(7), td:nth-child(7) { width: 8%; }  /* Type */
+        th:nth-child(8), td:nth-child(8) { width: 20%; } /* Notes */
+        th:nth-child(9), td:nth-child(9) { width: 20%; } /* Documentation */
+        th:nth-child(10), td:nth-child(10) { width: 15%; } /* Image */
+
+        .thumbnail {
+            max-width: 100px;
+            max-height: 100px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 5px;
+            object-fit: cover;
+        }
+
+        .pagination {
+            margin-top: 20px;
+            background-color: #ffffff; /* Solid white background for pagination */
+            padding: 10px;
+            border-radius: 8px;
+        }
+
+        .pagination a {
+            margin-right: 10px;
+            text-decoration: none;
+            color: #007BFF;
+        }
+
+        .pagination a:hover {
+            text-decoration: underline;
+        }
+
+        .pagination .next {
+            float: right;
+        }
+
+        .back-to-form {
+            margin-top: 20px;
+            display: block;
+            text-align: center;
+            color: #007BFF;
+            text-decoration: none;
+            background-color: #ffffff; /* Solid white background */
+            padding: 10px;
+            border-radius: 8px;
+            width: 200px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .back-to-form:hover {
+            text-decoration: underline;
+        }
+
+        /* Ensure content area has a solid white background */
+        #content {
+            background-color: #ffffff !important;
+        }
+
+        /* Override any base template styles that might be causing transparency */
+        .content, .main-container, .results-container {
+            background-color: #ffffff !important;
+        }
+    </style>
+{% endblock %}
+
+{% block sidebar %}
+    {% set current_page = 'bom' %}
+    {% include 'module_template_html/base_sidebar.html' %}
+{% endblock %}
+
+{% block content %}
+    <div style="background-color: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); margin-bottom: 20px;">
         <!-- Header Info (optional, if needed) -->
         <div class="header-info">
             <h1>
@@ -55,6 +151,9 @@
                 {% endif %}
             </h1>
         </div>
+
+        <!-- Back to Search Link at the top -->
+        <a class="back-to-form" href="{{ url_for('bill_of_materials') }}">Back to Search</a>
 
         <table>
             <thead>
@@ -100,7 +199,7 @@
         </table>
 
         <!-- Pagination, Items Per Page Selector, and Page Jump -->
-        <div class="pagination">
+        <div class="pagination" style="margin-top: 20px;">
             <form method="GET" action="{{ url_for('create_bill_of_material_bp.view_bill_of_material') }}" style="display: inline;">
                 <label for="per_page">Items per page:</label>
                 <select id="per_page" name="per_page" onchange="this.form.submit()">
@@ -132,9 +231,15 @@
             {% endif %}
         </div>
 
-        <a class="back-to-form" href="{{ url_for('bill_of_materials') }}">Back to Search</a>
-
+        <!-- Back to Search Link at the bottom -->
+        <a class="back-to-form" href="{{ url_for('bill_of_materials') }}" style="margin-top: 20px; display: block; text-align: center;">Back to Search</a>
     </div>
-    <script src="{{ url_for('static', filename='js/comment_pop_up.js')}}"></script>
-</body>
-</html>
+{% endblock %}
+
+{% block pagination %}
+<!-- Empty pagination block since we're moving all pagination into the content block -->
+{% endblock %}
+
+{% block extra_scripts %}
+    <!-- No additional scripts required for this page -->
+{% endblock %}
