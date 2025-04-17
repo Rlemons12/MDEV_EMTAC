@@ -1,3 +1,5 @@
+# blueprints/add_document_bp.py
+#review: clean up imports
 import psutil
 from flask import Blueprint, request, jsonify, redirect, url_for
 from plugins.ai_modules import generate_embedding
@@ -24,10 +26,15 @@ from modules.emtacdb.utlity.revision_database.auditlog import commit_audit_logs,
 from modules.configuration.config_env import DatabaseConfig
 import traceback
 
+# region why: should we move this to a cenetral location?
 POST_URL = os.getenv('IMAGE_POST_URL', 'http://localhost:5000/image/add_image')
 REQUEST_DELAY = float(os.getenv('REQUEST_DELAY', '1.0'))  # in seconds
+# endregion
 
 db_config = DatabaseConfig()
+
+
+# region review: should use logging model
 
 # Create logs directory if it doesn't exist
 if not os.path.exists('logs'):
@@ -50,12 +57,15 @@ stream_handler.setLevel(logging.INFO)
 stream_handler.setFormatter(logging.Formatter('%(asctime)s - %(threadName)s - %(levelname)s - %(message)s'))
 logger.addHandler(stream_handler)
 
+# endregion
+
 # Create a blueprint for the add_document route
 add_document_bp = Blueprint("add_document_bp", __name__)
 
 # Define the route for adding documents
 @add_document_bp.route("/add_document", methods=["POST"])
 def add_document():
+
     logger.info("Received a request to add documents")
 
     if "files" not in request.files:
@@ -72,6 +82,7 @@ def add_document():
     asset_number = request.form.get("asset_number")
     location = request.form.get("location")
     site_location_title = request.form.get("site_location")
+
 
     try:
         site_location = None
