@@ -1,14 +1,15 @@
 from flask import Blueprint, jsonify
 from modules.configuration.config_env import DatabaseConfig
 from sqlalchemy.exc import SQLAlchemyError
-from modules.emtacdb.emtacdb_fts import (
-    Task, PartTaskAssociation, DrawingTaskAssociation, ImageTaskAssociation, CompleteDocumentTaskAssociation
-)
+from modules.emtacdb.emtacdb_fts import (TaskToolAssociation,Task, PartTaskAssociation, DrawingTaskAssociation,
+                                         ImageTaskAssociation, CompleteDocumentTaskAssociation)
 import logging
 
+# region fixme: Remove logging and use model logger
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+# endregion
 
 db_config = DatabaseConfig()
 
@@ -21,16 +22,16 @@ def get_task_details(task_id):
     logger.info(f"Fetching details for task ID: {task_id}")
 
     try:
-        # Query the Task table
+        # Query the Task table to get the task by ID
         task = session.query(Task).filter_by(id=task_id).first()
 
         if not task:
             logger.warning(f"Task with ID {task_id} not found.")
             return jsonify({"error": "Task not found"}), 404
 
-        # Compile a list of positions associated with the task, with detailed data
+        # Compile a list of positions associated with the task, with detailed position data
         positions = [{
-            "position_id": assoc.position.id if assoc.position else None,  # Added position_id
+            "position_id": assoc.position.id if assoc.position else None,
             "area_id": assoc.position.area_id if assoc.position else None,
             "area_name": assoc.position.area.name if assoc.position and assoc.position.area else None,
             "equipment_group_id": assoc.position.equipment_group_id if assoc.position else None,
@@ -46,6 +47,7 @@ def get_task_details(task_id):
             "site_location_room_number": assoc.position.site_location.room_number if assoc.position and assoc.position.site_location else None
         } for assoc in task.task_positions]
 
+        # Create the basic task data
         task_data = {
             "id": task.id,
             "name": task.name,
@@ -88,12 +90,21 @@ def get_task_details(task_id):
         } for assoc in complete_document_associations if assoc.complete_document]
         logger.info(f"Retrieved {len(complete_documents)} complete documents for task ID {task_id}")
 
-        # Combine all retrieved data
+        # Retrieve associated tools
+        tool_associations = session.query(TaskToolAssociation).filter_by(task_id=task_id).all()
+        tools = [{
+            "id": assoc.tool.id,
+            "name": assoc.tool.name  # Adjust or add more fields if your Tool model contains additional attributes
+        } for assoc in tool_associations if assoc.tool]
+        logger.info(f"Retrieved {len(tools)} tools for task ID {task_id}")
+
+        # Combine all retrieved associations into a single response dictionary
         task_data["associations"] = {
             "parts": parts,
             "drawings": drawings,
             "images": images,
-            "completeDocuments": complete_documents
+            "completeDocuments": complete_documents,
+            "tools": tools
         }
 
         return jsonify({"task": task_data}), 200
@@ -102,6 +113,8 @@ def get_task_details(task_id):
         session.rollback()
         logger.error(f"Database error for task ID {task_id}: {e}")
         return jsonify({"error": str(e)}), 500
+
     finally:
         session.close()
         logger.info(f"Session closed for task ID {task_id}")
+
