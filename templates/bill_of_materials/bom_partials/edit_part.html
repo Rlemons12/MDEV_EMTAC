@@ -1,59 +1,67 @@
-{% extends "base.html" %}
+{% extends 'module_template_html/base_template.html' %}
+
+{% block title %}Edit Part{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/search_bill_of_material.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bill_of_materials.css') }}">
+{% endblock %}
+
 {% block content %}
 <!-- Only display the form if part is defined -->
 {% if part is defined and part %}
 <div class="container">
     <h2>Edit Part: {{ part.part_number }}</h2>
-    
+
     <form method="POST" action="{{ url_for('update_part_bp.edit_part', part_id=part.id) }}" enctype="multipart/form-data">
         <div class="form-group">
             <label for="part_number">Part Number:</label>
             <input type="text" class="form-control" id="part_number" name="part_number" value="{{ part.part_number }}" required>
         </div>
-        
+
         <div class="form-group">
             <label for="name">Name:</label>
             <input type="text" class="form-control" id="name" name="name" value="{{ part.name }}">
         </div>
-        
+
         <div class="form-group">
             <label for="oem_mfg">OEM/Manufacturer:</label>
             <input type="text" class="form-control" id="oem_mfg" name="oem_mfg" value="{{ part.oem_mfg }}">
         </div>
-        
+
         <div class="form-group">
             <label for="model">Model:</label>
             <input type="text" class="form-control" id="model" name="model" value="{{ part.model }}">
         </div>
-        
+
         <div class="form-group">
             <label for="class_flag">Class Flag:</label>
             <input type="text" class="form-control" id="class_flag" name="class_flag" value="{{ part.class_flag }}">
         </div>
-        
+
         <div class="form-group">
             <label for="ud6">UD6:</label>
             <input type="text" class="form-control" id="ud6" name="ud6" value="{{ part.ud6 }}">
         </div>
-        
+
         <div class="form-group">
             <label for="type">Type:</label>
             <input type="text" class="form-control" id="type" name="type" value="{{ part.type }}">
         </div>
-        
+
         <div class="form-group">
             <label for="notes">Notes:</label>
             <textarea class="form-control" id="notes" name="notes" rows="3">{{ part.notes }}</textarea>
         </div>
-        
+
         <div class="form-group">
             <label for="documentation">Documentation:</label>
             <textarea class="form-control" id="documentation" name="documentation" rows="3">{{ part.documentation }}</textarea>
         </div>
-        
+
         <!-- Image Upload Section -->
         <h4 class="mt-4">Part Images</h4>
-        
+
         {% if part_images is defined and part_images %}
         <div class="row mb-4">
             <div class="col-12">
@@ -84,7 +92,7 @@
             </div>
         </div>
         {% endif %}
-        
+
         <div class="card mb-4">
             <div class="card-header">Add New Image</div>
             <div class="card-body">
@@ -92,17 +100,17 @@
                     <label for="part_image">Upload Image:</label>
                     <input type="file" class="form-control-file" id="part_image" name="part_image" accept="image/*">
                 </div>
-                
+
                 <div class="form-group">
                     <label for="image_title">Image Title:</label>
                     <input type="text" class="form-control" id="image_title" name="image_title" placeholder="Enter image title">
                 </div>
-                
+
                 <div class="form-group">
                     <label for="image_description">Image Description:</label>
                     <textarea class="form-control" id="image_description" name="image_description" rows="2" placeholder="Enter image description"></textarea>
                 </div>
-                
+
                 <div class="form-group">
                     <label for="position_id">Position:</label>
                     <select class="form-control" id="position_id" name="position_id">
@@ -116,10 +124,22 @@
                 </div>
             </div>
         </div>
-        
+
         <button type="submit" class="btn btn-primary">Update Part</button>
         <a href="{{ url_for('update_part_bp.search_part') }}" class="btn btn-secondary">Cancel</a>
     </form>
 </div>
+{% else %}
+<div class="container">
+    <div class="alert alert-warning">
+        No part found to edit. Please <a href="{{ url_for('update_part_bp.search_part') }}">search for a part</a> first.
+    </div>
+</div>
 {% endif %}
+{% endblock %}
+
+{% block sidebar %}
+    {% with current_page = 'bom' %}
+        {% include 'module_template_html/base_sidebar.html' %}
+    {% endwith %}
 {% endblock %}
