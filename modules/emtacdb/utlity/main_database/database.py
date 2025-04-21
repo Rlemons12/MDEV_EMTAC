@@ -33,6 +33,7 @@ from plugins import generate_embedding, store_embedding
 from plugins.image_modules.image_models import get_image_model_handler
 from modules.emtacdb.utlity.revision_database.snapshot_utils import create_snapshot
 from modules.configuration.config_env import DatabaseConfig
+from modules.configuration.config import ENABLE_REVISION_CONTROL
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -693,13 +694,20 @@ def excel_to_csv(excel_file_path, csv_file_path):
 
 def add_docx_to_db(title, docx_path, position_id):
     try:
-        # Initialize COM
+        logger.info(f"Starting to process DOCX document: {title} located at {docx_path}")
+
+        # Initialize COM for Word automation
         pythoncom.CoInitialize()
+        logger.debug("COM initialization successful")
+
         # Convert Word document to PDF
         pdf_output_path = docx_path[:-5] + ".pdf"  # Change the extension to .pdf
+        logger.info(f"Converting DOCX to PDF. Output path: {pdf_output_path}")
         convert(docx_path, pdf_output_path)
+        logger.info(f"Successfully converted DOCX to PDF: {pdf_output_path}")
 
         # Now call add_document_to_db with the generated PDF
+        logger.info(f"Calling add_document_to_db with PDF: {pdf_output_path}")
         complete_document_id, success = add_document_to_db(title, pdf_output_path, position_id)
 
         if success:
@@ -708,8 +716,9 @@ def add_docx_to_db(title, docx_path, position_id):
         else:
             logger.error(f"Failed to add DOCX document: {title} as PDF")
             return False
+
     except Exception as e:
-        logger.error(f"An error occurred in add_docx_to_db: {e}")
+        logger.error(f"An error occurred in add_docx_to_db for document '{title}': {e}")
         return False
 
 
@@ -804,33 +813,39 @@ def add_document_to_db(title, file_path, position_id, rev=None):
                     else:
                         logger.info(f"No embedding generated for chunk {i+1} of document: {title} because no model is selected.")
 
+                # Add version info and create snapshots (now optional)
+                if ENABLE_REVISION_CONTROL:
+                    try:
+                        # use your existing session factory
+                        with db_config.get_revision_control_session() as rev_session:
+                            new_version = VersionInfo(
+                                version_number=int(rev[1:]),
+                                description="Document addition version"
+                            )
+                            rev_session.add(new_version)
+                            rev_session.commit()
 
-                # Add version info and create snapshots
-                try:
-                    with RevisionControlSession() as rev_session:
-                        new_version = VersionInfo(version_number=int(rev[1:]), description="Document addition version")
-                        rev_session.add(new_version)
-                        rev_session.commit()
+                            # snapshot the new document
+                            create_snapshot(saved_complete_document, rev_session, CompleteDocumentSnapshot)
 
-                        # Create snapshots for related entities
-                        create_snapshot(saved_complete_document, rev_session, CompleteDocumentSnapshot)
+                            # snapshot whatever else you care about
+                            for cls, snap_cls in (
+                                    (Area, AreaSnapshot),
+                                    (EquipmentGroup, EquipmentGroupSnapshot),
+                                    (Model, ModelSnapshot),
+                                    (AssetNumber, AssetNumberSnapshot),
+                                    (Location, LocationSnapshot),
+                            ):
+                                for obj in session.query(cls).all():
+                                    create_snapshot(obj, rev_session, snap_cls)
 
-                        for area in session.query(Area).all():
-                            create_snapshot(area, rev_session, AreaSnapshot)
-                        for equipment_group in session.query(EquipmentGroup).all():
-                            create_snapshot(equipment_group, rev_session, EquipmentGroupSnapshot)
-                        for model in session.query(Model).all():
-                            create_snapshot(model, rev_session, ModelSnapshot)
-                        for asset_number in session.query(AssetNumber).all():
-                            create_snapshot(asset_number, rev_session, AssetNumberSnapshot)
-                        for location in session.query(Location).all():
-                            create_snapshot(location, rev_session, LocationSnapshot)
-
-                        rev_session.commit()
-                        logger.info("Version info added and snapshots created.")
-                except Exception as e:
-                    logger.error(f"An error occurred while adding version info and creating snapshots: {e}")
-                    rev_session.rollback()
+                            rev_session.commit()
+                            logger.info("Version info added and snapshots created.")
+                    except Exception:
+                        # log full traceback, but don't re‑raise
+                        logger.exception("Revision‑control snapshot failed — continuing without revision info")
+                else:
+                    logger.debug("Revision‑control disabled; skipping version info & snapshots")
 
                 # Querying the version_info table
                 try:
@@ -1096,7 +1111,6 @@ def cosine_similarity(vector1, vector2):
     norm_vector2 = np.linalg.norm(vector2)
     return dot_product / (norm_vector1 * norm_vector2)
 
-
 def search_documents_db(session: db_config.get_main_session(), title='', area='', equipment_group='', model='', asset_number='', location=''):
     logger.info("Starting search_documents_db")
     logger.debug(f"Search parameters - title: {title}, area: {area}, equipment_group: {equipment_group}, model: {model}, asset_number: {asset_number}, location: {location}")
@@ -1144,7 +1158,6 @@ def search_documents_db(session: db_config.get_main_session(), title='', area=''
 
         logger.error(f"An error occurred while searching documents: {e}")
         return {"error": str(e)}
-
 
 def find_most_relevant_document(question, session: db_config.get_main_session()):
     if CURRENT_EMBEDDING_MODEL == "NoEmbeddingModel":
@@ -1794,3 +1807,110 @@ def add_parts_position_image_association(part_id, position_id, image_id):
 
     finally:
         session.close()
+
+
+def extract_images_from_pdf(file_path, complete_document_id, completed_document_position_association_id, position_id=None):
+    """
+    Extracts images from a PDF file, uploads them, and creates associations in the database.
+
+    Args:
+        file_path (str): Path to the PDF file.
+        complete_document_id (int): ID of the completed document.
+        completed_document_position_association_id (int): ID of the completed document position association.
+        position_id (int, optional): ID of the position. Defaults to None.
+
+    Returns:
+        list: List of paths to the extracted images.
+    """
+    try:
+        # Obtain a session using the getter method
+        with db_config.get_main_session() as session:
+            logger.info("Starting image extraction from PDF.")
+            logger.info(f"file_path: {file_path}")
+            logger.info(f"complete_document_id: {complete_document_id}")
+            logger.info(f"completed_document_position_association_id: {completed_document_position_association_id}")
+            logger.info(f"position_id: {position_id}")
+            logger.info(f"Session info: {session}")
+
+            if not os.path.exists(TEMPORARY_UPLOAD_FILES):
+                os.makedirs(TEMPORARY_UPLOAD_FILES)
+                logger.debug(f"Created temporary upload directory at {TEMPORARY_UPLOAD_FILES}")
+
+            doc = fitz.open(file_path)
+            total_pages = len(doc)
+            logger.info(f"Opened PDF file. Total pages: {total_pages}")
+
+            extracted_images = []
+            file_name = os.path.splitext(os.path.basename(file_path))[0].replace("_", " ")
+
+            for page_num in range(total_pages):
+                page = doc[page_num]
+                img_list = page.get_images(full=True)
+                logger.info(f"Processing page {page_num + 1}/{total_pages} with {len(img_list)} images.")
+
+                for img_index, img in enumerate(img_list):
+                    xref = img[0]
+                    base_image = doc.extract_image(xref)
+                    image_bytes = base_image["image"]
+                    image_ext = base_image.get("ext", "jpg")  # Default to jpg if extension not found
+                    temp_path = os.path.join(
+                        TEMPORARY_UPLOAD_FILES,
+                        f"{file_name}_page{page_num + 1}_image{img_index + 1}.{image_ext}"
+                    )
+
+                    with open(temp_path, 'wb') as temp_file:
+                        temp_file.write(image_bytes)
+                    logger.debug(f"Saved image to {temp_path}")
+
+                    try:
+                        with open(temp_path, 'rb') as img_file:
+                            response = requests.post(
+                                POST_URL,
+                                files={'image': img_file},
+                                data={
+                                    'complete_document_id': complete_document_id,
+                                    'completed_document_position_association_id': completed_document_position_association_id,
+                                    'position_id': position_id
+                                }
+                            )
+
+                        if response.status_code == 200:
+                            logger.info(f"Successfully processed image {img_index + 1} on page {page_num + 1}.")
+                            try:
+                                response_data = response.json()
+                                image_id = response_data.get('image_id')
+                                if image_id:
+                                    association = create_image_completed_document_association(
+                                        image_id=image_id,
+                                        complete_document_id=complete_document_id,
+                                        session=session
+                                    )
+                                    logger.info(f"Created ImageCompletedDocumentAssociation with ID: {association.id}")
+                                else:
+                                    logger.error(f"'image_id' not found in response for image {img_index + 1} on page {page_num + 1}.")
+                            except json.JSONDecodeError:
+                                logger.error(f"Invalid JSON response for image {img_index + 1} on page {page_num + 1}: {response.text}")
+                        else:
+                            logger.error(f"Failed to process image {img_index + 1} on page {page_num + 1}: {response.text} (Status Code: {response.status_code})")
+                    except requests.RequestException as req_err:
+                        logger.error(f"HTTP request failed for image {img_index + 1} on page {page_num + 1}: {req_err}")
+                    except Exception as e:
+                        logger.error(f"Unexpected error processing image {img_index + 1} on page {page_num + 1}: {e}")
+
+                    extracted_images.append(temp_path)
+
+                    # Introduce a delay to prevent overwhelming the server
+                    time.sleep(REQUEST_DELAY)
+
+            logger.info(f"Image extraction completed. Total images extracted: {len(extracted_images)}")
+            return extracted_images
+
+    except Exception as e:
+        logger.error(f"An error occurred in extract_images_from_pdf: {e}")
+        try:
+            session.rollback()
+            logger.debug("Database session rolled back due to error.")
+        except Exception as rollback_e:
+            logger.error(f"Failed to rollback the session: {rollback_e}")
+        return []
+
