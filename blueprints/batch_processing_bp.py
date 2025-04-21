@@ -1,3 +1,6 @@
+# blueprints/batch_processing_bp.py
+
+# region # review: Not processing folder
 from flask import Blueprint, request, jsonify, redirect, url_for
 from modules.emtacdb.emtacdb_fts import (FileLog)
 from modules.configuration.config import DATABASE_URL
@@ -10,14 +13,17 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 import logging
 from concurrent.futures import ThreadPoolExecutor
 
+# region fixme: use custom logger
 # Configure logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+# endregion
 
+# region fixme: use custom database management
 # Create the SQLAlchemy engine and session
 engine = create_engine(DATABASE_URL)
 Session = scoped_session(sessionmaker(bind=engine))
-
+# endregion
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # Get the absolute path of the directory containing this script
 LOG_FOLDER = os.path.join(BASE_DIR, 'logs')
 if not os.path.exists(LOG_FOLDER):
@@ -202,3 +208,4 @@ def process_folder(folder_path, batch_title, batch_area, batch_equipment_group, 
         logger.error(f"Error processing folder: {folder_path}. Error: {str(e)}")
 
     logger.info(f"Batch processing completed at {datetime.now()}")
+# endregion
