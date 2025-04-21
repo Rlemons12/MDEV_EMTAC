@@ -15,6 +15,9 @@ sys.path.append(BASE_DIR)
 # Get the current directory path
 
 #Important pathways
+
+ENABLE_REVISION_CONTROL = False   # or True once you wire it up
+
 TEMPLATE_FOLDER_PATH = os.path.join(BASE_DIR, 'templates')
 LOAD_FOLDER = os.path.join(BASE_DIR, 'load_process')
 LOAD_FOLDER_REFERENCE = os.path.join(BASE_DIR, 'load_process', 'load_reference')
