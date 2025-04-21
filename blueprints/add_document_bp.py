@@ -1,32 +1,55 @@
 # blueprints/add_document_bp.py
-#review: clean up imports
-import psutil
-from flask import Blueprint, request, jsonify, redirect, url_for
-from plugins.ai_modules import generate_embedding
-from modules.emtacdb.emtacdb_fts import (SiteLocation, CompleteDocument, Document, CompletedDocumentPositionAssociation)
-from modules.emtacdb.utlity.main_database.database import (create_position, split_text_into_chunks,
-                                                           extract_text_from_pdf,extract_text_from_txt, add_docx_to_db,
-                                                           store_embedding,create_image_completed_document_association)
-from modules.configuration.config import DATABASE_URL, DATABASE_DOC, DATABASE_DIR, TEMPORARY_UPLOAD_FILES,CURRENT_EMBEDDING_MODEL
+# --- Standard library ---
 import os
 import json
-from werkzeug.utils import secure_filename
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, scoped_session
-from sqlalchemy import create_engine, text, event
-import logging
-from concurrent.futures import ThreadPoolExecutor
-import threading
+import time
+import traceback
 from datetime import datetime
+import threading
+from concurrent.futures import ThreadPoolExecutor
+
+# --- Third‑party ---
+import psutil
 import fitz
 import requests
-import time
-from modules.emtacdb.emtac_revision_control_db import (VersionInfo, RevisionControlSession)
-from modules.emtacdb.utlity.revision_database.auditlog import commit_audit_logs, add_audit_log_entry
-from modules.configuration.config_env import DatabaseConfig
-import traceback
+import logging
+from flask import Blueprint, request, jsonify, redirect, url_for
+from werkzeug.utils import secure_filename
+from sqlalchemy import text
 
-# region why: should we move this to a cenetral location?
+# --- Local application imports ---
+from plugins.ai_modules import generate_embedding
+from modules.emtacdb.emtacdb_fts import (
+    SiteLocation,
+    CompleteDocument,
+    Document,
+    CompletedDocumentPositionAssociation,
+)
+from modules.emtacdb.utlity.main_database.database import (
+    create_position,
+    split_text_into_chunks,
+    extract_text_from_pdf,
+    extract_text_from_txt,
+    add_docx_to_db,
+    store_embedding,
+    create_image_completed_document_association,
+)
+from modules.configuration.config import (
+    DATABASE_DOC,
+    DATABASE_DIR,
+    TEMPORARY_UPLOAD_FILES,
+    CURRENT_EMBEDDING_MODEL,
+)
+from modules.configuration.log_config import logger
+from modules.configuration.config_env import DatabaseConfig
+from modules.emtacdb.emtac_revision_control_db import VersionInfo
+from modules.emtacdb.utlity.revision_database.auditlog import (
+    commit_audit_logs,
+    add_audit_log_entry,
+)
+
+
+# region why: should we move this to a central location?
 POST_URL = os.getenv('IMAGE_POST_URL', 'http://localhost:5000/image/add_image')
 REQUEST_DELAY = float(os.getenv('REQUEST_DELAY', '1.0'))  # in seconds
 # endregion
@@ -34,30 +57,6 @@ REQUEST_DELAY = float(os.getenv('REQUEST_DELAY', '1.0'))  # in seconds
 db_config = DatabaseConfig()
 
 
-# region review: should use logging model
-
-# Create logs directory if it doesn't exist
-if not os.path.exists('logs'):
-    os.makedirs('logs')
-
-# Configure logging to write to a file with timestamps
-log_file = f'logs/{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.log'
-file_handler = logging.FileHandler(log_file)
-file_handler.setLevel(logging.INFO)
-file_handler.setFormatter(logging.Formatter('%(asctime)s - %(threadName)s - %(levelname)s - %(message)s'))
-
-# Get the root logger
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-logger.addHandler(file_handler)
-
-# Also add a stream handler for console output
-stream_handler = logging.StreamHandler()
-stream_handler.setLevel(logging.INFO)
-stream_handler.setFormatter(logging.Formatter('%(asctime)s - %(threadName)s - %(levelname)s - %(message)s'))
-logger.addHandler(stream_handler)
-
-# endregion
 
 # Create a blueprint for the add_document route
 add_document_bp = Blueprint("add_document_bp", __name__)
