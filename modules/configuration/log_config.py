@@ -1,4 +1,4 @@
-#modules/configuration/log_config.py
+# modules/configuration/log_config.py
 import logging
 import sys
 import os
@@ -6,6 +6,10 @@ from logging.handlers import RotatingFileHandler
 import gzip
 import shutil
 from datetime import datetime, timedelta
+import uuid
+import time
+import threading
+from flask import request, g, has_request_context
 
 # Determine the root directory based on whether the code is frozen (e.g., PyInstaller .exe)
 if getattr(sys, 'frozen', False):  # Running as an executable
@@ -53,6 +57,189 @@ if not logger.handlers:
 # Optionally, prevent log messages from being propagated to the root logger
 logger.propagate = False
 
+# NEW CODE FOR UUID-BASED REQUEST TRACKING
+# =======================================
+
+# Thread-local storage for request IDs outside of Flask context
+_local = threading.local()
+
+
+def get_request_id():
+    """
+    Get the current request ID from Flask context if available,
+    or from thread-local storage as a fallback.
+    If neither exists, generate a new one.
+    """
+    # First try Flask request context
+    if has_request_context() and hasattr(g, 'request_id'):
+        return g.request_id
+
+    # Then try thread-local storage
+    if hasattr(_local, 'request_id'):
+        return _local.request_id
+
+    # If no request ID exists, generate a new one
+    request_id = str(uuid.uuid4())[:8]
+    _local.request_id = request_id
+    return request_id
+
+
+def set_request_id(request_id=None):
+    """
+    Set a request ID in thread-local storage.
+    If no request_id is provided, generate a new one.
+    Returns the request ID that was set.
+    """
+    if request_id is None:
+        request_id = str(uuid.uuid4())[:8]
+
+    _local.request_id = request_id
+    return request_id
+
+
+def clear_request_id():
+    """Clear the request ID from thread-local storage."""
+    if hasattr(_local, 'request_id'):
+        delattr(_local, 'request_id')
+
+
+# Enhanced logging functions that automatically include request ID
+# These don't replace the standard logger methods, they're additional
+def log_with_id(level, message, request_id=None, *args, **kwargs):
+    """Log a message with an included request ID."""
+    if request_id is None:
+        request_id = get_request_id()
+
+    # Format the message to include the request ID
+    formatted_message = f"[REQ-{request_id}] {message}"
+
+    # Use the standard logger with the formatted message
+    if level == logging.DEBUG:
+        logger.debug(formatted_message, *args, **kwargs)
+    elif level == logging.INFO:
+        logger.info(formatted_message, *args, **kwargs)
+    elif level == logging.WARNING:
+        logger.warning(formatted_message, *args, **kwargs)
+    elif level == logging.ERROR:
+        logger.error(formatted_message, *args, **kwargs)
+    elif level == logging.CRITICAL:
+        logger.critical(formatted_message, *args, **kwargs)
+
+
+# Convenience functions that match the logger interface
+def debug_id(message, request_id=None, *args, **kwargs):
+    log_with_id(logging.DEBUG, message, request_id, *args, **kwargs)
+
+
+def info_id(message, request_id=None, *args, **kwargs):
+    log_with_id(logging.INFO, message, request_id, *args, **kwargs)
+
+
+def warning_id(message, request_id=None, *args, **kwargs):
+    log_with_id(logging.WARNING, message, request_id, *args, **kwargs)
+
+
+def error_id(message, request_id=None, *args, **kwargs):
+    log_with_id(logging.ERROR, message, request_id, *args, **kwargs)
+
+
+def critical_id(message, request_id=None, *args, **kwargs):
+    log_with_id(logging.CRITICAL, message, request_id, *args, **kwargs)
+
+
+# Decorator to add request ID logging to a function
+def with_request_id(func):
+    """
+    Decorator that adds request ID tracking to a function.
+    Creates a new request ID if one doesn't exist.
+    """
+
+    def wrapper(*args, **kwargs):
+        request_id = get_request_id()  # Get or create request ID
+        start_time = time.time()
+
+        debug_id(f"Starting {func.__name__}", request_id)
+        try:
+            result = func(*args, **kwargs)
+            end_time = time.time()
+            debug_id(f"Completed {func.__name__} in {end_time - start_time:.3f}s", request_id)
+            return result
+        except Exception as e:
+            end_time = time.time()
+            error_id(f"Error in {func.__name__} after {end_time - start_time:.3f}s: {str(e)}", request_id)
+            raise
+
+    return wrapper
+
+
+# Flask middleware for request ID tracking
+def request_id_middleware(app):
+    """
+    Add request ID middleware to a Flask app.
+    This sets a unique request ID for each HTTP request.
+    """
+
+    @app.before_request
+    def before_request():
+        # Generate a unique request ID and store it in Flask's g object
+        g.request_id = str(uuid.uuid4())[:8]
+        g.request_start_time = time.time()
+
+        # Also store in thread-local for non-Flask code
+        _local.request_id = g.request_id
+
+        info_id(f"Processing request: {request.method} {request.path}")
+
+    @app.after_request
+    def after_request(response):
+        if hasattr(g, 'request_start_time'):
+            duration = time.time() - g.request_start_time
+            info_id(f"Request completed in {duration:.3f}s with status {response.status_code}")
+
+        # Clear the thread-local request ID
+        clear_request_id()
+
+        return response
+
+    @app.teardown_request
+    def teardown_request(exception=None):
+        if exception:
+            error_id(f"Request failed with exception: {str(exception)}")
+
+        # Ensure thread-local storage is cleared even on exceptions
+        clear_request_id()
+
+    return app
+
+
+# Helper for timing operations
+def log_timed_operation(operation_name, request_id=None):
+    """Context manager for timing and logging operations."""
+
+    class TimedOperationContext:
+        def __init__(self, operation_name, request_id):
+            self.operation_name = operation_name
+            self.request_id = request_id if request_id else get_request_id()
+
+        def __enter__(self):
+            self.start_time = time.time()
+            debug_id(f"Starting operation: {self.operation_name}", self.request_id)
+            return self
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            duration = time.time() - self.start_time
+            if exc_type:
+                error_id(f"Operation {self.operation_name} failed after {duration:.3f}s: {str(exc_val)}",
+                         self.request_id)
+            else:
+                debug_id(f"Operation {self.operation_name} completed in {duration:.3f}s",
+                         self.request_id)
+
+    return TimedOperationContext(operation_name, request_id)
+
+
+# EXISTING LOG ROTATION CODE - UNCHANGED
+# =====================================
 
 def compress_and_backup_logs(log_directory, backup_directory):
     """
