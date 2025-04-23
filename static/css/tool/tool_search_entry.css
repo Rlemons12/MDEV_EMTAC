@@ -1,3 +1,5 @@
+/* static/css/tool/tool_search_entry.css */
+
 /* Adjust Sidebar Styling */
 .sidebar {
     width: 250px; /* Reduce sidebar width */
@@ -224,18 +226,8 @@ button[type="submit"]:hover {
     border: none; /* Remove default borders */
 }
 
-/* Remove or adjust the toggle icon if not using Font Awesome */
-.accordion-button::after {
-    /* If using Font Awesome, ensure it's loaded
-    content: '\f078';
-    font-family: 'Font Awesome 5 Free';
-    font-weight: 900;
-    margin-left: auto;
-    */
 
-    /* If not using Font Awesome, use Bootstrap's default toggle */
-    content: '';
-}
+
 
 .tab-content {
     display: none;
