@@ -3,7 +3,7 @@ import os
 import webbrowser
 import socket
 from threading import Timer
-from flask import Flask, render_template, flash
+from flask import Flask, render_template, flash, current_app
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
@@ -80,6 +80,12 @@ def create_app():
 
     @app.before_request
     def global_login_check():
+        # 1) grab the endpoint name into a variable
+        endpoint = request.endpoint
+
+        # 2) log it
+        current_app.logger.debug(f"→ incoming endpoint: {endpoint}")
+# todo add_document_bp.wrapper modify @with_request_id to use functools.wraps, so that the wrapper keeps the same name:
         allowed_routes = [
             'login_bp.login',
             'login_bp.logout',
@@ -98,6 +104,8 @@ def create_app():
             'tool_routes.get_manufacturers',
             'tool_routes.get_categories',
             'image_bp.add_image',
+            "add_document_bp.add_document",
+            'add_document_bp.wrapper',
             'image_bp.upload_image',
         ]
         if request.endpoint is None:
