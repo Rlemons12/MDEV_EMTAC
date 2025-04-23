@@ -154,7 +154,13 @@ def submit_tool_data():
             form_name = 'unknown'
             logger.info("No recognized form submission found.")
 
-        logger.debug(f"Form submission detected: {form_name}")
+        if form and not form.validate_on_submit():
+            logger.error(f"Form validation errors: {form.errors}")
+            # You can add more detailed logging here
+
+        if form and form.validate_on_submit():
+            logger.info(f"Form '{form_name}' validated successfully. Entering try block...")
+
         if form and form.validate_on_submit():
             logger.info(f"Form '{form_name}' validated successfully. Entering try block...")
             try:
@@ -168,114 +174,191 @@ def submit_tool_data():
                     # ... category logic ...
                     pass
 
-                elif form_name == 'tool':
-                    logger.info("Handling 'tool' form logic now... (image upload, new Tool creation, etc.)")
-                    # Process multiple file uploads from tool_images
-                    uploaded_file_paths = []
-                    if form.tool_images.data:
-                        for file in form.tool_images.data:
-                            if file and allowed_file(file.filename):
-                                logger.info("File is present and allowed. Saving file...")
-                                filename = secure_filename(file.filename)
-                                upload_folder = os.path.join(current_app.root_path, 'static', 'uploads', 'tools')
-                                os.makedirs(upload_folder, exist_ok=True)
-                                file_path = os.path.join(upload_folder, filename)
-                                file.save(file_path)
-                                uploaded_file_path = os.path.join('uploads', 'tools', filename)
-                                logger.info(f"File saved as {uploaded_file_path}")
-                                uploaded_file_paths.append(uploaded_file_path)
-                            else:
-                                logger.warning("Skipping invalid or empty file.")
 
-                    logger.info("Creating new_tool instance (without an `image` kwarg)...")
+                elif form_name == 'tool':
+
+                    logger.info("Handling 'tool' form logic now... (image upload, new Tool creation, etc.)")
+
+                    # Create the new tool first
+
+                    logger.info("Creating new_tool instance...")
+
                     new_tool = Tool(
+
                         name=form.tool_name.data.strip(),
+
                         size=form.tool_size.data.strip() if form.tool_size.data else None,
+
                         type=form.tool_type.data.strip() if form.tool_type.data else None,
+
                         material=form.tool_material.data.strip() if form.tool_material.data else None,
+
                         description=form.tool_description.data.strip() if form.tool_description.data else None,
+
                         tool_category_id=form.tool_category.data,
+
                         tool_manufacturer_id=form.tool_manufacturer.data
+
                     )
+
                     logger.info(f"new_tool created: {new_tool.name}")
+
                     main_session.add(new_tool)
 
-                    # Process each uploaded file: create an Image and associate via ToolImageAssociation
-                    for path in uploaded_file_paths:
-                        logger.info("Creating Image row for uploaded file...")
-                        new_image = Image(
-                            title="Main Tool Image",
-                            description=form.image_description.data.strip() if form.image_description.data else "Uploaded via the tool form",
-                            file_path=path
-                        )
-                        main_session.add(new_image)
-                        main_session.flush()  # Flush to assign new_image.id without committing
+                    main_session.flush()  # Flush to get the new_tool.id
 
-                        logger.info("Creating ToolImageAssociation to link Tool & Image...")
-                        tool_image_assoc = ToolImageAssociation(
-                            tool=new_tool,
-                            image=new_image,
-                            description="Primary uploaded tool image"
-                        )
-                        main_session.add(tool_image_assoc)
+                    # Process multiple file uploads from tool_images using the new methods
+
+                    if form.tool_images.data:
+
+                        for file in form.tool_images.data:
+
+                            if file and allowed_file(file.filename):
+
+                                logger.info("File is present and allowed. Saving file...")
+
+                                filename = secure_filename(file.filename)
+
+                                upload_folder = os.path.join(current_app.root_path, 'static', 'uploads', 'tools')
+
+                                os.makedirs(upload_folder, exist_ok=True)
+
+                                file_path = os.path.join(upload_folder, filename)
+
+                                file.save(file_path)
+
+                                image_description = form.image_description.data.strip() if form.image_description.data else "Uploaded via the tool form"
+
+                                # Use the add_and_associate_with_tool class method
+
+                                logger.info(f"Adding image and associating with tool ID {new_tool.id}...")
+
+                                new_image, tool_image_assoc = ToolImageAssociation.add_and_associate_with_tool(
+
+                                    session=main_session,
+
+                                    title=f"Tool Image: {new_tool.name}",
+
+                                    file_path=file_path,
+
+                                    tool_id=new_tool.id,
+
+                                    description=image_description,
+
+                                    association_description="Primary uploaded tool image"
+
+                                )
+
+                                logger.info(
+                                    f"Image ID {new_image.id} created and associated with tool ID {new_tool.id}")
+
+                            else:
+
+                                logger.warning("Skipping invalid or empty file.")
 
                     # Process other associations (positions) as before...
+
                     logger.info("Processing selected position IDs...")
+
                     selected_areas = request.form.getlist('area')
+
                     selected_equipment_groups = request.form.getlist('equipment_group')
+
                     selected_models = request.form.getlist('model')
+
                     selected_asset_numbers = request.form.getlist('asset_number')
+
                     selected_locations = request.form.getlist('location')
+
                     selected_assemblies = request.form.getlist('subassembly')
+
                     selected_subassemblies = request.form.getlist('component_assembly')
+
                     selected_assembly_views = request.form.getlist('assembly_view')
+
                     selected_site_locations = request.form.getlist('site_location')
 
                     position_fields = [
+
                         ('Area', selected_areas),
+
                         ('Equipment Group', selected_equipment_groups),
+
                         ('Model', selected_models),
+
                         ('Asset Number', selected_asset_numbers),
+
                         ('Location', selected_locations),
+
                         ('Subassembly', selected_assemblies),
+
                         ('Subassembly', selected_subassemblies),
+
                         ('Subassembly View', selected_assembly_views),
+
                         ('Site Location', selected_site_locations)
+
                     ]
 
                     for category, selected_ids in position_fields:
+
                         for pos_id in selected_ids:
+
+                            if pos_id == '__None':
+                                continue
+
                             try:
+
                                 pos_id_int = int(pos_id)
+
                             except ValueError:
+
                                 logger.error(f"Invalid position ID: {pos_id}")
+
                                 logger.info(f"Skipping invalid position ID: {pos_id}")
+
                                 continue
 
                             position = main_session.query(Position).get(pos_id_int)
+
                             if not position:
                                 logger.error(f"Position with ID {pos_id_int} does not exist.")
+
                                 logger.info(f"Skipping non-existent position ID: {pos_id_int}")
+
                                 continue
 
-                            logger.info(f"Associating position ID {pos_id_int} ({category}) with Tool '{new_tool.name}'")
+                            logger.info(
+                                f"Associating position ID {pos_id_int} ({category}) with Tool '{new_tool.name}'")
+
                             association = ToolPositionAssociation(
+
                                 tool=new_tool,
+
                                 position_id=pos_id_int,
+
                                 description=f"{category} Description"
+
                             )
+
                             main_session.add(association)
 
                     logger.info("Adding new_tool and any image associations to DB...")
-                    main_session.add(new_tool)
+
                     main_session.commit()
 
                     message = 'Tool added successfully with position associations and images!'
+
                     logger.info(message)
+
                     if is_ajax:
+
                         return jsonify({'success': True, 'message': message}), 200
+
                     else:
+
                         flash(message, 'success')
+
                         return redirect(url_for('tool_routes.submit_tool_data'))
 
                 elif form_name == 'search':
