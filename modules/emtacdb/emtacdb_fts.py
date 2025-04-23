@@ -1,12 +1,13 @@
 import os
 import logging
+import shutil
 from datetime import datetime
 import openai
 import spacy
 from fuzzywuzzy import process
 from werkzeug.security import check_password_hash, generate_password_hash
 from sqlalchemy import (DateTime, Column, ForeignKey, Integer, JSON, LargeBinary, Enum as SqlEnum,
-                        String, create_engine, text, Float, Text, UniqueConstraint, Table)
+                        String, create_engine, text, Float, Text, UniqueConstraint, and_, Table)
 from enum import Enum as PyEnum  # Import Enum and alias it as PyEnum
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.mutable import MutableList
@@ -14,6 +15,8 @@ from sqlalchemy.orm import declarative_base, configure_mappers, relationship, sc
 from modules.configuration.config import (OPENAI_API_KEY, BASE_DIR, COPY_FILES, DATABASE_URL,DATABASE_PATH)
 from modules.configuration.base import Base
 from modules.configuration.log_config import logger
+from modules.configuration.config import DATABASE_DIR
+
 
 # Configure mappers (must be called after all ORM classes are defined)
 configure_mappers()
@@ -618,8 +621,259 @@ class Image(Base):
     """bill_of_material = relationship("BillOfMaterial", back_populates="image")"""
     image_completed_document_association = relationship("ImageCompletedDocumentAssociation", back_populates="image")
     image_embedding = relationship("ImageEmbedding", back_populates="image")
-    image_position_association = relationship("ImagePositionAssociation", back_populates= "image")
-    tool_image_association = relationship("ToolImageAssociation", back_populates="image",cascade="all, delete-orphan")
+    image_position_association = relationship("ImagePositionAssociation", back_populates="image")
+    tool_image_association = relationship("ToolImageAssociation", back_populates="image", cascade="all, delete-orphan")
+
+    @classmethod
+    def add_to_db(cls, session, title, file_path, description="", position_id=None, complete_document_id=None):
+        """Add an image to the database, handling file copying and deduplication."""
+        # Import locally to avoid circular dependencies
+        import os
+        import shutil
+        from sqlalchemy import and_
+        from PIL import Image as PILImage
+        from plugins.image_modules.image_models import CLIPModelHandler, get_image_model_handler
+
+
+        logger.info(f"Processing image: {title}")
+
+        # Clean quotes from file path first
+        src = file_path
+        if src.startswith('"') and src.endswith('"'):
+            src = src[1:-1]
+        elif src.startswith("'") and src.endswith("'"):
+            src = src[1:-1]
+
+        # Check if image with same title and description already exists
+        existing_image = session.query(cls).filter(
+            and_(cls.title == title, cls.description == description)
+        ).first()
+
+        # If it exists and has the same file path, return it
+        if existing_image is not None and existing_image.file_path == src:
+            logger.info(f"Image already exists: {title}")
+            new_image = existing_image
+        else:
+            # Determine file extension and create unique filename from cleaned path
+            _, ext = os.path.splitext(src)
+            dest_name = f"{title}{ext}"
+            dest_rel = os.path.join("DB_IMAGES", dest_name)
+            dest_abs = os.path.join(DATABASE_DIR, "DB_IMAGES", dest_name)
+
+            # Create directory if it doesn't exist
+            os.makedirs(os.path.dirname(dest_abs), exist_ok=True)
+
+            # Copy file using cleaned path
+            shutil.copy2(src, dest_abs)
+            logger.debug(f"Copied '{src}' -> '{dest_abs}'")
+
+            # Create image record
+            new_image = cls(
+                title=title,
+                description=description,
+                file_path=dest_rel
+            )
+            session.add(new_image)
+            session.flush()  # Get ID without committing transaction
+
+        try:
+            # Create a model handler directly to avoid circular imports
+            model_handler = CLIPModelHandler()
+            logger.info(f"Using model handler: {model_handler.__class__.__name__}")
+
+            # Convert the file path to an absolute path for processing
+            if os.path.isabs(new_image.file_path):
+                absolute_file_path = new_image.file_path
+            else:
+                absolute_file_path = os.path.join(DATABASE_DIR, new_image.file_path)
+
+            logger.info(f"Opening image: {absolute_file_path}")
+
+            # Open the image using PIL
+            image = PILImage.open(absolute_file_path).convert("RGB")
+
+            # Validate the image
+            logger.info("Calling model_handler.is_valid_image()")
+            if not model_handler.is_valid_image(image):
+                logger.info(
+                    f"Skipping {absolute_file_path}: Image does not meet the required dimensions or aspect ratio.")
+            else:
+                # Generate embedding if image is valid
+                logger.info("Image passed validation.")
+                model_embedding = model_handler.get_image_embedding(image)
+                model_name = model_handler.__class__.__name__
+
+                # Add embedding if it doesn't exist already
+                if model_name and model_embedding is not None:
+                    logger.debug("Checking if the image embedding already exists")
+                    existing_embedding = session.query(ImageEmbedding).filter(
+                        and_(ImageEmbedding.image_id == new_image.id, ImageEmbedding.model_name == model_name)
+                    ).first()
+
+                    if existing_embedding is None:
+                        logger.info("Creating a new ImageEmbedding entry")
+                        image_embedding = ImageEmbedding(
+                            image_id=new_image.id,
+                            model_name=model_name,
+                            model_embedding=model_embedding.tobytes()
+                        )
+                        session.add(image_embedding)
+                        logger.info(f"Created ImageEmbedding with image ID {new_image.id}, model name {model_name}")
+
+                # Handle position association if applicable
+                if position_id:
+                    logger.debug("Checking if ImagePositionAssociation already exists")
+                    existing_association = session.query(ImagePositionAssociation).filter(
+                        and_(ImagePositionAssociation.image_id == new_image.id,
+                             ImagePositionAssociation.position_id == position_id)
+                    ).first()
+
+                    if existing_association is None:
+                        logger.info("Creating a new ImagePositionAssociation entry")
+                        image_position_association = ImagePositionAssociation(
+                            image_id=new_image.id,
+                            position_id=position_id
+                        )
+                        session.add(image_position_association)
+                        logger.info(
+                            f"Created ImagePositionAssociation with image ID {new_image.id} and position ID {position_id}")
+
+                # Handle completed document association if applicable
+                if complete_document_id:
+                    logger.debug("Checking if ImageCompletedDocumentAssociation already exists")
+                    existing_association = session.query(ImageCompletedDocumentAssociation).filter(
+                        and_(ImageCompletedDocumentAssociation.image_id == new_image.id,
+                             ImageCompletedDocumentAssociation.complete_document_id == complete_document_id)
+                    ).first()
+
+                    if existing_association is None:
+                        logger.info("Creating a new ImageCompletedDocumentAssociation entry")
+                        image_completed_document_association = ImageCompletedDocumentAssociation(
+                            image_id=new_image.id,
+                            complete_document_id=complete_document_id
+                        )
+                        session.add(image_completed_document_association)
+                        logger.info(
+                            f"Created ImageCompletedDocumentAssociation with image ID {new_image.id} and complete document ID {complete_document_id}")
+
+        except Exception as e:
+            # Log the error
+            logger.error(f"An error occurred while processing the image: {e}", exc_info=True)
+            error_file_path = os.path.join(DATABASE_DIR, "DB_IMAGES", 'failed_uploads.txt')
+            os.makedirs(os.path.dirname(error_file_path), exist_ok=True)
+            with open(error_file_path, 'a') as error_file:
+                error_file.write(f"Error processing image with title '{title}': {e}\n")
+
+        # Return the image object
+        return new_image
+
+    @classmethod
+    def create_with_tool_association(cls, session, title, file_path, tool, description=""):
+        """
+        Create an image and associate it with a tool
+
+        Args:
+            session: SQLAlchemy session
+            title: Image title
+            file_path: Path to the image file
+            tool: Tool instance to associate with the image
+            description: Image description (default: "")
+
+        Returns:
+            Tuple of (Image instance, ToolImageAssociation instance)
+        """
+        # Create the image
+        new_image = cls.add_to_db(session, title, file_path, description)
+
+        # Create the association
+        from modules.emtacdb.emtacdb_fts import ToolImageAssociation
+
+        # Check for existing association
+        existing_assoc = session.query(ToolImageAssociation).filter(
+            and_(ToolImageAssociation.tool_id == tool.id,
+                 ToolImageAssociation.image_id == new_image.id)
+        ).first()
+
+        if existing_assoc:
+            logger.info(f"Tool-image association already exists for tool ID {tool.id} and image ID {new_image.id}")
+            return new_image, existing_assoc
+
+        # Create new association
+        tool_image_assoc = ToolImageAssociation(
+            tool_id=tool.id,
+            image_id=new_image.id,
+            description="Primary uploaded tool image"
+        )
+        session.add(tool_image_assoc)
+
+        return new_image, tool_image_assoc
+
+    def generate_embedding(self, session, model_handler):
+        """
+        Generate and store embedding for this image
+
+        Args:
+            session: SQLAlchemy session
+            model_handler: The image model handler to use
+
+        Returns:
+            True if embedding was generated successfully, False otherwise
+        """
+        try:
+            from modules.emtacdb.emtacdb_fts import ImageEmbedding
+
+            # Convert the relative file path back to an absolute path if needed
+            if os.path.isabs(self.file_path):
+                absolute_file_path = self.file_path
+            else:
+                absolute_file_path = os.path.join(BASE_DIR, self.file_path)
+
+            logger.info(f"Opening image: {absolute_file_path}")
+
+            # Open the image using the absolute file path
+            image = PILImage.open(absolute_file_path).convert("RGB")
+
+            logger.info("Checking if image is valid for the model")
+            if not model_handler.is_valid_image(image):
+                logger.info(f"Image does not meet the required dimensions or aspect ratio.")
+                return False
+
+            logger.info("Generating image embedding")
+            model_embedding = model_handler.get_image_embedding(image)
+            model_name = model_handler.__class__.__name__
+
+            if model_embedding is None:
+                logger.error("Failed to generate embedding")
+                return False
+
+            # Check if the embedding already exists
+            existing_embedding = session.query(ImageEmbedding).filter(
+                and_(ImageEmbedding.image_id == self.id, ImageEmbedding.model_name == model_name)
+            ).first()
+
+            if existing_embedding is None:
+                # Create new embedding
+                logger.info(f"Creating a new ImageEmbedding entry for image ID {self.id}")
+                image_embedding = ImageEmbedding(
+                    image_id=self.id,
+                    model_name=model_name,
+                    model_embedding=model_embedding.tobytes()
+                )
+                session.add(image_embedding)
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Error generating embedding: {e}", exc_info=True)
+
+            # Log the error to failed_uploads.txt
+            error_file_path = os.path.join(DATABASE_DIR, 'images', 'failed_uploads.txt')
+            os.makedirs(os.path.join(DATABASE_DIR, 'images'), exist_ok=True)
+            with open(error_file_path, 'a') as error_file:
+                error_file.write(f"Error generating embedding for image ID {self.id}: {e}\n")
+
+            return False
+
 # end region
 class ImageEmbedding(Base):
     __tablename__ = 'image_embedding'
@@ -1125,6 +1379,87 @@ class ToolImageAssociation(Base):
     # Relationships
     tool = relationship('Tool', back_populates='tool_image_association')
     image = relationship('Image', back_populates='tool_image_association')
+
+    @classmethod
+    def associate_with_tool(cls, session, image_id, tool_id, description=None):
+        """Associate an existing image with a tool in the database.
+
+        Args:
+            session: The database session
+            image_id: ID of the existing image to associate
+            tool_id: ID of the tool to associate with the image
+            description: Optional description for this specific association
+
+        Returns:
+            The created ToolImageAssociation object or existing one if found
+        """
+        # Import locally to avoid circular dependencies
+        from sqlalchemy import and_
+
+        logger.info(f"Associating image ID {image_id} with tool ID {tool_id}")
+
+        # Check if association already exists
+        existing_association = session.query(cls).filter(
+            and_(
+                cls.image_id == image_id,
+                cls.tool_id == tool_id
+            )
+        ).first()
+
+        if existing_association is not None:
+            logger.info(f"Association already exists between image ID {image_id} and tool ID {tool_id}")
+
+            # Update description if provided and different
+            if description is not None and existing_association.description != description:
+                existing_association.description = description
+                logger.info(f"Updated description for existing association")
+
+            return existing_association
+        else:
+            # Create new association
+            logger.info(f"Creating new association between image ID {image_id} and tool ID {tool_id}")
+            new_association = cls(
+                image_id=image_id,
+                tool_id=tool_id,
+                description=description
+            )
+            session.add(new_association)
+            session.flush()  # Get ID without committing transaction
+
+            logger.info(f"Created ToolImageAssociation with ID {new_association.id}")
+            return new_association
+
+    @classmethod
+    def add_and_associate_with_tool(cls, session, title, file_path, tool_id, description="",
+                                    association_description=None):
+        """Add an image to the database and associate it with a tool in one operation.
+
+        Args:
+            session: The database session
+            title: Title for the image
+            file_path: Path to the image file
+            tool_id: ID of the tool to associate with the image
+            description: Description for the image itself
+            association_description: Optional description for the tool-image association
+
+        Returns:
+            Tuple of (Image object, ToolImageAssociation object)
+        """
+        # Import the Image class locally to avoid circular imports
+        from modules.emtacdb.emtacdb_fts import Image
+
+        # First add the image to the database
+        image = Image.add_to_db(session, title, file_path, description)
+
+        # Then create the association
+        association = cls.associate_with_tool(
+            session,
+            image_id=image.id,
+            tool_id=tool_id,
+            description=association_description
+        )
+
+        return image, association
 
 class ToolPositionAssociation(Base):
     __tablename__ = 'tool_position_association'
