@@ -5,15 +5,35 @@
 {% block title %}Tool Management{% endblock %}
 
 {% block extra_head %}
-    <!-- Include base.css first -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
-    <!-- Page-specific CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/tool/manufacturer_styles.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/tool/tool_search_entry.css') }}">
-    <!-- Select2 CSS for enhanced multi-select -->
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0/dist/css/select2.min.css" rel="stylesheet" />
+  <!-- 1️⃣ Bootstrap 5 CSS -->
+  <link
+  href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+  rel="stylesheet"
+/>
 
+  <!-- 2️⃣ Select2 CSS (if you need it) -->
+  <link
+    href="https://cdn.jsdelivr.net/npm/select2@4.1.0/dist/css/select2.min.css"
+    rel="stylesheet"
+  />
+
+  <!-- 3️⃣ Your global/base overrides -->
+  <link
+    rel="stylesheet"
+    href="{{ url_for('static', filename='css/base.css') }}"
+  />
+
+  <!-- 4️⃣ Page‑specific styles -->
+  <link
+    rel="stylesheet"
+    href="{{ url_for('static', filename='css/tool/manufacturer_styles.css') }}"
+  />
+  <link
+    rel="stylesheet"
+    href="{{ url_for('static', filename='css/tool/tool_search_entry.css') }}"
+  />
 {% endblock %}
+
 
 {% block content %}
 <div class="main-container">
@@ -45,7 +65,7 @@
         <!-- Tab Content Sections -->
         <div class="tab-content-container">
             <!-- Add Tool Tab Content -->
-            <!-- region Review: Accordion layout is not working properly -->
+
             <div id="add-tool-tab" class="tab-content active">
                 {% if tool_form %}
                     <div class="form-container">
@@ -259,7 +279,7 @@
                     <p>Tool form is not available at the moment.</p>
                 {% endif %}
             </div>
-            <!-- endregion -->
+
 
             <!-- Search Tool Tab Content -->
             <div id="search-tool-tab" class="tab-content">
@@ -283,55 +303,41 @@
 {% endblock %}
 
 {% block extra_scripts %}
-    <!-- jQuery (Required for Select2) -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <!-- Select2 JS -->
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-    <!-- Select2 JS (Enhances Select Fields) -->
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0/dist/js/select2.min.js"></script>
+  <!-- 1️⃣ jQuery (required by Select2) -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
-    <!-- Bootstrap JS Bundle (includes Popper) -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- 2️⃣ Select2 JS -->
+  <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
-    <!-- Your custom scripts -->
-    <script src="{{ url_for('static', filename='js/tool/tool_dropdown_populator.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/tool/tool_form_handler.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/tool/tool_search.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/tool/tool_initializer.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/tool/tool_manufacturer.js') }}"></script>
+  <!-- 3️⃣ Bootstrap JS bundle (Popper included) -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
-    <!-- Tab Functionality Script -->
-    <script>
-        // Tab functionality
-        document.addEventListener('DOMContentLoaded', function() {
-            const tabs = document.querySelectorAll('.tab-item');
-            const contents = document.querySelectorAll('.tab-content');
+  <!-- 4️⃣ Your custom scripts -->
+  <script src="{{ url_for('static', filename='js/tool/tool_dropdown_populate.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/tool/tool_form_handler.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/tool/tool_search.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/tool/tool_initializer.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/tool/tool_manufacturer.js') }}"></script>
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <!-- 5️⃣ Tab‐switching logic -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // Tabs…
+      const tabs = document.querySelectorAll('.tab-item');
+      const contents = document.querySelectorAll('.tab-content');
+      tabs.forEach(tab => tab.addEventListener('click', () => {
+        tabs.forEach(t => t.classList.remove('active'));
+        contents.forEach(c => c.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById(tab.dataset.tab).classList.add('active');
+      }));
 
-            tabs.forEach(tab => {
-                tab.addEventListener('click', function() {
-                    console.log(`Tab clicked: ${this.getAttribute('data-tab')}`);
-                    // Remove 'active' class from all tabs and contents
-                    tabs.forEach(item => item.classList.remove('active'));
-                    contents.forEach(content => content.classList.remove('active'));
-
-                    // Add 'active' class to the clicked tab and corresponding content
-                    this.classList.add('active');
-                    const tabContent = document.getElementById(this.getAttribute('data-tab'));
-                    if (tabContent) {
-                        console.log(`Activating content: ${tabContent.id}`);
-                        tabContent.classList.add('active');
-                    } else {
-                        console.error(`No content found with id: ${this.getAttribute('data-tab')}`);
-                    }
-                });
-            });
-
-            // Initialize Select2 on all select fields
-            $('.form-select').select2({
-                width: '100%',
-                placeholder: 'Select an option',
-                allowClear: true
-            });
-        });
-    </script>
+      // Initialize Select2 on any <select>
+      $('.form-select').select2({
+        width: '100%',
+        placeholder: 'Select an option',
+        allowClear: true
+      });
+    });
+  </script>
 {% endblock %}
