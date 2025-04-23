@@ -1,4 +1,4 @@
-// static/js/tool/tool_dropdown_populator.js
+// static/js/tool/tool_dropdown_populate.js
 
 // Define constants for Flask API endpoints
 const GET_TOOL_POSITIONS_URL = '/tool/get_tool_positions';
