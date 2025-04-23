@@ -41,6 +41,14 @@ def add_document():
     request_id = get_request_id()
     info_id("Received a request to add documents", request_id)
 
+    # --- DEBUGGING BLOCK START ---
+    info_id(f"Raw form keys: {list(request.form.keys())}", request_id)
+    info_id(f"Raw form data: {request.form.to_dict()}", request_id)
+
+    uploaded = request.files.getlist("files")
+    info_id(f"Got {len(uploaded)} file(s): {[f.filename for f in uploaded]}", request_id)
+    # --- DEBUGGING BLOCK END ---
+
     if "files" not in request.files:
         error_id("No files uploaded", request_id)
         return jsonify({"message": "No files uploaded"}), 400
