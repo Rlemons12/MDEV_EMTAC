@@ -17,6 +17,7 @@ def tools_search():
     try:
         # Extract query parameters
         name = request.args.get('name', type=str, default=None)
+        material = request.args.get('material', type=str, default=None)
         category_id = request.args.get('category_id', type=int, default=None)
         manufacturer_id = request.args.get('manufacturer_id', type=int, default=None)
         page = request.args.get('page', type=int, default=1)
@@ -39,6 +40,9 @@ def tools_search():
             if name:
                 query = query.filter(Tool.name.ilike(f'%{name}%'))
                 logger.debug(f"Applied filter: Tool name LIKE '%{name}%'")
+            if material:
+                logger.debug(f"Applied filter: Tool material LIKE '%{material}%'")
+                query = query.filter(Tool.material.ilike(f'%{material}%'))
             if category_id:
                 query = query.filter(Tool.tool_category_id == category_id)
                 logger.debug(f"Applied filter: Tool category ID == {category_id}")
