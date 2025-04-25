@@ -1,13 +1,10 @@
-import logging
+from datetime import datetime, timedelta
+from modules.configuration.log_config import logger
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
-from modules.emtacdb.emtacdb_fts import Session, User, UserComments, UserLevel, AIModelConfig, ImageModelConfig, load_config_from_db, \
-    load_image_model_config_from_db
+from modules.emtacdb.emtacdb_fts import (Session, User, UserComments, UserLevel, AIModelConfig, ImageModelConfig,
+                                         load_config_from_db, load_image_model_config_from_db, UserLogin)
 from sqlalchemy.orm import subqueryload
 from modules.configuration import config
-
-# Set up logging
-logging.basicConfig(level=logging.DEBUG)  # Set to DEBUG for detailed logging
-logger = logging.getLogger(__name__)
 
 admin_bp = Blueprint('admin_bp', __name__)
 
@@ -25,17 +22,54 @@ def admin_dashboard():
     try:
         # Fetch all users and comments from the database
         session_db = Session()
-        logger.debug("Fetching users and comments from the database.")
+        logger.debug("Fetching users, comments, and active sessions from the database.")
 
         users = session_db.query(User).all()
         comments = session_db.query(UserComments).options(subqueryload(UserComments.user)).all()
+
+        # Create a user mapping dictionary for easy lookup
+        user_map = {}
+        for user in users:
+            # Store by both ID (as string) and employee_id
+            user_map[str(user.id)] = {
+                'id': user.id,
+                'employee_id': user.employee_id,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'user_level': user.user_level.name
+            }
+            user_map[user.employee_id] = user_map[str(user.id)]
+
+        # Fetch active user logins
+        current_time = datetime.now()
+        time_threshold = current_time - timedelta(hours=6)
+
+        active_logins = (
+            session_db.query(UserLogin)
+            .join(User)  # Join with User to get user details
+            .filter(UserLogin.is_active == True)
+            .filter(UserLogin.last_activity >= time_threshold)
+            .order_by(UserLogin.last_activity.desc())
+            .all()
+        )
+
+        # Debug logging for active logins
+        logger.debug("Active Logins Details:")
+        for login in active_logins:
+            logger.debug(f"Login ID: {login.id}")
+            logger.debug(f"User ID: {login.user_id}")
+            logger.debug(f"Employee ID: {login.user.employee_id}")
+            logger.debug(f"IP Address: {login.ip_address}")
+            logger.debug(f"Last Activity: {login.last_activity}")
+            logger.debug(f"Is Active: {login.is_active}")
+            logger.debug("---")
 
         # Fetch current model configurations
         current_ai_model, current_embedding_model = load_config_from_db()
         current_image_model = load_image_model_config_from_db()
 
-        logger.info("Fetched %d users and %d comments. AI Model: %s, Embedding Model: %s, Image Model: %s",
-                    len(users), len(comments), current_ai_model, current_embedding_model, current_image_model)
+        logger.info("Fetched %d users, %d comments, and %d active logins.",
+                    len(users), len(comments), len(active_logins))
 
     except Exception as e:
         logger.error("Error loading admin dashboard data: %s", e)
@@ -51,11 +85,13 @@ def admin_dashboard():
         'admin_dashboard.html',
         users=users,
         comments=comments,
+        active_sessions=active_logins,  # Change this to active_logins
+        user_map=user_map,
         current_ai_model=current_ai_model,
         current_embedding_model=current_embedding_model,
-        current_image_model=current_image_model
+        current_image_model=current_image_model,
+        current_time=current_time
     )
-
 
 @admin_bp.route('/change_user_level', methods=['POST'])
 def change_user_level():
@@ -96,7 +132,6 @@ def change_user_level():
             logger.debug("Database session closed.")
 
     return redirect(url_for('admin_bp.admin_dashboard'))
-
 
 @admin_bp.route('/set_models', methods=['POST'])
 def set_models():
