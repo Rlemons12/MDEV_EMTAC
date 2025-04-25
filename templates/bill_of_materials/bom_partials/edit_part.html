@@ -3,8 +3,15 @@
 {% block title %}Edit Part{% endblock %}
 
 {% block extra_head %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/search_bill_of_material.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/bill_of_materials.css') }}">
+
+
+    <Link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+{% endblock %}
+
+{% block sidebar %}
+    {% with current_page = 'bom' %}
+        {% include 'module_template_html/base_sidebar.html' %}
+    {% endwith %}
 {% endblock %}
 
 {% block content %}
@@ -138,8 +145,3 @@
 {% endif %}
 {% endblock %}
 
-{% block sidebar %}
-    {% with current_page = 'bom' %}
-        {% include 'module_template_html/base_sidebar.html' %}
-    {% endwith %}
-{% endblock %}
