@@ -1,60 +1,17 @@
+/* static/css/bill_of_materials.css - Modified to work with base.css */
+
 body {
     background-image: url("/static/background images/abstractfractal.jpg");
     background-size: cover;
     background-repeat: no-repeat;
-    display: flex;
     color: black;
-    margin: 0;
-    height: 100vh;
+    /* Removed display: flex, margin: 0, and height: 100vh since they'll come from base.css */
 }
 
-.sidebar {
-    width: 250px;
-    height: 100vh;
-    background-color: rgba(0, 0, 0, 0.432);
-    padding: 20px;
-    box-sizing: border-box;
-    transition: width 0.3s;
-    overflow-x: hidden;
-    flex-shrink: 0;
-}
+/* Removing all sidebar styles to let base.css control them */
+/* .sidebar styles have been removed */
 
-.sidebar.collapsed {
-    width: 10px;
-}
-
-.sidebar h2 {
-    color: black;
-    text-align: center;
-}
-
-.sidebar a {
-    color: yellow;
-    text-decoration: none;
-    display: block;
-    padding: 10px;
-    transition: padding-left 0.3s;
-}
-
-.sidebar.collapsed a {
-    padding-left: 10px;
-}
-
-.sidebar a:hover {
-    background-color: rgba(255, 255, 255, 0);
-}
-
-.toggle-btn {
-    background-color: #4CAF50;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    padding: 10px 20px;
-    display: block;
-    margin: 0 auto 20px;
-}
-
+/* Content wrapper styles - modified to work with base.css sidebar */
 .content-wrapper {
     display: flex;
     flex: 1;
@@ -62,13 +19,15 @@ body {
     align-items: flex-start;
     padding: 20px;
     height: 100vh;
-    width: calc(100% - 250px);
-    margin-left: 250px;
+    width: calc(100% - 300px); /* Adjusted to match base sidebar width */
+    margin-left: 300px; /* Adjusted to match base sidebar width */
+    transition: margin-left 0.5s ease, width 0.5s ease;
 }
 
-.sidebar.collapsed + .content-wrapper {
-    margin-left: 50px;
-    width: calc(100% - 50px);
+/* Adjust when sidebar is collapsed - to match base.css collapsed state */
+.content-wrapper.sidebar-collapsed {
+    margin-left: 0;
+    width: 100%;
 }
 
 .content {
@@ -107,8 +66,8 @@ body {
     background-color: #4CAF50;
     color: white;
     cursor: pointer;
-    width: auto; /* Adjust the width of the submit button */
-    padding: 10px 20px; /* Increase padding for a cleaner look */
+    width: auto;
+    padding: 10px 20px;
 }
 
 .form-container input[type="submit"]:hover {
@@ -116,9 +75,9 @@ body {
 }
 
 .form-container input[type="submit"].wide-button {
-    width: auto; /* Set the button width to be automatic */
+    width: auto;
     display: block;
-    margin: 0 auto; /* Center the button */
+    margin: 0 auto;
 }
 
 .return-link {
@@ -135,4 +94,40 @@ body {
     cursor: pointer;
     display: block;
     margin: 0 auto;
+}
+
+/* From the newer additions */
+.wide-dropdown {
+    width: 100%;
+    max-width: 600px;
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.btn-primary {
+    background-color: #007bff;
+    border-color: #007bff;
+    color: #fff;
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+    display: inline-block;
+    margin-top: 10px;
+}
+
+.messages {
+    margin-top: 20px;
+    padding: 10px;
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+    border-radius: 4px;
 }
