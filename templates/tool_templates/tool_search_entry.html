@@ -7,9 +7,9 @@
 {% block extra_head %}
   <!-- 1️⃣ Bootstrap 5 CSS -->
   <link
-  href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
-  rel="stylesheet"
-/>
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+  />
 
   <!-- 2️⃣ Select2 CSS (if you need it) -->
   <link
@@ -32,6 +32,11 @@
     rel="stylesheet"
     href="{{ url_for('static', filename='css/tool/tool_search_entry.css') }}"
   />
+  <!-- Role-based access control CSS -->
+  <link
+    rel="stylesheet"
+    href="{{ url_for('static', filename='css/tool/role_base_acc_ctrl.css') }}"
+  />
 {% endblock %}
 
 
@@ -52,11 +57,14 @@
             {% endif %}
         {% endwith %}
 
+        <!-- Hidden user level element for role-based access - using a data attribute instead -->
+        <div data-user-level="general" style="display: none;"></div>
+
         <!-- Tab Navigation -->
         <div class="tab-container">
             <ul class="tab-list">
-                <li class="tab-item active" data-tab="add-tool-tab">Add Tool</li>
-                <li class="tab-item" data-tab="search-tool-tab">Search Tool</li>
+                <li class="tab-item" data-tab="add-tool-tab">Add Tool</li>
+                <li class="tab-item active" data-tab="search-tool-tab">Search Tool</li>
                 <li class="tab-item" data-tab="tool-manufacturer-tab">Tool Manufacturer</li>
                 <li class="tab-item" data-tab="tool-category-tab">Tool Category</li>
             </ul>
@@ -65,8 +73,7 @@
         <!-- Tab Content Sections -->
         <div class="tab-content-container">
             <!-- Add Tool Tab Content -->
-
-            <div id="add-tool-tab" class="tab-content active">
+            <div id="add-tool-tab" class="tab-content">
                 {% if tool_form %}
                     <div class="form-container">
                         <form id="tool_add_form" action="{{ url_for('tool_routes.submit_tool_data') }}" method="POST" enctype="multipart/form-data" class="mt-4">
@@ -282,7 +289,7 @@
 
 
             <!-- Search Tool Tab Content -->
-            <div id="search-tool-tab" class="tab-content">
+            <div id="search-tool-tab" class="tab-content active">
                 {% include 'tool_templates/search_tool.html' %}
             </div>
 
@@ -299,7 +306,9 @@
                     <p>No category form available.</p>
                 {% endif %}
             </div>
-
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_scripts %}
@@ -313,6 +322,8 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
   <!-- 4️⃣ Your custom scripts -->
+  <!-- Role-based access control JS -->
+  <script src="{{ url_for('static', filename='js/tool/role_base_acc_ctrl.js') }}"></script>
   <script src="{{ url_for('static', filename='js/tool/tool_dropdown_populate.js') }}"></script>
   <script src="{{ url_for('static', filename='js/tool/tool_form_handler.js') }}"></script>
   <script src="{{ url_for('static', filename='js/tool/tool_search.js') }}"></script>
