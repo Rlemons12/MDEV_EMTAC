@@ -9,7 +9,8 @@
 {% endblock %}
 
 {% block content %}
-    <!-- Main Container for the BOM Search -->
+    <!-- Search BOM - available to LEVEL_I and above -->
+    {% if session['user_level'] == 'LEVEL_I' or session['user_level'] == 'LEVEL_II' or session['user_level'] == 'LEVEL_III' or session['user_level'] == 'ADMIN' %}
     <div id="search-bill-of-materials" class="form-container">
         <h1>Parts Search By Used On</h1>
         <!-- Button to toggle the collapsible form -->
@@ -63,8 +64,10 @@
             </form>
         </div>
     </div>
+    {% endif %}
 
-    <!-- Upload Bill of Materials Form -->
+    <!-- Upload Bill of Materials Form - restricted to LEVEL_III and ADMIN -->
+    {% if session['user_level'] == 'LEVEL_III' or session['user_level'] == 'ADMIN' %}
     <div id="upload-bill-of-materials" class="form-container">
         <h2>Upload Bill of Materials</h2>
         <form id="upload-bom-form" action="/bill_of_materials" method="post" enctype="multipart/form-data">
@@ -84,13 +87,17 @@
             <input type="submit" value="Upload">
         </form>
     </div>
+    {% endif %}
 
-    <!-- Enter New Part Form -->
+    <!-- Enter New Part Form - restricted to LEVEL_II and above -->
+    {% if session['user_level'] == 'LEVEL_II' or session['user_level'] == 'LEVEL_III' or session['user_level'] == 'ADMIN' %}
     <div id="1enter-new-part-number" class="form-container">
         {% include 'bill_of_materials/bom_partials/enter_new_part.html' %}
     </div>
+    {% endif %}
 
-    <!-- Search and Edit Part Form -->
+    <!-- Search and Edit Part Form - available to LEVEL_I and above -->
+    {% if session['user_level'] == 'LEVEL_I' or session['user_level'] == 'LEVEL_II' or session['user_level'] == 'LEVEL_III' or session['user_level'] == 'ADMIN' %}
     <div id="edit-part" class="form-container">
         <h1>Search and Edit Part</h1>
 
@@ -115,8 +122,9 @@
         {% endif %}
 
         <!-- Include the edit part form partial -->
-        {% include '/bill_of_materials/bom_partials/edit_part.html' %}
+        {% include 'bill_of_materials/bom_partials/enter_new_part.html' %}
     </div>
+    {% endif %}
 
     <!-- Flash Messages -->
     {% with messages = get_flashed_messages() %}
@@ -142,11 +150,39 @@
     <script>
         // Show specific form based on the formId and hide the others
         function showForm(formId) {
+            // Check user permissions before showing form
+            {% if session['user_level'] == 'STANDARD' %}
+                // No access for STANDARD users
+                alert("You don't have permission to access this feature.");
+                return;
+            {% else %}
+                // Check specific permissions
+                {% if session['user_level'] == 'LEVEL_I' %}
+                    // LEVEL_I can only access search and edit
+                    if (formId === 'upload-bill-of-materials' || formId === '1enter-new-part-number') {
+                        alert("You don't have permission to access this feature.");
+                        return;
+                    }
+                {% elif session['user_level'] == 'LEVEL_II' %}
+                    // LEVEL_II can't access upload
+                    if (formId === 'upload-bill-of-materials') {
+                        alert("You don't have permission to access this feature.");
+                        return;
+                    }
+                {% endif %}
+            {% endif %}
+
             var forms = document.getElementsByClassName('form-container');
             for (var i = 0; i < forms.length; i++) {
                 forms[i].style.display = 'none';  // Hide all forms
             }
-            document.getElementById(formId).style.display = 'block';  // Show the selected form
+
+            var targetForm = document.getElementById(formId);
+            if (targetForm) {
+                targetForm.style.display = 'block';  // Show the selected form
+            } else {
+                console.error('Form not found:', formId);
+            }
         }
 
         // Toggle visibility of advanced search form
@@ -161,12 +197,16 @@
 
         // Event listeners after DOM content is fully loaded
         document.addEventListener('DOMContentLoaded', function() {
-            // Hide all forms initially, and display default (search-bill-of-materials) form
+            // Hide all forms initially
             var forms = document.getElementsByClassName('form-container');
             for (var i = 0; i < forms.length; i++) {
                 forms[i].style.display = 'none';
             }
-            document.getElementById('search-bill-of-materials').style.display = 'block'; // Default form
+
+            // Show default form based on user level
+            {% if session['user_level'] == 'LEVEL_I' or session['user_level'] == 'LEVEL_II' or session['user_level'] == 'LEVEL_III' or session['user_level'] == 'ADMIN' %}
+                document.getElementById('search-bill-of-materials').style.display = 'block'; // Default form
+            {% endif %}
 
             // Event listener for the advanced search toggle button
             var toggleButton = document.getElementById('toggleFormBtn');
