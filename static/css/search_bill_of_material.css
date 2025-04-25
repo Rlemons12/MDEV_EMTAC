@@ -1,12 +1,13 @@
+/*static/css/search_bill_of_material.css */
 /* Ensure dropdowns and input fields are wider */
 .wide-dropdown {
     width: 100%; /* Make the dropdowns take up full width */
-    max-width: 600px; /* Adjust the max width as needed */
+    max-width: 300px; /* Adjust the max width as needed */
 }
 
 /* Additional form and container styling */
 .container {
-    max-width: 800px;
+    max-width: 400px;
     margin: 0 auto;
     padding: 20px;
 }

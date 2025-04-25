@@ -1,4 +1,4 @@
-<!-- base_sidebar.html - Template for sidebar component -->
+<!-- module_template_html/base_template.html - Template for sidebar component -->
 <div class="sidebar" id="mainSidebar">
     <!-- Header Section -->
     <div class="sidebar-header">
@@ -9,41 +9,56 @@
 
     <!-- Main Navigation Links -->
     <div class="sidebar-nav">
-        <!-- Common links for all users -->
+        <!-- Common links for all users (STANDARD is default) -->
         <a href="http://127.0.0.1:5000" class="nav-link highlight">Return to Main</a>
-        <a href="/pst_troubleshooting/" class="nav-link highlight">Search Troubleshooting</a>
         <a href="/upload_search_database" class="nav-link highlight">Search and Upload</a>
         <a href="/bill_of_materials" class="nav-link highlight">Parts and BOMs</a>
 
-        <!-- Advanced user links -->
-        {% if session['user_level'] != 'STANDARD' %}
-            <a href="/" class="nav-link">Return to Main Page</a>
+        <!-- LEVEL_I and above can see these links -->
+        {% if session['user_level'] == 'LEVEL_I' or session['user_level'] == 'LEVEL_II' or session['user_level'] == 'LEVEL_III' or session['user_level'] == 'ADMIN' %}
             <a href="/pst_troubleshooting/" class="nav-link highlight">Search Troubleshooting</a>
+            
+            <!-- Search specific links - visible to LEVEL_I and above -->
+            {% if current_page == 'search' %}
+                <a href="#search-documents" onclick="showForm('search-documents')" class="nav-link">Search Documents</a>
+                <a href="#search-images" onclick="showForm('search-images')" class="nav-link">Search Images</a>
+                <a href="#compare-images" onclick="showForm('compare-images')" class="nav-link">Compare Images</a>
+                <a href="#search-powerpoints" onclick="showForm('search-powerpoints')" class="nav-link">Search PowerPoints</a>
+            {% endif %}
 
-            <!-- Admin and Level III specific links -->
-            {% if session['user_level'] == 'ADMIN' or session['user_level'] == 'LEVEL_III' %}
-                <a href="/position_data_assignment" class="nav-link highlight">Position Data Assignment</a>
-                <a href="/tool/submit_tool_data" class="nav-link highlight">Tools: Entry and Search</a>
+            <!-- BOM specific links - search and edit for LEVEL_I and above -->
+            {% if current_page == 'bom' %}
+                <a href="#search-bill-of-materials" onclick="showForm('search-bill-of-materials')" class="nav-link">Search Bill of Materials</a>
+                <a href="#edit-part" onclick="showForm('edit-part')" class="nav-link">Edit Part</a>
+            {% endif %}
+        {% endif %}
 
-                <!-- BOM specific links that can be conditionally shown -->
-                {% if current_page == 'bom' %}
-                    <a href="#search-bill-of-materials" onclick="showForm('search-bill-of-materials')" class="nav-link">Search Bill of Materials</a>
-                    <a href="#upload-bill-of-materials" onclick="showForm('upload-bill-of-materials')" class="nav-link">Upload Bill of Materials</a>
-                    <a href="#1enter-new-part-number" onclick="showForm('1enter-new-part-number')" class="nav-link">Enter New Part</a>
-                    <a href="#edit-part" onclick="showForm('edit-part')" class="nav-link">Edit Part</a>
-                {% endif %}
+        <!-- LEVEL_II and above can see these links -->
+        {% if session['user_level'] == 'LEVEL_II' or session['user_level'] == 'LEVEL_III' or session['user_level'] == 'ADMIN' %}
+            <a href="/tool/submit_tool_data" class="nav-link highlight">Tools: Entry and Search</a>
 
-                <!-- Search specific links that can be conditionally shown -->
-                {% if current_page == 'search' %}
-                    <a href="#search-documents" onclick="showForm('search-documents')" class="nav-link">Search Documents</a>
-                    <a href="#search-images" onclick="showForm('search-images')" class="nav-link">Search Images</a>
-                    <a href="#compare-images" onclick="showForm('compare-images')" class="nav-link">Compare Images</a>
-                    <a href="#search-powerpoints" onclick="showForm('search-powerpoints')" class="nav-link">Search PowerPoints</a>
-                    <a href="#upload-image" onclick="showForm('upload-image')" class="nav-link">Upload Image</a>
-                    <a href="#upload-document" onclick="showForm('upload-document')" class="nav-link">Upload Document</a>
-                    <a href="#upload-powerpoint" onclick="showForm('upload-powerpoint')" class="nav-link">Upload PowerPoint</a>
-                    <a href="#batch-upload" onclick="showForm('batch-upload')" class="nav-link">Batch Upload Documents</a>
-                {% endif %}
+            <!-- BOM specific links - Enter New Part for LEVEL_II and above -->
+            {% if current_page == 'bom' %}
+                <a href="#1enter-new-part-number" onclick="showForm('1enter-new-part-number')" class="nav-link">Enter New Part</a>
+            {% endif %}
+        {% endif %}
+
+        <!-- Admin and Level III specific links -->
+        {% if session['user_level'] == 'ADMIN' or session['user_level'] == 'LEVEL_III' %}
+            <a href="/position_data_assignment" class="nav-link highlight">Position Data Assignment</a>
+            <a href="/tool/submit_tool_data" class="nav-link highlight">Tools: Entry and Search</a>
+
+            <!-- BOM specific links - Upload for LEVEL_III and ADMIN -->
+            {% if current_page == 'bom' %}
+                <a href="#upload-bill-of-materials" onclick="showForm('upload-bill-of-materials')" class="nav-link">Upload Bill of Materials</a>
+            {% endif %}
+
+            <!-- Upload links only available to LEVEL_III and ADMIN -->
+            {% if current_page == 'search' %}
+                <a href="#upload-image" onclick="showForm('upload-image')" class="nav-link">Upload Image</a>
+                <a href="#upload-document" onclick="showForm('upload-document')" class="nav-link">Upload Document</a>
+                <a href="#upload-powerpoint" onclick="showForm('upload-powerpoint')" class="nav-link">Upload PowerPoint</a>
+                <a href="#batch-upload" onclick="showForm('batch-upload')" class="nav-link">Batch Upload Documents</a>
             {% endif %}
         {% endif %}
     </div>
