@@ -144,6 +144,62 @@ class Model(Base):
     location = relationship("Location", back_populates="model")
     position = relationship("Position", back_populates="model")
 
+    @classmethod
+    def search_models(cls, session, query, limit=10):
+        """
+        Searches for models that match the provided query using a case-insensitive
+        partial match on the name field. Useful for autocomplete or dynamic search interfaces.
+
+        Parameters:
+            session: SQLAlchemy session object used for querying.
+            query: The partial model name input by the user.
+            limit: Maximum number of results to return (default is 10).
+
+        Returns:
+            A list of dictionaries, each containing details about a model:
+              - id: The model's unique identifier.
+              - name: The model's name.
+              - description: The model's description.
+              - equipment_group_id: The associated equipment group ID.
+            If no records match, an empty list is returned.
+        """
+        logger.info("========== MODEL AUTOCOMPLETE SEARCH ==========")
+        logger.debug(f"Initiating search for models with query: '{query}'")
+
+        try:
+            if not query:
+                logger.debug("Empty query received; returning empty result set.")
+                return []
+
+            search_pattern = f"%{query}%"
+            logger.debug(f"Using search pattern: '{search_pattern}'")
+
+            results = session.query(cls).filter(cls.name.ilike(search_pattern)).limit(limit).all()
+
+            if results:
+                models = []
+                for model in results:
+                    model_details = {
+                        "id": model.id,
+                        "name": model.name,
+                        "description": model.description,
+                        "equipment_group_id": model.equipment_group_id
+                    }
+                    models.append(model_details)
+                    logger.debug(f"Found model: {model_details}")
+                logger.info(f"Found {len(models)} model(s) matching query '{query}'.")
+                return models
+            else:
+                logger.warning(f"No models found matching query '{query}'.")
+                return []
+        except Exception as e:
+            logger.error(f"Error searching for models with query '{query}': {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return []
+        finally:
+            logger.info("========== MODEL AUTOCOMPLETE SEARCH COMPLETE ==========")
+
 class AssetNumber(Base):
     __tablename__ = 'asset_number'
 
@@ -1320,6 +1376,7 @@ class User(Base):
     __tablename__ = 'users'
 
     id = Column(Integer, primary_key=True)
+    type = Column(String(50))  # This column is needed for SQLAlchemy inheritance
     employee_id = Column(String, unique=True, nullable=False)
     first_name = Column(String, nullable=False)
     last_name = Column(String, nullable=False)
@@ -1337,11 +1394,123 @@ class User(Base):
     # Relationship to comments
     comments = relationship("UserComments", back_populates="user")
 
+    # Add mapper arguments for inheritance
+    __mapper_args__ = {
+        'polymorphic_identity': 'user',
+        'polymorphic_on': type
+    }
+
     def set_password(self, password):
         self.hashed_password = generate_password_hash(password)
 
     def check_password_hash(self, password):
         return check_password_hash(self.hashed_password, password)
+
+class KivyUser(User):
+    __tablename__ = 'kivy_users'
+
+    id = Column(Integer, ForeignKey('users.id'), primary_key=True)
+
+    # Relationship to layouts
+    layouts = relationship("UserLayout", back_populates="user", cascade="all, delete-orphan")
+
+    __mapper_args__ = {
+        'polymorphic_identity': 'kivy_user',
+    }
+
+    def get_layout(self, layout_name):
+        """Get a specific layout by name"""
+        from sqlalchemy.orm.session import object_session
+
+        session = object_session(self)
+        if not session:
+            raise ValueError("User is not attached to a session")
+
+        layout = session.query(UserLayout).filter_by(
+            user_id=self.id,
+            layout_name=layout_name
+        ).first()
+
+        if layout:
+            import json
+            return json.loads(layout.layout_data)
+        return None
+
+    def save_layout(self, layout_name, layout_data):
+        """Save a layout with a specific name"""
+        from sqlalchemy.orm.session import object_session
+        import json
+
+        session = object_session(self)
+        if not session:
+            raise ValueError("User is not attached to a session")
+
+        layout = session.query(UserLayout).filter_by(
+            user_id=self.id,
+            layout_name=layout_name
+        ).first()
+
+        if layout:
+            # Update existing layout
+            layout.layout_data = json.dumps(layout_data)
+        else:
+            # Create new layout
+            layout = UserLayout(
+                user_id=self.id,
+                layout_name=layout_name,
+                layout_data=json.dumps(layout_data)
+            )
+            session.add(layout)
+
+        session.commit()
+
+    def get_all_layouts(self):
+        """Get all layouts for this user"""
+        from sqlalchemy.orm.session import object_session
+        import json
+
+        session = object_session(self)
+        if not session:
+            raise ValueError("User is not attached to a session")
+
+        layouts = session.query(UserLayout).filter_by(user_id=self.id).all()
+
+        return {layout.layout_name: json.loads(layout.layout_data) for layout in layouts}
+
+    def delete_layout(self, layout_name):
+        """Delete a layout by name"""
+        from sqlalchemy.orm.session import object_session
+
+        session = object_session(self)
+        if not session:
+            raise ValueError("User is not attached to a session")
+
+        layout = session.query(UserLayout).filter_by(
+            user_id=self.id,
+            layout_name=layout_name
+        ).first()
+
+        if layout:
+            session.delete(layout)
+            session.commit()
+            return True
+        return False
+
+class UserLayout(Base):
+    __tablename__ = 'user_layouts'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('kivy_users.id'), nullable=False)
+    layout_name = Column(String, nullable=False)
+    layout_data = Column(Text, nullable=False)  # Store JSON layout data
+
+    # Relationship to KivyUser
+    user = relationship("KivyUser", back_populates="layouts")
+
+    # Create a unique constraint to prevent duplicate layout names for a user
+    __table_args__ = (
+        UniqueConstraint('user_id', 'layout_name', name='uix_user_layout_name'),
+    )
 
 # Define the UserComments model
 class UserComments(Base):
