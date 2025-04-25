@@ -1,4 +1,8 @@
 import os
+from datetime import datetime
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy.orm import relationship
+from sqlalchemy.ext.declarative import declarative_base
 import logging
 import shutil
 from datetime import datetime
@@ -6,7 +10,7 @@ import openai
 import spacy
 from fuzzywuzzy import process
 from werkzeug.security import check_password_hash, generate_password_hash
-from sqlalchemy import (DateTime, Column, ForeignKey, Integer, JSON, LargeBinary, Enum as SqlEnum,
+from sqlalchemy import (DateTime, Column, ForeignKey, Integer, JSON, LargeBinary, Enum as SqlEnum, Boolean,
                         String, create_engine, text, Float, Text, UniqueConstraint, and_, Table)
 from enum import Enum as PyEnum  # Import Enum and alias it as PyEnum
 from sqlalchemy.exc import SQLAlchemyError
@@ -1355,6 +1359,7 @@ class UserLevel(PyEnum):
     ADMIN = 'ADMIN'
     LEVEL_III = 'LEVEL_III'
     LEVEL_II = 'LEVEL_II'
+    LEVEL_I = 'LEVEL_I'
     STANDARD = 'STANDARD'
 
 class AIModelConfig(Base):
@@ -1393,6 +1398,7 @@ class User(Base):
 
     # Relationship to comments
     comments = relationship("UserComments", back_populates="user")
+    logins = relationship('UserLogin', back_populates='user')
 
     # Add mapper arguments for inheritance
     __mapper_args__ = {
@@ -1405,6 +1411,33 @@ class User(Base):
 
     def check_password_hash(self, password):
         return check_password_hash(self.hashed_password, password)
+
+
+class UserLogin(Base):
+    __tablename__ = 'user_logins'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    session_id = Column(String, nullable=False)  # Flask session ID
+    ip_address = Column(String, nullable=True)
+    user_agent = Column(String, nullable=True)  # Browser/client info
+    login_time = Column(DateTime, default=datetime.utcnow)
+    last_activity = Column(DateTime, default=datetime.utcnow)
+    logout_time = Column(DateTime, nullable=True)
+    is_active = Column(Boolean, default=True)
+
+    # Relationship to User
+    user = relationship("User", back_populates="logins")
+
+    def __init__(self, user_id, session_id, ip_address=None, user_agent=None):
+        self.user_id = user_id
+        self.session_id = session_id
+        self.ip_address = ip_address
+        self.user_agent = user_agent
+        self.login_time = datetime.utcnow()
+        self.last_activity = datetime.utcnow()
+        self.is_active = True
+
 
 class KivyUser(User):
     __tablename__ = 'kivy_users'
