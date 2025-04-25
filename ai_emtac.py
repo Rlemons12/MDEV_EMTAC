@@ -1,11 +1,14 @@
+# ai_emtac.py
+from datetime import datetime
 import sys
 import os
 import webbrowser
 import socket
 from threading import Timer
-from flask import Flask, render_template, flash, current_app
+from flask import Flask, session, request, redirect, url_for, current_app, render_template
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
+from modules.emtacdb.emtacdb_fts import UserLogin
 
 # Add current directory to the Python path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -80,38 +83,34 @@ def create_app():
 
     @app.before_request
     def global_login_check():
-        # 1) grab the endpoint name into a variable
         endpoint = request.endpoint
-
-        # 2) log it
         current_app.logger.debug(f"→ incoming endpoint: {endpoint}")
-# todo add_document_bp.wrapper modify @with_request_id to use functools.wraps, so that the wrapper keeps the same name:
+
+        # Only proceed with the activity tracking if user is logged in and has a login record
+        if 'user_id' in session and 'login_record_id' in session:
+            try:
+                # Use your existing SessionFactory to create a session
+                with SessionFactory() as session_db:
+                    login_record = session_db.query(UserLogin).get(session['login_record_id'])
+                    if login_record and login_record.is_active:
+                        login_record.last_activity = datetime.utcnow()
+                        session_db.commit()
+            except Exception as e:
+                logger.error(f"Error updating activity timestamp: {e}")
+
+        # Continue with login check
         allowed_routes = [
             'login_bp.login',
             'login_bp.logout',
-            'static',
-            'create_user_bp.create_user',
-            'create_user_bp.submit_user_creation',
-            'tsg_search_parts_bp.tsg_search_parts',
-            'trouble_shooting_guide_bp.update_problem_solution',
-            'trouble_shooting_guide_edit_update.troubleshooting_guide_edit_update',
-            'trouble_shooting_guide_bp.search_documents',
-            'pst_troubleshooting_solution.get_solutions',
-            'tool_routes.tool_search',
-            'tool_routes.get_tool_positions',
-            'tool_routes.get_tool_packages',
-            'tool_routes.submit_tool_data',
-            'tool_routes.get_manufacturers',
-            'tool_routes.get_categories',
-            'image_bp.add_image',
-            "add_document_bp.add_document",
-            'add_document_bp.wrapper',
-            'image_bp.upload_image',
+            'static'  # Allow static files
         ]
+
         if request.endpoint is None:
             return
+
         if 'user_id' not in session and request.endpoint not in allowed_routes:
             return redirect(url_for('login_bp.login'))
+
         session.permanent = True
 
     @app.route('/')
