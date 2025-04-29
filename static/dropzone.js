@@ -1,4 +1,4 @@
-<script>
+
     Dropzone.autoDiscover = false; // Disable auto-discover to manually initialize Dropzone
 
     var myDropzone = new Dropzone("#myDropzone", {
@@ -37,4 +37,4 @@
             this.submit();
         }
     });
-</script>
+
