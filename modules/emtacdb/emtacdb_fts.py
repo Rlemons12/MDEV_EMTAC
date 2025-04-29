@@ -1412,7 +1412,6 @@ class User(Base):
     def check_password_hash(self, password):
         return check_password_hash(self.hashed_password, password)
 
-
 class UserLogin(Base):
     __tablename__ = 'user_logins'
 
@@ -1437,7 +1436,6 @@ class UserLogin(Base):
         self.login_time = datetime.utcnow()
         self.last_activity = datetime.utcnow()
         self.is_active = True
-
 
 class KivyUser(User):
     __tablename__ = 'kivy_users'
