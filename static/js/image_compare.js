@@ -4,8 +4,10 @@ document.addEventListener('DOMContentLoaded', function () {
     const dropZone = document.getElementById('drop-zone');
     const fileInput = document.getElementById('file-input');
     const uploadForm = document.getElementById('upload-compare-form');
+    const uploadedImagePreview = document.getElementById('uploaded-image-preview');
+    const uploadedImage = document.getElementById('uploaded-image');
 
-    if (!dropZone || !fileInput || !uploadForm) {
+    if (!dropZone || !fileInput || !uploadForm || !uploadedImagePreview || !uploadedImage) {
         console.error('Required elements not found.');
         return;
     }
@@ -31,6 +33,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (files.length > 0) {
             console.log('Files dropped:', files);
             fileInput.files = files;
+            displayUploadedImage(files[0]);
             console.log('Submitting form after file drop.');
             handleSubmit();
         } else {
@@ -46,6 +49,7 @@ document.addEventListener('DOMContentLoaded', function () {
     fileInput.addEventListener('change', () => {
         if (fileInput.files.length > 0) {
             console.log('File input changed:', fileInput.files);
+            displayUploadedImage(fileInput.files[0]);
             console.log('Submitting form after file input change.');
             handleSubmit();
         } else {
@@ -58,6 +62,20 @@ document.addEventListener('DOMContentLoaded', function () {
         console.log('Form submit event.');
         handleSubmit();
     });
+
+    function displayUploadedImage(file) {
+        // Display the uploaded image in the preview area
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            uploadedImage.src = e.target.result;
+            uploadedImagePreview.style.display = 'block';
+
+            // Add a label to make it clear this is the query image
+            dropZone.innerHTML = 'Image uploaded: ' + file.name;
+            console.log('Image displayed:', file.name);
+        };
+        reader.readAsDataURL(file);
+    }
 
     function handleSubmit() {
         const formData = new FormData(uploadForm);
@@ -85,7 +103,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function renderComparisonResults(results) {
-        let imagesList = '';
+        let imagesList = '<h3 style="color: yellow; margin-top: 30px;">Similar Images</h3>';
         results.forEach(image => {
             console.log('Rendering result for image:', image);
             imagesList += `<div class="image-details">
