@@ -163,11 +163,17 @@
         </form>
     </div>
 
+    <!-- Update the upload-compare-form section inside your HTML -->
     <div id="compare-images" class="form-container">
         <h2>Upload and Compare Image</h2>
         <form id="upload-compare-form" action="/upload_and_compare" method="post" enctype="multipart/form-data">
             <div id="drop-zone" class="drop-zone">
                 Drag & Drop your image here or click to upload
+            </div>
+            <!-- Add this new div for displaying the uploaded image -->
+            <div id="uploaded-image-preview" style="display: none; margin-top: 20px; text-align: center;">
+                <h3 style="color: yellow;">Your Uploaded Image</h3>
+                <img id="uploaded-image" style="max-width: 300px; max-height: 300px; border: 2px solid #ccc; border-radius: 5px; padding: 5px;" />
             </div>
             <input type="file" id="file-input" name="query_image" accept="image/*" style="display: none;">
             <input type="hidden" name="model_name" value="clip">
@@ -175,33 +181,33 @@
         </form>
     </div>
 
-    <div id="search-documents" class="form-container">
-        <h2>Search Documents</h2>
-        <form id="search-documents-form">
-            <label for="title" style="color: Yellow;">Title:</label><br>
-            <input type="text" name="title" id="search_documents_title" placeholder="Title"><br>
-            <label for="area" style="color: Yellow;">Area:</label><br>
-            <select name="searchdocument_area" id="searchdocument_areaDropdown"></select><br>
-            <label for="equipment_group" style="color: Yellow;">Equipment Group:</label><br>
-            <select name="searchdocument_equipmentgroup" id="searchdocument_equipmentGroupDropdown"></select><br>
-            <label for="model" style="color: Yellow;">Model:</label><br>
-            <select name="searchdocument_model" id="searchdocument_modelDropdown"></select><br>
-            <label for="asset_number" style="color: Yellow;">Asset Number:</label><br>
-            <select name="searchdocument_asset_number" id="searchdocument_assetNumberDropdown"></select><br>
-            <label for="location" style="color: Yellow;">Location:</label><br>
-            <select name="searchdocument_location" id="searchdocument_locationDropdown"></select><br>
-            <input type="submit" value="Search">
-        </form>
-    </div>
-    {% endif %}
+        <div id="search-documents" class="form-container">
+            <h2>Search Documents</h2>
+            <form id="search-documents-form">
+                <label for="title" style="color: Yellow;">Title:</label><br>
+                <input type="text" name="title" id="search_documents_title" placeholder="Title"><br>
+                <label for="area" style="color: Yellow;">Area:</label><br>
+                <select name="searchdocument_area" id="searchdocument_areaDropdown"></select><br>
+                <label for="equipment_group" style="color: Yellow;">Equipment Group:</label><br>
+                <select name="searchdocument_equipmentgroup" id="searchdocument_equipmentGroupDropdown"></select><br>
+                <label for="model" style="color: Yellow;">Model:</label><br>
+                <select name="searchdocument_model" id="searchdocument_modelDropdown"></select><br>
+                <label for="asset_number" style="color: Yellow;">Asset Number:</label><br>
+                <select name="searchdocument_asset_number" id="searchdocument_assetNumberDropdown"></select><br>
+                <label for="location" style="color: Yellow;">Location:</label><br>
+                <select name="searchdocument_location" id="searchdocument_locationDropdown"></select><br>
+                <input type="submit" value="Search">
+            </form>
+        </div>
+        {% endif %}
 
-    <!-- Results section - available to all users -->
-    <div id="results" class="results-container">
-        <h2>Search Results</h2>
-        <ul id="documents-list"></ul>
-        <ul id="image-results" class="image-results-container"></ul>
-        <ul id="image-compare-results" class="image-compare-results-container"></ul>
-    </div>
+        <!-- Results section - available to all users -->
+        <div id="results" class="results-container">
+            <h2>Search Results</h2>
+            <ul id="documents-list"></ul>
+            <ul id="image-results" class="image-results-container"></ul>
+            <ul id="image-compare-results" class="image-compare-results-container"></ul>
+        </div>
 {% endblock %}
 
 {% block extra_scripts %}
