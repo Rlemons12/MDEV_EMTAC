@@ -1,6 +1,5 @@
+# blueprints/image_compare_bp.py
 
-# region todo: Clean up imports
-from audioop import error
 from flask import Blueprint, jsonify, request, send_from_directory, send_file, flash
 import os
 import numpy as np
@@ -8,11 +7,10 @@ from PIL import Image as PILImage
 from werkzeug.utils import secure_filename
 from modules.emtacdb.emtacdb_fts import Image, ImageEmbedding, load_image_model_config_from_db
 from plugins.image_modules.image_models import get_image_model_handler
-from modules.configuration.config import (DATABASE_URL, DATABASE_PATH_IMAGES_FOLDER, BASE_DIR,
-                                          DATABASE_DIR)
+from modules.configuration.config import DATABASE_PATH_IMAGES_FOLDER, DATABASE_DIR
 from modules.configuration.log_config import logger
 from modules.configuration.config_env import DatabaseConfig
-# end region
+
 
 db_config = DatabaseConfig()
 
