@@ -4,6 +4,7 @@
 
 {% block extra_head %}
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/upload_styles.css') }}">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/module_template/bass.css') }}">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" rel="stylesheet" />
     <style>
         .drop-zone {
@@ -173,7 +174,7 @@
             <!-- Add this new div for displaying the uploaded image -->
             <div id="uploaded-image-preview" style="display: none; margin-top: 20px; text-align: center;">
                 <h3 style="color: yellow;">Your Uploaded Image</h3>
-                <img id="uploaded-image" style="max-width: 300px; max-height: 300px; border: 2px solid #ccc; border-radius: 5px; padding: 5px;" />
+                <img id="uploaded-image" style="max-width: 650px; max-height: 650px; border: 2px solid #ccc; border-radius: 5px; padding: 5px;" />
             </div>
             <input type="file" id="file-input" name="query_image" accept="image/*" style="display: none;">
             <input type="hidden" name="model_name" value="clip">
