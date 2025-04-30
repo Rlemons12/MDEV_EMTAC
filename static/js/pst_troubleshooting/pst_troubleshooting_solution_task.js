@@ -28,24 +28,28 @@ document.addEventListener('DOMContentLoaded', () => {
         componetassemblies: '/pst_troubleshooting_guide_edit_update/component_assemblies',
         assemblyViews: '/pst_troubleshooting_guide_edit_update/get_assembly_views',
         },
-        associations: { // Updated to use singular keys
-            image: {
-                remove: '/pst_troubleshooting_guide_edit_update/remove_task_image',
-                // Add other image-related endpoints if necessary
-            },
-            part: {
-                remove: '/pst_troubleshooting_guide_edit_update/remove_task_part',
-                // Add other part-related endpoints if necessary
-            },
-            document: {
-                remove: '/pst_troubleshooting_guide_edit_update/remove_task_document',
-                // Add other document-related endpoints if necessary
-            },
-            drawing: {
-                remove: '/pst_troubleshooting_guide_edit_update/remove_task_drawing',
-                // Add other drawing-related endpoints if necessary
-            },
-        }
+        associations: { // Updated to include tools
+    image: {
+        remove: '/pst_troubleshooting_guide_edit_update/remove_task_image',
+        // Add other image-related endpoints if necessary
+    },
+    part: {
+        remove: '/pst_troubleshooting_guide_edit_update/remove_task_part',
+        // Add other part-related endpoints if necessary
+    },
+    document: {
+        remove: '/pst_troubleshooting_guide_edit_update/remove_task_document',
+        // Add other document-related endpoints if necessary
+    },
+    drawing: {
+        remove: '/pst_troubleshooting_guide_edit_update/remove_task_drawing',
+        // Add other drawing-related endpoints if necessary
+    },
+    tool: {
+        remove: '/pst_troubleshooting_guide_edit_update/remove_task_tools',
+        // Add other tool-related endpoints if necessary
+    }
+}
     };
 
     // === 2. Namespace for Common Functions ===
@@ -168,7 +172,7 @@ updateSelectedDisplay(displayBoxId, items, itemType) {
         let itemText = '';
         switch (itemType) {
             case 'part':
-                itemDiv.textContent= `${item.part_number || 'N/A'} - ${item.name || 'N/A'}`;
+                itemDiv.textContent = `${item.part_number || 'N/A'} - ${item.name || 'N/A'}`;
                 console.log(`Formatted part text: '${itemText}'`);
                 break;
             case 'drawing':
@@ -180,8 +184,12 @@ updateSelectedDisplay(displayBoxId, items, itemType) {
                 console.log(`Formatted image text: '${itemText}'`);
                 break;
             case 'document':
-                 itemDiv.textContent = `${item.title || 'N/A'}`;
+                itemDiv.textContent = `${item.title || 'N/A'}`;
                 console.log(`Formatted document text: '${itemText}'`);
+                break;
+            case 'tool':
+                itemDiv.textContent = `${item.name || 'N/A'} ${item.type ? `(${item.type})` : ''}`;
+                console.log(`Formatted tool text: '${itemText}'`);
                 break;
             default:
                 itemText = `Unknown item type: ${itemType}`;
@@ -751,11 +759,11 @@ async fetchInitialSiteLocations() {
         }
     }
 
-    /**
+/**
  * Populate the Edit Task form with task data
  * @param {Object} task - The task data object
  */
-    async function populateEditTaskForm(task) {
+async function populateEditTaskForm(task) {
     // Populate main Task Name and Description
     const taskNameInput = document.getElementById('pst_task_edit_task_name');
     const taskDescriptionTextarea = document.getElementById('pst_task_edit_task_description');
@@ -778,15 +786,17 @@ async fetchInitialSiteLocations() {
         console.warn("Element with ID 'pst_task_edit_positions_container' not found.");
     }
 
-    // Populate associated images, parts, drawings, and now documents
-    console.log('Updating selected images:',task.associations.images);
+    // Populate associated images, parts, drawings, documents and tools
+    console.log('Updating selected images:', task.associations.images);
     SolutionTaskCommon.updateSelectedDisplay('pst_task_edit_selected_images', task.associations?.images || [], 'image');
-    console.log('Updating selected parts:',task.associations.parts);
+    console.log('Updating selected parts:', task.associations.parts);
     SolutionTaskCommon.updateSelectedDisplay('pst_task_edit_selected_parts', task.associations?.parts || [], 'part');
-    console.log('Updating selected drawings:',task.associations.drawings);
+    console.log('Updating selected drawings:', task.associations.drawings);
     SolutionTaskCommon.updateSelectedDisplay('pst_task_edit_selected_drawings', task.associations?.drawings || [], 'drawing');
     console.log('Updating selected documents:', task.associations.completeDocuments);
     SolutionTaskCommon.updateSelectedDisplay('pst_task_edit_selected_documents', task.associations?.completeDocuments || [], 'document');
+    console.log('Updating selected tools:', task.associations.tools);
+    SolutionTaskCommon.updateSelectedDisplay('pst_task_edit_selected_tools', task.associations?.tools || [], 'tool');
 }
 
     /**
