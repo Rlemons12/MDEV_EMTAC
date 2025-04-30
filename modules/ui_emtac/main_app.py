@@ -1,24 +1,24 @@
 # Kivey_UI/main_app.py
 
-# region Todo: Clean up imports
-
 # --- Standard Library Imports ---
 import os
 import sys
 import json
 import logging
-from kivy.properties import ObjectProperty
+import datetime
 
 # --- Kivy Core Imports ---
 from kivy.lang import Builder
 from kivy.core.window import Window
 from kivy.properties import (
-    StringProperty, ListProperty, BooleanProperty, NumericProperty
+    StringProperty, ListProperty, BooleanProperty, NumericProperty, ObjectProperty
 )
 from kivy.metrics import dp
 from kivy.clock import Clock
 from kivy.factory import Factory
 from kivy.graphics import Color, Rectangle
+from kivy.uix.screenmanager import ScreenManager
+from kivy.utils import get_color_from_hex
 
 # --- Kivy UI Widgets ---
 from kivy.uix.label import Label
@@ -26,7 +26,6 @@ from kivy.uix.spinner import Spinner
 from kivy.uix.modalview import ModalView
 from kivy.uix.image import AsyncImage
 from kivy.uix.widget import Widget
-from kivy.utils import get_color_from_hex
 
 # --- KivyMD UI Widgets ---
 from kivymd.app import MDApp
@@ -34,13 +33,20 @@ from kivymd.uix.card import MDCard
 from kivymd.uix.label import MDLabel
 from kivymd.uix.list import (
     OneLineListItem, TwoLineListItem, ThreeLineListItem,
-    OneLineIconListItem, IconLeftWidget
+    OneLineIconListItem, IconLeftWidget, MDList
 )
-from kivymd.uix.button import MDRaisedButton, MDIconButton
+from kivymd.uix.button import MDRaisedButton, MDIconButton, MDFlatButton
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.floatlayout import MDFloatLayout
 from kivymd.uix.tab import MDTabsBase
-from kivymd.uix.snackbar import MDSnackbar  # Consistent snackbar use
+from kivymd.uix.snackbar import MDSnackbar
+from kivymd.uix.menu import MDDropdownMenu
+from kivymd.uix.screen import MDScreen
+from kivymd.uix.textfield import MDTextField
+from kivymd.uix.dialog import MDDialog
+
+# --- SQLAlchemy ---
+from sqlalchemy.orm.exc import NoResultFound
 
 # --- Project Configuration ---
 from modules.configuration.config_env import DatabaseConfig
@@ -50,7 +56,7 @@ from modules.configuration.log_config import logger
 from modules.emtacdb.emtacdb_fts import (
     Area, EquipmentGroup, Model, AssetNumber, Location,
     Position, Problem, Solution, Task, TaskSolutionAssociation,
-    Part, Image, Drawing, CompleteDocument,KivyUser,
+    Part, Image, Drawing, CompleteDocument, KivyUser, User,
     DrawingPartAssociation, PartsPositionImageAssociation, ImagePositionAssociation,
     ProblemPositionAssociation, DrawingPositionAssociation, CompletedDocumentPositionAssociation
 )
@@ -66,26 +72,6 @@ from modules.ui_emtac.content_widgets import (
 
 # --- Data Services ---
 from data_service import DataService
-
-from kivymd.uix.menu import MDDropdownMenu
-from kivymd.uix.list import OneLineListItem
-from kivy.clock import Clock
-from kivy.uix.screenmanager import ScreenManager
-from sqlalchemy.orm.exc import NoResultFound
-from kivymd.uix.screen import MDScreen
-from kivymd.uix.textfield import MDTextField
-from kivymd.uix.button import MDRaisedButton
-from kivymd.uix.boxlayout import MDBoxLayout
-from kivymd.uix.label import MDLabel
-from kivy.metrics import dp
-from kivymd.uix.textfield import MDTextField
-from kivymd.uix.button import MDIconButton, MDRaisedButton
-from kivymd.uix.boxlayout import MDBoxLayout
-from kivymd.uix.list import OneLineListItem, MDList
-from kivymd.uix.dialog import MDDialog
-from kivymd.uix.snackbar import MDSnackbar
-from modules.emtacdb.emtacdb_fts import User
-# endregion
 
 # Add parent directory to path to find modules
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -673,7 +659,17 @@ class MaintenanceTroubleshootingApp(MDApp):
             # Create a main layout for the drawer with same spacing as original
             equipment_nav = MDBoxLayout(orientation='vertical', spacing=dp(5), padding=dp(10))
 
-            # Add a simple search box with a Search button and a Clear button
+            # MOVED TO TOP: Add a header for the search section
+            search_header = MDLabel(
+                text="Search Asset Number",
+                theme_text_color="Secondary",
+                font_style="Body1",
+                size_hint_y=None,
+                height=dp(30)
+            )
+            equipment_nav.add_widget(search_header)
+
+            # MOVED TO TOP: Add the search box with a Search button and a Clear button
             search_layout = MDBoxLayout(
                 orientation='horizontal',
                 spacing=dp(5),
@@ -707,10 +703,18 @@ class MaintenanceTroubleshootingApp(MDApp):
             search_layout.add_widget(search_button)
             search_layout.add_widget(clear_button)
 
-            # Add spacing above and below the search layout
-            equipment_nav.add_widget(MDBoxLayout(size_hint_y=None, height=dp(10)))
+            # Add the search layout at the top of the sidebar
             equipment_nav.add_widget(search_layout)
-            equipment_nav.add_widget(MDBoxLayout(size_hint_y=None, height=dp(10)))
+            equipment_nav.add_widget(MDBoxLayout(size_hint_y=None, height=dp(20)))  # Add more space after search
+
+            # Add a divider for visual separation
+            divider = MDBoxLayout(
+                size_hint_y=None,
+                height=dp(1),
+                md_bg_color=get_color_from_hex("#555555")
+            )
+            equipment_nav.add_widget(divider)
+            equipment_nav.add_widget(MDBoxLayout(size_hint_y=None, height=dp(10)))  # Spacing after divider
 
             # Add remaining navigation components (areas, groups, etc.)
             # Use the appropriate Spinner class - check if NavigationSpinner is defined
@@ -738,55 +742,73 @@ class MaintenanceTroubleshootingApp(MDApp):
 
             set_position_btn = MDRaisedButton(
                 text="Set Position",
-                size_hint=(None, None),
-                size=(dp(150), dp(40)),
-                pos_hint={'center_x': 0.5}
+                size_hint=(0.5, None),  # Changed to use half the available width
+                height=dp(40),
             )
             set_position_btn.bind(on_release=self.set_current_position)
 
             clear_position_btn = MDRaisedButton(
                 text="Clear Position",
-                size_hint=(None, None),
-                size=(dp(150), dp(40)),
-                pos_hint={'center_x': 0.5}
+                size_hint=(0.5, None),  # Changed to use half the available width
+                height=dp(40),
             )
             clear_position_btn.bind(on_release=self.on_clear_position_click)
 
             position_controls.add_widget(set_position_btn)
             position_controls.add_widget(clear_position_btn)
 
-            # Layout control buttons
-            layout_controls = MDBoxLayout(orientation='horizontal', spacing=dp(10), size_hint_y=None, height=dp(40))
-            save_layout_btn = MDRaisedButton(
-                text="Save Layout",
-                size_hint=(None, None),
-                size=(dp(120), dp(40))
-            )
-            load_layout_btn = MDRaisedButton(
-                text="Load Layout",
-                size_hint=(None, None),
-                size=(dp(120), dp(40))
-            )
-            delete_layout_btn = MDRaisedButton(
-                text="Delete Layout",
-                size_hint=(None, None),
-                size=(dp(120), dp(40))
-            )
-            default_layout_btn = MDRaisedButton(
-                text="Default Layout",
-                size_hint=(None, None),
-                size=(dp(120), dp(40))
+            # Layout control buttons - Modified to use two rows
+            # First row of layout buttons
+            layout_controls_row1 = MDBoxLayout(
+                orientation='horizontal',
+                spacing=dp(10),
+                size_hint_y=None,
+                height=dp(40)
             )
 
+            save_layout_btn = MDRaisedButton(
+                text="Save Layout",
+                size_hint=(0.5, None),  # Use 50% of available width
+                height=dp(40)
+            )
+
+            load_layout_btn = MDRaisedButton(
+                text="Load Layout",
+                size_hint=(0.5, None),  # Use 50% of available width
+                height=dp(40)
+            )
+
+            layout_controls_row1.add_widget(save_layout_btn)
+            layout_controls_row1.add_widget(load_layout_btn)
+
+            # Second row of layout buttons
+            layout_controls_row2 = MDBoxLayout(
+                orientation='horizontal',
+                spacing=dp(10),
+                size_hint_y=None,
+                height=dp(40)
+            )
+
+            delete_layout_btn = MDRaisedButton(
+                text="Delete Layout",
+                size_hint=(0.5, None),  # Use 50% of available width
+                height=dp(40)
+            )
+
+            default_layout_btn = MDRaisedButton(
+                text="Default Layout",
+                size_hint=(0.5, None),  # Use 50% of available width
+                height=dp(40)
+            )
+
+            layout_controls_row2.add_widget(delete_layout_btn)
+            layout_controls_row2.add_widget(default_layout_btn)
+
+            # Button bindings
             save_layout_btn.bind(on_release=lambda x: self.prompt_save_layout())
             load_layout_btn.bind(on_release=lambda x: self.load_layout())
             delete_layout_btn.bind(on_release=lambda x: self.delete_layout())
             default_layout_btn.bind(on_release=lambda x: self.load_layout("Default"))
-
-            layout_controls.add_widget(save_layout_btn)
-            layout_controls.add_widget(load_layout_btn)
-            layout_controls.add_widget(delete_layout_btn)
-            layout_controls.add_widget(default_layout_btn)
 
             # Spinner for saved layouts
             self.layout_spinner = SpinnerClass(text="Select Layout")
@@ -801,7 +823,8 @@ class MaintenanceTroubleshootingApp(MDApp):
             equipment_nav.add_widget(locations_label)
             equipment_nav.add_widget(self.locations_spinner)
             equipment_nav.add_widget(position_controls)
-            equipment_nav.add_widget(layout_controls)
+            equipment_nav.add_widget(layout_controls_row1)  # Add first row of layout buttons
+            equipment_nav.add_widget(layout_controls_row2)  # Add second row of layout buttons
             equipment_nav.add_widget(self.layout_spinner)
 
             # Bindings for the spinners
@@ -825,97 +848,131 @@ class MaintenanceTroubleshootingApp(MDApp):
             traceback.print_exc()
 
     def on_search_button_click(self, instance):
-        """Handle asset number search button clicks"""
-        search_term = self.asset_search_field.text
-        print(f"Search button clicked with term: '{search_term}'")
+        """Handle asset number search button clicks with more robust UI handling"""
+        # First aggressively clean the UI
+        self.force_remove_dropdowns()
 
-        if not search_term:
-            print("Empty search term")
-            snackbar = MDSnackbar()
-            snackbar.text = "Please enter an asset number to search"
-            snackbar.open()
-            return
+        # Wait briefly for UI to update
+        def perform_search(dt):
+            search_term = self.asset_search_field.text
+            print(f"Search button clicked with term: '{search_term}'")
 
-        try:
-            # Use the get_ids_by_number method to find asset numbers
-            print(f"Searching for asset number: {search_term}")
-            asset_ids = AssetNumber.get_ids_by_number(self.data_service.session, search_term)
-
-            print(f"Found {len(asset_ids)} matching assets")
-
-            if not asset_ids:
+            if not search_term:
+                print("Empty search term")
                 snackbar = MDSnackbar()
-                snackbar.text = f"No asset numbers found matching '{search_term}'"
+                snackbar.text = "Please enter an asset number to search"
                 snackbar.open()
                 return
 
-            # Get the full AssetNumber objects for display
-            assets = self.data_service.session.query(AssetNumber).filter(AssetNumber.id.in_(asset_ids)).all()
-            print(f"Retrieved {len(assets)} asset objects from database")
+            try:
+                # Clean up any previous search results dialog
+                if hasattr(self, 'search_results_dialog') and self.search_results_dialog:
+                    try:
+                        self.search_results_dialog.dismiss()
+                    except:
+                        pass
+                    self.search_results_dialog = None
 
-            # Create a simple content layout
-            from kivymd.uix.boxlayout import MDBoxLayout
-            from kivymd.uix.button import MDRaisedButton
-            from kivy.metrics import dp
+                # Get asset numbers matching the search term
+                print(f"Searching for asset number: {search_term}")
+                asset_ids = AssetNumber.get_ids_by_number(self.data_service.session, search_term)
 
-            content_layout = MDBoxLayout(
-                orientation='vertical',
-                spacing=dp(10),
-                padding=dp(10),
-                size_hint_y=None,
-                height=dp(60 * len(assets) + 20)  # Height based on number of assets
-            )
+                print(f"Found {len(asset_ids)} matching assets")
 
-            # Store reference to the class instance
-            app_instance = self
+                if not asset_ids:
+                    snackbar = MDSnackbar()
+                    snackbar.text = f"No asset numbers found matching '{search_term}'"
+                    snackbar.open()
+                    return
 
-            # Add each asset as a button
-            for asset in assets:
-                model = self.data_service.session.query(Model).filter(Model.id == asset.model_id).first()
-                model_name = model.name if model else "Unknown model"
+                # Get full asset objects
+                assets = self.data_service.session.query(AssetNumber).filter(AssetNumber.id.in_(asset_ids)).all()
+                print(f"Retrieved {len(assets)} asset objects from database")
 
-                print(f"Creating button for asset #{asset.number} - {model_name}")
-
-                asset_btn = MDRaisedButton(
-                    text=f"Asset #{asset.number} - {model_name}",
-                    size_hint_x=1,
-                    height=dp(50)
+                # Create content layout
+                content_layout = MDBoxLayout(
+                    orientation='vertical',
+                    spacing=dp(10),
+                    padding=dp(15),
+                    size_hint_y=None,
+                    height=dp(70 * len(assets) + 60)
                 )
 
-                # Store the asset with the button
-                asset_btn.asset_data = asset
+                # Add header
+                results_label = MDLabel(
+                    text=f"Found {len(assets)} results for '{search_term}'",
+                    theme_text_color="Secondary",
+                    font_style="Body1",
+                    size_hint_y=None,
+                    height=dp(30)
+                )
+                content_layout.add_widget(results_label)
 
+                # Add asset buttons
+                for asset in assets:
+                    model = self.data_service.session.query(Model).filter(Model.id == asset.model_id).first()
+                    model_name = model.name if model else "Unknown model"
 
-                asset_btn.bind(on_release=self.on_asset_button_click)
+                    print(f"Creating button for asset #{asset.number} - {model_name}")
 
-                content_layout.add_widget(asset_btn)
-
-            # Create and show a simple dialog
-            print("Creating dialog with asset buttons")
-            self.search_results_dialog = MDDialog(
-                title=f"Search results for '{search_term}'",
-                type="custom",
-                content_cls=content_layout,
-                size_hint=(0.8, None),
-                height=dp(100 + 60 * len(assets)),
-                buttons=[
-                    MDRaisedButton(
-                        text="Close",
-                        on_release=lambda x: self.search_results_dialog.dismiss()
+                    # Create button
+                    asset_btn = MDRaisedButton(
+                        text=f"Asset #{asset.number} - {model_name}",
+                        size_hint_x=1,
+                        height=dp(60),
+                        md_bg_color=get_color_from_hex("#1976D2")
                     )
-                ]
-            )
-            print("Opening dialog")
-            self.search_results_dialog.open()
-            print("Dialog opened")
 
-        except Exception as e:
-            print(f"Error searching for asset number: {e}")
-            import traceback
-            traceback.print_exc()
-            snackbar = MDSnackbar()
-            snackbar.text = f"Error during search: {e}"
-            snackbar.open()
+                    # Store asset data and bind click event
+                    asset_btn.asset_data = asset
+                    asset_btn.bind(on_release=self.on_asset_button_click)
+
+                    content_layout.add_widget(asset_btn)
+
+                # Position dialog in main content area
+                window_width, window_height = Window.size
+                sidebar_width = window_width * 0.25
+                main_container_width = window_width - sidebar_width
+                main_container_center_x = sidebar_width + (main_container_width / 2)
+                dialog_width = min(dp(500), main_container_width * 0.5)
+
+                # One final check to ensure UI is clean
+                self.force_remove_dropdowns()
+
+                # Create dialog
+                print("Creating search results dialog")
+                self.search_results_dialog = MDDialog(
+                    title="Search Results",
+                    type="custom",
+                    content_cls=content_layout,
+                    size_hint=(None, None),
+                    width=dialog_width,
+                    height=dp(120 + 70 * len(assets)),
+                    pos_hint={"center_x": main_container_center_x / window_width, "center_y": 0.5},
+                    buttons=[
+                        MDRaisedButton(
+                            text="Close",
+                            on_release=lambda x: self.search_results_dialog.dismiss(),
+                            md_bg_color=get_color_from_hex("#00BCD4")
+                        )
+                    ]
+                )
+
+                # Add the dialog directly to the window to ensure it's on top
+                print("Opening dialog")
+                self.search_results_dialog.open()
+                print("Dialog opened")
+
+            except Exception as e:
+                print(f"Error searching for asset number: {e}")
+                import traceback
+                traceback.print_exc()
+                snackbar = MDSnackbar()
+                snackbar.text = f"Error during search: {e}"
+                snackbar.open()
+
+        # Delay search to allow UI cleanup
+        Clock.schedule_once(perform_search, 0.3)
 
     def load_areas(self):
         """Load all areas into the areas spinner"""
@@ -1004,6 +1061,16 @@ class MaintenanceTroubleshootingApp(MDApp):
 
     def set_current_position(self, button):
         try:
+            # Attempt to close navigation drawer
+            try:
+                if self.screen_manager and self.screen_manager.current_screen:
+                    current_screen = self.screen_manager.current_screen
+                    if hasattr(current_screen, 'ids') and 'nav_drawer' in current_screen.ids:
+                        current_screen.ids.nav_drawer.set_state("close")
+            except Exception as nav_err:
+                print(f"Error closing navigation drawer: {nav_err}")
+
+            # Area and hierarchy selection logic
             area = next((a for a in self.data_service.get_all_areas()
                          if a.name == self.areas_spinner.text), None)
             area_id = None
@@ -1039,56 +1106,11 @@ class MaintenanceTroubleshootingApp(MDApp):
 
             # If we have at least an area selected, set the filters and refresh
             if area_id:
-                # Add diagnostic section before refreshing panels
                 print("\n----- DIAGNOSTIC OUTPUT START -----")
                 print(f"Selected filters: Area={area_id}, Group={group_id}, Model={model_id}, Location={location_id}")
 
-                # Find positions matching these filters
-                positions = self.data_service.session.query(Position.id).distinct()
-                if area_id:
-                    positions = positions.filter(Position.area_id == area_id)
-                if group_id:
-                    positions = positions.filter(Position.equipment_group_id == group_id)
-                if model_id:
-                    positions = positions.filter(Position.model_id == model_id)
-                if location_id:
-                    positions = positions.filter(Position.location_id == location_id)
-
-                position_ids = [pos_id for pos_id, in positions.all()]
-                print(f"Found {len(position_ids)} positions: {position_ids}")
-
-                # Check for problems for these positions
-                if position_ids:
-                    for pos_id in position_ids:
-                        print(f"\nChecking position ID: {pos_id}")
-                        problems = self.data_service.get_problems_by_position(pos_id)
-                        print(f"Found {len(problems)} problems for this position")
-
-                        for problem in problems:
-                            print(f"\nProblem ID: {problem.id}, Name: {problem.name}")
-                            # Check for solutions
-                            solutions = self.data_service.session.query(Solution).filter(
-                                Solution.problem_id == problem.id).all()
-                            print(f"Found {len(solutions)} solutions for Problem ID {problem.id}")
-
-                            for solution in solutions:
-                                print(f"  Solution ID: {solution.id}, Name: {solution.name}")
-                                # Check for tasks
-                                task_assocs = self.data_service.session.query(TaskSolutionAssociation).filter(
-                                    TaskSolutionAssociation.solution_id == solution.id).all()
-                                print(f"  Found {len(task_assocs)} task associations")
-
-                                for assoc in task_assocs:
-                                    task = self.data_service.session.query(Task).filter(
-                                        Task.id == assoc.task_id).first()
-                                    if task:
-                                        print(f"    Task ID: {task.id}, Name: {task.name}")
-
-                print("----- DIAGNOSTIC OUTPUT END -----\n")
-
-                # Continue with normal operation
+                # Refresh panel content with filters
                 self.refresh_panel_content_with_filters()
-                self.root.ids.nav_drawer.set_state("close")
 
                 # Create description of what we're viewing
                 description_parts = []
@@ -1114,7 +1136,8 @@ class MaintenanceTroubleshootingApp(MDApp):
         except Exception as e:
             print(f"Error setting hierarchy: {e}")
             import traceback
-            traceback.print_exc()  # This will print the full stack trace
+            traceback.print_exc()
+
             snackbar = MDSnackbar()
             snackbar.text = f"Error setting hierarchy: {e}"
             snackbar.open()
@@ -1828,97 +1851,209 @@ class MaintenanceTroubleshootingApp(MDApp):
             snackbar.text = f"Error refreshing data: {e}"
             snackbar.open()
 
+    # Modify the on_asset_button_click method to close the sidebar
     def on_asset_button_click(self, instance):
-        """Callback for when an asset button is clicked"""
+        """
+        Callback for when an asset button is clicked.
+        Closes the search dialog and sidebar, then loads the asset position.
+        Includes error handling for all operations.
+        """
         asset = instance.asset_data
         print(f"Asset button clicked: #{asset.number}")
-        self.load_asset_position(asset)
+
+        # Close the search results dialog if it's open
+        try:
+            if hasattr(self, 'search_results_dialog') and self.search_results_dialog:
+                print("Closing search results dialog")
+                self.search_results_dialog.dismiss()
+            # Always set to None after attempting dismissal, even if it fails
+            self.search_results_dialog = None
+        except Exception as e:
+            print(f"Error dismissing search dialog: {e}")
+
+        # Close the navigation drawer/sidebar
+        try:
+            # First try the main screen approach
+            if hasattr(self, 'screen_manager'):
+                main_screen = self.screen_manager.get_screen("main_screen")
+                if hasattr(main_screen, 'ids') and 'nav_drawer' in main_screen.ids:
+                    nav_drawer = main_screen.ids.nav_drawer
+                    print("Closing navigation drawer")
+                    nav_drawer.set_state("close")
+                    return  # If successful, no need to try other methods
+
+            # Try the direct root.ids approach if first approach failed
+            if hasattr(self.root, 'ids') and 'nav_drawer' in self.root.ids:
+                nav_drawer = self.root.ids.nav_drawer
+                print("Closing navigation drawer via root.ids")
+                nav_drawer.set_state("close")
+                return  # If successful, no need to try other methods
+
+            # Last resort - check if we already have a dedicated method for this
+            if hasattr(self, 'toggle_nav_drawer'):
+                print("Using toggle_nav_drawer method")
+                # Check current state first if possible
+                main = self.screen_manager.get_screen("main_screen")
+                if hasattr(main, 'ids') and 'nav_drawer' in main.ids:
+                    nav = main.ids.nav_drawer
+                    if nav.state == "open":  # Only close if it's open
+                        self.toggle_nav_drawer()
+                else:
+                    # If we can't check state, just try toggling
+                    self.toggle_nav_drawer()
+        except Exception as e:
+            print(f"Error closing sidebar: {e}")
+
+        # Load the asset position
+        try:
+            self.load_asset_position(asset)
+        except Exception as e:
+            print(f"Error loading asset position: {e}")
+            import traceback
+            traceback.print_exc()
+            # Show error to user
+            snackbar = MDSnackbar()
+            snackbar.text = f"Error loading asset: {e}"
+            snackbar.open()
 
     def perform_asset_autocomplete(self, query):
         """
-        Performs an autocomplete lookup using the AssetNumber.search_asset_numbers class
-        method and shows a dropdown menu with suggestions.
+        Performs an autocomplete lookup with more aggressive dropdown management.
         """
-        # If the query is empty, dismiss any existing menu.
-        if not query.strip():
-            if hasattr(self, 'asset_autocomplete_menu') and self.asset_autocomplete_menu:
-                self.asset_autocomplete_menu.dismiss()
-                self.asset_autocomplete_menu = None
-            return
-
         try:
-            # Get suggestions from your backend.
+            # Always forcibly dismiss any existing dropdown first
+            self.dismiss_all_dropdowns()
+
+            # If the query is too short, just return after dismissing
+            if not query or len(query.strip()) < 2:
+                return
+
+            # Get suggestions from backend
             suggestions = AssetNumber.search_asset_numbers(self.data_service.session, query)
-            # Build the list of menu items.
+            if not suggestions:
+                return
+
+            # Build menu items
             menu_items = []
             for item in suggestions:
-                # Make a copy of the dictionary so we capture it in the closure.
                 current_item = dict(item)
-                # (Optionally, you can add the text to the dictionary.)
                 current_item["display_text"] = f"{current_item['number']} - {current_item['description'] or ''}"
                 menu_items.append({
                     "viewclass": "OneLineListItem",
                     "text": current_item["display_text"],
-                    # Capture the current_item explicitly in the lambda.
-                    "on_release": lambda *args, current_item=current_item: self.on_asset_autocomplete_select(
-                        current_item)
+                    "height": dp(50),
+                    # Use a direct method call with a fixed reference to the item
+                    "on_release": lambda x=None, item=current_item: self.select_and_dismiss(item)
                 })
 
-            # If a previous menu exists, dismiss it.
-            if hasattr(self, 'asset_autocomplete_menu') and self.asset_autocomplete_menu:
-                self.asset_autocomplete_menu.dismiss()
-                self.asset_autocomplete_menu = None
-
-            # Create a new dropdown menu.
+            # Create dropdown with minimum properties needed
             self.asset_autocomplete_menu = MDDropdownMenu(
                 caller=self.asset_search_field,
                 items=menu_items,
-                width_mult=4,
+                width_mult=4,  # Required in KivyMD 1.2.0
+                position="bottom",
+                background_color=[0.2, 0.2, 0.2, 1]
             )
+
+            # Open the dropdown
             self.asset_autocomplete_menu.open()
 
         except Exception as e:
             print(f"Error during asset autocomplete: {e}")
+            import traceback
+            traceback.print_exc()
+            # Make sure dropdown is dismissed even on error
+            self.dismiss_all_dropdowns()
 
-    def on_asset_autocomplete_select(self, selected_item):
+    # Method 2: Centralized dropdown dismissal
+    def dismiss_all_dropdowns(self):
         """
-        Called when a suggestion is selected.
-        Updates the search field and triggers full search.
+        Centralized method to ensure all dropdowns are properly dismissed.
+        More aggressive implementation that uses multiple approaches.
         """
-        if not selected_item:
-            print("DEBUG: on_asset_autocomplete_select called with None")
-            return  # Guard: do nothing if selected_item is falsy
-
-        # Use the captured "display_text" from the dictionary.
-        text_value = selected_item.get("display_text", "")
-        print("DEBUG: Selected item display_text:", text_value)
-        if not text_value:
-            print("DEBUG: No display_text found in selected item.")
-            return
-
-        # Extract the asset number (assuming format "ASSET_NUMBER - DESCRIPTION")
-        asset_number_text = text_value.split(" - ")[0]
-        print("DEBUG: Extracted asset number:", asset_number_text)
-        self.asset_search_field.text = asset_number_text
-
-        # Dismiss and remove the menu.
+        # First try the standard dismiss methods
         if hasattr(self, 'asset_autocomplete_menu') and self.asset_autocomplete_menu:
-            self.asset_autocomplete_menu.dismiss()
+            try:
+                self.asset_autocomplete_menu.dismiss()
+            except:
+                pass
             self.asset_autocomplete_menu = None
 
-        # Optionally trigger the full search (for example, as if the search button was clicked).
-        self.on_search_button_click(None)
+        # Force removal of any dropdown menus in the window
+        try:
+            # Method 1: Remove by checking instance type
+            for child in Window.children[:]:  # Create a copy of the list to avoid modification issues
+                try:
+                    if isinstance(child, MDDropdownMenu) or 'MDDropdownMenu' in str(type(child)):
+                        print(f"Removing dropdown widget: {child}")
+                        Window.remove_widget(child)
+                except:
+                    pass
+
+            # Method 2: Check for specific widgets that might be dropdowns
+            for child in Window.children[:]:
+                try:
+                    # Look for widgets positioned near the search field
+                    if hasattr(child, 'caller') and child.caller == self.asset_search_field:
+                        print(f"Removing widget connected to search field: {child}")
+                        Window.remove_widget(child)
+                except:
+                    pass
+        except Exception as e:
+            print(f"Error during aggressive dropdown removal: {e}")
+
+        # Force a Window update
+        try:
+            Window.canvas.ask_update()
+        except:
+            pass
+
+    # Method 3: Select and dismiss in one step
+    def select_and_dismiss(self, selected_item):
+        """
+        Handle selection with immediate dismissal in a single operation.
+        """
+        # First, immediately dismiss all dropdowns
+        self.dismiss_all_dropdowns()
+
+        if not selected_item:
+            return
+
+        # Extract asset number from the selected item
+        text_value = selected_item.get("display_text", "")
+        if text_value:
+            asset_number_text = text_value.split(" - ")[0]
+            # Update text field
+            self.asset_search_field.text = asset_number_text
+
+            # Trigger search after a small delay to ensure UI has updated
+            Clock.schedule_once(lambda dt: self.on_search_button_click(None), 0.1)
+
+    # ---- Update the existing on_asset_autocomplete_select for compatibility ----
+    def on_asset_autocomplete_select(self, selected_item):
+        """
+        Legacy method maintained for compatibility.
+        Now delegates to our improved implementation.
+        """
+        self._handle_autocomplete_selection(selected_item)
 
     def on_asset_search_text(self, instance, text):
         """
-        Called whenever the asset search field text changes.
-        Uses Clock.schedule_once to debounce the autocomplete search.
+        Handle text changes with dropdown cleanup.
         """
         # Cancel any previously scheduled search
         if hasattr(self, '_asset_search_trigger'):
             self._asset_search_trigger.cancel()
-        # Schedule a new search after 0.3 seconds.
-        self._asset_search_trigger = Clock.schedule_once(lambda dt: self.perform_asset_autocomplete(text), 0.3)
+
+        # For empty text, dismiss any dropdown
+        if not text or len(text.strip()) < 2:
+            self.dismiss_all_dropdowns()
+            return
+
+        # Schedule a new search after a delay
+        self._asset_search_trigger = Clock.schedule_once(
+            lambda dt: self.perform_asset_autocomplete(text), 0.3
+        )
 
     def on_clear_button_click(self, instance):
         """
@@ -2119,6 +2254,79 @@ class MaintenanceTroubleshootingApp(MDApp):
             print(f"Error initializing default layouts: {e}")
             import traceback
             traceback.print_exc()
+
+    # ---- New separate handler for selection to avoid issues ----
+    def _handle_autocomplete_selection(self, selected_item):
+        """
+        Internal helper to handle dropdown selection with proper cleanup.
+        Separating this from the on_release callback helps avoid reference issues.
+        """
+        # First, always dismiss the dropdown to prevent UI stacking
+        if hasattr(self, 'asset_autocomplete_menu') and self.asset_autocomplete_menu:
+            self.asset_autocomplete_menu.dismiss()
+            self.asset_autocomplete_menu = None
+
+        # Then process the selection after a small delay to ensure UI cleanup
+        Clock.schedule_once(lambda dt: self._process_selection(selected_item), 0.1)
+
+    # ---- Process the selection after dropdown is gone ----
+    def _process_selection(self, selected_item):
+        """
+        Process the selected item after the dropdown has been dismissed.
+        """
+        if not selected_item:
+            return
+
+        # Extract and update the text field
+        text_value = selected_item.get("display_text", "")
+        if text_value:
+            # Extract the asset number (assuming format "ASSET_NUMBER - DESCRIPTION")
+            asset_number_text = text_value.split(" - ")[0]
+            # Update the text field
+            self.asset_search_field.text = asset_number_text
+
+            # Finally trigger the search with the updated text
+            self.on_search_button_click(None)
+
+    # Add this function to immediately hide dropdowns when needed
+    def force_remove_dropdowns(self):
+        """
+        Force removal of dropdown menus by directly manipulating the Window
+        """
+        try:
+            # First try standard dismissal
+            if hasattr(self, 'asset_autocomplete_menu') and self.asset_autocomplete_menu:
+                try:
+                    self.asset_autocomplete_menu.dismiss()
+                except:
+                    pass
+                self.asset_autocomplete_menu = None
+
+            # Brute force approach - identify and remove dropdown widgets
+            for child in Window.children[:]:
+                # Try multiple ways to identify dropdowns
+                try:
+                    # Check if it's a dropdown by class name
+                    class_name = child.__class__.__name__
+                    if 'Dropdown' in class_name or 'Menu' in class_name:
+                        print(f"Removing dropdown widget: {class_name}")
+                        Window.remove_widget(child)
+                        continue
+
+                    # Check by position - dropdowns are usually at the top level
+                    if len(Window.children) > 1 and child in Window.children[:-1]:
+                        # Check if it has certain attributes typical of dropdowns
+                        if hasattr(child, 'items') or (
+                                hasattr(child, 'caller') and child.caller == self.asset_search_field):
+                            print(f"Removing potential dropdown: {child}")
+                            Window.remove_widget(child)
+                except Exception as e:
+                    print(f"Error checking widget: {e}")
+        except Exception as e:
+            print(f"Error in force_remove_dropdowns: {e}")
+
+        # Force update the window
+        Window.canvas.ask_update()
 
 
 if __name__ == '__main__':
