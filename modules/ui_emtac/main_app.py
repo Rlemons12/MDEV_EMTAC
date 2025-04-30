@@ -1,4 +1,7 @@
 # Kivey_UI/main_app.py
+
+# region Todo: Clean up imports
+
 # --- Standard Library Imports ---
 import os
 import sys
@@ -82,6 +85,7 @@ from kivymd.uix.list import OneLineListItem, MDList
 from kivymd.uix.dialog import MDDialog
 from kivymd.uix.snackbar import MDSnackbar
 from modules.emtacdb.emtacdb_fts import User
+# endregion
 
 # Add parent directory to path to find modules
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -90,9 +94,6 @@ sys.path.insert(0, current_dir)
 sys.path.insert(0, parent_dir)
 db_config = DatabaseConfig()
 db_session = db_config.get_main_session()
-
-
-
 
 # Set full window mode
 Window.maximize()
@@ -600,6 +601,9 @@ class MaintenanceTroubleshootingApp(MDApp):
 
         # 7) Initialize default layouts
         Clock.schedule_once(lambda dt: self.initialize_default_layouts(), 1.0)
+
+        # 8) Apply default layout immediately after initialization
+        Clock.schedule_once(lambda dt: self.apply_default_layout(), 1.2)
 
     def on_start(self):
         # This method will no longer do anything since initialization happens in on_login_success
@@ -1153,48 +1157,25 @@ class MaintenanceTroubleshootingApp(MDApp):
         """Reset the layout to default positions"""
         try:
             panels = self.get_all_panels()
-            window_width = self.root.width
-            window_height = self.root.height
-            margin = dp(10)
-            top_margin = dp(60)
 
-            problem_width = window_width * 0.5 - margin * 2
-            problem_height = window_height - top_margin - margin * 2
+            # Use exact dimensions from your JSON
+            layout_config = {
+                "Problem / Solution": {"x": 10.0, "y": 10.0, "width": 940.0, "height": 929.0, "is_expanded": False},
+                "Documents": {"x": 960.0, "y": 489.5, "width": 470.0, "height": 459.5, "is_expanded": False},
+                "Parts": {"x": 1440.0, "y": 489.5, "width": 470.0, "height": 459.5, "is_expanded": False},
+                "Images": {"x": 960.0, "y": 10.0, "width": 470.0, "height": 459.5, "is_expanded": False},
+                "Drawings": {"x": 1440.0, "y": 10.0, "width": 470.0, "height": 459.5, "is_expanded": False}
+            }
 
-            right_x = problem_width + margin * 2
-            panel_width = (window_width - right_x - margin * 2) / 2
-            panel_height = (window_height - top_margin - margin * 3) / 2
-
-            problem_panel = next((p for p in panels if p.title == "Problem / Solution"), None)
-            documents_panel = next((p for p in panels if p.title == "Documents"), None)
-            parts_panel = next((p for p in panels if p.title == "Parts"), None)
-            images_panel = next((p for p in panels if p.title == "Images"), None)
-            drawings_panel = next((p for p in panels if p.title == "Drawings"), None)
-
-            if problem_panel:
-                problem_panel.size = (problem_width, problem_height)
-                problem_panel.pos = (margin, margin)
-
-            if documents_panel:
-                documents_panel.size = (panel_width, panel_height)
-                documents_panel.pos = (right_x, window_height - top_margin - panel_height)
-
-            if parts_panel:
-                parts_panel.size = (panel_width, panel_height)
-                parts_panel.pos = (right_x + panel_width + margin, window_height - top_margin - panel_height)
-
-            if images_panel:
-                images_panel.size = (panel_width, panel_height)
-                images_panel.pos = (right_x, margin)
-
-            if drawings_panel:
-                drawings_panel.size = (panel_width, panel_height)
-                drawings_panel.pos = (right_x + panel_width + margin, margin)
-
-            # Collapse any expanded panels
             for panel in panels:
-                if panel.is_expanded:
-                    panel.toggle_expand()
+                if panel.title in layout_config:
+                    config = layout_config[panel.title]
+                    panel.size = (config["width"], config["height"])
+                    panel.pos = (config["x"], config["y"])
+
+                    # Set expansion state if needed
+                    if config["is_expanded"] != panel.is_expanded:
+                        panel.toggle_expand()
 
             Clock.schedule_once(self.update_canvas, 0.1)
 
@@ -2109,34 +2090,35 @@ class MaintenanceTroubleshootingApp(MDApp):
                 "Parts": {"x": 1440.0, "y": 489.5, "width": 470.0, "height": 459.5, "is_expanded": False},
                 "Images": {"x": 960.0, "y": 10.0, "width": 470.0, "height": 459.5, "is_expanded": False},
                 "Drawings": {"x": 1440.0, "y": 10.0, "width": 470.0, "height": 459.5, "is_expanded": False}
-            },
-            "Min": {
-                "Problem / Solution": {"x": 10.0, "y": 11.000000000000085, "width": 481.0, "height": 928.0,
-                                       "is_expanded": False},
-                "Documents": {"x": 496.0, "y": 485.5, "width": 300.0, "height": 453.5, "is_expanded": False},
-                "Parts": {"x": 796.0, "y": 489.5000000000001, "width": 300.0, "height": 453.4999999999999,
-                          "is_expanded": False},
-                "Images": {"x": 495.0, "y": 15.000000000000028, "width": 300.0, "height": 467.5000000000001,
-                           "is_expanded": False},
-                "Drawings": {"x": 795.0, "y": 13.000000000000085, "width": 300.0, "height": 467.5, "is_expanded": False}
             }
         }
 
-        # If the user is a KivyUser, save these default layouts
-        if isinstance(self.current_user, KivyUser):
-            for layout_name, layout_data in default_layouts.items():
-                # Check if layout already exists
-                existing_layout = self.current_user.get_layout(layout_name)
-                if not existing_layout:
-                    # Save the default layout
-                    self.current_user.save_layout(layout_name, layout_data)
-                    print(f"Created default layout: {layout_name}")
+        try:
+            # If the user is a KivyUser, save these default layouts
+            if isinstance(self.current_user, KivyUser):
+                for layout_name, layout_data in default_layouts.items():
+                    # Check if layout already exists
+                    existing_layout = self.current_user.get_layout(layout_name)
+                    if not existing_layout:
+                        # Save the default layout
+                        self.current_user.save_layout(layout_name, layout_data)
+                        print(f"Created default layout: {layout_name}")
 
-            # Update the layout spinner
-            self.update_layout_spinner()
-        else:
-            # If not a KivyUser, store the defaults for later use
-            self.default_layouts = default_layouts
+                # Update the layout spinner
+                self.update_layout_spinner()
+
+                # Apply default layout
+                Clock.schedule_once(lambda dt: self.apply_default_layout(), 0.1)
+            else:
+                # If not a KivyUser, store the defaults for later use
+                self.default_layouts = default_layouts
+
+                # Apply default layout
+                Clock.schedule_once(lambda dt: self.apply_default_layout(), 0.1)
+        except Exception as e:
+            print(f"Error initializing default layouts: {e}")
+            import traceback
+            traceback.print_exc()
 
 
 if __name__ == '__main__':
