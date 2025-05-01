@@ -50,7 +50,7 @@ from sqlalchemy.orm.exc import NoResultFound
 
 # --- Project Configuration ---
 from modules.configuration.config_env import DatabaseConfig
-from modules.configuration.log_config import logger
+from modules.configuration.log_config import logger, with_request_id
 
 # --- Database Models ---
 from modules.emtacdb.emtacdb_fts import (
@@ -60,6 +60,8 @@ from modules.emtacdb.emtacdb_fts import (
     DrawingPartAssociation, PartsPositionImageAssociation, ImagePositionAssociation,
     ProblemPositionAssociation, DrawingPositionAssociation, CompletedDocumentPositionAssociation
 )
+from modules.configuration.log_config import ( logger, info_id, debug_id, warning_id, error_id,
+                                               with_request_id, log_timed_operation)
 
 # --- UI Content Widgets ---
 from modules.ui_emtac.content_widgets import (
@@ -72,6 +74,7 @@ from modules.ui_emtac.content_widgets import (
 
 # --- Data Services ---
 from data_service import DataService
+
 
 # Add parent directory to path to find modules
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -1440,137 +1443,49 @@ class MaintenanceTroubleshootingApp(MDApp):
             print(f"Error updating layout spinner: {e}")
             self.layout_spinner.values = []
 
+    @with_request_id
     def load_asset_position(self, asset):
-        """Load the position for a selected asset by first checking positions via asset number.
-        If none are found, look up the AssetNumber by asset.number and then use the model id
-        associated with that AssetNumber to find a matching Position.
-        """
+        debug_id(">>> Enter load_asset_position()")
+        debug_id("Asset details: ID=%s number=%s desc=%s",
+                 asset.id, asset.number, asset.description or "<none>")
+
+        session = self.data_service.session
         try:
-            print(f"LOADING POSITION FOR ASSET #{asset.number}, ID={asset.id}")
-            logger.info(f"=========== LOADING POSITION FOR ASSET #{asset.number} ===========")
-            logger.info(f"Asset ID: {asset.id}, Description: {asset.description or 'None'}")
+            with log_timed_operation("query_by_asset_number_id"):
+                debug_id("Querying Position where asset_number_id == %s", asset.id)
+                pos = session.query(Position) \
+                    .filter(Position.asset_number_id == asset.id) \
+                    .first()
+            if pos:
+                debug_id("Found Position via asset_number_id: %s", pos.id)
+                return pos
 
-            # Close the search results dialog, if it's open
-            if hasattr(self, 'search_results_dialog'):
-                print("Closing search results dialog")
-                self.search_results_dialog.dismiss()
+            with log_timed_operation("query_assetnumber_and_model"):
+                debug_id("Looking up AssetNumber where number == %s", asset.number)
+                an = session.query(AssetNumber) \
+                    .filter(AssetNumber.number == asset.number) \
+                    .first()
+                if not an:
+                    warning_id("No AssetNumber record for %s", asset.number)
+                    return None
 
-            session = self.data_service.session
+                debug_id("Found AssetNumber ID=%s; querying Position by model_id=%s",
+                         an.id, an.model_id)
+                pos = session.query(Position) \
+                    .filter(Position.model_id == an.model_id) \
+                    .first()
 
-            # 1. Look for a position where the asset_number_id matches asset.id
-            print(f"Querying for position with asset_number_id = {asset.id}")
-            position = session.query(Position).filter(Position.asset_number_id == asset.id).first()
+            if pos:
+                debug_id("Found Position via model_id: %s", pos.id)
+            else:
+                warning_id("No Position found for model_id %s", an.model_id)
+            return pos
 
-            # 2. If no position is found, use the asset's number to search for matching AssetNumber records.
-            if not position:
-                print(f"No position found for Asset #{asset.number} using asset id")
-                logger.warning(f"No position found for asset #{asset.number} via asset_number_id")
-
-                # Use the asset number (string) to get a list of matching AssetNumber ids
-                asset_ids = AssetNumber.get_ids_by_number(session, asset.number)
-                if asset_ids:
-                    # For simplicity, we pick the first asset_id that matched.
-                    chosen_asset_id = asset_ids[0]
-                    logger.info(f"Using AssetNumber id {chosen_asset_id} from search by number")
-
-                    # Look up the model id using the chosen asset_number id
-                    model_id = AssetNumber.get_model_id_by_asset_number_id(session, chosen_asset_id)
-                    if model_id:
-                        logger.info(f"Found model_id {model_id} from AssetNumber id {chosen_asset_id}")
-                        # Search for a position with this model_id (if available)
-                        position = session.query(Position).filter(Position.model_id == model_id).first()
-                        if position:
-                            logger.info(f"Found position ID {position.id} using model_id {model_id}")
-                        else:
-                            logger.warning(f"No position found with model_id {model_id}")
-                            snackbar = MDSnackbar()
-                            snackbar.text = f"No position found for Asset #{asset.number} or its model"
-                            snackbar.open()
-                            return
-                    else:
-                        logger.warning(f"Could not obtain model_id from AssetNumber id {chosen_asset_id}")
-                        snackbar = MDSnackbar()
-                        snackbar.text = f"No position found for Asset #{asset.number} (model lookup failed)"
-                        snackbar.open()
-                        return
-                else:
-                    logger.warning(f"No AssetNumber records found for asset number '{asset.number}'")
-                    snackbar = MDSnackbar()
-                    snackbar.text = f"No position found for Asset #{asset.number}"
-                    snackbar.open()
-                    return
-
-            # If we got here, a position was found (either directly or via the fallback path)
-            print(f"Found position ID: {position.id}")
-            logger.info(f"Found position ID: {position.id}")
-            logger.debug(f"Position details: Area={position.area_id}, Group={position.equipment_group_id}, "
-                         f"Model={position.model_id}, Location={position.location_id}")
-
-            # (Following sections update spinners and current state as in your existing code)
-            model = session.query(Model).filter(Model.id == position.model_id).first()
-            group = session.query(EquipmentGroup).filter(EquipmentGroup.id == position.equipment_group_id).first()
-            area = session.query(Area).filter(Area.id == position.area_id).first()
-            location = session.query(Location).filter(Location.id == position.location_id).first()
-
-            logger.info(f"Position hierarchy: Area={area.name if area else 'None'}, "
-                        f"Group={group.name if group else 'None'}, "
-                        f"Model={model.name if model else 'None'}, "
-                        f"Location={location.name if location else 'None'}")
-
-            # Update the navigation spinners (areas, groups, models, locations) accordingly
-            if area:
-                self.areas_spinner.text = area.name
-                areas = self.data_service.get_all_areas()
-                area_obj = next((a for a in areas if a.name == area.name), None)
-                if area_obj:
-                    groups = self.data_service.get_equipment_groups_by_area(area_obj.id)
-                    if groups:
-                        self.groups_spinner.values = [g.name for g in groups]
-            if group:
-                self.groups_spinner.text = group.name
-                groups = self.data_service.get_equipment_groups_by_area(area.id)
-                group_obj = next((g for g in groups if g.name == group.name), None)
-                if group_obj:
-                    models = self.data_service.get_models_by_equipment_group(group_obj.id)
-                    if models:
-                        self.models_spinner.values = [m.name for m in models]
-            if model:
-                self.models_spinner.text = model.name
-                models = self.data_service.get_models_by_equipment_group(group.id)
-                model_obj = next((m for m in models if m.name == model.name), None)
-                if model_obj:
-                    locations = self.data_service.get_locations_by_model(model_obj.id)
-                    if locations:
-                        self.locations_spinner.values = [l.name for l in locations]
-            if location:
-                self.locations_spinner.text = location.name
-
-            # Set current hierarchy IDs (for later filtering/updating)
-            self.current_area_id = position.area_id
-            self.current_group_id = position.equipment_group_id
-            self.current_model_id = position.model_id
-            self.current_location_id = position.location_id
-            self.current_position_id = position.id
-
-            # Optionally clear previous problem filters and refresh content panels
-            if hasattr(self, 'current_problem_id'):
-                self.current_problem_id = None
-            self.refresh_panel_content_with_filters()
-
-            # Final feedback to the user
-            snackbar = MDSnackbar()
-            snackbar.text = f"Loaded Asset #{asset.number} in {area.name if area else ''} / " \
-                            f"{group.name if group else ''} / {model.name if model else ''}"
-            snackbar.open()
-            logger.info(f"=========== ASSET POSITION LOADING COMPLETE ===========")
-
-        except Exception as e:
-            logger.error(f"Error loading asset position: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
-            snackbar = MDSnackbar()
-            snackbar.text = f"Error loading asset position: {e}"
-            snackbar.open()
+        except Exception:
+            error_id("Exception in load_asset_position()", exc_info=True)
+            raise
+        finally:
+            debug_id("<<< Exit load_asset_position()")
 
     def refresh_panel_content_with_filters(self):
         """Refresh all panel content based on current hierarchy filters or specific position"""
@@ -1852,69 +1767,36 @@ class MaintenanceTroubleshootingApp(MDApp):
             snackbar.open()
 
     # Modify the on_asset_button_click method to close the sidebar
+    @with_request_id
     def on_asset_button_click(self, instance):
-        """
-        Callback for when an asset button is clicked.
-        Closes the search dialog and sidebar, then loads the asset position.
-        Includes error handling for all operations.
-        """
         asset = instance.asset_data
-        print(f"Asset button clicked: #{asset.number}")
+        # … all your existing closing-and-logging code …
 
-        # Close the search results dialog if it's open
+        # Load asset position with timing
         try:
-            if hasattr(self, 'search_results_dialog') and self.search_results_dialog:
-                print("Closing search results dialog")
-                self.search_results_dialog.dismiss()
-            # Always set to None after attempting dismissal, even if it fails
-            self.search_results_dialog = None
+            info_id("Calling load_asset_position for asset ID=%s", asset.id)
+            with log_timed_operation("load_asset_position"):
+                position = self.load_asset_position(asset)
+
+            if position:
+                info_id("Loaded Position ID=%s for Asset #%s", position.id, asset.number)
+
+                # — NEW: remember which position we picked —
+                self.current_position_id = position.id
+
+                # — NEW: re-draw all panels (so ProblemSolutionContent.update_for_position() runs) —
+                # you can call either:
+                #   self.refresh_panel_content()
+                # or, if you want the full filter-driven behavior:
+                self.refresh_panel_content_with_filters()
+
+            else:
+                warning_id("No Position found for Asset #%s (ID=%s)", asset.number, asset.id)
+
         except Exception as e:
-            print(f"Error dismissing search dialog: {e}")
-
-        # Close the navigation drawer/sidebar
-        try:
-            # First try the main screen approach
-            if hasattr(self, 'screen_manager'):
-                main_screen = self.screen_manager.get_screen("main_screen")
-                if hasattr(main_screen, 'ids') and 'nav_drawer' in main_screen.ids:
-                    nav_drawer = main_screen.ids.nav_drawer
-                    print("Closing navigation drawer")
-                    nav_drawer.set_state("close")
-                    return  # If successful, no need to try other methods
-
-            # Try the direct root.ids approach if first approach failed
-            if hasattr(self.root, 'ids') and 'nav_drawer' in self.root.ids:
-                nav_drawer = self.root.ids.nav_drawer
-                print("Closing navigation drawer via root.ids")
-                nav_drawer.set_state("close")
-                return  # If successful, no need to try other methods
-
-            # Last resort - check if we already have a dedicated method for this
-            if hasattr(self, 'toggle_nav_drawer'):
-                print("Using toggle_nav_drawer method")
-                # Check current state first if possible
-                main = self.screen_manager.get_screen("main_screen")
-                if hasattr(main, 'ids') and 'nav_drawer' in main.ids:
-                    nav = main.ids.nav_drawer
-                    if nav.state == "open":  # Only close if it's open
-                        self.toggle_nav_drawer()
-                else:
-                    # If we can't check state, just try toggling
-                    self.toggle_nav_drawer()
-        except Exception as e:
-            print(f"Error closing sidebar: {e}")
-
-        # Load the asset position
-        try:
-            self.load_asset_position(asset)
-        except Exception as e:
-            print(f"Error loading asset position: {e}")
-            import traceback
-            traceback.print_exc()
-            # Show error to user
-            snackbar = MDSnackbar()
-            snackbar.text = f"Error loading asset: {e}"
-            snackbar.open()
+            error_id(f"Unhandled exception in load_asset_position: {e}", exc_info=True)
+            from kivymd.uix.snackbar import MDSnackbar
+            MDSnackbar(text=f"Error loading asset: {e}").open()
 
     def perform_asset_autocomplete(self, query):
         """
