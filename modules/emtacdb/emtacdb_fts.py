@@ -18,7 +18,7 @@ from sqlalchemy.ext.mutable import MutableList
 from sqlalchemy.orm import declarative_base, configure_mappers, relationship, scoped_session, sessionmaker
 from modules.configuration.config import (OPENAI_API_KEY, BASE_DIR, COPY_FILES, DATABASE_URL,DATABASE_PATH)
 from modules.configuration.base import Base
-from modules.configuration.log_config import logger
+from modules.configuration.log_config import *
 from modules.configuration.config import DATABASE_DIR
 
 
@@ -112,6 +112,218 @@ class Position(Base):
     subassembly = relationship("Subassembly", back_populates="position")
     component_assembly = relationship("ComponentAssembly", back_populates="position")
     assembly_view = relationship("AssemblyView", back_populates="position")
+
+    # Hierarchy definition
+    # Define HIERARCHY using string names instead of direct class references
+    HIERARCHY = {
+        'area': {
+            'model': 'EquipmentGroup',
+            'filter_field': 'area_id',
+            'order_field': 'name',
+            'next_level': 'equipment_group'
+        },
+        'equipment_group': {
+            'model': 'Model',
+            'filter_field': 'equipment_group_id',
+            'order_field': 'name',
+            'next_level': 'model'
+        },
+        'model': {
+            # Models have two potential child types - asset_number and location
+            'child_types': [
+                {
+                    'model': 'AssetNumber',
+                    'filter_field': 'model_id',
+                    'order_field': 'number',
+                    'next_level': 'asset_number'
+                },
+                {
+                    'model': 'Location',
+                    'filter_field': 'model_id',
+                    'order_field': 'name',
+                    'next_level': 'location'
+                }
+            ]
+        },
+        'location': {
+            'model': 'Subassembly',
+            'filter_field': 'location_id',
+            'order_field': 'name',
+            'next_level': 'subassembly'
+        },
+        'subassembly': {
+            'model': 'ComponentAssembly',
+            'filter_field': 'subassembly_id',
+            'order_field': 'name',
+            'next_level': 'component_assembly'
+        },
+        'component_assembly': {
+            'model': 'AssemblyView',
+            'filter_field': 'component_assembly_id',
+            'order_field': 'name',
+            'next_level': 'assembly_view'
+        }
+    }
+
+    # Model mapping - defined once for efficiency
+    MODELS_MAP = None
+
+    @classmethod
+    def get_dependent_items(cls, session, parent_type, parent_id, child_type=None):
+        """
+        Generic method to get dependent items based on parent type and ID.
+
+        Args:
+            session: SQLAlchemy session
+            parent_type: The type of the parent (e.g., 'area', 'equipment_group')
+            parent_id: The ID of the parent
+            child_type: Optional, to specify which child type to return when parent has multiple child types
+
+        Returns:
+            List of dependent items
+        """
+        if not parent_id:
+            return []
+
+        # Get parent configuration from hierarchy
+        parent_config = cls.HIERARCHY.get(parent_type)
+        if not parent_config:
+            return []
+
+        # Handle parents with multiple child types
+        if 'child_types' in parent_config:
+            if child_type:
+                # Find the specific child type configuration
+                for child_config in parent_config['child_types']:
+                    if child_config.get('next_level') == child_type:
+                        return cls._fetch_dependent_items(session, child_config, parent_id)
+                return []
+            else:
+                # Return the first child type by default
+                return cls._fetch_dependent_items(session, parent_config['child_types'][0], parent_id)
+        else:
+            # Standard single child type
+            return cls._fetch_dependent_items(session, parent_config, parent_id)
+
+    @staticmethod
+    def _fetch_dependent_items(session, config, parent_id):
+        """
+        Helper method to fetch dependent items based on configuration.
+
+        Args:
+            session: SQLAlchemy session
+            config: Configuration dictionary with model, filter_field, order_field
+            parent_id: The ID of the parent
+
+        Returns:
+            List of dependent items
+        """
+        model_name = config.get('model')
+        filter_field = config.get('filter_field')
+        order_field = config.get('order_field')
+
+        if not all([model_name, filter_field, order_field]):
+            return []
+
+        # Get the actual model class from its name
+        if isinstance(model_name, str):
+            # Use globals() to find the class by name
+            model = globals().get(model_name)
+            if not model:
+                # Alternative approach - if globals() doesn't work, you can use a mapping
+                models_map = {
+                    'EquipmentGroup': EquipmentGroup,
+                    'Model': Model,
+                    'AssetNumber': AssetNumber,
+                    'Location': Location,
+                    'Subassembly': Subassembly,
+                    'ComponentAssembly': ComponentAssembly,
+                    'AssemblyView': AssemblyView,
+                    'SiteLocation': SiteLocation
+                }
+                model = models_map.get(model_name)
+                if not model:
+                    return []
+        else:
+            model = model_name  # Already a class
+
+        query = session.query(model).filter_by(**{filter_field: parent_id})
+
+        # Apply ordering
+        order_attr = getattr(model, order_field)
+        query = query.order_by(order_attr)
+
+        return query.all()
+
+    @classmethod
+    def get_next_level_type(cls, current_level):
+        """Get the next level type in the hierarchy"""
+        config = cls.HIERARCHY.get(current_level)
+        if not config:
+            return None
+
+        if 'child_types' in config:
+            # Return the first child type by default
+            return config['child_types'][0].get('next_level')
+        else:
+            return config.get('next_level')
+
+    @classmethod
+    @with_request_id
+    def add_to_db(cls, session=None, area_id=None, equipment_group_id=None, model_id=None, asset_number_id=None,
+                  location_id=None, subassembly_id=None, component_assembly_id=None, assembly_view_id=None,
+                  site_location_id=None,):
+        """
+        Get-or-create a Position with exactly these FK values.
+        If `session` is None, uses DatabaseConfig().get_main_session().
+        Returns the Position instance (new or existing).
+        """
+        # 1) ensure we have a session
+        if session is None:
+            session = DatabaseConfig().get_main_session()
+
+        # 2) log input parameters
+        debug_id(
+            "add_to_db called with "
+            "area_id=%s, equipment_group_id=%s, model_id=%s, "
+            "asset_number_id=%s, location_id=%s, subassembly_id=%s, "
+            "component_assembly_id=%s, assembly_view_id=%s, site_location_id=%s",
+            area_id, equipment_group_id, model_id,
+            asset_number_id, location_id, subassembly_id,
+            component_assembly_id, assembly_view_id, site_location_id,
+        )
+
+        # 3) build filter dict
+        filters = {
+            "area_id": area_id,
+            "equipment_group_id": equipment_group_id,
+            "model_id": model_id,
+            "asset_number_id": asset_number_id,
+            "location_id": location_id,
+            "subassembly_id": subassembly_id,
+            "component_assembly_id": component_assembly_id,
+            "assembly_view_id": assembly_view_id,
+            "site_location_id": site_location_id,
+        }
+
+        try:
+            # 4) try to find an existing row
+            existing = session.query(cls).filter_by(**filters).first()
+            if existing:
+                info_id("Found existing Position id=%s", existing.id)
+                return existing
+
+            # 5) not found → create new
+            position = cls(**filters)
+            session.add(position)
+            session.commit()
+            info_id("Created new Position id=%s", position.id)
+            return position
+
+        except SQLAlchemyError as e:
+            session.rollback()
+            error_id("Failed to add_or_get Position: %s", e, exc_info=True)
+            raise
 
 class Area(Base):
     __tablename__ = 'area'
