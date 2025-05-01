@@ -10,6 +10,7 @@ import uuid
 import time
 import threading
 from flask import request, g, has_request_context
+import functools
 
 # Determine the root directory based on whether the code is frozen (e.g., PyInstaller .exe)
 if getattr(sys, 'frozen', False):  # Running as an executable
@@ -63,6 +64,29 @@ logger.propagate = False
 # Thread-local storage for request IDs outside of Flask context
 _local = threading.local()
 
+def with_request_id(func):
+    """
+    Decorator that adds request ID tracking to a function.
+    Creates a new request ID if one doesn't exist.
+    """
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        request_id = get_request_id()
+        start_time = time.time()
+
+        debug_id(f"Starting {func.__name__}", request_id)
+        try:
+            result = func(*args, **kwargs)
+            end_time = time.time()
+            debug_id(f"Completed {func.__name__} in {end_time - start_time:.3f}s", request_id)
+            return result
+        except Exception as e:
+            end_time = time.time()
+            error_id(f"Error in {func.__name__} after {end_time - start_time:.3f}s: {e}", request_id)
+            raise
+
+    return wrapper
+
 
 def get_request_id():
     """
@@ -105,25 +129,33 @@ def clear_request_id():
 
 # Enhanced logging functions that automatically include request ID
 # These don't replace the standard logger methods, they're additional
-def log_with_id(level, message, request_id=None, *args, **kwargs):
+def log_with_id(level, message, *args, request_id=None, **kwargs):
     """Log a message with an included request ID."""
-    if request_id is None:
-        request_id = get_request_id()
+    # Determine the request ID
+    rid = request_id or get_request_id()
 
-    # Format the message to include the request ID
-    formatted_message = f"[REQ-{request_id}] {message}"
+    # First apply any %-format args to the message
+    try:
+        msg = message % args if args else message
+    except Exception:
+        # Fallback if formatting fails
+        msg = message
 
-    # Use the standard logger with the formatted message
+    # Prefix with the request ID
+    final = f"[REQ-{rid}] {msg}"
+
+    # Dispatch to the logger at the proper level
     if level == logging.DEBUG:
-        logger.debug(formatted_message, *args, **kwargs)
+        logger.debug(final, **kwargs)
     elif level == logging.INFO:
-        logger.info(formatted_message, *args, **kwargs)
+        logger.info(final, **kwargs)
     elif level == logging.WARNING:
-        logger.warning(formatted_message, *args, **kwargs)
+        logger.warning(final, **kwargs)
     elif level == logging.ERROR:
-        logger.error(formatted_message, *args, **kwargs)
+        logger.error(final, **kwargs)
     elif level == logging.CRITICAL:
-        logger.critical(formatted_message, *args, **kwargs)
+        logger.critical(final, **kwargs)
+
 
 
 # Convenience functions that match the logger interface
@@ -145,32 +177,6 @@ def error_id(message, request_id=None, *args, **kwargs):
 
 def critical_id(message, request_id=None, *args, **kwargs):
     log_with_id(logging.CRITICAL, message, request_id, *args, **kwargs)
-
-
-# Decorator to add request ID logging to a function
-def with_request_id(func):
-    """
-    Decorator that adds request ID tracking to a function.
-    Creates a new request ID if one doesn't exist.
-    """
-
-    def wrapper(*args, **kwargs):
-        request_id = get_request_id()  # Get or create request ID
-        start_time = time.time()
-
-        debug_id(f"Starting {func.__name__}", request_id)
-        try:
-            result = func(*args, **kwargs)
-            end_time = time.time()
-            debug_id(f"Completed {func.__name__} in {end_time - start_time:.3f}s", request_id)
-            return result
-        except Exception as e:
-            end_time = time.time()
-            error_id(f"Error in {func.__name__} after {end_time - start_time:.3f}s: {str(e)}", request_id)
-            raise
-
-    return wrapper
-
 
 # Flask middleware for request ID tracking
 def request_id_middleware(app):
