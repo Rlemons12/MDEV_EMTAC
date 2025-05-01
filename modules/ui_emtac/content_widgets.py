@@ -579,7 +579,7 @@ class ProblemSolutionContent(MDBoxLayout):
             if position_id:
                 image_content_widget.update_for_position(position_id)
             else:
-                image_content_widget.position_images_layout.clear_widgets()
+                image_content_widget.position_images_list.clear_widgets()
                 image_content_widget.position_images_layout.add_widget(
                     MDLabel(
                         text="No position associated with this task.",
