@@ -1,5 +1,7 @@
 # blueprints/tool_routes/tool_add.py
 import os
+from datetime import datetime
+
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, jsonify
 from werkzeug.utils import secure_filename
 from sqlalchemy.orm import joinedload  # Import for eager loading
@@ -23,7 +25,6 @@ def allowed_file(filename):
 @tool_blueprint_bp.route('/submit_tool_data', methods=['GET', 'POST'])
 def submit_tool_data():
     logger.info("Accessed /submit_tool_data route.")
-    logger.info("inside submit_tool_data route")
 
     # Access db_config
     db_config = current_app.config.get('db_config')
@@ -57,57 +58,45 @@ def submit_tool_data():
     logger.info("Forms instantiated successfully.")
 
     try:
-        # Populate choices for various forms.
-        logger.info("Populating tool_form.tool_category.choices...")
+        # Populate form choices for various forms
+        logger.info("Populating form choices...")
+
         tool_form.tool_category.choices = [
             (c.id, c.name)
             for c in main_session.query(ToolCategory).order_by(ToolCategory.name)
         ]
-        logger.info("tool_form.tool_category.choices populated.")
 
-        logger.info("Populating tool_form.tool_manufacturer.choices...")
         tool_form.tool_manufacturer.choices = [
             (m.id, m.name)
             for m in main_session.query(ToolManufacturer).order_by(ToolManufacturer.name)
         ]
-        logger.info("tool_form.tool_manufacturer.choices populated.")
 
-        logger.info("Populating category_form.parent_id.choices...")
         category_form.parent_id.choices = [(0, 'None')] + [
             (c.id, c.name)
             for c in main_session.query(ToolCategory).order_by(ToolCategory.name)
         ]
-        logger.info("category_form.parent_id.choices populated.")
 
-        # Populate PositionForm choices (similar queries for area, equipment_group, etc.)
-        logger.info("Populating position_form.area.choices...")
         position_form.area.choices = [
             (a.id, a.name)
             for a in main_session.query(Area).order_by(Area.name)
         ]
-        logger.info("position_form.area.choices populated.")
 
-        # (Additional population for other position fields omitted for brevity)
+        # Additional population for position form fields would go here
 
-        logger.info("Populating tool_search_form.tool_category.choices...")
         tool_search_form.tool_category.choices = [
             (c.id, c.name)
             for c in main_session.query(ToolCategory).order_by(ToolCategory.name)
         ]
-        logger.info("tool_search_form.tool_category.choices populated.")
 
-        logger.info("Populating tool_search_form.tool_manufacturer.choices...")
         tool_search_form.tool_manufacturer.choices = [
             (m.id, m.name)
             for m in main_session.query(ToolManufacturer).order_by(ToolManufacturer.name)
         ]
-        logger.info("tool_search_form.tool_manufacturer.choices populated.")
 
         logger.info("Finished populating all form choices successfully.")
 
     except Exception as e:
         error_msg = f"Error populating form choices: {e}"
-        logger.info(error_msg)
         logger.error(error_msg, exc_info=True)
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({'success': False, 'message': error_msg}), 500
@@ -127,28 +116,24 @@ def submit_tool_data():
 
     is_ajax = (request.headers.get('X-Requested-With') == 'XMLHttpRequest')
     logger.debug(f"request.form data: {request.form.to_dict(flat=False)}")
-    logger.info("Reached the point before checking request.method...")
 
     if request.method == 'POST':
         logger.info("Inside POST handling...")
+
         # Determine which form was submitted
         if 'submit_manufacturer' in request.form:
             form = manufacturer_form
             form_name = 'manufacturer'
-            logger.info("Detected 'submit_manufacturer'")
         elif 'submit_category' in request.form:
             form = category_form
             form_name = 'category'
-            logger.info("Detected category submission!")
             logger.info(f"Category Form Submitted: Name - {form.name.data}, Description - {form.description.data}")
         elif 'submit_tool' in request.form:
             form = tool_form
             form_name = 'tool'
-            logger.info("Detected 'submit_tool'")
         elif 'submit_search' in request.form:
             form = tool_search_form
             form_name = 'search'
-            logger.info("Detected 'submit_search'")
         else:
             form = None
             form_name = 'unknown'
@@ -156,222 +141,178 @@ def submit_tool_data():
 
         if form and not form.validate_on_submit():
             logger.error(f"Form validation errors: {form.errors}")
-            # You can add more detailed logging here
 
         if form and form.validate_on_submit():
-            logger.info(f"Form '{form_name}' validated successfully. Entering try block...")
-
-        if form and form.validate_on_submit():
-            logger.info(f"Form '{form_name}' validated successfully. Entering try block...")
+            logger.info(f"Form '{form_name}' validated successfully.")
             try:
                 if form_name == 'manufacturer':
                     logger.info("Handling 'manufacturer' form logic...")
-                    # ... manufacturer logic ...
+                    # Manufacturer form logic would go here
                     pass
 
                 elif form_name == 'category':
                     logger.info("Handling 'category' form logic...")
-                    # ... category logic ...
+                    # Category form logic would go here
                     pass
 
-
                 elif form_name == 'tool':
+                    logger.info("Handling 'tool' form logic...")
 
-                    logger.info("Handling 'tool' form logic now... (image upload, new Tool creation, etc.)")
-
-                    # Create the new tool first
-
-                    logger.info("Creating new_tool instance...")
-
+                    # Create the new tool
                     new_tool = Tool(
-
                         name=form.tool_name.data.strip(),
-
                         size=form.tool_size.data.strip() if form.tool_size.data else None,
-
                         type=form.tool_type.data.strip() if form.tool_type.data else None,
-
                         material=form.tool_material.data.strip() if form.tool_material.data else None,
-
                         description=form.tool_description.data.strip() if form.tool_description.data else None,
-
                         tool_category_id=form.tool_category.data,
-
                         tool_manufacturer_id=form.tool_manufacturer.data
-
                     )
 
-                    logger.info(f"new_tool created: {new_tool.name}")
-
+                    logger.info(f"Created new tool instance: {new_tool.name}")
                     main_session.add(new_tool)
+                    main_session.flush()  # Get ID without committing
 
-                    main_session.flush()  # Flush to get the new_tool.id
-
-                    # Process multiple file uploads from tool_images using the new methods
-
+                    # Process image uploads
+                    successful_images = 0
                     if form.tool_images.data:
+                        import datetime
+
+                        # Add this line to define the timestamp variable
+                        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
                         for file in form.tool_images.data:
-
-                            if file and allowed_file(file.filename):
-
-                                logger.info("File is present and allowed. Saving file...")
-
-                                filename = secure_filename(file.filename)
-
-                                upload_folder = os.path.join(current_app.root_path, 'static', 'uploads', 'tools')
-
-                                os.makedirs(upload_folder, exist_ok=True)
-
-                                file_path = os.path.join(upload_folder, filename)
-
-                                file.save(file_path)
-
-                                image_description = form.image_description.data.strip() if form.image_description.data else "Uploaded via the tool form"
-
-                                # Use the add_and_associate_with_tool class method
-
-                                logger.info(f"Adding image and associating with tool ID {new_tool.id}...")
-
-                                new_image, tool_image_assoc = ToolImageAssociation.add_and_associate_with_tool(
-
-                                    session=main_session,
-
-                                    title=f"Tool Image: {new_tool.name}",
-
-                                    file_path=file_path,
-
-                                    tool_id=new_tool.id,
-
-                                    description=image_description,
-
-                                    association_description="Primary uploaded tool image"
-
-                                )
-
-                                logger.info(
-                                    f"Image ID {new_image.id} created and associated with tool ID {new_tool.id}")
-
-                            else:
-
-                                logger.warning("Skipping invalid or empty file.")
-
-                    # Process other associations (positions) as before...
-
-                    logger.info("Processing selected position IDs...")
-
-                    selected_areas = request.form.getlist('area')
-
-                    selected_equipment_groups = request.form.getlist('equipment_group')
-
-                    selected_models = request.form.getlist('model')
-
-                    selected_asset_numbers = request.form.getlist('asset_number')
-
-                    selected_locations = request.form.getlist('location')
-
-                    selected_assemblies = request.form.getlist('subassembly')
-
-                    selected_subassemblies = request.form.getlist('component_assembly')
-
-                    selected_assembly_views = request.form.getlist('assembly_view')
-
-                    selected_site_locations = request.form.getlist('site_location')
-
-                    position_fields = [
-
-                        ('Area', selected_areas),
-
-                        ('Equipment Group', selected_equipment_groups),
-
-                        ('Model', selected_models),
-
-                        ('Asset Number', selected_asset_numbers),
-
-                        ('Location', selected_locations),
-
-                        ('Subassembly', selected_assemblies),
-
-                        ('Subassembly', selected_subassemblies),
-
-                        ('Subassembly View', selected_assembly_views),
-
-                        ('Site Location', selected_site_locations)
-
-                    ]
-
-                    for category, selected_ids in position_fields:
-
-                        for pos_id in selected_ids:
-
-                            if pos_id == '__None':
-                                continue
-
                             try:
+                                if file and allowed_file(file.filename):
+                                    filename = secure_filename(file.filename)
+                                    logger.info(f"Processing file: {filename}")
 
-                                pos_id_int = int(pos_id)
+                                    # Save file
+                                    upload_folder = os.path.join(current_app.root_path, 'static', 'uploads', 'tools')
+                                    os.makedirs(upload_folder, exist_ok=True)
+                                    file_path = os.path.join(upload_folder, filename)
+                                    file.save(file_path)
 
-                            except ValueError:
+                                    # Get description and create title with timestamp
+                                    image_description = form.image_description.data.strip() if form.image_description.data else "Uploaded via the tool form"
+                                    image_title = f"{new_tool.name}_{new_tool.id}"
 
-                                logger.error(f"Invalid position ID: {pos_id}")
+                                    # Use the add_and_associate_with_tool class method
+                                    logger.info(f"Adding image and associating with tool ID {new_tool.id}")
 
-                                logger.info(f"Skipping invalid position ID: {pos_id}")
+                                    new_image, tool_image_assoc = ToolImageAssociation.add_and_associate_with_tool(
+                                        session=main_session,
+                                        title=image_title,
+                                        file_path=file_path,
+                                        tool_id=new_tool.id,
+                                        description=image_description,
+                                        association_description=f"Tool image uploaded on {timestamp}"
+                                    )
 
-                                continue
+                                    if new_image and tool_image_assoc:
+                                        logger.info(
+                                            f"Successfully created image ID {new_image.id} and associated with tool ID {new_tool.id}")
+                                        successful_images += 1
+                                    else:
+                                        logger.warning(f"Failed to create image or association for file {filename}")
+                                else:
+                                    logger.warning(
+                                        f"Skipping invalid or empty file: {file.filename if file else 'None'}")
+                            except Exception as img_error:
+                                logger.error(f"Error processing image file: {img_error}", exc_info=True)
+                                # Continue to next image rather than failing entire process
 
-                            position = main_session.query(Position).get(pos_id_int)
+                    logger.info(f"Processed {successful_images} images successfully")
 
-                            if not position:
-                                logger.error(f"Position with ID {pos_id_int} does not exist.")
+                    # Process position associations
+                    position_associations = 0
+                    try:
+                        # Get selected values from the form
+                        area_id = request.form.get('area', '__None')
+                        equipment_group_id = request.form.get('equipment_group', '__None')
+                        model_id = request.form.get('model', '__None')
+                        asset_number_id = request.form.get('asset_number', '__None')
+                        location_id = request.form.get('location', '__None')
+                        subassembly_id = request.form.get('subassembly', '__None')
+                        component_assembly_id = request.form.get('component_assembly', '__None')
+                        assembly_view_id = request.form.get('assembly_view', '__None')
+                        site_location_id = request.form.get('site_location', '__None')
 
-                                logger.info(f"Skipping non-existent position ID: {pos_id_int}")
+                        # Convert string IDs to integers or None
+                        def parse_id(id_str):
+                            return int(id_str) if id_str != '__None' else None
 
-                                continue
+                        # Parse all IDs
+                        area_id = parse_id(area_id) if area_id != '__None' else None
+                        equipment_group_id = parse_id(equipment_group_id) if equipment_group_id != '__None' else None
+                        model_id = parse_id(model_id) if model_id != '__None' else None
+                        asset_number_id = parse_id(asset_number_id) if asset_number_id != '__None' else None
+                        location_id = parse_id(location_id) if location_id != '__None' else None
+                        subassembly_id = parse_id(subassembly_id) if subassembly_id != '__None' else None
+                        component_assembly_id = parse_id(
+                            component_assembly_id) if component_assembly_id != '__None' else None
+                        assembly_view_id = parse_id(assembly_view_id) if assembly_view_id != '__None' else None
+                        site_location_id = parse_id(site_location_id) if site_location_id != '__None' else None
 
-                            logger.info(
-                                f"Associating position ID {pos_id_int} ({category}) with Tool '{new_tool.name}'")
+                        # If any position component is selected
+                        if any([area_id, equipment_group_id, model_id, asset_number_id, location_id,
+                                subassembly_id, component_assembly_id, assembly_view_id, site_location_id]):
 
-                            association = ToolPositionAssociation(
-
-                                tool=new_tool,
-
-                                position_id=pos_id_int,
-
-                                description=f"{category} Description"
-
+                            # Get or create the position
+                            position = Position.add_to_db(
+                                session=main_session,
+                                area_id=area_id,
+                                equipment_group_id=equipment_group_id,
+                                model_id=model_id,
+                                asset_number_id=asset_number_id,
+                                location_id=location_id,
+                                subassembly_id=subassembly_id,
+                                component_assembly_id=component_assembly_id,
+                                assembly_view_id=assembly_view_id,
+                                site_location_id=site_location_id
                             )
 
-                            main_session.add(association)
+                            # Create one association between tool and this position
+                            if position:
+                                logger.info(f"Associating position ID {position.id} with Tool '{new_tool.name}'")
+                                association = ToolPositionAssociation(
+                                    tool_id=new_tool.id,
+                                    position_id=position.id,
+                                    description=f"Tool position association"
+                                )
+                                main_session.add(association)
+                                position_associations += 1
 
-                    logger.info("Adding new_tool and any image associations to DB...")
+                    except Exception as pos_assoc_error:
+                        logger.error(f"Error processing position associations: {pos_assoc_error}", exc_info=True)
 
+                    logger.info(f"Created {position_associations} position associations")
+
+                    # Commit changes to database
                     main_session.commit()
 
-                    message = 'Tool added successfully with position associations and images!'
-
+                    # Success message
+                    message = f'Tool "{new_tool.name}" added successfully with {successful_images} images and {position_associations} position associations!'
                     logger.info(message)
 
                     if is_ajax:
-
                         return jsonify({'success': True, 'message': message}), 200
-
                     else:
-
                         flash(message, 'success')
-
                         return redirect(url_for('tool_routes.submit_tool_data'))
 
                 elif form_name == 'search':
-                    logger.info("Handling 'search' form logic now...")
-                    # ... search logic ...
+                    logger.info("Handling 'search' form logic...")
+                    # Search form logic would go here
                     pass
 
                 logger.info(f"Completed {form_name} form logic without exceptions.")
+
             except Exception as e:
                 main_session.rollback()
                 error_msg = f"Error processing {form_name} form: {str(e)}"
-                logger.info(error_msg)
                 logger.error(error_msg, exc_info=True)
+
                 if is_ajax:
                     return jsonify({'success': False, 'message': error_msg}), 500
                 else:
@@ -402,9 +343,10 @@ def submit_tool_data():
                         positions=positions
                     )
         else:
-            logger.info("No recognized form found or request.method != 'POST'")
+            # Form validation failed or no valid form submission
+            logger.info("Form validation failed or no valid form submission")
             error_msg = "No valid form submission detected."
-            logger.error(error_msg)
+
             if is_ajax:
                 return jsonify({'success': False, 'message': error_msg}), 400
             else:
@@ -414,7 +356,7 @@ def submit_tool_data():
                     categories = main_session.query(ToolCategory).order_by(ToolCategory.name).all()
                     positions = main_session.query(Position).order_by(Position.id).all()
                 except Exception as e:
-                    logger.error(f"Error fetching data during unknown form submission: {e}", exc_info=True)
+                    logger.error(f"Error fetching data during form validation failure: {e}", exc_info=True)
                     manufacturers = []
                     categories = []
                     positions = []
@@ -435,67 +377,7 @@ def submit_tool_data():
                     positions=positions
                 )
 
-    elif request.method == 'GET' and is_ajax:
-        logger.info("Handling AJAX GET request for tool search.")
-        try:
-            query_params = request.args.to_dict()
-            page = int(query_params.get('page', 1))
-            per_page = int(query_params.get('per_page', 10))
-            filters = []
-            if 'tool_name' in query_params and query_params['tool_name']:
-                filters.append(Tool.name.ilike(f"%{query_params['tool_name']}%"))
-            if 'tool_type' in query_params and query_params['tool_type']:
-                filters.append(Tool.type.ilike(f"%{query_params['tool_type']}%"))
-            if 'tool_category' in query_params and query_params['tool_category']:
-                try:
-                    tool_category_id = int(query_params['tool_category'])
-                    filters.append(Tool.tool_category_id == tool_category_id)
-                except ValueError:
-                    logger.error(f"Invalid tool_category ID: {query_params['tool_category']}")
-            if 'tool_manufacturer' in query_params and query_params['tool_manufacturer']:
-                try:
-                    tool_manufacturer_id = int(query_params['tool_manufacturer'])
-                    filters.append(Tool.tool_manufacturer_id == tool_manufacturer_id)
-                except ValueError:
-                    logger.error(f"Invalid tool_manufacturer ID: {query_params['tool_manufacturer']}")
-            query = main_session.query(Tool).options(
-                joinedload(Tool.tool_category),
-                joinedload(Tool.tool_manufacturer)
-            )
-            if filters:
-                query = query.filter(*filters)
-            total = query.count()
-            tools = query.offset((page - 1) * per_page).limit(per_page).all()
-
-            tools_data = []
-            for tool in tools:
-                tools_data.append({
-                    'name': tool.name,
-                    'size': tool.size or 'N/A',
-                    'type': tool.type or 'N/A',
-                    'material': tool.material or 'N/A',
-                    'category': tool.tool_category.name if tool.tool_category else 'N/A',
-                    'manufacturer': tool.tool_manufacturer.name if tool.tool_manufacturer else 'N/A',
-                    'description': tool.description or 'N/A',
-                    'image': tool.get_main_image_url() if hasattr(tool, 'get_main_image_url') else None
-                })
-
-            response = {
-                'success': True,
-                'tools': tools_data,
-                'total': total,
-                'page': page,
-                'per_page': per_page,
-                'total_pages': (total + per_page - 1) // per_page
-            }
-            logger.info(f"Search successful: {len(tools_data)} tools found.")
-            return jsonify(response), 200
-
-        except Exception as e:
-            error_msg = f"Error processing AJAX search: {str(e)}"
-            logger.error(error_msg, exc_info=True)
-            return jsonify({'success': False, 'message': error_msg}), 500
-
+    # Default GET request handling - render the template
     return render_template(
         'tool_templates/tool_search_entry.html',
         tool_form=tool_form,
@@ -507,6 +389,45 @@ def submit_tool_data():
         categories=[],
         positions=[]
     )
+
+
+@tool_blueprint_bp.route('/get_dependent_items')
+def get_dependent_items():
+    parent_type = request.args.get('parent_type')
+    parent_id = request.args.get('parent_id')
+    child_type = request.args.get('child_type')
+
+    if not parent_type or not parent_id:
+        return jsonify([])
+
+    main_session = current_app.config.get('db_config').get_main_session()
+    items = Position.get_dependent_items(main_session, parent_type, parent_id, child_type)
+
+    # Empty result check
+    if not items:
+        return jsonify([])
+
+    # For asset_number, include the number field
+    if (parent_type == 'model' and child_type == 'asset_number') or parent_type == 'asset_number':
+        return jsonify([{
+            'id': item.id,
+            'name': str(item.id),  # Default to ID as display text
+            'number': item.number  # Include the actual number field
+        } for item in items])
+
+    # For site_location items, use a different format
+    elif parent_type == 'site_location' or child_type == 'site_location':
+        return jsonify([{
+            'id': item.id,
+            'name': f"{item.title} - Room {item.room_number}"
+        } for item in items])
+
+    # Default case for other items
+    else:
+        return jsonify([{
+            'id': item.id,
+            'name': getattr(item, 'name', str(item.id))
+        } for item in items])
 
 @tool_blueprint_bp.teardown_app_request
 def remove_session(exception=None):
