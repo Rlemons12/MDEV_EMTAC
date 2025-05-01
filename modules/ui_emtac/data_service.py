@@ -181,9 +181,11 @@ class DataService:
             logger.error(traceback.format_exc())
             return []
 
-
     def get_problems_by_position(self, position_id):
-        """Retrieve all problems associated with a specific position."""
+        """
+        Retrieve all problems associated with a specific position.
+        If no problems are found, fall back to finding problems associated with the same model.
+        """
         logger.info(f"========== GETTING PROBLEMS FOR POSITION {position_id} ==========")
         try:
             # First get the position details for better logging
@@ -206,18 +208,71 @@ class DataService:
 
             logger.info(f"Found {len(problems)} problems for position ID {position_id}")
 
-            # Log details of each problem found
-            for i, problem in enumerate(problems):
-                logger.debug(f"Problem #{i + 1}: ID={problem.id}, Name='{problem.name}'")
+            # If problems were found, log details and return them
+            if problems:
+                # Log details of each problem found
+                for i, problem in enumerate(problems):
+                    logger.debug(f"Problem #{i + 1}: ID={problem.id}, Name='{problem.name}'")
 
-                # Get and log solutions for this problem
-                try:
-                    solutions = self.session.query(Solution).filter(Solution.problem_id == problem.id).all()
-                    logger.debug(f"  -> Found {len(solutions)} solutions for problem ID {problem.id}")
-                except Exception as e:
-                    logger.warning(f"Error getting solutions for problem ID {problem.id}: {e}")
+                    # Get and log solutions for this problem
+                    try:
+                        solutions = self.session.query(Solution).filter(Solution.problem_id == problem.id).all()
+                        logger.debug(f"  -> Found {len(solutions)} solutions for problem ID {problem.id}")
+                    except Exception as e:
+                        logger.warning(f"Error getting solutions for problem ID {problem.id}: {e}")
 
-            return problems
+                return problems
+
+            # If no position-specific problems found and position has a model_id,
+            # look for problems linked to any position with the same model_id
+            elif position.model_id:
+                logger.info(
+                    f"No position-specific problems found. Falling back to model-based problems for model_id {position.model_id}")
+
+                # Find positions with the same model_id (excluding the current position)
+                model_positions = (
+                    self.session.query(Position.id)
+                    .filter(Position.model_id == position.model_id)
+                    .filter(Position.id != position_id)
+                    .all()
+                )
+
+                if not model_positions:
+                    logger.info(f"No other positions found with model_id {position.model_id}")
+                    return []
+
+                # Extract position IDs
+                model_position_ids = [pos_id for (pos_id,) in model_positions]
+                logger.debug(
+                    f"Found {len(model_position_ids)} other positions with the same model_id: {model_position_ids}")
+
+                # Query problems associated with any of these positions
+                model_problems = (
+                    self.session.query(Problem)
+                    .join(ProblemPositionAssociation, Problem.id == ProblemPositionAssociation.problem_id)
+                    .filter(ProblemPositionAssociation.position_id.in_(model_position_ids))
+                    .distinct()  # Avoid duplicates
+                    .all()
+                )
+
+                logger.info(
+                    f"Found {len(model_problems)} problems from other positions with the same model_id {position.model_id}")
+
+                # Log details of each problem found
+                for i, problem in enumerate(model_problems):
+                    logger.debug(f"Model-based Problem #{i + 1}: ID={problem.id}, Name='{problem.name}'")
+
+                    # Get and log solutions for this problem
+                    try:
+                        solutions = self.session.query(Solution).filter(Solution.problem_id == problem.id).all()
+                        logger.debug(f"  -> Found {len(solutions)} solutions for problem ID {problem.id}")
+                    except Exception as e:
+                        logger.warning(f"Error getting solutions for problem ID {problem.id}: {e}")
+
+                return model_problems
+
+            # No problems found at all
+            return []
         except Exception as e:
             logger.error(f"Error getting problems for position ID {position_id}: {e}")
             import traceback
