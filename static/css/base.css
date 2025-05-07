@@ -177,7 +177,7 @@ body {
 }
 /* Results Container */
 .results-container {
-    width: 50%; /* Adjust to desired width */
+    width: 100%; /* Adjust to desired width */
     padding-left: 20px; /* Space between form and results */
     color: white; /* Ensure text is visible */
 }
@@ -196,3 +196,5 @@ body {
 #drawingList {
     color: white; /* Ensure visibility over dark backgrounds */
 }
+
+
