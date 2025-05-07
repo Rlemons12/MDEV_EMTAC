@@ -131,22 +131,36 @@ def create_bill_of_material():
 
 @create_bill_of_material_bp.route('/view_bill_of_material', methods=['GET'])
 def view_bill_of_material():
+    """
+    View the bill of material results with pagination.
+    Uses a partial template that can be included in other pages.
+    """
     logger.info("Entered view_bill_of_material route.")
     db_session = db_config.get_main_session()
     try:
+        # Get pagination parameters
         index = request.args.get('index', 0, type=int)
         per_page = request.args.get('per_page', 4, type=int)
         logger.debug(f"Pagination parameters: index={index}, per_page={per_page}")
 
-        query = db_session.query(BOMResult).offset(index).limit(per_page)
+        # Query BOM results with pagination
+        query = db_session.query(BOMResult).order_by(BOMResult.id.desc()).offset(index).limit(per_page)
         results = query.all()
         total_results = db_session.query(BOMResult).count()
         logger.info(f"Retrieved {len(results)} BOM results out of total {total_results}")
 
+        # If no results, redirect back with a message
+        if not results:
+            logger.warning("No BOM results found in the database.")
+            flash('No results found. Please try creating a Bill of Materials first.', 'warning')
+            return redirect(url_for('create_bill_of_material_bp.create_bill_of_material'))
+
+        # Process results to get parts and images
         parts_and_images = []
         for result in results:
             logger.debug(f"Processing BOM result with part_id: {result.part_id}")
             part = db_session.query(Part).filter_by(id=result.part_id).first()
+
             if not part:
                 logger.error(f"Part not found for BOM result with part_id: {result.part_id}")
                 continue
@@ -156,29 +170,83 @@ def view_bill_of_material():
                 image = db_session.query(Image).filter_by(id=result.image_id).first()
                 if not image:
                     logger.warning(f"Image not found for BOM result with image_id: {result.image_id}")
+
+            # Add to results list
             parts_and_images.append({
                 'part': part,
                 'image': image,
                 'description': result.description
             })
 
+        # Calculate pagination
         next_index = index + per_page if index + per_page < total_results else None
         prev_index = index - per_page if index - per_page >= 0 else None
-        logger.info(f"Pagination calculated: next_index={next_index}, prev_index={prev_index}")
+        logger.debug(f"Pagination: next_index={next_index}, prev_index={prev_index}")
 
-        return render_template(
-            'bill_of_material_creation_results.html',
-            index=index,
-            parts_and_images=parts_and_images,
-            per_page=per_page,
-            total=total_results,
-            next_index=next_index,
-            prev_index=prev_index
-        )
+        # Debug information to help troubleshoot
+        debug_info = {
+            'result_count': len(results),
+            'parts_count': len(parts_and_images),
+            'total_results': total_results
+        }
+
+        # Additional context data from session
+        model_id = flask_session.get('model_id')
+        asset_number_id = flask_session.get('asset_number_id')
+        location_id = flask_session.get('location_id')
+
+        # Get descriptive names if possible
+        model_name = None
+        asset_number = None
+        location_name = None
+
+        if asset_number_id:
+            try:
+                asset_obj = db_session.query(AssetNumber).filter_by(id=asset_number_id).first()
+                if asset_obj:
+                    asset_number = asset_obj.number
+            except Exception as e:
+                logger.error(f"Error getting asset number: {e}")
+
+        # Log rendering parameters
+        logger.info(f"Rendering template with {len(parts_and_images)} parts/images")
+
+        # Check if request wants just the partial (for AJAX)
+        if request.args.get('partial', False):
+            # Return just the partial template
+            return render_template(
+                'bill_of_materials/bom_partials/bill_of_material_results_partial.html',
+                index=index,
+                parts_and_images=parts_and_images,
+                per_page=per_page,
+                total=total_results,
+                next_index=next_index,
+                prev_index=prev_index,
+                debug_info=debug_info,
+                model_name=model_name,
+                asset_number=asset_number,
+                location_name=location_name
+            )
+        else:
+            # Return the full bill_of_materials.html template with results
+            return render_template(
+                'bill_of_materials/bill_of_materials.html',
+                show_results=True,
+                index=index,
+                parts_and_images=parts_and_images,
+                per_page=per_page,
+                total=total_results,
+                next_index=next_index,
+                prev_index=prev_index,
+                debug_info=debug_info,
+                model_name=model_name,
+                asset_number=asset_number,
+                location_name=location_name
+            )
     except Exception as e:
         logger.exception(f"Exception in view_bill_of_material: {e}")
         flash(f'An error occurred: {str(e)}', 'error')
-        return redirect(url_for('create_bill_of_material_bp.view_bill_of_material'))
+        return redirect(url_for('create_bill_of_material_bp.create_bill_of_material'))
     finally:
         db_session.close()
         logger.debug("Database session closed in view_bill_of_material.")
@@ -334,3 +402,82 @@ def clear_bom_results():
     finally:
         session.close()
         logger.debug("Database session closed in clear_bom_results.")
+
+@create_bill_of_material_bp.route('/debug_bom_results')
+def debug_bom_results():
+    """Debug route to check BOM results in the database."""
+    if not flask_session.get('user_level') == 'ADMIN':
+        flash('Admin access required', 'error')
+        return redirect(url_for('create_bill_of_material_bp.create_bill_of_material'))
+
+    db_session = db_config.get_main_session()
+    try:
+        # Get all BOM results
+        results = db_session.query(BOMResult).all()
+        count = len(results)
+
+        # Get sample data for first 10 results
+        sample_data = []
+        for result in results[:10]:
+            part = db_session.query(Part).filter_by(id=result.part_id).first()
+            position = db_session.query(Position).filter_by(id=result.position_id).first()
+
+            part_info = {'id': result.part_id, 'exists': part is not None}
+            if part:
+                part_info.update({
+                    'part_number': part.part_number,
+                    'name': part.name
+                })
+
+            position_info = {'id': result.position_id, 'exists': position is not None}
+            if position:
+                position_info.update({
+                    'name': getattr(position, 'name', 'N/A')
+                })
+
+            sample_data.append({
+                'id': result.id,
+                'part': part_info,
+                'position': position_info,
+                'image_id': result.image_id,
+                'description': result.description
+            })
+
+        # Get session data
+        session_data = {
+            'results': flask_session.get('results'),
+            'model_id': flask_session.get('model_id'),
+            'asset_number_id': flask_session.get('asset_number_id'),
+            'location_id': flask_session.get('location_id'),
+            'general_asset_number': flask_session.get('general_asset_number'),
+            'general_location': flask_session.get('general_location')
+        }
+
+        return render_template(
+            'debug_bom_results.html',
+            count=count,
+            sample_data=sample_data,
+            session_data=session_data
+        )
+    except Exception as e:
+        logger.exception(f"Exception in debug_bom_results: {e}")
+        flash(f'Debug error: {str(e)}', 'error')
+        return str(e), 500
+    finally:
+        db_session.close()
+
+@create_bill_of_material_bp.route('/debug_clear_bom_results')
+def debug_clear_bom_results():
+    """Debug route to clear all BOM results."""
+    if not flask_session.get('user_level') == 'ADMIN':
+        flash('Admin access required', 'error')
+        return redirect(url_for('create_bill_of_material_bp.create_bill_of_material'))
+
+    try:
+        clear_bom_results()
+        flash('All BOM results cleared', 'success')
+    except Exception as e:
+        logger.exception(f"Exception in debug_clear_bom_results: {e}")
+        flash(f'Error clearing BOM results: {str(e)}', 'error')
+
+    return redirect(url_for('create_bill_of_material_bp.debug_bom_results'))
