@@ -12,21 +12,27 @@ from modules.configuration.log_config import logger
 from sqlalchemy import and_
 
 
-
+# Updated edit_part route to handle AJAX requests
 @update_part_bp.route('/edit_part/<int:part_id>', methods=['GET', 'POST'])
 def edit_part(part_id):
     logger.info(f'Starting edit_part function for part_id: {part_id}')
     db_session = DatabaseConfig().get_main_session()
-    logger.debug(f'Database session obtained for editing part: {part_id}')
+    # Check if this is an AJAX request
+    is_ajax = request.form.get('ajax') == 'true' or request.args.get('ajax') == 'true'
+    logger.debug(f'Database session obtained for editing part: {part_id}, is_ajax: {is_ajax}')
 
-    # Fetch the part based on part_id
-    part = db_session.query(Part).filter_by(id=part_id).first()
+    # Use the Part.get_by_id class method to fetch the part
+    part = Part.get_by_id(part_id=part_id, session=db_session)
+
     if part:
         logger.info(f'Found part for editing: {part.part_number} (ID: {part_id})')
     else:
         logger.warning(f'Part with ID {part_id} not found')
-        flash("Part not found.", "error")
-        return redirect(url_for('update_part_bp.search_part'))
+        if is_ajax:
+            return jsonify({'success': False, 'message': 'Part not found.'}), 404
+        else:
+            flash("Part not found.", "error")
+            return redirect(url_for('update_part_bp.search_part'))
 
     # Get existing images associated with this part
     try:
@@ -103,10 +109,14 @@ def edit_part(part_id):
                 if not '.' in uploaded_file.filename or \
                         uploaded_file.filename.rsplit('.', 1)[1].lower() not in ALLOWED_EXTENSIONS:
                     logger.warning(f'Invalid file type attempted: {uploaded_file.filename}')
-                    flash("File type not allowed. Please upload jpg, jpeg, png, or gif files only.", "error")
-                    return render_template('bill_of_materials/bom_partials/edit_part.html', part=part,
-                                           part_images=part_images,
-                                           positions=positions)
+                    if is_ajax:
+                        return jsonify({'success': False,
+                                        'message': 'File type not allowed. Please upload jpg, jpeg, png, or gif files only.'}), 400
+                    else:
+                        flash("File type not allowed. Please upload jpg, jpeg, png, or gif files only.", "error")
+                        return render_template('bill_of_materials/bom_partials/edit_part.html', part=part,
+                                               part_images=part_images,
+                                               positions=positions)
 
                 # Ensure the filename is secure
                 filename = secure_filename(uploaded_file.filename)
@@ -209,22 +219,43 @@ def edit_part(part_id):
 
             db_session.commit()
             logger.info(f'Successfully committed all changes for part {part_id}')
-            flash("Part updated successfully!", "success")
-            return redirect(url_for('update_part_bp.search_part'))
+
+            if is_ajax:
+                return jsonify({
+                    'success': True,
+                    'message': 'Part updated successfully!'
+                })
+            else:
+                flash("Part updated successfully!", "success")
+                # After successful update, redirect to the same edit page to show the changes
+                return redirect(url_for('update_part_bp.edit_part', part_id=part_id))
 
         except IntegrityError as ie:
             db_session.rollback()
             logger.error(f'IntegrityError during part update: {str(ie)}')
-            flash("Part number must be unique.", "error")
+            if is_ajax:
+                return jsonify({'success': False, 'message': 'Part number must be unique.'}), 400
+            else:
+                flash("Part number must be unique.", "error")
         except Exception as e:
             db_session.rollback()
             logger.error(f'Unexpected error during part update: {str(e)}', exc_info=True)
-            flash(f"An error occurred: {str(e)}", "error")
+            if is_ajax:
+                return jsonify({'success': False, 'message': f'An error occurred: {str(e)}'}), 500
+            else:
+                flash(f"An error occurred: {str(e)}", "error")
 
+    # For GET requests
+    if is_ajax:
+        # For AJAX GET requests, redirect to edit_part_ajax endpoint
+        return redirect(url_for('update_part_bp.edit_part_ajax', part_id=part_id))
+
+    # Regular rendering for non-AJAX requests
     logger.debug(f'Rendering edit_part template for part {part_id}')
-    return render_template('bill_of_materials/bom_partials/edit_part.html', part=part, part_images=part_images,
+    return render_template('bill_of_materials/bom_partials/edit_part.html',
+                           part=part,
+                           part_images=part_images,
                            positions=positions)
-
 
 # Add route to serve images directly if needed
 @update_part_bp.route('/part_image/<int:image_id>')
@@ -251,47 +282,156 @@ def serve_part_image(image_id):
         return "Internal Server Error", 500
 
 # fixme: returns white HTML page
+
 @update_part_bp.route('/search_part', methods=['GET'])
 def search_part():
-    logger.info(f'start to search part')
+    logger.info(f'Starting search_part function')
+    db_session = DatabaseConfig().get_main_session()
+    search_query = request.args.get('search_query', '')
+    is_ajax = request.args.get('ajax', 'false') == 'true'
+
+    # Get positions for dropdown regardless of search
+    try:
+        positions = db_session.query(Position).all()
+        logger.debug(f'Retrieved {len(positions)} positions for dropdown')
+    except Exception as e:
+        logger.error(f'Error retrieving positions: {str(e)}')
+        positions = []
+
+    if search_query:
+        logger.info(f'Searching for parts with query: {search_query}')
+
+        try:
+            # Use the Part.search class method
+            parts = Part.search(
+                search_text=search_query,
+                session=db_session,
+                limit=10  # Get more results for selection
+            )
+
+            # Check if any parts were found
+            if parts and len(parts) > 0:
+                logger.info(f'Found {len(parts)} parts matching query: {search_query}')
+
+                if len(parts) == 1 and not is_ajax:
+                    # For non-AJAX requests, if only one part found, redirect directly to edit_part
+                    return redirect(url_for('update_part_bp.edit_part', part_id=parts[0].id))
+                else:
+                    # Return the search results partial template for AJAX requests
+                    if is_ajax:
+                        return render_template('bill_of_materials/bom_partials/search_parts_results.html',
+                                               parts=parts,
+                                               search_query=search_query)
+                    else:
+                        # For non-AJAX requests, return the full template
+                        return render_template('bill_of_materials/bom_partials/search_parts_results.html',
+                                               parts=parts,
+                                               search_query=search_query,
+                                               positions=positions)
+            else:
+                logger.info(f'No parts found matching query: {search_query}')
+                if is_ajax:
+                    return '<div class="alert alert-info">No parts found matching your search criteria.</div>'
+                else:
+                    flash("No parts found matching your search criteria.", "info")
+        except Exception as e:
+            logger.error(f'Error in search_part: {str(e)}', exc_info=True)
+            if is_ajax:
+                return f'<div class="alert alert-danger">An error occurred: {str(e)}</div>'
+            else:
+                flash(f"An error occurred during search: {str(e)}", "error")
+
+    # If no parts found or no search query
+    if is_ajax:
+        return '<div class="alert alert-info">Please enter a search query.</div>'
+    else:
+        return render_template('bill_of_materials/bom_partials/edit_part.html',
+                               part=None,
+                               part_images=[],
+                               positions=positions,
+                               search_query=search_query)
+
+
+@update_part_bp.route('/search_part_ajax', methods=['GET'])
+def search_part_ajax():
+    logger.info(f'Starting search_part_ajax function')
     db_session = DatabaseConfig().get_main_session()
     search_query = request.args.get('search_query', '')
 
-    if search_query:
-        # Search for parts matching the query
-        part = db_session.query(Part).filter(
-            (Part.part_number.like(f'%{search_query}%')) |
-            (Part.name.like(f'%{search_query}%')) |
-            (Part.oem_mfg.like(f'%{search_query}%')) |
-            (Part.model.like(f'%{search_query}%'))
-        ).first()  # Get the first matching part
+    try:
+        if search_query:
+            logger.info(f'Searching for parts with query: {search_query}')
 
-        if part:
-            # Get images associated with this part
-            part_images = db_session.query(Image).join(
-                PartsPositionImageAssociation,
-                PartsPositionImageAssociation.image_id == Image.id
-            ).filter(
-                PartsPositionImageAssociation.part_id == part.id
-            ).all()
+            # Use the Part.search class method
+            parts = Part.search(
+                search_text=search_query,
+                session=db_session,
+                limit=10  # Get up to 10 matching parts
+            )
 
-            # Get positions for dropdown
-            positions = db_session.query(Position).all()
+            # Check if any parts were found
+            if parts and len(parts) > 0:
+                logger.info(f'Found {len(parts)} parts matching query: {search_query}')
 
-            return render_template('bill_of_materials/bom_partials/edit_part.html',
-                                   part=part,
-                                   part_images=part_images,
-                                   positions=positions)
-        else:
-            flash("No parts found matching your search criteria.", "info")
+                # Render just the search results section
+                return render_template('bill_of_materials/bom_partials/search_parts_results.html',
+                                       parts=parts,
+                                       search_query=search_query)
+            else:
+                logger.info(f'No parts found matching query: {search_query}')
+                return '<div class="alert alert-info">No parts found matching your search criteria.</div>'
 
-    # If no query or no results, render the template with empty values
-    # Initialize these variables to avoid the NameError
-    part = None
-    part_images = []
-    positions = db_session.query(Position).all()
+    except Exception as e:
+        logger.error(f'Error in search_part_ajax: {str(e)}', exc_info=True)
+        return f'<div class="alert alert-danger">An error occurred during search: {str(e)}</div>'
 
-    return render_template('bill_of_materials/bom_partials/edit_part.html',
-                           part=part,
-                           part_images=part_images,
-                           positions=positions)
+    return '<div class="alert alert-info">Please enter a search query.</div>'
+
+
+@update_part_bp.route('/edit_part_ajax/<int:part_id>', methods=['GET'])
+def edit_part_ajax(part_id):
+    logger.info(f'Starting edit_part_ajax function for part_id: {part_id}')
+    db_session = DatabaseConfig().get_main_session()
+
+    # Get the part
+    part = Part.get_by_id(part_id=part_id, session=db_session)
+
+    if not part:
+        logger.warning(f'Part with ID {part_id} not found')
+        return '<div class="alert alert-danger">Part not found.</div>'
+
+    logger.debug(f'Found part: {part.part_number} (ID: {part.id})')
+
+    # Get existing images associated with this part
+    try:
+        part_images = db_session.query(Image).join(
+            PartsPositionImageAssociation,
+            PartsPositionImageAssociation.image_id == Image.id
+        ).filter(
+            PartsPositionImageAssociation.part_id == part_id
+        ).all()
+        logger.info(f'Retrieved {len(part_images)} images associated with part {part_id}')
+    except Exception as e:
+        logger.error(f'Error retrieving images for part {part_id}: {str(e)}')
+        part_images = []
+
+    # Get all positions for dropdown
+    try:
+        positions = db_session.query(Position).all()
+        logger.debug(f'Retrieved {len(positions)} positions for dropdown')
+    except Exception as e:
+        logger.error(f'Error retrieving positions: {str(e)}')
+        positions = []
+
+    # Render just the edit part form (not the full template)
+    try:
+        logger.debug(f'About to render edit_part template for part {part_id}')
+        html = render_template('bill_of_materials/bom_partials/edit_part.html',
+                               part=part,
+                               part_images=part_images,
+                               positions=positions)
+        logger.debug(f'Successfully rendered template for part {part_id}, HTML length: {len(html)}')
+        return html
+    except Exception as e:
+        logger.error(f'Error rendering template for part {part_id}: {str(e)}', exc_info=True)
+        return f'<div class="alert alert-danger">Error rendering part form: {str(e)}</div>'
