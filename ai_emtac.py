@@ -9,6 +9,7 @@ from flask import Flask, session, request, redirect, url_for, current_app, rende
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from modules.emtacdb.emtacdb_fts import UserLogin
+from utilities.custom_jinja_filters import register_jinja_filters
 
 # Add current directory to the Python path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -67,6 +68,9 @@ def create_app():
     # Set the secret key for session encryption
     app.secret_key = '1234'  # Replace with a secure secret key for production
 
+    # Register custom Jinja filters
+    register_jinja_filters(app)
+
     # Set the upload folder in the app's configuration
     app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
@@ -102,7 +106,8 @@ def create_app():
         allowed_routes = [
             'login_bp.login',
             'login_bp.logout',
-            'static'  # Allow static files
+            'static',  # Allow static files
+            'create_user_bp.create_user'
         ]
 
         if request.endpoint is None:
