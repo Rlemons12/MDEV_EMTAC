@@ -17,6 +17,7 @@ function populateDropdownsBOM() {
             // Populate areas dropdown
             var areaDropdown = $('#bom_areaDropdown');
             areaDropdown.empty(); // Clear existing options
+            areaDropdown.append('<option value="">Select...</option>');
             $.each(data['areas'], function(index, area) {
                 areaDropdown.append('<option value="' + area.id + '">' + area.name + '</option>');
             });
@@ -79,10 +80,16 @@ function populateDropdownsBOM() {
                     }
                 });
 
-                // Initialize Select2 or any other necessary actions
-                locationDropdown.select2();
-                assetNumberDropdown.select2();
-                areaDropdown.select2();
+                // Only initialize Select2 if it's available
+                if ($.fn.select2) {
+                    try {
+                        locationDropdown.select2();
+                        assetNumberDropdown.select2();
+                        areaDropdown.select2();
+                    } catch (e) {
+                        console.warn("Select2 initialization failed:", e);
+                    }
+                }
             });
 
             // Call change event to populate equipment group dropdown initially based on the default selected area
@@ -95,25 +102,63 @@ function populateDropdownsBOM() {
 }
 
 // Add logic to allow users to manually type in Asset Number and Location
-$('#bom_assetNumberInput').on('input', function() {
-    var assetNumber = $(this).val();
-    if (assetNumber.length > 1) {
-        $('#bom_assetNumberDropdown').prop('disabled', true); // Disable dropdown when typing in manually
-    } else {
-        $('#bom_assetNumberDropdown').prop('disabled', false); // Enable dropdown if input is cleared
-    }
-});
-
-$('#bom_locationInput').on('input', function() {
-    var location = $(this).val();
-    if (location.length > 1) {
-        $('#bom_locationDropdown').prop('disabled', true); // Disable dropdown when typing in manually
-    } else {
-        $('#bom_locationDropdown').prop('disabled', false); // Enable dropdown if input is cleared
-    }
-});
-
-// Call the function to populate dropdowns when the page loads
 $(document).ready(function() {
+    $('#bom_assetNumberInput').on('input', function() {
+        var assetNumber = $(this).val();
+        if (assetNumber.length > 1) {
+            $('#bom_assetNumberDropdown').prop('disabled', true); // Disable dropdown when typing in manually
+        } else {
+            $('#bom_assetNumberDropdown').prop('disabled', false); // Enable dropdown if input is cleared
+        }
+    });
+
+    $('#bom_locationInput').on('input', function() {
+        var location = $(this).val();
+        if (location.length > 1) {
+            $('#bom_locationDropdown').prop('disabled', true); // Disable dropdown when typing in manually
+        } else {
+            $('#bom_locationDropdown').prop('disabled', false); // Enable dropdown if input is cleared
+        }
+    });
+
+    // Call the function to populate dropdowns when the page loads
     populateDropdownsBOM();
+});
+
+// AJAX‑ify the pagination links so we preserve the partial=true flag
+$(document).on('click', '#results-container .pagination a', function(e) {
+    e.preventDefault();
+
+    // Get the href and force partial rendering
+    const href = $(this).attr('href');
+    const url  = href + (href.includes('partial=') ? '' : '&partial=true');
+
+    // Load *only* the results partial into our container
+    $('#results-container').load(url, function() {
+        console.log('Loaded page via AJAX:', url);
+        // Re‑invoke any post‑load logic, e.g. showing the results container
+        if (window.BOMAdvancedSearch && window.BOMAdvancedSearch.ensureResultsStayVisible) {
+            window.BOMAdvancedSearch.ensureResultsStayVisible();
+        }
+    });
+});
+
+// AJAX‑ify the Items‑per‑page dropdown
+$(document).on('change', '#results-container #per_page', function(e) {
+    e.preventDefault();
+
+    // Read the new page size and reset to the first page
+    const perPage = $(this).val();
+    const action = $(this).closest('form').attr('action');
+    const url    = `${action}?per_page=${perPage}&index=0&partial=true`;
+
+    // Load only the results partial
+    $('#results-container').load(url, function() {
+        console.log('Loaded per_page via AJAX:', url);
+
+        // After loading, re‑show results (hide the forms)
+        if (window.BOMAdvancedSearch && window.BOMAdvancedSearch.ensureResultsStayVisible) {
+            window.BOMAdvancedSearch.ensureResultsStayVisible();
+        }
+    });
 });
