@@ -1,10 +1,11 @@
 from datetime import datetime, timedelta
 from modules.configuration.log_config import logger
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
-from modules.emtacdb.emtacdb_fts import (Session, User, UserComments, UserLevel, AIModelConfig, ImageModelConfig,
+from modules.emtacdb.emtacdb_fts import (User, UserComments, UserLevel, AIModelConfig, ImageModelConfig,
                                          load_config_from_db, load_image_model_config_from_db, UserLogin)
 from sqlalchemy.orm import subqueryload
 from modules.configuration import config
+from modules.configuration.config_env import DatabaseConfig
 
 admin_bp = Blueprint('admin_bp', __name__)
 
@@ -20,8 +21,9 @@ def admin_dashboard():
 
     session_db = None
     try:
-        # Fetch all users and comments from the database
-        session_db = Session()
+        # Use DatabaseConfig to get a properly configured session
+        db_config = DatabaseConfig()
+        session_db = db_config.get_main_session()
         logger.debug("Fetching users, comments, and active sessions from the database.")
 
         users = session_db.query(User).all()
@@ -107,7 +109,9 @@ def change_user_level():
     session_db = None
 
     try:
-        session_db = Session()
+        # Use DatabaseConfig to get a properly configured session
+        db_config = DatabaseConfig()
+        session_db = db_config.get_main_session()
         logger.debug("Fetching user with ID: %s", user_id)
 
         user = session_db.query(User).filter_by(id=user_id).first()
@@ -156,7 +160,8 @@ def set_models():
                      ai_model, embedding_model, image_model)
 
         # Save the new configuration to the database
-        session_db = Session()
+        db_config = DatabaseConfig()
+        session_db = db_config.get_main_session()
 
         ai_model_config = session_db.query(AIModelConfig).filter_by(key='CURRENT_AI_MODEL').first()
         embedding_model_config = session_db.query(AIModelConfig).filter_by(key='CURRENT_EMBEDDING_MODEL').first()
