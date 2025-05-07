@@ -10,11 +10,9 @@ body {
 
 /* Custom styling for the content on this page */
 .position-data-container {
-    background-color: rgba(0, 0, 0, 0.8);
-    padding: 30px;
-    border-radius: 10px;
-    color: yellow;
-    margin-top: 20px;
+      margin-left: 0 !important;
+    width: 100%;
+    max-width: 100%;
 }
 
 /* Adjust form input and label styling */
@@ -96,7 +94,7 @@ button:hover {
 .content h1 {
     color: #39FF14;
     text-align: center;
-    margin-bottom: 20px;
+    margin-bottom: 0px;
 }
 
 /* Styling for the existing parts section */
@@ -535,16 +533,17 @@ th {
     color: black;
 }
 
-/* Tab Navigation Styles */
+/* Tab Navigation Styles with Grid Layout - Left Aligned */
 .tab-container {
-    margin-top: 20px;
+   margin-left: 0 !important;
+    width: 100%;
+    max-width: 100%; /* Allow full width */
 }
 
-/* Ensure the main container expands with content */
+/* Left-Aligned Layout Adjustments */
 .main-container {
-    /* Remove min-height and overflow to let content expand naturally */
-    /* min-height: 100vh; */
-    /* overflow: auto; */
+     margin-left: 0 !important;
+    padding-left: 0 !important;
 }
 
 /* Clearfix to clear floated elements */
@@ -562,17 +561,60 @@ th {
     border-bottom: 2px solid yellow;
 }
 
+.tab-item:hover {
+    background-color: yellow;
+    color: black;
+}
+
+.tab-item.active {
+    background-color: yellow;
+    color: black;
+    font-weight: bold;
+}
+
+.tab-content.active {
+    display: block;
+}
+/* Tab Navigation Styles with Grid Layout */
+.tab-container {
+    margin-left: 0;
+    margin-right: auto;
+    width: 100%;
+}
+
+/* Grid-based tab layout */
+.tab-grid {
+    display: grid;
+    width: 100%;
+    grid-template-rows: auto auto; /* Two rows */
+}
+
+/* First row with 5 tabs */
+.tab-grid-row-1 {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(120px, 1fr)); /* 5 equal columns with minimum width */
+    gap: 5px;
+    margin-bottom: 5px;
+}
+
+/* Second row with 4 tabs */
+.tab-grid-row-2 {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(150px, 1fr)); /* 4 equal columns with minimum width */
+    gap: 5px;
+    border-bottom: 2px solid yellow;
+}
+
 .tab-item {
-    padding: 10px 20px;
+    padding: 10px 10px;
     cursor: pointer;
     background-color: #333;
     color: yellow;
     border: 1px solid yellow;
-    border-bottom: none;
-    margin-right: 5px;
     border-top-left-radius: 4px;
     border-top-right-radius: 4px;
     transition: background-color 0.3s, color 0.3s;
+    text-align: center;
 }
 
 .tab-item:hover {
@@ -586,17 +628,46 @@ th {
     font-weight: bold;
 }
 
+/* Tab Content Container - matching width with form */
 .tab-content {
     display: none;
-    padding: 20px;
+    padding: 10px;
     background-color: rgba(0, 0, 0, 0.8);
     border: 1px solid yellow;
     border-top: none;
     color: yellow;
-    /* Remove overflow property to prevent extra scrollbars */
     overflow: visible;
+    width: 100%;
+    box-sizing: border-box;
+    margin-left: 0 !important;
+
+
+    .tab-content.active {
+        display: block;
+    }
+
+    /* Make sure the content div is also left-aligned */
+.content {
+    margin-left: 0 !important;
+    padding-left: 0 !important;
 }
 
-.tab-content.active {
-    display: block;
+    /* Match the width of the tabs with the form area below */
+
+    #search-tab,
+    .position-data-container {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+        .tab-grid-row-1,
+        .tab-grid-row-2 {
+            grid-template-columns: 1fr; /* Stack tabs vertically */
+            margin-bottom: 0;
+        }
+
+    }
 }
+
