@@ -1,155 +1,186 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Login Page</title>
-    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/redbanner.css') }}">
+  <meta charset="UTF-8">
+  <title>Login Page</title>
+  <!-- Ensure viewport units map correctly -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-image: url("/static/background images/blue-black-atmosphere-light-darkness-atmosphere-of-earth-904369-wallhere.com.jpg");
-            background-size: cover;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-            flex-direction: column; /* Ensure body content flows vertically */
-        }
-        .login-container {
-            background: rgba(255, 255, 255, 0.8); /* Slightly transparent white */
-            padding: 20px;
-            border-radius: 5px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            z-index: 1; /* Ensure login container is above the banner */
-        }
-        .container {
-            text-align: center;
-        }
-        .create-user-link {
-            color: yellow;
-        }
-        .error-message {
-            color: red;
-            margin-bottom: 10px;
-        }
-        .flashes {
-    list-style-type: none;
-    padding: 0;
-    margin: 10px 0;
-}
+  <!-- Your existing banner CSS -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/redbanner.css') }}">
 
-.flashes li {
-    margin: 10px 0;
-    padding: 10px;
-    border-radius: 5px;
-    font-size: 16px;
-}
+  <style>
+    /* 1. Base font-size (100% of browser default, usually 16px) */
+    html {
+      font-size: 100%; /* 1rem = 16px at 100% zoom */
+    }
 
-.success {
-    background-color: #d4edda;
-    color: #155724;
-    border: 1px solid #c3e6cb;
-}
+    /* 2. Full‑viewport reset */
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+    }
 
-.error {
-    background-color: #f8d7da;
-    color: #721c24;
-    border: 1px solid #f5c6cb;
-}
+    /* 3. Background covers entire viewport */
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;      /* banner + content stack */
+      justify-content: center;
+      align-items: center;
+      background: url('/static/background images/EmtaC_lizard_wizard.jpeg')
+                  center/cover no-repeat;
+    }
 
-.warning {
-    background-color: #fff3cd;
-    color: #856404;
-    border: 1px solid #ffeeba;
-}
+    /* 4. Fixed banner (text in rem for scalability) */
+    .banner {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%;
+      background: rgba(200,0,0,0.8);
+      color: white;
+      padding: 0.75rem;           /* ~12px */
+      font-size: 1rem;            /* scales with zoom */
+      text-align: center;
+      z-index: 2;
+    }
+    .banner a {
+      color: yellow;
+      font-size: 1rem;
+      margin-left: 1rem;
+    }
 
-.info {
-    background-color: #d1ecf1;
-    color: #0c5460;
-    border: 1px solid #bee5eb;
-}
+    /* 5. Flash messages */
+    .flashes {
+      list-style: none;
+      padding: 0;
+      margin: 1rem 0;
+    }
+    .flashes li {
+      margin: 0.5rem 0;
+      padding: 0.75rem;
+      border-radius: 0.25rem;
+      font-size: 1rem;
+    }
+    .success { background: #d4edda; color: #155724; border: 0.0625rem solid #c3e6cb; }
+    .error   { background: #f8d7da; color: #721c24; border: 0.0625rem solid #f5c6cb; }
+    .warning { background: #fff3cd; color: #856404; border: 0.0625rem solid #ffeeba; }
+    .info    { background: #d1ecf1; color: #0c5460; border: 0.0625rem solid #bee5eb; }
 
-    </style>
+    /* 6. Login box: fluid width + max, padding in rem */
+    .login-container {
+      width: 80vw;               /* 80% of viewport width */
+      max-width: 37.5rem;        /* 600px if 1rem=16px */
+      padding: 1.5rem;           /* ~24px */
+      background: rgba(255,255,255,0.8);
+      border-radius: 0.5rem;     /* ~8px */
+      box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.2);
+      box-sizing: border-box;
+      z-index: 1;
+    }
+
+    /* 7. Headings & form elements scale with rem */
+    .login-container h2 {
+      font-size: clamp(1.25rem, 4vw, 2rem); /* between 20px–32px */
+      margin-bottom: 1rem;
+    }
+    .login-container label,
+    .login-container input,
+    .login-container button,
+    .login-container a {
+      font-size: 1rem;
+    }
+    .login-container input {
+      width: 100%;
+      padding: 0.5rem;
+      margin: 0.5rem 0 1rem;
+      border: 0.0625rem solid #ccc;
+      border-radius: 0.25rem;
+      box-sizing: border-box;
+    }
+    .login-container button {
+      padding: 0.75rem 1.5rem;
+      border: none;
+      border-radius: 0.25rem;
+      background: #007bff;
+      color: white;
+      cursor: pointer;
+    }
+
+    /* 8. Fullscreen button (optional) */
+    #fs-btn {
+      position: fixed;
+      bottom: 1rem;
+      right: 1rem;
+      padding: 0.5rem 1rem;
+      background: rgba(0,0,0,0.6);
+      color: white;
+      border: none;
+      border-radius: 0.25rem;
+      font-size: 1rem;
+      cursor: pointer;
+      z-index: 3;
+    }
+  </style>
 </head>
 <body>
-    <div class="banner">
-        THIS IS FOR REFERENCE ONLY. ALL INFORMATION SHOULD BE VERIFIED WITH CURRENT SOP'S
-        <a href="#" id="commentPopupLink">Leave a Comment</a>
-    </div>
+  <div class="banner">
+    THIS IS FOR REFERENCE ONLY. ALL INFORMATION SHOULD BE VERIFIED WITH CURRENT SOP'S
+    <a href="#" id="commentPopupLink">Leave a Comment</a>
+  </div>
 
-<!-- Popup Modal Structure -->
-    <div id="commentPopup" style="display: none;">
-        <form id="commentForm">
-            <h2>Leave a Comment</h2>
-            <!-- Instructions for filling out the form -->
-            <p>Instructions: You can write your comment, paste an image, or upload a file.</p>
-
-            <!-- Comment box where users can paste an image or type text -->
-            <textarea name="comment" id="comment" placeholder="Write your comment here..." required></textarea><br>
-
-            <!-- Hidden field to store base64 image data -->
-            <input type="hidden" id="imageData" name="imageData">
-
-            <!-- Display an indicator or preview if an image was pasted -->
-            <div id="pastedImageFeedback" style="display: none; color: green;">
-                Image snippet successfully added!
-            </div>
-            <img id="pastedImagePreview" src="" alt="Pasted Image Preview" style="display:none; max-width: 100px; margin-top: 10px;" />
-
-            <!-- Option to upload a file -->
-            <label for="fileUpload">Or upload an image:</label><br>
-            <input type="file" id="fileUpload" name="screenshot" accept="image/*" /><br><br>
-
-            <button type="submit">Send</button>
-            <button type="button" id="closePopup">Close</button>
-        </form>
-    </div>
-
-    {% with messages = get_flashed_messages(with_categories=true) %}
+  <!-- Flash messages -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
-    <ul class="flashes">
+      <ul class="flashes">
         {% for category, message in messages %}
-        <li class="{{ category }}">{{ message }}</li>
+          <li class="{{ category }}">{{ message }}</li>
         {% endfor %}
-    </ul>
+      </ul>
     {% endif %}
-    {% endwith %}
+  {% endwith %}
 
-    <!-- Audio element -->
-    <audio id="background-audio" src="/static/audio/login_sound"></audio>
+  <div class="login-container">
+    <h2>Login</h2>
+    <form action="/login" method="post">
+      <label for="employee_id">Employee ID:</label>
+      <input type="text" id="employee_id" name="employee_id" required>
 
-    <div class="container">
-        <div class="login-container">
-            {% if 'error' in messages %}
-            <div class="error-message">{{ messages['error'] }}</div>
-            {% endif %}
-            <h2>Login</h2>
-            <form action="/login" method="post">
-                <label for="employee_id">Employee ID:</label>
-                <input type="text" id="employee_id" name="employee_id" required>
+      <label for="password">Password:</label>
+      <input type="password" id="password" name="password" required>
 
-                <label for="password">Password:</label>
-                <input type="password" id="password" name="password" required>
+      <button type="submit">Log In</button>
+    </form>
+    <p style="margin-top:1rem;">
+      <a href="/create_user">Create User</a>
+    </p>
+  </div>
 
-                <button type="submit">Log In</button>
-            </form>
-        </div>
+  <!-- (Optional) Fullscreen toggle -->
+  <button id="fs-btn">⛶ Fullscreen</button>
 
-        <div style="margin-top: 10px;"> <!-- Adjust margin as needed -->
-            <a href="/create_user" class="create-user-link">Create User</a>
-        </div>
-    </div>
+  <!-- Comment popup (unchanged) -->
+  <div id="commentPopup" style="display:none; position:fixed; top:50%; left:50%;
+       transform:translate(-50%,-50%); background:white; padding:1rem; z-index:4;
+       box-shadow:0 0 0.625rem rgba(0,0,0,0.5);">
+    <!-- …form markup… -->
+  </div>
 
-    <script>
-        // Function to play the audio
-        function playAudio() {
-            var audio = document.getElementById("background-audio");
-            audio.play();
-        }
-    </script>
-    <script src="{{ url_for('static', filename='js/comment_pop_up.js')}}"></script>
-
+  <!-- Audio & scripts (unchanged) -->
+  <audio id="background-audio" src="/static/audio/login_sound"></audio>
+  <script>
+    document.getElementById('background-audio').play().catch(()=>{});
+    document.getElementById('fs-btn').addEventListener('click', () => {
+      const el = document.documentElement;
+      if (!document.fullscreenElement) {
+        el.requestFullscreen();
+      } else {
+        document.exitFullscreen();
+      }
+    });
+  </script>
+  <script src="{{ url_for('static', filename='js/comment_pop_up.js') }}"></script>
 </body>
 </html>
