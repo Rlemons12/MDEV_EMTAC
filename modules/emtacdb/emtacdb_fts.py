@@ -6,6 +6,8 @@ from sqlalchemy.ext.declarative import declarative_base
 import logging
 import shutil
 from datetime import datetime
+from typing import Optional,List
+
 import openai
 import spacy
 from fuzzywuzzy import process
@@ -20,7 +22,7 @@ from modules.configuration.config import (OPENAI_API_KEY, BASE_DIR, COPY_FILES, 
 from modules.configuration.base import Base
 from modules.configuration.log_config import *
 from modules.configuration.config import DATABASE_DIR
-
+from modules.configuration.config_env import DatabaseConfig
 
 # Configure mappers (must be called after all ORM classes are defined)
 configure_mappers()
@@ -323,6 +325,113 @@ class Position(Base):
         except SQLAlchemyError as e:
             session.rollback()
             error_id("Failed to add_or_get Position: %s", e, exc_info=True)
+            raise
+
+    @classmethod
+    @with_request_id
+    def get_corresponding_position_ids(cls, session=None, area_id=None, equipment_group_id=None,
+                                       model_id=None, asset_number_id=None, location_id=None,
+                                       request_id='no_request_id'):
+        """
+        Search for corresponding Position IDs based on the provided filters with request ID logging.
+
+        Args:
+            session: SQLAlchemy session (Optional)
+            area_id: ID of the area (optional)
+            equipment_group_id: ID of the equipment group (optional)
+            model_id: ID of the model (optional)
+            asset_number_id: ID of the asset number (optional)
+            location_id: ID of the location (optional)
+            request_id: Unique identifier for the request
+
+        Returns:
+            List of Position IDs that match the criteria
+        """
+        # Ensure a session is available, if not use DatabaseConfig to get it
+        if session is None:
+            session = DatabaseConfig().get_main_session()
+
+        # Log input parameters with request ID
+        logging.info(
+            f"[{request_id}] get_corresponding_position_ids called with "
+            f"area_id={area_id}, equipment_group_id={equipment_group_id}, "
+            f"model_id={model_id}, asset_number_id={asset_number_id}, "
+            f"location_id={location_id}"
+        )
+
+        try:
+            # Start by fetching the root-level positions based on hierarchy
+            positions = cls._get_positions_by_hierarchy(
+                session,
+                area_id=area_id,
+                equipment_group_id=equipment_group_id,
+                model_id=model_id,
+                asset_number_id=asset_number_id,
+                location_id=location_id,
+                request_id=request_id
+            )
+
+            # Extract Position IDs
+            position_ids = [position.id for position in positions]
+
+            # Log the result
+            logging.info(f"[{request_id}] Retrieved {len(position_ids)} Position IDs")
+            return position_ids
+
+        except SQLAlchemyError as e:
+            # Log any errors encountered during the query
+            logging.error(
+                f"[{request_id}] Error in get_corresponding_position_ids: {str(e)}",
+                exc_info=True
+            )
+            raise
+
+    @classmethod
+    def _get_positions_by_hierarchy(cls, session, area_id=None, equipment_group_id=None, model_id=None,
+                                    asset_number_id=None, location_id=None):
+        """
+        Helper method to fetch positions based on hierarchical filters.
+
+        Args:
+            session: SQLAlchemy session
+            area_id, equipment_group_id, model_id, asset_number_id, location_id: IDs for filtering
+
+        Returns:
+            List of Position objects that match the criteria
+        """
+        # Building the filter dynamically based on input parameters
+        filters = {}
+        if area_id:
+            filters['area_id'] = area_id
+        if equipment_group_id:
+            filters['equipment_group_id'] = equipment_group_id
+        if model_id:
+            filters['model_id'] = model_id
+        if asset_number_id:
+            filters['asset_number_id'] = asset_number_id
+        if location_id:
+            filters['location_id'] = location_id
+
+        # Log the filter parameters
+        debug_id(f"Filtering Positions with filters: {filters}", request_id=g.request_id)
+
+        try:
+            # Query the Position table based on the filters
+            query = session.query(Position).filter_by(**filters)
+
+            # Log the query execution
+            info_id(f"Executing query for positions with {len(filters)} filters.", request_id=g.request_id)
+
+            # Return the positions matching the filter
+            positions = query.all()
+
+            # Log the result
+            info_id(f"Retrieved {len(positions)} positions.", request_id=g.request_id)
+            return positions
+
+        except SQLAlchemyError as e:
+            # Log any errors encountered during the query
+            error_id(f"Error in _get_positions_by_hierarchy: {str(e)}", exc_info=True, request_id=g.request_id)
             raise
 
 class Area(Base):
@@ -863,7 +972,7 @@ class Part(Base):
     name = Column(String)  # MP2=DESCRIPTION, SPC= Description
     oem_mfg = Column(String)  # MP2=OEMMFG, SPC= Manufacturer
     model = Column(String)  # MP2=MODEL, SPC= MFG Part Number
-    class_flag = Column(String) # MP2=Class Flag SPC= Category
+    class_flag = Column(String)  # MP2=Class Flag SPC= Category
     ud6 = Column(String)  # MP2=UD6
     type = Column(String)  # MP2=TYPE
     notes = Column(String)  # MP2=Notes, SPC= Long Description
@@ -875,6 +984,243 @@ class Part(Base):
     drawing_part = relationship("DrawingPartAssociation", back_populates="part")
 
     __table_args__ = (UniqueConstraint('part_number', name='_part_number_uc'),)
+
+    @classmethod
+    def search(cls,
+               search_text: Optional[str] = None,
+               fields: Optional[List[str]] = None,
+               exact_match: bool = False,
+               part_id: Optional[int] = None,
+               part_number: Optional[str] = None,
+               name: Optional[str] = None,
+               oem_mfg: Optional[str] = None,
+               model: Optional[str] = None,
+               class_flag: Optional[str] = None,
+               ud6: Optional[str] = None,
+               type_: Optional[str] = None,
+               notes: Optional[str] = None,
+               documentation: Optional[str] = None,
+               limit: int = 100,
+               request_id: Optional[str] = None,
+               session: Optional[Session] = None) -> List['Part']:
+        """
+        Comprehensive search method for Part objects with flexible search options.
+
+        Args:
+            search_text: Text to search for across specified fields
+            fields: List of field names to search in. If None, searches in default fields
+                   (part_number, name, oem_mfg, model)
+            exact_match: If True, performs exact matching instead of partial matching
+            part_id: Optional ID to filter by
+            part_number: Optional part_number to filter by
+            name: Optional name to filter by
+            oem_mfg: Optional oem_mfg to filter by
+            model: Optional model to filter by
+            class_flag: Optional class_flag to filter by
+            ud6: Optional ud6 to filter by
+            type_: Optional type to filter by (using type_ to avoid Python keyword conflict)
+            notes: Optional notes to filter by
+            documentation: Optional documentation to filter by
+            limit: Maximum number of results to return (default 100)
+            request_id: Optional request ID for tracking this operation in logs
+            session: Optional SQLAlchemy session. If None, a new session will be created
+
+        Returns:
+            List of Part objects matching the search criteria
+        """
+        # Get or use the provided request_id
+        rid = request_id or get_request_id()
+
+        # Get a database session if one wasn't provided
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+            debug_id(f"Created new database session for Part.search", rid)
+
+        # Log the search operation with request ID
+        search_params = {
+            'search_text': search_text,
+            'fields': fields,
+            'exact_match': exact_match,
+            'part_id': part_id,
+            'part_number': part_number,
+            'name': name,
+            'oem_mfg': oem_mfg,
+            'model': model,
+            'class_flag': class_flag,
+            'ud6': ud6,
+            'type_': type_,
+            'notes': notes,
+            'documentation': documentation,
+            'limit': limit
+        }
+        # Filter out None values for cleaner logging
+        logged_params = {k: v for k, v in search_params.items() if v is not None}
+        debug_id(f"Starting Part.search with parameters: {logged_params}", rid)
+
+        try:
+            # Use the timed operation context manager with request ID
+            with log_timed_operation("Part.search", rid):
+                # Start with the base query
+                query = session.query(cls)
+                filters = []
+
+                # Process search_text across multiple fields if provided
+                if search_text:
+                    search_text = search_text.strip()
+                    if search_text:
+                        # Default fields to search in if none specified
+                        if fields is None or len(fields) == 0:
+                            fields = ['part_number', 'name', 'oem_mfg', 'model']
+
+                        debug_id(f"Searching for text '{search_text}' in fields: {fields}", rid)
+
+                        # Create field-specific filters
+                        text_filters = []
+                        for field_name in fields:
+                            if hasattr(cls, field_name):
+                                field = getattr(cls, field_name)
+                                if exact_match:
+                                    text_filters.append(field == search_text)
+                                else:
+                                    text_filters.append(field.ilike(f"%{search_text}%"))
+
+                        # Add the combined text search filter if we have any
+                        if text_filters:
+                            filters.append(or_(*text_filters))
+
+                # Add filters for specific fields if provided
+                if part_id is not None:
+                    debug_id(f"Adding filter for part_id: {part_id}", rid)
+                    filters.append(cls.id == part_id)
+
+                if part_number is not None:
+                    debug_id(f"Adding filter for part_number: {part_number}", rid)
+                    if exact_match:
+                        filters.append(cls.part_number == part_number)
+                    else:
+                        filters.append(cls.part_number.ilike(f"%{part_number}%"))
+
+                if name is not None:
+                    debug_id(f"Adding filter for name: {name}", rid)
+                    if exact_match:
+                        filters.append(cls.name == name)
+                    else:
+                        filters.append(cls.name.ilike(f"%{name}%"))
+
+                if oem_mfg is not None:
+                    debug_id(f"Adding filter for oem_mfg: {oem_mfg}", rid)
+                    if exact_match:
+                        filters.append(cls.oem_mfg == oem_mfg)
+                    else:
+                        filters.append(cls.oem_mfg.ilike(f"%{oem_mfg}%"))
+
+                if model is not None:
+                    debug_id(f"Adding filter for model: {model}", rid)
+                    if exact_match:
+                        filters.append(cls.model == model)
+                    else:
+                        filters.append(cls.model.ilike(f"%{model}%"))
+
+                if class_flag is not None:
+                    debug_id(f"Adding filter for class_flag: {class_flag}", rid)
+                    if exact_match:
+                        filters.append(cls.class_flag == class_flag)
+                    else:
+                        filters.append(cls.class_flag.ilike(f"%{class_flag}%"))
+
+                if ud6 is not None:
+                    debug_id(f"Adding filter for ud6: {ud6}", rid)
+                    if exact_match:
+                        filters.append(cls.ud6 == ud6)
+                    else:
+                        filters.append(cls.ud6.ilike(f"%{ud6}%"))
+
+                if type_ is not None:
+                    debug_id(f"Adding filter for type: {type_}", rid)
+                    if exact_match:
+                        filters.append(cls.type == type_)
+                    else:
+                        filters.append(cls.type.ilike(f"%{type_}%"))
+
+                if notes is not None:
+                    debug_id(f"Adding filter for notes: {notes}", rid)
+                    if exact_match:
+                        filters.append(cls.notes == notes)
+                    else:
+                        filters.append(cls.notes.ilike(f"%{notes}%"))
+
+                if documentation is not None:
+                    debug_id(f"Adding filter for documentation: {documentation}", rid)
+                    if exact_match:
+                        filters.append(cls.documentation == documentation)
+                    else:
+                        filters.append(cls.documentation.ilike(f"%{documentation}%"))
+
+                # Apply all filters with AND logic if we have any
+                if filters:
+                    query = query.filter(and_(*filters))
+
+                # Apply limit
+                query = query.limit(limit)
+
+                # Execute query and log results
+                results = query.all()
+                debug_id(f"Part.search completed, found {len(results)} results", rid)
+                return results
+
+        except Exception as e:
+            error_id(f"Error in Part.search: {str(e)}", rid)
+            # Re-raise the exception after logging it
+            raise
+        finally:
+            # Close the session if we created it
+            if not session_provided:
+                session.close()
+                debug_id(f"Closed database session for Part.search", rid)
+
+    @classmethod
+    def get_by_id(cls, part_id: int, request_id: Optional[str] = None, session: Optional[Session] = None) -> Optional[
+        'Part']:
+        """
+        Get a part by its ID.
+
+        Args:
+            part_id: ID of the part to retrieve
+            request_id: Optional request ID for tracking this operation in logs
+            session: Optional SQLAlchemy session. If None, a new session will be created
+
+        Returns:
+            Part object if found, None otherwise
+        """
+        # Get or use the provided request_id
+        rid = request_id or get_request_id()
+
+        # Get a database session if one wasn't provided
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+            debug_id(f"Created new database session for Part.get_by_id", rid)
+
+        debug_id(f"Getting part with ID: {part_id}", rid)
+        try:
+            part = session.query(cls).filter(cls.id == part_id).first()
+            if part:
+                debug_id(f"Found part: {part.part_number} (ID: {part_id})", rid)
+            else:
+                debug_id(f"No part found with ID: {part_id}", rid)
+            return part
+        except Exception as e:
+            error_id(f"Error retrieving part with ID {part_id}: {str(e)}", rid)
+            return None
+        finally:
+            # Close the session if we created it
+            if not session_provided:
+                session.close()
+                debug_id(f"Closed database session for Part.get_by_id", rid)
+
 
 # region
 # Todo: create method for serving
@@ -1157,6 +1503,12 @@ class ImageEmbedding(Base):
 
     image = relationship("Image", back_populates="image_embedding")
 
+
+from sqlalchemy import or_, and_
+from sqlalchemy.orm import Session
+from typing import List, Optional
+
+
 class Drawing(Base):
     __tablename__ = 'drawing'
 
@@ -1167,11 +1519,217 @@ class Drawing(Base):
     drw_revision = Column(String)
     drw_spare_part_number = Column(String)
     file_path = Column(String, nullable=False)
-    
+
     drawing_position = relationship("DrawingPositionAssociation", back_populates="drawing")
     drawing_problem = relationship("DrawingProblemAssociation", back_populates="drawing")
     drawing_task = relationship("DrawingTaskAssociation", back_populates="drawing")
     drawing_part = relationship("DrawingPartAssociation", back_populates="drawing")
+
+    @classmethod
+    def search(cls,
+               search_text: Optional[str] = None,
+               fields: Optional[List[str]] = None,
+               exact_match: bool = False,
+               drawing_id: Optional[int] = None,
+               drw_equipment_name: Optional[str] = None,
+               drw_number: Optional[str] = None,
+               drw_name: Optional[str] = None,
+               drw_revision: Optional[str] = None,
+               drw_spare_part_number: Optional[str] = None,
+               file_path: Optional[str] = None,
+               limit: int = 100,
+               request_id: Optional[str] = None,
+               session: Optional[Session] = None) -> List['Drawing']:
+        """
+        Comprehensive search method for Drawing objects with flexible search options.
+
+        Args:
+            search_text: Text to search for across specified fields
+            fields: List of field names to search in. If None, searches in default fields
+                   (drw_number, drw_name, drw_equipment_name, drw_spare_part_number)
+            exact_match: If True, performs exact matching instead of partial matching
+            drawing_id: Optional ID to filter by
+            drw_equipment_name: Optional equipment name to filter by
+            drw_number: Optional drawing number to filter by
+            drw_name: Optional drawing name to filter by
+            drw_revision: Optional revision to filter by
+            drw_spare_part_number: Optional spare part number to filter by
+            file_path: Optional file path to filter by
+            limit: Maximum number of results to return (default 100)
+            request_id: Optional request ID for tracking this operation in logs
+            session: Optional SQLAlchemy session. If None, a new session will be created
+
+        Returns:
+            List of Drawing objects matching the search criteria
+        """
+        # Get or use the provided request_id
+        rid = request_id or get_request_id()
+
+        # Get a database session if one wasn't provided
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+            debug_id(f"Created new database session for Drawing.search", rid)
+
+        # Log the search operation with request ID
+        search_params = {
+            'search_text': search_text,
+            'fields': fields,
+            'exact_match': exact_match,
+            'drawing_id': drawing_id,
+            'drw_equipment_name': drw_equipment_name,
+            'drw_number': drw_number,
+            'drw_name': drw_name,
+            'drw_revision': drw_revision,
+            'drw_spare_part_number': drw_spare_part_number,
+            'file_path': file_path,
+            'limit': limit
+        }
+        # Filter out None values for cleaner logging
+        logged_params = {k: v for k, v in search_params.items() if v is not None}
+        debug_id(f"Starting Drawing.search with parameters: {logged_params}", rid)
+
+        try:
+            # Use the timed operation context manager with request ID
+            with log_timed_operation("Drawing.search", rid):
+                # Start with the base query
+                query = session.query(cls)
+                filters = []
+
+                # Process search_text across multiple fields if provided
+                if search_text:
+                    search_text = search_text.strip()
+                    if search_text:
+                        # Default fields to search in if none specified
+                        if fields is None or len(fields) == 0:
+                            fields = ['drw_number', 'drw_name', 'drw_equipment_name', 'drw_spare_part_number']
+
+                        debug_id(f"Searching for text '{search_text}' in fields: {fields}", rid)
+
+                        # Create field-specific filters
+                        text_filters = []
+                        for field_name in fields:
+                            if hasattr(cls, field_name):
+                                field = getattr(cls, field_name)
+                                if exact_match:
+                                    text_filters.append(field == search_text)
+                                else:
+                                    text_filters.append(field.ilike(f"%{search_text}%"))
+
+                        # Add the combined text search filter if we have any
+                        if text_filters:
+                            filters.append(or_(*text_filters))
+
+                # Add filters for specific fields if provided
+                if drawing_id is not None:
+                    debug_id(f"Adding filter for drawing_id: {drawing_id}", rid)
+                    filters.append(cls.id == drawing_id)
+
+                if drw_equipment_name is not None:
+                    debug_id(f"Adding filter for drw_equipment_name: {drw_equipment_name}", rid)
+                    if exact_match:
+                        filters.append(cls.drw_equipment_name == drw_equipment_name)
+                    else:
+                        filters.append(cls.drw_equipment_name.ilike(f"%{drw_equipment_name}%"))
+
+                if drw_number is not None:
+                    debug_id(f"Adding filter for drw_number: {drw_number}", rid)
+                    if exact_match:
+                        filters.append(cls.drw_number == drw_number)
+                    else:
+                        filters.append(cls.drw_number.ilike(f"%{drw_number}%"))
+
+                if drw_name is not None:
+                    debug_id(f"Adding filter for drw_name: {drw_name}", rid)
+                    if exact_match:
+                        filters.append(cls.drw_name == drw_name)
+                    else:
+                        filters.append(cls.drw_name.ilike(f"%{drw_name}%"))
+
+                if drw_revision is not None:
+                    debug_id(f"Adding filter for drw_revision: {drw_revision}", rid)
+                    if exact_match:
+                        filters.append(cls.drw_revision == drw_revision)
+                    else:
+                        filters.append(cls.drw_revision.ilike(f"%{drw_revision}%"))
+
+                if drw_spare_part_number is not None:
+                    debug_id(f"Adding filter for drw_spare_part_number: {drw_spare_part_number}", rid)
+                    if exact_match:
+                        filters.append(cls.drw_spare_part_number == drw_spare_part_number)
+                    else:
+                        filters.append(cls.drw_spare_part_number.ilike(f"%{drw_spare_part_number}%"))
+
+                if file_path is not None:
+                    debug_id(f"Adding filter for file_path: {file_path}", rid)
+                    if exact_match:
+                        filters.append(cls.file_path == file_path)
+                    else:
+                        filters.append(cls.file_path.ilike(f"%{file_path}%"))
+
+                # Apply all filters with AND logic if we have any
+                if filters:
+                    query = query.filter(and_(*filters))
+
+                # Apply limit
+                query = query.limit(limit)
+
+                # Execute query and log results
+                results = query.all()
+                debug_id(f"Drawing.search completed, found {len(results)} results", rid)
+                return results
+
+        except Exception as e:
+            error_id(f"Error in Drawing.search: {str(e)}", rid)
+            # Re-raise the exception after logging it
+            raise
+        finally:
+            # Close the session if we created it
+            if not session_provided:
+                session.close()
+                debug_id(f"Closed database session for Drawing.search", rid)
+
+    @classmethod
+    def get_by_id(cls, drawing_id: int, request_id: Optional[str] = None, session: Optional[Session] = None) -> \
+    Optional['Drawing']:
+        """
+        Get a drawing by its ID.
+
+        Args:
+            drawing_id: ID of the drawing to retrieve
+            request_id: Optional request ID for tracking this operation in logs
+            session: Optional SQLAlchemy session. If None, a new session will be created
+
+        Returns:
+            Drawing object if found, None otherwise
+        """
+        # Get or use the provided request_id
+        rid = request_id or get_request_id()
+
+        # Get a database session if one wasn't provided
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+            debug_id(f"Created new database session for Drawing.get_by_id", rid)
+
+        debug_id(f"Getting drawing with ID: {drawing_id}", rid)
+        try:
+            drawing = session.query(cls).filter(cls.id == drawing_id).first()
+            if drawing:
+                debug_id(f"Found drawing: {drawing.drw_number} (ID: {drawing_id})", rid)
+            else:
+                debug_id(f"No drawing found with ID: {drawing_id}", rid)
+            return drawing
+        except Exception as e:
+            error_id(f"Error retrieving drawing with ID {drawing_id}: {str(e)}", rid)
+            return None
+        finally:
+            # Close the session if we created it
+            if not session_provided:
+                session.close()
+                debug_id(f"Closed database session for Drawing.get_by_id", rid)
 
 class Document(Base):
     __tablename__ = 'document'
@@ -1432,6 +1990,147 @@ class PartsPositionImageAssociation(Base):
     image = relationship("Image", back_populates="parts_position_image")
     bill_of_material = relationship("BillOfMaterial", back_populates="part_position_image")
 
+    @classmethod
+    @with_request_id
+    def search(cls, session=None, **filters):
+        """
+        Search the 'part_position_image' table based on the provided filters.
+
+        Args:
+            session: SQLAlchemy session (optional).
+            filters: A dictionary of filter parameters (e.g., part_id, position_id, image_id).
+
+        Returns:
+            List of matching 'PartPositionImageAssociation' objects.
+        """
+        if session is None:
+            session = DatabaseConfig().get_main_session()
+
+        # Get the request ID for logging
+        request_id = get_request_id()
+
+        # Log the start of the search operation
+        info_id(f"Starting search with filters: {filters}", request_id=request_id)
+
+        # Start with the base query
+        query = session.query(cls)
+
+        try:
+            # Apply filters dynamically
+            if filters:
+                for field, value in filters.items():
+                    if value is not None:  # Only apply non-None filters
+                        query = query.filter(getattr(cls, field) == value)
+
+            # Execute the query and log the result
+            results = query.all()
+
+            # Log the number of results found
+            info_id(f"Search returned {len(results)} result(s) for filters: {filters}", request_id=request_id)
+
+            return results
+        except SQLAlchemyError as e:
+            # Log the error
+            error_id(f"Error during search operation with filters {filters}: {e}", request_id=request_id, exc_info=True)
+            raise
+
+    @classmethod
+    @with_request_id
+    def get_corresponding_position_ids(cls, session, area_id=None, equipment_group_id=None, model_id=None,
+                                       asset_number_id=None, location_id=None):
+        """
+        Search for corresponding Position IDs based on the provided filters.
+        Traverses the hierarchy and retrieves matching Position IDs.
+
+        Args:
+            session: SQLAlchemy session
+            area_id: ID of the area (optional)
+            equipment_group_id: ID of the equipment group (optional)
+            model_id: ID of the model (optional)
+            asset_number_id: ID of the asset number (optional)
+            location_id: ID of the location (optional)
+
+        Returns:
+            List of Position IDs that match the criteria
+        """
+        # Get the request ID for logging
+        request_id = get_request_id()
+
+        # Log the start of the operation
+        info_id(f"Starting get_corresponding_position_ids with filters: "
+                f"area_id={area_id}, equipment_group_id={equipment_group_id}, "
+                f"model_id={model_id}, asset_number_id={asset_number_id}, "
+                f"location_id={location_id}", request_id=request_id)
+
+        # Start by fetching the root-level positions based on area_id (or first level in hierarchy)
+        try:
+            positions = cls._get_positions_by_hierarchy(session, area_id=area_id,
+                                                        equipment_group_id=equipment_group_id,
+                                                        model_id=model_id,
+                                                        asset_number_id=asset_number_id,
+                                                        location_id=location_id)
+            position_ids = [position.id for position in positions]
+
+            # Log the number of Position IDs found
+            info_id(f"Found {len(position_ids)} Position IDs for the given filters", request_id=request_id)
+
+            return position_ids
+        except SQLAlchemyError as e:
+            error_id(f"Error during get_corresponding_position_ids with filters "
+                     f"area_id={area_id}, equipment_group_id={equipment_group_id}, "
+                     f"model_id={model_id}, asset_number_id={asset_number_id}, "
+                     f"location_id={location_id}: {e}", request_id=request_id, exc_info=True)
+            raise
+
+    @classmethod
+    @with_request_id
+    def _get_positions_by_hierarchy(cls, session, area_id=None, equipment_group_id=None, model_id=None,
+                                    asset_number_id=None, location_id=None):
+        """
+        Helper method to fetch positions based on hierarchical filters.
+
+        Args:
+            session: SQLAlchemy session
+            area_id, equipment_group_id, model_id, asset_number_id, location_id: IDs for filtering
+
+        Returns:
+            List of Position objects that match the criteria
+        """
+        # Get the request ID for logging
+        request_id = get_request_id()
+
+        # Building the filter dynamically based on input parameters
+        filters = {}
+        if area_id:
+            filters['area_id'] = area_id
+        if equipment_group_id:
+            filters['equipment_group_id'] = equipment_group_id
+        if model_id:
+            filters['model_id'] = model_id
+        if asset_number_id:
+            filters['asset_number_id'] = asset_number_id
+        if location_id:
+            filters['location_id'] = location_id
+
+        try:
+            # Log the filter being applied
+            info_id(f"Applying filters to query: {filters}", request_id=request_id)
+
+            # Query the Position table based on the filters
+            query = session.query(Position).filter_by(**filters)
+
+            # Execute and return the results
+            positions = query.all()
+
+            # Log the number of results
+            info_id(f"Found {len(positions)} positions for the given filters", request_id=request_id)
+
+            return positions
+        except SQLAlchemyError as e:
+            error_id(f"Error during _get_positions_by_hierarchy with filters {filters}: {e}", request_id=request_id,
+                     exc_info=True)
+            raise
+
 class ImagePositionAssociation(Base):
     __tablename__ = 'image_position_association'
     id = Column(Integer, primary_key=True)
@@ -1574,6 +2273,8 @@ class UserLevel(PyEnum):
     LEVEL_I = 'LEVEL_I'
     STANDARD = 'STANDARD'
 
+# region Todo: Refactor to classs' to ModelsConfig
+
 class AIModelConfig(Base):
     __tablename__ = 'ai_model_config'
 
@@ -1581,12 +2282,15 @@ class AIModelConfig(Base):
     key = Column(String, unique=True, nullable=False)
     value = Column(String, nullable=False)
 
+
 class ImageModelConfig(Base):
     __tablename__ = 'image_model_config'
 
     id = Column(Integer, primary_key=True)
     key = Column(String, unique=True, nullable=False)
     value = Column(String, nullable=False)
+
+# endregion
 
 # Define the User model
 class User(Base):
@@ -1945,32 +2649,52 @@ Base.metadata.bind = engine
 # Then call create_all()
 Base.metadata.create_all(engine, checkfirst=True)
 
-# Function to load config from the database
+# region Todo: Refactor to class AIModelConfig, which will be refactor to "ModelsConfig(Bas)"
+
 def load_config_from_db():
-    session = Session()
-    ai_model_config = session.query(AIModelConfig).filter_by(key="CURRENT_AI_MODEL").first()
-    embedding_model_config = session.query(AIModelConfig).filter_by(key="CURRENT_EMBEDDING_MODEL").first()
-    session.close()
+    """
+    Load AI model configuration from the database.
 
-    current_ai_model = ai_model_config.value if ai_model_config else "NoAIModel"
-    current_embedding_model = embedding_model_config.value if embedding_model_config else "NoEmbeddingModel"
+    Returns:
+        Tuple of (current_ai_model, current_embedding_model)
+    """
+    from modules.configuration.config_env import DatabaseConfig
 
-    return current_ai_model, current_embedding_model
+    db_config = DatabaseConfig()
+    session = db_config.get_main_session()
+    try:
+        ai_model_config = session.query(AIModelConfig).filter_by(key="CURRENT_AI_MODEL").first()
+        embedding_model_config = session.query(AIModelConfig).filter_by(key="CURRENT_EMBEDDING_MODEL").first()
+
+        current_ai_model = ai_model_config.value if ai_model_config else "NoAIModel"
+        current_embedding_model = embedding_model_config.value if embedding_model_config else "NoEmbeddingModel"
+
+        return current_ai_model, current_embedding_model
+    finally:
+        session.close()
+
 
 def load_image_model_config_from_db():
-    session = Session()
-    image_model_config = session.query(ImageModelConfig).filter_by(key="CURRENT_IMAGE_MODEL").first()
-    session.close()
+    """
+    Load image model configuration from the database.
 
-    current_image_model = image_model_config.value if image_model_config else "no_model"
+    Returns:
+        String representing the current image model
+    """
+    from modules.configuration.config_env import DatabaseConfig
 
-    return current_image_model
+    db_config = DatabaseConfig()
+    session = db_config.get_main_session()
+    try:
+        image_model_config = session.query(ImageModelConfig).filter_by(key="CURRENT_IMAGE_MODEL").first()
+        current_image_model = image_model_config.value if image_model_config else "no_model"
 
-# Create the 'documents_fts' table for full-text search
-with Session() as session:
-    sql_statement = text("CREATE VIRTUAL TABLE IF NOT EXISTS documents_fts USING FTS5(title, content)")
-    session.execute(sql_statement)
-    session.commit()
+        return current_image_model
+    finally:
+        session.close()
+
+# endregion
+
 
 # Ask for API key if it's empty
 if not OPENAI_API_KEY:
