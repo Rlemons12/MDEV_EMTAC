@@ -4,242 +4,84 @@
 
 {% block extra_head %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/create_bill_of_material_results.css') }}">
-    <style>
-        /* Ensure CSS is applied even if external stylesheet doesn't load */
-        body {
-            background-image: url("/static/background images/loadup.webp");
-            background-size: cover;
-            background-repeat: no-repeat;
-            background-attachment: fixed;
-            background-position: center;
-            font-family: Arial, sans-serif;
-            color: #333;
-        }
-
-        .container {
-            max-width: 1800px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #ffffff; /* Set background to solid white, no transparency */
-            border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        }
-
-        .header-info {
-            padding: 10px 0;
-            text-align: center;
-            margin-bottom: 20px;
-            background-color: #f2f2f2; /* Optional: Adds a background color to the header section */
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        }
-
-        h1 {
-            margin: 0;
-            font-size: 1.5em;
-            color: #333;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-            background-color: #ffffff; /* Ensuring table has solid white background */
-        }
-
-        th, td {
-            padding: 10px;
-            text-align: left;
-            border: 1px solid #dddddd;
-            background-color: #ffffff; /* Ensuring cells have solid white background */
-        }
-
-        th {
-            background-color: #f2f2f2;
-        }
-
-        /* Adjust column widths */
-        th:nth-child(1), td:nth-child(1) { width: 15%; } /* Part Number */
-        th:nth-child(2), td:nth-child(2) { width: 20%; } /* Description */
-        th:nth-child(3), td:nth-child(3) { width: 15%; } /* OEM Manufacturer */
-        th:nth-child(4), td:nth-child(4) { width: 12%; } /* Model */
-        th:nth-child(5), td:nth-child(5) { width: 8%; }  /* Class Flag */
-        th:nth-child(6), td:nth-child(6) { width: 5%; }  /* UD6 */
-        th:nth-child(7), td:nth-child(7) { width: 8%; }  /* Type */
-        th:nth-child(8), td:nth-child(8) { width: 20%; } /* Notes */
-        th:nth-child(9), td:nth-child(9) { width: 20%; } /* Documentation */
-        th:nth-child(10), td:nth-child(10) { width: 15%; } /* Image */
-
-        .thumbnail {
-            max-width: 100px;
-            max-height: 100px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            padding: 5px;
-            object-fit: cover;
-        }
-
-        .pagination {
-            margin-top: 20px;
-            background-color: #ffffff; /* Solid white background for pagination */
-            padding: 10px;
-            border-radius: 8px;
-        }
-
-        .pagination a {
-            margin-right: 10px;
-            text-decoration: none;
-            color: #007BFF;
-        }
-
-        .pagination a:hover {
-            text-decoration: underline;
-        }
-
-        .pagination .next {
-            float: right;
-        }
-
-        .back-to-form {
-            margin-top: 20px;
-            display: block;
-            text-align: center;
-            color: #007BFF;
-            text-decoration: none;
-            background-color: #ffffff; /* Solid white background */
-            padding: 10px;
-            border-radius: 8px;
-            width: 200px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-
-        .back-to-form:hover {
-            text-decoration: underline;
-        }
-
-        /* Ensure content area has a solid white background */
-        #content {
-            background-color: #ffffff !important;
-        }
-
-        /* Override any base template styles that might be causing transparency */
-        .content, .main-container, .results-container {
-            background-color: #ffffff !important;
-        }
-    </style>
-{% endblock %}
-
-{% block sidebar %}
-    {% set current_page = 'bom' %}
-    {% include 'module_template_html/base_sidebar.html' %}
 {% endblock %}
 
 {% block content %}
-    <div style="background-color: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); margin-bottom: 20px;">
-        <!-- Header Info (optional, if needed) -->
-        <div class="header-info">
-            <h1>
-                {% if model_name %}
-                    Model: {{ model_name }}
-                {% endif %}
-                {% if asset_number %}
-                    | Asset Number: {{ asset_number }}
-                {% endif %}
-                {% if location_name %}
-                    | Location: {{ location_name }}
-                {% endif %}
-            </h1>
-        </div>
-
-        <!-- Back to Search Link at the top -->
-        <a class="back-to-form" href="{{ url_for('bill_of_materials') }}">Back to Search</a>
-
-        <table>
-            <thead>
-                <tr>
-                    <th>Part Number</th>
-                    <th>Description</th>
-                    <th>OEM Manufacturer</th>
-                    <th>Model</th>
-                    <th>Class Flag</th>
-                    <th>UD6</th>
-                    <th>Type</th>
-                    <th>Notes</th>
-                    <th>Documentation</th>
-                    <th>Image</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for item in parts_and_images %}
-                <tr>
-                    <td>{{ item.part.part_number }}</td>
-                    <td>{{ item.part.name }}</td>
-                    <td>{{ item.part.oem_mfg }}</td>
-                    <td>{{ item.part.model }}</td>
-                    <td>{{ item.part.class_flag }}</td>
-                    <td>{{ item.part.ud6 }}</td>
-                    <td>{{ item.part.type }}</td>
-                    <td>{{ item.part.notes }}</td>
-                    <td>{{ item.part.documentation }}</td>
-                    <td>
-                        {% if item.image %}
-                            <a href="{{ url_for('create_bill_of_material_bp.bom_serve_image_route', image_id=item.image.id) }}" target="_blank">
-                                <img class="thumbnail" src="{{ url_for('create_bill_of_material_bp.bom_serve_image_route', image_id=item.image.id) }}" alt="{{ item.image.title }}" />
-                            </a>
-                        {% else %}
-                            <p>No image available</p>
-                            <!-- Optionally, you can display a placeholder image -->
-                            <!-- <img class="thumbnail" src="{{ url_for('static', filename='images/placeholder.png') }}" alt="No Image Available" /> -->
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-
-        <!-- Pagination, Items Per Page Selector, and Page Jump -->
-        <div class="pagination" style="margin-top: 20px;">
-            <form method="GET" action="{{ url_for('create_bill_of_material_bp.view_bill_of_material') }}" style="display: inline;">
-                <label for="per_page">Items per page:</label>
-                <select id="per_page" name="per_page" onchange="this.form.submit()">
-                    <option value="5" {% if per_page == 5 %}selected{% endif %}>5</option>
-                    <option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
-                    <option value="25" {% if per_page == 25 %}selected{% endif %}>25</option>
-                    <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
-                </select>
-                <input type="hidden" name="index" value="{{ index }}">
-            </form>
-
-            {% if prev_index is not none %}
-                <a href="{{ url_for('create_bill_of_material_bp.view_bill_of_material', index=prev_index, per_page=per_page) }}">Previous</a>
-            {% endif %}
-
-            <!-- Page Jump Selector -->
-            <form method="GET" action="{{ url_for('create_bill_of_material_bp.view_bill_of_material') }}" style="display: inline;">
-                <label for="jump_to_page">Jump to page:</label>
-                <select id="jump_to_page" name="index" onchange="this.form.submit()">
-                    {% for i in range(0, total, per_page) %}
-                    <option value="{{ i }}" {% if index == i %}selected{% endif %}>{{ i // per_page + 1 }}</option>
+    <div class="container">
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="{{ category }}">{{ message }}</div>
                     {% endfor %}
-                </select>
-                <input type="hidden" name="per_page" value="{{ per_page }}">
-            </form>
-
-            {% if next_index is not none %}
-                <a class="next" href="{{ url_for('create_bill_of_material_bp.view_bill_of_material', index=next_index, per_page=per_page) }}">Next</a>
+                </div>
             {% endif %}
+        {% endwith %}
+
+        <!-- Header Info -->
+        <div class="header-info">
+            <h1>Bill of Material Results</h1>
+            {% if session.get('model_id') %}<p><strong>Model ID:</strong> {{ session.get('model_id') }}</p>{% endif %}
+            {% if session.get('asset_number_id') %}<p><strong>Asset Number ID:</strong> {{ session.get('asset_number_id') }}</p>{% endif %}
+            {% if session.get('location_id') %}<p><strong>Location ID:</strong> {{ session.get('location_id') }}</p>{% endif %}
+            {% if session.get('general_asset_number') %}<p><strong>Asset Number:</strong> {{ session.get('general_asset_number') }}</p>{% endif %}
+            {% if session.get('general_location') %}<p><strong>Location:</strong> {{ session.get('general_location') }}</p>{% endif %}
         </div>
 
-        <!-- Back to Search Link at the bottom -->
-        <a class="back-to-form" href="{{ url_for('bill_of_materials') }}" style="margin-top: 20px; display: block; text-align: center;">Back to Search</a>
+        <!-- Back to Search -->
+        <a class="back-to-form" href="{{ url_for('create_bill_of_material_bp.create_bill_of_material') }}">Back to Search</a>
+
+        {% if parts_and_images %}
+            <div class="table-container">
+            <table>
+                <thead>…</thead>
+                <tbody>
+                    {% for item in parts_and_images %}
+                    <tr>
+                        <td>{{ item.part.part_number }}</td>
+                        …
+                        <td>
+                            {% if item.image %}
+                                <a href="{{ url_for('create_bill_of_material_bp.bom_serve_image_route', image_id=item.image.id) }}" target="_blank">
+                                  <img class="thumbnail" src="{{ url_for('create_bill_of_material_bp.bom_serve_image_route', image_id=item.image.id) }}" alt="{{ item.image.title }}">
+                                </a>
+                            {% else %}
+                                <p>No image available</p>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            </div>
+
+            <!-- Pagination -->
+            <div class="pagination">
+                <form id="per-page-form" method="GET" action="{{ url_for('create_bill_of_material_bp.view_bill_of_material') }}">
+                    <label for="per_page">Items per page:</label>
+                    <select id="per_page" name="per_page">
+                        <option value="4"{% if per_page==4 %} selected{% endif %}>4</option>
+                        …
+                    </select>
+                    <input type="hidden" name="index" value="{{ index }}">
+                </form>
+
+                {% if prev_index %}<a href="{{ url_for('create_bill_of_material_bp.view_bill_of_material', index=prev_index, per_page=per_page) }}">Previous</a>{% endif %}
+                …
+                {% if next_index %}<a class="next" href="{{ url_for('create_bill_of_material_bp.view_bill_of_material', index=next_index, per_page=per_page) }}">Next</a>{% endif %}
+            </div>
+        {% else %}
+            <div class="no-results">
+                <p>No results found. Please refine your search.</p>
+            </div>
+        {% endif %}
+
+        <a class="back-to-form" href="{{ url_for('create_bill_of_material_bp.create_bill_of_material') }}">Back to Search</a>
     </div>
 {% endblock %}
 
-{% block pagination %}
-<!-- Empty pagination block since we're moving all pagination into the content block -->
-{% endblock %}
-
 {% block extra_scripts %}
-    <!-- No additional scripts required for this page -->
+<script src="{{ url_for('static', filename='js/bill_of_materials/bill_of_materials.js') }}"></script>
+<script src="{{ url_for('static', filename='js/get_bill_of_material_query.js') }}"></script>
 {% endblock %}
