@@ -14,12 +14,22 @@
             margin: 0;
         }
         .registration-container {
-            background: rgba(255, 255, 255, 0.8);
-            padding: 20px;
-            border-radius: 5px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            text-align: center; /* Center align the form elements */
+          background: rgba(255, 255, 255, 0.8);
+          /* make it 600px wide but never wider than 90% of its parent */
+          width: 600px;
+          max-width: 90%;
+          /* more breathing room inside */
+          padding: 40px;
+          border-radius: 5px;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          text-align: center;
+
+          /* optional: bump up the default font-size */
+          font-size: 1.1rem;
+          /* center it horizontally */
+          margin: 0 auto;
         }
+
     </style>
     <title>User Registration</title>
 </head>
