@@ -3,141 +3,194 @@
 {% block title %}Bill of Materials{% endblock %}
 
 {% block extra_head %}
+    <!-- 1. External Libraries - jQuery and Select2 -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+
+    <!-- 2. Custom Stylesheets -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/search_bill_of_material.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/bill_of_materials.css') }}">
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bill_of_materials/edit_part_search.css') }}">
+
+    <!-- 3. Critical Styling for Advanced Search Form -->
+    <style>
+        /* Main container for advanced search */
+        #advancedSearchForm {
+            background-color: rgba(0, 0, 0, 0.9) !important;
+            padding: 20px !important;
+            border: 3px solid red !important;
+            margin-top: 15px !important;
+            position: relative !important;
+            z-index: 9999 !important;
+            display: none;
+        }
+
+        /* Form labels */
+        #advancedSearchForm label {
+            display: block !important;
+            color: yellow !important;
+            font-size: 16px !important;
+            font-weight: bold !important;
+            margin-bottom: 8px !important;
+        }
+
+        /* Select elements - direct styling */
+        #advancedSearchForm select {
+            display: block !important;
+            visibility: visible !important;
+            width: 100% !important;
+            max-width: 600px !important;
+            min-height: 38px !important;
+            margin-bottom: 15px !important;
+            padding: 8px !important;
+            background-color: white !important;
+            color: black !important;
+            border: 2px solid green !important;
+            position: relative !important;
+            opacity: 1 !important;
+            z-index: 10000 !important;
+        }
+
+        /* Select2 container */
+        .select2-container {
+            display: block !important;
+            visibility: visible !important;
+            width: 100% !important;
+            max-width: 600px !important;
+            margin-bottom: 15px !important;
+            z-index: 10001 !important;
+        }
+
+        /* Force Select2 dropdown to be visible */
+        .select2-container--open .select2-dropdown {
+            display: block !important;
+            visibility: visible !important;
+            z-index: 10002 !important;
+            background-color: white !important;
+            color: black !important;
+            border: 2px solid blue !important;
+        }
+
+        /* Filter button styling */
+        .filter-btn {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .filter-btn:hover {
+            background-color: #0056b3;
+        }
+    </style>
+
+    <!-- 4. Load Select2 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 {% endblock %}
 
 {% block content %}
-    <!-- Search BOM - available to LEVEL_I and above -->
-    {% if session['user_level'] == 'LEVEL_I' or session['user_level'] == 'LEVEL_II' or session['user_level'] == 'LEVEL_III' or session['user_level'] == 'ADMIN' %}
-    <div id="search-bill-of-materials" class="form-container">
-        <h1>Parts Search By Used On</h1>
-        <!-- Button to toggle the collapsible form -->
-        <button type="button" id="toggleFormBtn" style="background-color: #007bff; color: #fff; padding: 10px 20px;">
-            Toggle Advanced Search (Area, Equipment Group, Model)
-        </button>
-        <!-- Collapsible Form: Advanced Search -->
-        <div id="advancedSearchForm" style="display: none; margin-top: 15px;">
-            <form method="POST" action="{{ url_for('create_bill_of_material_bp.create_bill_of_material') }}">
-                <div style="margin-bottom: 15px;">
-                    <label for="filter_areaDropdown" style="color: Yellow;">Area:</label>
-                    <select name="area" id="filter_areaDropdown" style="width: 100%; max-width: 600px;"></select>
-                </div>
-                <div style="margin-bottom: 15px;">
-                    <label for="filter_equipmentGroupDropdown" style="color: Yellow;">Equipment Group:</label>
-                    <select name="equipment_group" id="filter_equipmentGroupDropdown" style="width: 100%; max-width: 600px;"></select>
-                </div>
-                <div style="margin-bottom: 15px;">
-                    <label for="filter_modelDropdown" style="color: Yellow;">Model:</label>
-                    <select name="model" id="filter_modelDropdown" style="width: 100%; max-width: 600px;"></select>
-                </div>
-                <div style="margin-bottom: 15px;">
-                    <label for="filter_assetNumberDropdown" style="color: Yellow;">Asset Number:</label>
-                    <select name="asset_number" id="filter_assetNumberDropdown" style="width: 100%; max-width: 600px;"></select>
-                </div>
-                <div style="margin-bottom: 15px;">
-                    <label for="filter_locationDropdown" style="color: Yellow;">Location:</label>
-                    <select name="location" id="filter_locationDropdown" style="width: 100%; max-width: 600px;"></select>
-                </div>
-                <div style="margin-bottom: 15px;">
-                    <input type="submit" value="Filter" style="background-color: #007bff; color: #fff; padding: 10px 20px;">
-                </div>
-            </form>
-        </div>
+<div class="bom-container">
+    <!-- Container for form elements -->
+    <div id="main-forms-area" {% if show_results %}style="display: none;"{% endif %}>
+        <!-- Search Forms for BOM -->
+        {% if session['user_level'] in ['LEVEL_I', 'LEVEL_II', 'LEVEL_III', 'ADMIN'] %}
+        <div id="search-bill-of-materials" class="form-container">
+            <h1>Search Parts by... </h1>
 
-        <!-- General Search Box -->
-        <div id="generalSearch" style="margin-top: 30px;">
-            <h3>Quick Search by Asset Number or Location</h3>
-            <form method="POST" action="{{ url_for('create_bill_of_material_bp.bom_general_search') }}">
-                <div style="margin-bottom: 15px;">
-                    <label for="general_assetNumber" style="color: Yellow;">Asset Number:</label>
-                    <input type="text" id="general_assetNumber" name="general_asset_number" placeholder="Type Asset Number" style="width: 100%; max-width: 600px;">
-                </div>
-                <div style="margin-bottom: 15px;">
-                    <label for="general_location" style="color: Yellow;">Location:</label>
-                    <input type="text" id="general_location" name="general_location" placeholder="Type Location" style="width: 100%; max-width: 600px;">
-                </div>
-                <div style="margin-bottom: 15px;">
-                    <input type="submit" value="Search" style="background-color: #007bff; color: #fff; padding: 10px 20px;">
-                </div>
-            </form>
-        </div>
-    </div>
-    {% endif %}
+            <!-- Toggle button for advanced search -->
+            <button type="button" id="toggleFormBtn" class="btn btn-primary">
+                Search (Area, Equipment Group, Model)
+            </button>
 
-    <!-- Upload Bill of Materials Form - restricted to LEVEL_III and ADMIN -->
-    {% if session['user_level'] == 'LEVEL_III' or session['user_level'] == 'ADMIN' %}
-    <div id="upload-bill-of-materials" class="form-container">
-        <h2>Upload Bill of Materials</h2>
-        <form id="upload-bom-form" action="/bill_of_materials" method="post" enctype="multipart/form-data">
-            <label for="area" style="color: Yellow;">Area:</label>
-            <select name="area" id="bom_areaDropdown"></select><br>
-            <label for="equipment_group" style="color: Yellow;">Equipment Group:</label>
-            <select name="equipment_group" id="bom_equipmentGroupDropdown"></select><br>
-            <label for="model" style="color: Yellow;">Model:</label>
-            <select name="model" id="bom_modelDropdown"></select><br>
-            <label for="asset_number" style="color: Yellow;">Asset Number:</label>
-            <select name="asset_number" id="bom_assetNumberDropdown"></select><br>
-            <label for="location" style="color: Yellow;">Location:</label>
-            <select name="location" id="bom_locationDropdown"></select><br>
-            <label for="image_path" style="color: Yellow;">Image Path:</label>
-            <input type="text" name="image_path" id="image_path"><br>
-            <input type="file" name="file" required><br>
-            <input type="submit" value="Upload">
-        </form>
-    </div>
-    {% endif %}
-
-    <!-- Enter New Part Form - restricted to LEVEL_II and above -->
-    {% if session['user_level'] == 'LEVEL_II' or session['user_level'] == 'LEVEL_III' or session['user_level'] == 'ADMIN' %}
-    <div id="1enter-new-part-number" class="form-container">
-        {% include 'bill_of_materials/bom_partials/enter_new_part.html' %}
-    </div>
-    {% endif %}
-
-    <!-- Search and Edit Part Form - available to LEVEL_I and above -->
-    {% if session['user_level'] == 'LEVEL_I' or session['user_level'] == 'LEVEL_II' or session['user_level'] == 'LEVEL_III' or session['user_level'] == 'ADMIN' %}
-    <div id="edit-part" class="form-container">
-        <h1>Search and Edit Part</h1>
-
-        <!-- Search form for finding a part -->
-        <form action="{{ url_for('update_part_bp.search_part') }}" method="GET">
-            <label for="search_query">Search by Part Number, Name, OEM Manufacturer, or Model:</label>
-            <input type="text" id="search_query" name="search_query" placeholder="Type your search here..." required><br>
-            <input type="submit" value="Search">
-        </form>
-
-        <!-- Display part options if search results are available -->
-        {% if parts %}
-        <form action="{{ url_for('update_part_bp.edit_part') }}" method="POST">
-            <label for="part_id">Select Part to Edit:</label>
-            <select name="part_id" id="part_id" required>
-                {% for part in parts %}
-                    <option value="{{ part.id }}">{{ part.part_number }} - {{ part.name }} ({{ part.oem_mfg }})</option>
-                {% endfor %}
-            </select><br>
-            <input type="submit" value="Edit Selected Part">
-        </form>
-        {% endif %}
-
-        <!-- Include the edit part form partial -->
-        {% include 'bill_of_materials/bom_partials/enter_new_part.html' %}
-    </div>
-    {% endif %}
-
-    <!-- Flash Messages -->
-    {% with messages = get_flashed_messages() %}
-        {% if messages %}
-            <div style="margin-top: 20px; padding: 10px; background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; border-radius: 4px;">
-                <ul>
-                {% for message in messages %}
-                    <li>{{ message }}</li>
-                {% endfor %}
-                </ul>
+            <!-- Advanced Search Form -->
+            <div id="advancedSearchForm">
+                <form id="advancedSearchFormContent" method="POST" action="{{ url_for('create_bill_of_material_bp.create_bill_of_material') }}">
+                    <div>
+                        <label for="filter_areaDropdown">Area:</label>
+                        <select name="area" id="filter_areaDropdown"></select>
+                    </div>
+                    <div>
+                        <label for="filter_equipmentGroupDropdown">Equipment Group:</label>
+                        <select name="equipment_group" id="filter_equipmentGroupDropdown"></select>
+                    </div>
+                    <div>
+                        <label for="filter_modelDropdown">Model:</label>
+                        <select name="model" id="filter_modelDropdown"></select>
+                    </div>
+                    <div>
+                        <label for="filter_assetNumberDropdown">Asset Number:</label>
+                        <select name="asset_number" id="filter_assetNumberDropdown"></select>
+                    </div>
+                    <div>
+                        <label for="filter_locationDropdown">Location:</label>
+                        <select name="location" id="filter_locationDropdown"></select>
+                    </div>
+                    <div>
+                        <input type="submit" value="Filter" class="filter-btn">
+                    </div>
+                </form>
             </div>
+        </div>
         {% endif %}
-    {% endwith %}
+
+        <!-- Part Search Section -->
+        {% if session['user_level'] in ['LEVEL_II', 'LEVEL_III', 'ADMIN'] %}
+        <div id="edit-part" class="form-container">
+            <h1>Search and Edit Part</h1>
+            <!-- Search form for finding a part -->
+            <form id="search-part-form" method="GET" action="{{ url_for('update_part_bp.search_part') }}">
+                <label for="search_query" style="color: Yellow;">Search by Part Number, Name, OEM Manufacturer, or Model:</label>
+                <input type="text" id="search_query" name="search_query" value="{{ search_query|default('') }}" required><br>
+                <input type="hidden" name="ajax" value="true">
+                <input type="submit" value="Search">
+            </form>
+        </div>
+        {% endif %}
+
+        <!-- Upload BOM Form - For LEVEL_III and ADMIN -->
+        {% if session['user_level'] in ['LEVEL_III', 'ADMIN'] %}
+        <div id="upload-bill-of-materials" class="form-container">
+            <h2>Upload Bill of Materials</h2>
+            {% include 'bill_of_materials/bom_partials/upload_bom_form.html' %}
+        </div>
+        {% endif %}
+
+        <!-- Enter New Part Form - For LEVEL_II and above -->
+        {% if session['user_level'] in ['LEVEL_II', 'LEVEL_III', 'ADMIN'] %}
+        <div id="enter-new-part" class="form-container">
+            {% include 'bill_of_materials/bom_partials/enter_new_part.html' %}
+        </div>
+        {% endif %}
+
+        <!-- Edit Form Container -->
+        <div id="edit-part-form" class="form-container" style="display: none;">
+            <!-- Edit form will be loaded here via AJAX when a part is selected for editing -->
+        </div>
+
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                <div class="flash-messages">
+                    <ul>
+                        {% for message in messages %}
+                            <li>{{ message }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
+        {% endwith %}
+    </div>
+
+    <!-- Show BOM Results if applicable -->
+    {% if show_results %}
+    <div id="results-container">
+        {% include 'bill_of_materials/bom_partials/bill_of_material_results_partial.html' %}
+    </div>
+    {% endif %}
+</div>
 {% endblock %}
 
 {% block sidebar %}
@@ -147,82 +200,124 @@
 {% endblock %}
 
 {% block extra_scripts %}
+    <!-- Core functions for UI navigation -->
     <script>
-        // Show specific form based on the formId and hide the others
-        function showForm(formId) {
-            // Check user permissions before showing form
-            {% if session['user_level'] == 'STANDARD' %}
-                // No access for STANDARD users
-                alert("You don't have permission to access this feature.");
-                return;
-            {% else %}
-                // Check specific permissions
-                {% if session['user_level'] == 'LEVEL_I' %}
-                    // LEVEL_I can only access search and edit
-                    if (formId === 'upload-bill-of-materials' || formId === '1enter-new-part-number') {
-                        alert("You don't have permission to access this feature.");
-                        return;
-                    }
-                {% elif session['user_level'] == 'LEVEL_II' %}
-                    // LEVEL_II can't access upload
-                    if (formId === 'upload-bill-of-materials') {
-                        alert("You don't have permission to access this feature.");
-                        return;
-                    }
-                {% endif %}
-            {% endif %}
-
-            var forms = document.getElementsByClassName('form-container');
-            for (var i = 0; i < forms.length; i++) {
-                forms[i].style.display = 'none';  // Hide all forms
-            }
-
-            var targetForm = document.getElementById(formId);
-            if (targetForm) {
-                targetForm.style.display = 'block';  // Show the selected form
-            } else {
-                console.error('Form not found:', formId);
-            }
-        }
-
-        // Toggle visibility of advanced search form
-        function toggleAdvancedSearch() {
-            var advancedForm = document.getElementById('advancedSearchForm');
-            if (advancedForm.style.display === "none" || advancedForm.style.display === "") {
-                advancedForm.style.display = "block";
-            } else {
-                advancedForm.style.display = "none";
-            }
-        }
-
-        // Event listeners after DOM content is fully loaded
-        document.addEventListener('DOMContentLoaded', function() {
-            // Hide all forms initially
-            var forms = document.getElementsByClassName('form-container');
-            for (var i = 0; i < forms.length; i++) {
-                forms[i].style.display = 'none';
-            }
-
-            // Show default form based on user level
-            {% if session['user_level'] == 'LEVEL_I' or session['user_level'] == 'LEVEL_II' or session['user_level'] == 'LEVEL_III' or session['user_level'] == 'ADMIN' %}
-                document.getElementById('search-bill-of-materials').style.display = 'block'; // Default form
-            {% endif %}
-
-            // Event listener for the advanced search toggle button
-            var toggleButton = document.getElementById('toggleFormBtn');
-            if (toggleButton) {
-                toggleButton.addEventListener('click', toggleAdvancedSearch);
-            }
+    // Function to show/hide forms
+    function showForm(formId) {
+        // Hide all form containers
+        document.querySelectorAll('.form-container').forEach(function(container) {
+            container.style.display = 'none';
         });
 
-        // Listener for hash changes (to show the correct form based on URL hash)
-        window.addEventListener('hashchange', function() {
-            var hash = window.location.hash.substring(1); // Remove '#' symbol
-            if (hash) {
-                showForm(hash);  // Show form based on hash in URL
-            }
-        });
+        // Hide results container if it's showing
+        var resultsContainer = document.getElementById('results-container');
+        if (resultsContainer) {
+            resultsContainer.style.display = 'none';
+        }
+
+        // Show main forms area
+        var mainFormsArea = document.getElementById('main-forms-area');
+        if (mainFormsArea) {
+            mainFormsArea.style.display = 'block';
+        }
+
+        // Show the requested form
+        var form = document.getElementById(formId);
+        if (form) {
+            form.style.display = 'block';
+        } else {
+            console.warn('Form not found:', formId);
+        }
+    }
+
+    // Function to show search form and hide results
+    function showSearchForm() {
+        var mainFormsArea = document.getElementById('main-forms-area');
+        if (mainFormsArea) {
+            mainFormsArea.style.display = 'block';
+        }
+
+        var resultsContainer = document.getElementById('results-container');
+        if (resultsContainer) {
+            resultsContainer.style.display = 'none';
+        }
+
+        showForm('search-bill-of-materials');
+    }
+
+    // Toggle function for advanced search form
+    function toggleAndPopulate() {
+        console.log("toggleAndPopulate function called");
+
+        var advancedForm = document.getElementById('advancedSearchForm');
+        console.log("Found advancedForm:", advancedForm);
+
+        var wasHidden = advancedForm.style.display === 'none' || getComputedStyle(advancedForm).display === 'none';
+        console.log("Form was hidden:", wasHidden);
+
+        // Toggle display
+        advancedForm.style.display = wasHidden ? 'block' : 'none';
+        console.log("Set display to:", advancedForm.style.display);
+
+        // If showing the form, populate the dropdowns
+        if (wasHidden) {
+            console.log("Form is now visible, populating dropdowns");
+            populateDropdownsForPartsPosition();
+        }
+
+        return false;
+    }
     </script>
-    <script src="{{ url_for('static', filename='js/get_bill_of_material_query.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/bill_of_materials.js') }}"></script>
+
+    <!-- Initialization and event handling -->
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log("Document ready - initializing BOM page");
+
+        // Set up toggle button for advanced search
+        var toggleBtn = document.getElementById('toggleFormBtn');
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', toggleAndPopulate);
+            console.log("Toggle button event listener added");
+        }
+
+        // Handle hash changes for navigation
+        function handleHash() {
+            var hash = window.location.hash.substring(1);
+            if (hash) {
+                showForm(hash);
+            } else {
+                {% if show_results %}
+                    // Do nothing, keep showing results
+                {% else %}
+                    showForm('search-bill-of-materials');
+                {% endif %}
+            }
+        }
+
+        // Initial hash handling
+        handleHash();
+
+        // Listen for hash changes
+        window.addEventListener('hashchange', handleHash);
+
+        // Set up back to search links
+        document.querySelectorAll('.back-to-form').forEach(function(link) {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                showSearchForm();
+                return false;
+            });
+        });
+
+        console.log("BOM page initialization complete");
+    });
+    </script>
+
+    <!-- Load the external JavaScript files -->
+    <script src="{{ url_for('static', filename='js/bill_of_materials/get_bill_of_material_query.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/bill_of_materials/bill_of_materials.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/bill_of_materials/search_edit_part.js') }}"></script>
+
+
 {% endblock %}
