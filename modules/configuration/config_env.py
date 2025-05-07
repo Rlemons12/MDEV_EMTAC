@@ -1,8 +1,9 @@
 # modules/configuration/config_env.py
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
 from modules.configuration.config import DATABASE_URL, REVISION_CONTROL_DB_PATH
+
 
 class DatabaseConfig:
     def __init__(self):
@@ -52,3 +53,59 @@ class DatabaseConfig:
             cursor.close()
 
         event.listen(engine, 'connect', set_sqlite_pragmas)
+
+    def create_documents_fts(self):
+        """
+        Create the FTS5 virtual table for documents if it doesn't already exist.
+        This lets you run full-text queries against (title, content).
+        """
+        session = self.get_main_session()
+        try:
+            session.execute(
+                text(
+                    "CREATE VIRTUAL TABLE IF NOT EXISTS documents_fts "
+                    "USING FTS5(title, content)"
+                )
+            )
+            session.commit()
+        finally:
+            session.close()
+
+    def load_config_from_db(self):
+        """
+        Load AI model configuration from the database.
+
+        Returns:
+            Tuple of (current_ai_model, current_embedding_model)
+        """
+        session = self.get_main_session()
+        try:
+            from modules.emtacdb.emtacdb_fts import AIModelConfig
+
+            ai_model_config = session.query(AIModelConfig).filter_by(key="CURRENT_AI_MODEL").first()
+            embedding_model_config = session.query(AIModelConfig).filter_by(key="CURRENT_EMBEDDING_MODEL").first()
+
+            current_ai_model = ai_model_config.value if ai_model_config else "NoAIModel"
+            current_embedding_model = embedding_model_config.value if embedding_model_config else "NoEmbeddingModel"
+
+            return current_ai_model, current_embedding_model
+        finally:
+            session.close()
+
+    def load_image_model_config_from_db(self):
+        """
+        Load image model configuration from the database.
+
+        Returns:
+            String representing the current image model
+        """
+        session = self.get_main_session()
+        try:
+            from modules.emtacdb.emtacdb_fts import ImageModelConfig
+
+            image_model_config = session.query(ImageModelConfig).filter_by(key="CURRENT_IMAGE_MODEL").first()
+            current_image_model = image_model_config.value if image_model_config else "no_model"
+
+            return current_image_model
+        finally:
+            session.close()
