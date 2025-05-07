@@ -4,9 +4,10 @@
 
 {% block extra_head %}
     <!-- Include base and custom styles for this page -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+
     <link rel="stylesheet" href="{{ url_for('static', filename='css/position_data_assignment.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/partials/position_data_assignment/position_data_assignment_tool_management.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/module_template_html/base.css') }}">
     <!-- Toastr CSS -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css" rel="stylesheet" />
 {% endblock %}
@@ -21,21 +22,29 @@
         <h1>Position Data Assignment</h1>
         <div class="content">
 
-        <!-- Tab Navigation -->
+        <!-- Tab Navigation with Grid Layout -->
         <div class="tab-container">
-            <ul class="tab-list">
-                <li class="tab-item active" data-tab="search-tab">Search Position</li>
-                <li class="tab-item" data-tab="create-position-tab">Create New Position</li>
-                <li class="tab-item" data-tab="add-dependencies-tab">Add Position Dependencies</li>
-                <li class="tab-item" data-tab="update-tab">Update Position Data</li>
-                <li class="tab-item" data-tab="documents-tab">Manage Documents</li>
-                <li class="tab-item" data-tab="parts-tab">Manage Parts</li>
-                <li class="tab-item" data-tab="images-tab">Manage Images</li>
-                <li class="tab-item" data-tab="drawings-tab">Manage Drawings</li>
-                <li class="tab-item" data-tab="tool-tab">Manage Tools</li>
-            </ul>
+            <div class="tab-grid">
+                <!-- First Row: 5 Tabs -->
+                <div class="tab-grid-row-1">
+                    <div class="tab-item active" data-tab="search-tab">Search Position</div>
+                    <div class="tab-item" data-tab="create-position-tab">Create New Position</div>
+                    <div class="tab-item" data-tab="add-dependencies-tab">Add Position Dependencies</div>
+                    <div class="tab-item" data-tab="update-tab">Update Position Data</div>
+                    <div class="tab-item" data-tab="documents-tab">Manage Documents</div>
+                </div>
+
+                <!-- Second Row: 4 Tabs -->
+                <div class="tab-grid-row-2">
+                    <div class="tab-item" data-tab="parts-tab">Manage Parts</div>
+                    <div class="tab-item" data-tab="images-tab">Manage Images</div>
+                    <div class="tab-item" data-tab="drawings-tab">Manage Drawings</div>
+                    <div class="tab-item" data-tab="tool-tab">Manage Tools</div>
+                </div>
+            </div>
         </div>
 
+<!-- Tab content divs remain the same as your current implementation -->
         <!-- Tab Content Sections -->
 
         <!-- Search Position Form -->
