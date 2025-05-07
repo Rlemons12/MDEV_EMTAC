@@ -24,7 +24,7 @@ from modules.configuration.log_config import (
 )
 
 
-# region why: should we move this to a cenetral location?
+# region Fixme: this is part of the def extract_images_from_pdf and is slated to be removed.
 POST_URL = os.getenv('IMAGE_POST_URL', 'http://localhost:5000/image/add_image')
 REQUEST_DELAY = float(os.getenv('REQUEST_DELAY', '1.0'))  # in seconds
 # endregion
