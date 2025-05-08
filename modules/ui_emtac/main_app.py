@@ -559,40 +559,70 @@ class MaintenanceTroubleshootingApp(MDApp):
 
     def on_login_success(self, user):
         """Called when login is successful"""
-        from sqlalchemy import text
-        session = self.data_service.session
-        kivy_user = session.query(KivyUser).filter(KivyUser.id == user.id).first()
+        try:
+            # Import KivyUser from the correct module
+            from modules.emtacdb.emtacdb_fts import KivyUser
+            import traceback
 
-        # Your existing code for creating/fetching KivyUser...
+            print("Starting login process...")
+            session = self.data_service.session
 
-        # Store the current user (either KivyUser or regular User)
-        self.current_user = kivy_user
-        print(f"User logged in: {kivy_user.first_name} {kivy_user.last_name} (ID: {kivy_user.employee_id})")
-        print(f"User type: {type(kivy_user).__name__}")
+            # First try direct query (your original approach)
+            kivy_user = session.query(KivyUser).filter(KivyUser.id == user.id).first()
+            print(f"Direct query result: {kivy_user}")
 
-        # 2) Instantiate MainScreen (will pick up your <MainScreen> KV rule)
-        self.main_screen = MainScreen(user=kivy_user)  # Pass KivyUser instead of base User
+            # If not found, use ensure_kivy_user method as backup
+            if not kivy_user:
+                print("KivyUser not found directly, using ensure_kivy_user...")
+                kivy_user = KivyUser.ensure_kivy_user(session, user)
+                print(f"ensure_kivy_user result: {kivy_user}")
 
-        # 3) Add MainScreen if not already in the manager
-        if not any(screen.name == "main_screen" for screen in self.screen_manager.screens):
-            self.screen_manager.add_widget(self.main_screen)
+            if not kivy_user:
+                # Handle the error - this is critical
+                error_message = f"Failed to create or retrieve KivyUser for {user.employee_id} (ID: {user.id})"
+                print(error_message)
+                self.show_error_popup("Login Error", error_message)
+                return
 
-        # 4) Switch to MainScreen
-        self.screen_manager.current = "main_screen"
-        print("Screens:", [s.name for s in self.screen_manager.screens])
-        print("Current screen:", self.screen_manager.current)
+            # Store the current user
+            self.current_user = kivy_user
+            print(f"User logged in: {kivy_user.first_name} {kivy_user.last_name} (ID: {kivy_user.employee_id})")
+            print(f"User type: {type(kivy_user).__name__}")
 
-        # 5) Schedule panel content setup
-        Clock.schedule_once(self.initialize_panel_content, 0.5)
+            print("Creating main screen...")
+            # Create MainScreen
+            self.main_screen = MainScreen(user=kivy_user)
 
-        # 6) Schedule populating the navigation drawer
-        Clock.schedule_once(self.add_equipment_navigation, 0.5)
+            print("Adding main screen to manager...")
+            # Add MainScreen if not already in the manager
+            if not any(screen.name == "main_screen" for screen in self.screen_manager.screens):
+                self.screen_manager.add_widget(self.main_screen)
 
-        # 7) Initialize default layouts
-        Clock.schedule_once(lambda dt: self.initialize_default_layouts(), 1.0)
+            print("Switching to main screen...")
+            # Switch to MainScreen
+            self.screen_manager.current = "main_screen"
+            print("Screens:", [s.name for s in self.screen_manager.screens])
+            print("Current screen:", self.screen_manager.current)
 
-        # 8) Apply default layout immediately after initialization
-        Clock.schedule_once(lambda dt: self.apply_default_layout(), 1.2)
+            print("Scheduling UI initialization...")
+            # Schedule panel content setup
+            Clock.schedule_once(self.initialize_panel_content, 0.5)
+
+            # Schedule populating the navigation drawer
+            Clock.schedule_once(self.add_equipment_navigation, 0.5)
+
+            # Initialize default layouts
+            Clock.schedule_once(lambda dt: self.initialize_default_layouts(), 1.0)
+
+            # Apply default layout immediately after initialization
+            Clock.schedule_once(lambda dt: self.apply_default_layout(), 1.2)
+
+            print("Login process completed successfully")
+
+        except Exception as e:
+            print("Error in login process:", str(e))
+            print(traceback.format_exc())
+            self.show_error_popup("Login Error", f"An unexpected error occurred: {str(e)}")
 
     def on_start(self):
         # This method will no longer do anything since initialization happens in on_login_success
