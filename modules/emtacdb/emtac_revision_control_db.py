@@ -1,4 +1,5 @@
 # emtac_revision_control_db.py
+# Todo: Remove from project. Function is now handled by setup_manager.py
 import os
 from datetime import datetime
 from sqlalchemy import (DateTime, Column, ForeignKey, Integer, LargeBinary, String, Float, Text, create_engine)
