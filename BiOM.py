@@ -105,5 +105,7 @@ def handle_position_and_part_upload():
     finally:
         session.close()
 
+
+
 if __name__ == "__main__":
     test_handle_position_and_part_upload()
