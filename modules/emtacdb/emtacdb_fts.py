@@ -2443,6 +2443,84 @@ class KivyUser(User):
             return True
         return False
 
+    @classmethod
+    def ensure_kivy_user(cls, session, user_or_id):
+        """
+        Ensures a KivyUser record exists for a given User or user ID.
+        Args:
+            session: SQLAlchemy session
+            user_or_id: A User instance or user ID
+        Returns:
+            KivyUser instance if successful, None if failed
+        """
+        # Import logger and SQLAlchemy text
+        import logging
+        from sqlalchemy import text
+        from sqlalchemy.exc import SQLAlchemyError
+
+        logger = logging.getLogger(__name__)
+
+        if user_or_id is None:
+            logger.error("Cannot ensure KivyUser for None user")
+            return None
+
+        # Get user ID
+        user_id = user_or_id.id if hasattr(user_or_id, 'id') else user_or_id
+
+        # Try to get existing KivyUser
+        kivy_user = session.query(cls).filter(cls.id == user_id).first()
+
+        if kivy_user:
+            logger.debug(f"Found existing KivyUser for ID {user_id}")
+            return kivy_user
+
+        # No KivyUser found, check if the User exists and has type='kivy_user'
+        user = None
+        if hasattr(user_or_id, 'id'):
+            user = user_or_id
+        else:
+            user = session.query(User).filter(User.id == user_id).first()
+
+        if not user:
+            logger.error(f"No User found with ID {user_id}")
+            return None
+
+        # Check if the user is already marked as a KivyUser
+        if user.type != 'kivy_user':
+            # Update the user type to 'kivy_user'
+            logger.info(f"Updating User {user.employee_id} (ID: {user.id}) type to 'kivy_user'")
+            user.type = 'kivy_user'
+            try:
+                session.commit()
+            except SQLAlchemyError as e:
+                session.rollback()
+                logger.error(f"Error updating User type: {e}")
+                return None
+
+        # Create the KivyUser record
+        try:
+            logger.info(f"Creating KivyUser record for User {user.employee_id} (ID: {user.id})")
+            session.execute(
+                text("INSERT INTO kivy_users (id) VALUES (:id)"),
+                {"id": user.id}
+            )
+            session.commit()
+
+            # Fetch the newly created KivyUser
+            kivy_user = session.query(cls).filter(cls.id == user.id).first()
+
+            if kivy_user:
+                logger.info(f"Successfully created KivyUser for {user.employee_id} (ID: {user.id})")
+                return kivy_user
+            else:
+                logger.error(f"Failed to retrieve created KivyUser for {user.employee_id} (ID: {user.id})")
+                return None
+
+        except SQLAlchemyError as e:
+            session.rollback()
+            logger.error(f"Error creating KivyUser record: {e}")
+            return None
+
 class UserLayout(Base):
     __tablename__ = 'user_layouts'
 
