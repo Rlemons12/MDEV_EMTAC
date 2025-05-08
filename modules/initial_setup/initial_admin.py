@@ -1,11 +1,12 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, scoped_session, sessionmaker
-from modules.emtacdb.emtacdb_fts import User, UserLevel  # Import your User model and UserLevel enum
+from modules.emtacdb.emtacdb_fts import User, KivyUser, UserLevel  # Import KivyUser as well
 from modules.configuration.config import DATABASE_URL, ADMIN_CREATION_PASSWORD
 from modules.initial_setup.initializer_logger import (
     initializer_logger, close_initializer_logger,
     compress_logs_except_most_recent, LOG_DIRECTORY
 )
+from datetime import datetime
 
 # Ensure ADMIN_CREATION_PASSWORD is treated as a string
 ADMIN_CREATION_PASSWORD = str(ADMIN_CREATION_PASSWORD)
@@ -81,6 +82,62 @@ def create_initial_admin(admin_password, session):
         session.close()
 
 
+def create_kivy_admin(admin_password, session):
+    """
+    Function to create an admin user as a KivyUser subclass.
+    """
+    initializer_logger.debug("Starting create_kivy_admin function.")
+
+    # Check if admin creation password is set
+    if not ADMIN_CREATION_PASSWORD:
+        initializer_logger.error("Admin creation password not set. Exiting.")
+        return False
+
+    # Validate the entered password
+    admin_password = str(admin_password).strip()
+    initializer_logger.debug(
+        f"Entered admin password: '{admin_password}' (type: {type(admin_password)}, length: {len(admin_password)})")
+
+    if admin_password != ADMIN_CREATION_PASSWORD:
+        initializer_logger.error("Incorrect password. Exiting.")
+        return False
+
+    try:
+        # Check if a KivyUser admin already exists
+        existing_kivy_admin = session.query(KivyUser).filter_by(user_level=UserLevel.ADMIN).first()
+        if existing_kivy_admin:
+            initializer_logger.info(f"KivyUser admin already exists: {existing_kivy_admin.employee_id}. Exiting.")
+            return True
+
+        # Create the KivyUser admin
+        initializer_logger.info("Creating initial KivyUser admin.")
+        kivy_admin = KivyUser(
+            employee_id='kivyadmin',
+            first_name='Kivy',
+            last_name='Admin',
+            current_shift='Day',
+            primary_area='Administration',
+            age=30,
+            education_level='Masters',
+            start_date=datetime.utcnow(),
+            user_level=UserLevel.ADMIN
+        )
+
+        # Hash and set the password
+        kivy_admin.set_password('admin123')
+        initializer_logger.debug("Password set for KivyUser admin.")
+
+        session.add(kivy_admin)
+        session.commit()
+
+        initializer_logger.info("Initial KivyUser admin created successfully.")
+        return True
+    except Exception as e:
+        initializer_logger.error(f"An error occurred creating KivyUser: {e}")
+        session.rollback()
+        return False
+
+
 def main():
     """
     Main function to handle the admin creation process.
@@ -96,9 +153,17 @@ def main():
     success = create_initial_admin(admin_password, session)
 
     if success:
-        initializer_logger.info("Admin creation process completed successfully.")
+        initializer_logger.info("Regular admin creation process completed successfully.")
     else:
-        initializer_logger.info("Admin creation process failed or was not necessary.")
+        initializer_logger.info("Regular admin creation process failed or was not necessary.")
+
+    # Create the KivyUser admin
+    kivy_success = create_kivy_admin(admin_password, session)
+
+    if kivy_success:
+        initializer_logger.info("KivyUser admin creation process completed successfully.")
+    else:
+        initializer_logger.info("KivyUser admin creation process failed or was not necessary.")
 
     # Perform cleanup tasks
     close_initializer_logger()
