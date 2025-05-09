@@ -4,7 +4,7 @@
 
 {% block extra_head %}
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/upload_styles.css') }}">
-    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/module_template/bass.css') }}">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/module_template/base.css') }}">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" rel="stylesheet" />
     <style>
         .drop-zone {
@@ -39,23 +39,9 @@
 
 {% block content %}
     <!-- User level-restricted forms -->
-
     <!-- Upload forms - only visible to LEVEL_III and ADMIN -->
     {% if session['user_level'] == 'LEVEL_III' or session['user_level'] == 'ADMIN' %}
-    <div id="upload-image" class="form-container">
-        <h2>Upload Image</h2>
-        <form id="upload-image-form" action="/image/upload_image" method="post" enctype="multipart/form-data">
-            <input type="text" name="title" placeholder="Image Title"><br>
-            <textarea name="description" placeholder="Image Description"></textarea><br>
-            <select name="area" id="image_areaDropdown"></select><br>
-            <select name="equipment_group" id="image_equipmentGroupDropdown"></select><br>
-            <select name="model" id="image_modelDropdown"></select><br>
-            <select name="asset_number" id="image_assetNumberDropdown"></select><br>
-            <select name="location" id="image_locationDropdown"></select><br>
-            <input type="file" name="image" accept="image/*" required><br>
-            <input type="submit" value="Upload Image">
-        </form>
-    </div>
+        {% include 'upload_search_database/upload_search_database_parial/upload_image_form_partial.html' %}
 
     <div id="upload-document" class="form-container">
         <h2>Upload Document</h2>
@@ -216,6 +202,7 @@
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
 
+    <!-- region TODO: Refactor JS into new folder static/js/upload_search_database -->
     <!-- Custom JavaScript files -->
     <script src="{{ url_for('static', filename='js/batch_upload.js') }}"></script>
     <script src="{{ url_for('static', filename='js/upload_image.js') }}"></script>
@@ -225,6 +212,9 @@
     <script src="{{ url_for('static', filename='js/image_search.js') }}"></script>
     <script src="{{ url_for('static', filename='js/powerpoint_search.js') }}"></script>
     <script src="{{ url_for('static', filename='js/image_compare.js') }}"></script>
+    <!-- endregion -->
+
+
 
     <script>
         function showForm(formId) {
