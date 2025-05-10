@@ -4,670 +4,349 @@ body {
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
-    margin: 0; /* Ensure there's no default margin */
-    /* Remove min-height to let body expand with content */
-}
-
-/* Custom styling for the content on this page */
-.position-data-container {
-      margin-left: 0 !important;
-    width: 100%;
-    max-width: 100%;
-}
-
-/* Adjust form input and label styling */
-#searchPositionForm input,
-#searchPositionForm select,
-#updatePositionForm input,
-#updatePositionForm select {
-    background-color: rgba(255, 255, 255, 0.9);
-    color: black;
-    border: 1px solid #ccc;
-    padding: 8px;
-    border-radius: 4px;
-    margin-bottom: 10px;
-    width: 100%;
-    box-sizing: border-box;
-}
-
-/* Ensure labels and text are yellow */
-#searchPositionForm label,
-#updatePositionForm label,
-details summary,
-.details-content {
-    color: yellow;
-}
-
-/* Styling for collapsible sections */
-details summary {
-    font-weight: bold;
-    color: yellow;
-    font-size: 18px;
-}
-
-details[open] summary {
-    color: yellow;
-}
-
-details summary:hover {
-    cursor: pointer;
-    text-decoration: underline;
-}
-
-/* Ensure the contents of the collapsed section are yellow as well */
-details div,
-details p,
-details ul,
-details li,
-details label,
-.details-content span,
-.details-content a {
-    color: yellow;
-}
-
-/* Adjust button styles for better contrast */
-button {
-    background-color: #333;
-    color: yellow;
-    border: 2px solid yellow;
-    padding: 8px 16px;
-    cursor: pointer;
-    border-radius: 4px;
-    transition: background-color 0.3s, color 0.3s;
-}
-
-button:hover {
-    background-color: yellow;
-    color: black;
-}
-
-/* Modify the color for the main content */
-.content {
-    color: yellow;
-    /* Ensure content area expands with content */
-    min-height: 100%;
-    /* Remove overflow property to prevent extra scrollbars */
-    overflow: visible;
-}
-
-/* Modify the color for the h1 (Position Data Assignment heading) */
-.content h1 {
-    color: #39FF14;
-    text-align: center;
-    margin-bottom: 0px;
-}
-
-/* Styling for the existing parts section */
-#parts-container {
-    background-color: rgba(0, 0, 0, 0.8);
-    padding: 20px;
-    border-radius: 8px;
-    margin-top: 15px;
-}
-
-#parts-container h4 {
-    color: #FFD700;
-    font-size: 18px;
-    margin-bottom: 10px;
-}
-
-/* Remove max-height and overflow-y from existing parts list */
-#existing-parts-list {
-    background-color: rgba(255, 255, 255, 0.1);
-    border: 1px solid #FFD700;
-    /* Remove max-height: 300px; */
-    /* Remove overflow-y: auto; */
-    padding: 10px;
-    margin-top: 10px;
-    color: yellow;
-    border-radius: 4px;
-}
-
-/* Styling for each part entry in the list */
-.existing-part {
-    padding: 8px;
-    border-bottom: 1px solid #FFD700;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.existing-part:last-child {
-    border-bottom: none;
-}
-
-.existing-part span {
-    color: yellow;
-}
-
-/* Styling for the remove button next to each part */
-.existing-part button {
-    background-color: #333;
-    color: yellow;
-    border: 1px solid yellow;
-    padding: 5px 10px;
-    cursor: pointer;
-    border-radius: 4px;
-    transition: background-color 0.3s, color 0.3s;
-}
-
-.existing-part button:hover {
-    background-color: yellow;
-    color: black;
-}
-
-/* Remove overflow properties from scrollable areas */
-.scrollable-list {
-    scrollbar-width: thin;
-    scrollbar-color: yellow #333;
-    /* Remove any overflow properties */
-    overflow: visible;
-}
-
-/* Pagination controls */
-.pagination-controls {
-    margin-top: 10px;
-    text-align: center;
-}
-
-.pagination-controls button {
-    margin: 0 5px;
-    padding: 5px 10px;
-    cursor: pointer;
-    background-color: #333;
-    color: yellow;
-    border: 1px solid yellow;
-    border-radius: 4px;
-    transition: background-color 0.3s, color 0.3s;
-}
-
-.pagination-controls button:hover {
-    background-color: yellow;
-    color: black;
-}
-
-.pagination-controls button:disabled {
-    background-color: #555;
-    color: #ccc;
-    cursor: not-allowed;
-}
-
-/* Suggestion box styling */
-.suggestion-box {
-    border: 1px solid #ccc;
-    background-color: #fff;
-    /* Remove max-height and overflow to prevent internal scrollbars */
-    /* max-height: 200px; */
-    /* overflow-y: auto; */
-    position: absolute;
-    width: 300px;
-    z-index: 1000;
-    border-radius: 4px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-}
-
-.suggestion-item {
-    padding: 8px;
-    cursor: pointer;
-}
-
-.suggestion-item:hover {
-    background-color: #f0f0f0;
-}
-
-/* Styling for the existing documents section */
-#documents-container {
-    background-color: rgba(0, 0, 0, 0.8);
-    padding: 20px;
-    border-radius: 8px;
-    margin-top: 15px;
-}
-
-#documents-container h4 {
-    color: #FFD700;
-    font-size: 18px;
-    margin-bottom: 10px;
-}
-
-/* Remove max-height and overflow-y from existing documents list */
-#existing-documents-list {
-    background-color: rgba(255, 255, 255, 0.1);
-    border: 1px solid #FFD700;
-    /* Remove max-height: 300px; */
-    /* Remove overflow-y: auto; */
-    padding: 10px;
-    margin-top: 10px;
-    color: yellow;
-    border-radius: 4px;
-}
-
-/* Styling for each document entry in the list */
-.existing-document {
-    padding: 8px;
-    border-bottom: 1px solid #FFD700;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.existing-document:last-child {
-    border-bottom: none;
-}
-
-.existing-document span {
-    color: yellow;
-}
-
-/* Styling for the remove button next to each document */
-.existing-document button {
-    background-color: #333;
-    color: yellow;
-    border: 1px solid yellow;
-    padding: 5px 10px;
-    cursor: pointer;
-    border-radius: 4px;
-    transition: background-color 0.3s, color 0.3s;
-}
-
-.existing-document button:hover {
-    background-color: yellow;
-    color: black;
-}
-
-/* Upload Document Section Styling */
-#upload-document-section {
-    background-color: rgba(0, 0, 0, 0.8);
-    padding: 20px;
-    border-radius: 8px;
-    margin-top: 20px;
-}
-
-#upload-document-section h4 {
-    color: #FFD700;
-    font-size: 18px;
-    margin-bottom: 10px;
-}
-
-#upload-document-section label {
-    display: block;
-    margin-bottom: 5px;
-    color: yellow;
-}
-
-#upload-document-section input[type="text"],
-#upload-document-section textarea,
-#upload-document-section input[type="file"] {
-    width: 100%;
-    padding: 8px;
-    margin-bottom: 15px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    box-sizing: border-box;
-    background-color: rgba(255, 255, 255, 0.9);
-    color: black;
-}
-
-#upload-document-section button {
-    background-color: #333;
-    color: yellow;
-    border: 2px solid yellow;
-    padding: 10px 20px;
-    cursor: pointer;
-    border-radius: 4px;
-    transition: background-color 0.3s, color 0.3s;
-}
-
-#upload-document-section button:hover {
-    background-color: yellow;
-    color: black;
-}
-
-/* General Styling for Tables */
-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 15px;
-}
-
-table, th, td {
-    border: 1px solid #FFD700;
-}
-
-th, td {
-    padding: 10px;
-    text-align: left;
-    color: yellow;
-}
-
-th {
-    background-color: rgba(255, 215, 0, 0.2);
-}
-
-/* Responsive Design Adjustments */
-@media (max-width: 768px) {
-    .position-data-container {
-        padding: 20px;
-    }
-
-    #upload-document-section,
-    #parts-container,
-    #documents-container,
-    #images-container {
-        padding: 15px;
-    }
-
-    button, .existing-part button, .existing-document button, .existing-image button {
-        padding: 5px 10px;
-    }
-
-    .suggestion-box {
-        width: 90%;
-    }
-}
-
-/* --- Added Styles for Images Section --- */
-
-/* Styling for the existing images section */
-#images-container {
-    background-color: rgba(0, 0, 0, 0.8);
-    padding: 20px;
-    border-radius: 8px;
-    margin-top: 15px;
-}
-
-#images-container h4 {
-    color: #FFD700;
-    font-size: 18px;
-    margin-bottom: 10px;
-}
-
-/* Remove max-height and overflow-y from existing images list */
-#existing-images-list {
-    background-color: rgba(255, 255, 255, 0.1);
-    border: 1px solid #FFD700;
-    /* Remove max-height: 300px; */
-    /* Remove overflow-y: auto; */
-    padding: 10px;
-    margin-top: 10px;
-    color: yellow;
-    border-radius: 4px;
-}
-
-/* Styling for each image entry in the list */
-.existing-image {
-    padding: 8px;
-    border-bottom: 1px solid #FFD700;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.existing-image:last-child {
-    border-bottom: none;
-}
-
-.existing-image span {
-    color: yellow;
-}
-
-/* Styling for the remove button next to each image */
-.existing-image button {
-    background-color: #333;
-    color: yellow;
-    border: 1px solid yellow;
-    padding: 5px 10px;
-    cursor: pointer;
-    border-radius: 4px;
-    transition: background-color 0.3s, color 0.3s;
-}
-
-.existing-image button:hover {
-    background-color: yellow;
-    color: black;
-}
-
-/* Upload Image Section Styling */
-#upload-image-section {
-    background-color: rgba(0, 0, 0, 0.8);
-    padding: 20px;
-    border-radius: 8px;
-    margin-top: 20px;
-}
-
-#upload-image-section h4 {
-    color: #FFD700;
-    font-size: 18px;
-    margin-bottom: 10px;
-}
-
-#upload-image-section label {
-    display: block;
-    margin-bottom: 5px;
-    color: yellow;
-}
-
-#upload-image-section input[type="text"],
-#upload-image-section textarea,
-#upload-image-section input[type="file"] {
-    width: 100%;
-    padding: 8px;
-    margin-bottom: 15px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    box-sizing: border-box;
-    background-color: rgba(255, 255, 255, 0.9);
-    color: black;
-}
-
-#upload-image-section button {
-    background-color: #333;
-    color: yellow;
-    border: 2px solid yellow;
-    padding: 10px 20px;
-    cursor: pointer;
-    border-radius: 4px;
-    transition: background-color 0.3s, color 0.3s;
-}
-
-#upload-image-section button:hover {
-    background-color: yellow;
-    color: black;
-}
-
-/* Styling for the existing drawings section */
-#drawings-container {
-    background-color: rgba(0, 0, 0, 0.8);
-    padding: 20px;
-    border-radius: 8px;
-    margin-top: 15px;
-}
-
-#drawings-container h4 {
-    color: #FFD700;
-    font-size: 18px;
-    margin-bottom: 10px;
-}
-
-/* Remove max-height and overflow-y from existing drawings list */
-#existing-drawings-list {
-    background-color: rgba(255, 255, 255, 0.1);
-    border: 1px solid #FFD700;
-    /* Remove max-height: 300px; */
-    /* Remove overflow-y: auto; */
-    padding: 10px;
-    margin-top: 10px;
-    color: yellow;
-    border-radius: 4px;
-}
-
-/* Styling for each drawing entry in the list */
-.existing-drawing {
-    padding: 8px;
-    border-bottom: 1px solid #FFD700;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.existing-drawing:last-child {
-    border-bottom: none;
-}
-
-.existing-drawing span {
-    color: yellow;
-}
-
-/* Styling for the remove button next to each drawing */
-.existing-drawing button {
-    background-color: #333;
-    color: yellow;
-    border: 1px solid yellow;
-    padding: 5px 10px;
-    cursor: pointer;
-    border-radius: 4px;
-    transition: background-color 0.3s, color 0.3s;
-}
-
-.existing-drawing button:hover {
-    background-color: yellow;
-    color: black;
-}
-
-/* Tab Navigation Styles with Grid Layout - Left Aligned */
-.tab-container {
-   margin-left: 0 !important;
-    width: 100%;
-    max-width: 100%; /* Allow full width */
-}
-
-/* Left-Aligned Layout Adjustments */
-.main-container {
-     margin-left: 0 !important;
-    padding-left: 0 !important;
-}
-
-/* Clearfix to clear floated elements */
-.clearfix::after {
-    content: "";
-    display: table;
-    clear: both;
-}
-
-.tab-list {
-    display: flex;
-    list-style-type: none;
-    padding: 0;
     margin: 0;
-    border-bottom: 2px solid yellow;
+    overflow: hidden !important; /* Prevent body scrolling */
 }
 
-.tab-item:hover {
-    background-color: yellow;
-    color: black;
+/* Force content to be closer to sidebar - override all other rules */
+.main-container .content {
+    margin-left: 150px !important; /* Shorter distance to sidebar */
+    /* Use max-width with a responsive approach */
+    width: 70% !important; /* Use percentage instead of fixed calculation */
+    max-width: 800px !important; /* Maximum width for larger screens */
+    min-width: 400px !important; /* Minimum width for smaller screens */
+    transition: margin-left 0.5s ease, width 0.5s ease;
+    background: transparent !important; /* Remove grey background */
+    height: calc(100vh - 80px) !important; /* Fixed height for viewport */
+    overflow-y: auto !important; /* Enable scrolling in main container */
+    overflow-x: hidden !important; /* Prevent horizontal scroll */
+    padding: 8px !important; /* Reduced padding */
 }
 
-.tab-item.active {
-    background-color: yellow;
-    color: black;
-    font-weight: bold;
+/* When sidebar is collapsed */
+.main-container.collapsed .content,
+.content.sidebar-collapsed {
+    margin-left: 50px !important; /* Account for hamburger menu */
+    width: 75% !important; /* Slightly wider when sidebar is collapsed */
+    max-width: 850px !important; /* Maximum width for larger screens */
+    min-width: 450px !important; /* Minimum width for smaller screens */
+    height: calc(100vh - 80px) !important; /* Fixed height for viewport */
+    overflow-y: auto !important; /* Enable scrolling in main container */
+    overflow-x: hidden !important; /* Prevent horizontal scroll */
 }
 
-.tab-content.active {
-    display: block;
+/* Ensure content container styling - REMOVE GREY BACKGROUND */
+.content {
+    padding: 8px !important; /* Minimal padding */
+    color: yellow !important;
+    height: 100% !important; /* Fill parent container */
+    background: transparent !important; /* Make it transparent */
+    box-sizing: border-box !important; /* Include padding in width calculation */
 }
-/* Tab Navigation Styles with Grid Layout */
+
+/* Main container - ensure no overflow */
+.main-container {
+    height: 100vh !important;
+    overflow: hidden !important;
+}
+
+/* Position Data Container - should match content dimensions */
+.position-data-container {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    box-sizing: border-box !important;
+    height: auto !important; /* Let height adjust */
+    overflow: visible !important;
+}
+
+/* Reset any margin overrides from other CSS files */
+.content h1 {
+    color: #39FF14 !important;
+    text-align: center !important;
+    margin-bottom: 8px !important; /* Minimal margin */
+    margin-top: 0 !important;
+    font-size: 22px !important; /* Slightly smaller heading for narrower container */
+}
+
+/* Tab container should not have any margins */
 .tab-container {
-    margin-left: 0;
-    margin-right: auto;
-    width: 100%;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    overflow: visible !important;
 }
 
-/* Grid-based tab layout */
+/* Tab grid styling - more compact */
 .tab-grid {
-    display: grid;
-    width: 100%;
-    grid-template-rows: auto auto; /* Two rows */
+    display: grid !important;
+    width: 100% !important;
+    grid-template-rows: auto auto !important;
+    gap: 0 !important;
+    position: sticky !important; /* Keep tabs at top when scrolling */
+    top: 30px !important; /* Stick below the h1 */
+    z-index: 10 !important; /* Ensure tabs stay on top */
+    background: transparent !important;
 }
 
-/* First row with 5 tabs */
 .tab-grid-row-1 {
-    display: grid;
-    grid-template-columns: repeat(5, minmax(120px, 1fr)); /* 5 equal columns with minimum width */
-    gap: 5px;
-    margin-bottom: 5px;
+    display: grid !important;
+    grid-template-columns: repeat(5, 1fr) !important;
+    gap: 1px !important; /* Smaller gap for narrower container */
+    margin-bottom: 1px !important; /* Smaller margin */
 }
 
-/* Second row with 4 tabs */
 .tab-grid-row-2 {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(150px, 1fr)); /* 4 equal columns with minimum width */
-    gap: 5px;
-    border-bottom: 2px solid yellow;
+    display: grid !important;
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 1px !important; /* Smaller gap for narrower container */
+    border-bottom: 2px solid yellow !important;
 }
 
 .tab-item {
-    padding: 10px 10px;
+    padding: 4px !important; /* More compact padding */
     cursor: pointer;
-    background-color: #333;
-    color: yellow;
-    border: 1px solid yellow;
-    border-top-left-radius: 4px;
-    border-top-right-radius: 4px;
+    background-color: #333 !important;
+    color: yellow !important;
+    border: 1px solid yellow !important;
+    border-top-left-radius: 4px !important;
+    border-top-right-radius: 4px !important;
     transition: background-color 0.3s, color 0.3s;
-    text-align: center;
+    text-align: center !important;
+    font-size: 11px !important; /* Smaller font for narrower tabs */
 }
 
-.tab-item:hover {
-    background-color: yellow;
-    color: black;
+.tab-item:hover,
+.tab-item.active {
+    background-color: yellow !important;
+    color: black !important;
 }
 
 .tab-item.active {
-    background-color: yellow;
-    color: black;
-    font-weight: bold;
+    font-weight: bold !important;
 }
 
-/* Tab Content Container - matching width with form */
+/* Tab content - NO INTERNAL SCROLLING */
 .tab-content {
-    display: none;
-    padding: 10px;
-    background-color: rgba(0, 0, 0, 0.8);
-    border: 1px solid yellow;
-    border-top: none;
-    color: yellow;
-    overflow: visible;
-    width: 100%;
-    box-sizing: border-box;
-    margin-left: 0 !important;
-
-
-    .tab-content.active {
-        display: block;
-    }
-
-    /* Make sure the content div is also left-aligned */
-.content {
-    margin-left: 0 !important;
-    padding-left: 0 !important;
+    display: none !important;
+    padding: 8px !important; /* Reduced padding for narrower container */
+    background-color: rgba(0, 0, 0, 0.8) !important;
+    border: 1px solid yellow !important;
+    border-top: none !important;
+    color: yellow !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    overflow: visible !important; /* No internal scrolling */
 }
 
-    /* Match the width of the tabs with the form area below */
+.tab-content.active {
+    display: block !important;
+}
 
-    #search-tab,
-    .position-data-container {
-        width: 100%;
-        max-width: 100%;
+/* Form styling - more compact for narrow container */
+#searchPositionForm,
+#addPositionDependenciesForm,
+#updatePositionForm,
+#createPositionForm {
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important; /* Let form adjust to content */
+}
+
+#searchPositionForm input,
+#searchPositionForm select,
+#updatePositionForm input,
+#updatePositionForm select,
+#addPositionDependenciesForm input,
+#addPositionDependenciesForm select,
+#createPositionForm input,
+#createPositionForm select {
+    background-color: rgba(255, 255, 255, 0.9) !important;
+    color: black !important;
+    border: 1px solid #ccc !important;
+    padding: 3px !important; /* Very minimal padding for narrow container */
+    border-radius: 3px !important;
+    margin-bottom: 4px !important; /* Smaller margin */
+    width: 100% !important;
+    box-sizing: border-box !important;
+    font-size: 12px !important; /* Smaller font for narrow inputs */
+}
+
+/* Textarea styling for descriptions */
+textarea {
+    background-color: rgba(255, 255, 255, 0.9) !important;
+    color: black !important;
+    border: 1px solid #ccc !important;
+    padding: 3px !important;
+    border-radius: 3px !important;
+    margin-bottom: 4px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    font-size: 12px !important;
+    min-height: 60px !important; /* Minimum height for textareas */
+    resize: vertical !important; /* Allow vertical resizing only */
+}
+
+/* Labels - compact */
+label {
+    color: yellow !important;
+    display: block !important;
+    margin-bottom: 1px !important; /* Minimal margin */
+    font-size: 12px !important; /* Smaller font for narrow container */
+}
+
+/* Buttons - compact */
+button {
+    background-color: #333 !important;
+    color: yellow !important;
+    border: 2px solid yellow !important;
+    padding: 3px 6px !important; /* Very compact padding */
+    cursor: pointer;
+    border-radius: 3px !important;
+    transition: background-color 0.3s, color 0.3s;
+    font-size: 11px !important; /* Smaller font for narrow container */
+    margin: 3px 0 !important;
+}
+
+button:hover {
+    background-color: yellow !important;
+    color: black !important;
+}
+
+/* Special styling for forms with many elements */
+.collapsible-section {
+    margin-bottom: 4px !important;
+}
+
+.collapsible-section h4 {
+    margin: 4px 0 !important;
+    font-size: 13px !important; /* Smaller for narrow container */
+}
+
+/* Override any results container styling that might be interfering */
+.results-container {
+    margin: 0 !important;
+    padding: 8px !important; /* Reduced padding */
+    display: none !important; /* Hidden unless needed */
+    background: transparent !important; /* Also remove background from results */
+    overflow: visible !important;
+}
+
+/* Override base CSS content background */
+.main-container .content,
+.sidebar + .content,
+div.content {
+    background: transparent !important; /* Force transparent background */
+    background-color: transparent !important;
+}
+
+/* COMPLETELY REMOVE ALL CUSTOM SCROLLBAR STYLING */
+/* Reset any webkit scrollbar styling that might be applied */
+*::-webkit-scrollbar,
+.content::-webkit-scrollbar,
+.tab-content::-webkit-scrollbar,
+div::-webkit-scrollbar {
+    width: auto !important;
+    height: auto !important;
+    background: transparent !important;
+}
+
+*::-webkit-scrollbar-track,
+.content::-webkit-scrollbar-track,
+.tab-content::-webkit-scrollbar-track,
+div::-webkit-scrollbar-track {
+    background: transparent !important;
+}
+
+*::-webkit-scrollbar-thumb,
+.content::-webkit-scrollbar-thumb,
+.tab-content::-webkit-scrollbar-thumb,
+div::-webkit-scrollbar-thumb {
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+}
+
+/* Hide scrollbars for everything except main content */
+body,
+.main-container,
+.position-data-container,
+.tab-content,
+textarea,
+select {
+    overflow: visible !important;
+    -ms-overflow-style: none !important; /* IE and Edge */
+    scrollbar-width: none !important; /* Firefox */
+}
+
+/* Ensure textareas don't create extra scrollbars */
+textarea {
+    overflow: auto !important;
+}
+
+/* Responsive breakpoints for different window sizes */
+@media (max-width: 1200px) {
+    .main-container .content {
+        width: 65% !important;
+        max-width: 700px !important;
     }
 
-    /* Responsive adjustments */
-    @media (max-width: 768px) {
-        .tab-grid-row-1,
-        .tab-grid-row-2 {
-            grid-template-columns: 1fr; /* Stack tabs vertically */
-            margin-bottom: 0;
-        }
-
+    .main-container.collapsed .content,
+    .content.sidebar-collapsed {
+        width: 70% !important;
+        max-width: 750px !important;
     }
 }
 
+@media (max-width: 900px) {
+    .main-container .content {
+        width: 60% !important;
+        max-width: 600px !important;
+        margin-left: 120px !important;
+    }
+
+    .main-container.collapsed .content,
+    .content.sidebar-collapsed {
+        width: 65% !important;
+        max-width: 650px !important;
+        margin-left: 40px !important;
+    }
+}
+
+@media (max-width: 768px) {
+    .main-container .content {
+        margin-left: 0 !important;
+        width: 100% !important;
+        max-width: none !important;
+        min-width: auto !important;
+        padding: 6px !important;
+        height: calc(100vh - 70px) !important;
+    }
+
+    .main-container.collapsed .content,
+    .content.sidebar-collapsed {
+        margin-left: 0 !important;
+        width: 100% !important;
+        max-width: none !important;
+        min-width: auto !important;
+        height: calc(100vh - 70px) !important;
+    }
+
+    .tab-grid-row-1,
+    .tab-grid-row-2 {
+        grid-template-columns: 1fr !important;
+        gap: 1px !important;
+    }
+
+    .tab-item {
+        padding: 3px !important;
+        font-size: 10px !important;
+    }
+
+    .content h1 {
+        font-size: 18px !important;
+    }
+}
