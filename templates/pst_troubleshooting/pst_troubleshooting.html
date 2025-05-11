@@ -20,9 +20,10 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-rc.0/css/select2.min.css" rel="stylesheet" />
 
     <!-- Page-specific CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/pst_troubleshooting/pst_troubleshooting.css') }}">
+
     <link rel="stylesheet" href="{{ url_for('static', filename='css/module_template/base.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/module_template/role_base_button_acc_ctrl.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/pst_troubleshooting/pst_troubleshooting.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -568,11 +569,12 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-rc.0/js/select2.min.js"></script>
 
 <!-- Custom JS Files -->
-   <script src="{{ url_for('static', filename='js/pst_troubleshooting/role_base_button_acc_ctrl.js') }}"></script>
+<script src="{{ url_for('static', filename='js/pst_troubleshooting/role_base_button_acc_ctrl.js') }}"></script>
 <script src="{{ url_for('static', filename='js/pst_troubleshooting/pst_troubleshooting_solution_task.js')}}"></script>
 <script src="{{ url_for('static', filename='js/pst_troubleshooting/pst_troubleshooting.js') }}"></script>
 <script src="{{ url_for('static', filename='js/pst_troubleshooting/pst_troubleshooting_new_entry.js') }}"></script>
 <!--<script src="{{ url_for('static', filename='js/pst_troubleshooting/pst_troubleshooting_position_update.js') }}"></script>
     removed due to conflict with pst_troubleshooting.js dropdowns(site location)-->
 <script src="{{ url_for('static', filename='js/pst_troubleshooting/pst_troubleshooting_task_edit.js') }}"></script>
+
 {% endblock %}
