@@ -1,123 +1,169 @@
-/* Main Container Styling */
+/* Container with Semi-Transparent Background */
+
+/* ====================================
+   CONTAINER STYLING - SEMI-TRANSPARENT
+   ==================================== */
+
+/* Main Container - Background Image */
 .main-container {
     background-image: url("/static/background images/dark-blue-futuristic-technology.jpg");
     background-size: cover;
     background-repeat: no-repeat;
     background-position: center;
     display: flex;
-    flex-direction: column; /* Stack content vertically */
+    flex-direction: row !important;
     height: 100vh;
     width: 100%;
     padding-top: 10px;
 }
 
-/* Content Container */
-.container {
-    background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent black */
+/* Content Area */
+.content {
+    margin-left: 320px !important; /* 300px sidebar + 20px buffer */
+    width: calc(100% - 340px) !important;
+    transition: margin-left 0.5s ease, width 0.5s ease;
+    background: transparent !important;
+    height: calc(100vh - 80px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 10px;
+}
+
+/* When sidebar is collapsed */
+.content.sidebar-collapsed {
+    margin-left: 60px !important;
+    width: calc(100% - 80px) !important;
+}
+
+/* SEMI-TRANSPARENT CONTAINER */
+.container,
+.container.mt-5,
+.container-fluid {
+    background-color: rgba(0, 0, 0, 0.6) !important; /* Semi-transparent dark background */
     border-radius: 10px;
-    padding: 30px; /* Add more space inside the container */
-    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.6); /* Slightly stronger shadow */
-    margin-top: 20px;
-    width: 95%; /* Make it more fluid on smaller screens */
-    max-width: 1200px; /* Maintain the maximum width */
-    margin-left: auto;
-    margin-right: auto; /* Center the container */
-    text-align: left; /* Center-align content inside */
+    padding: 30px;
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.6);
+    margin: 20px 20px 20px 10px !important;
+    width: calc(100% - 30px) !important;
+    max-width: none !important;
+    text-align: left;
 }
 
+/* ====================================
+   FORM AND TEXT STYLING
+   ==================================== */
 
-/* Page Header */
+/* All text white */
+.container,
+.container *,
+.tab-content,
+.tab-content *,
+.accordion-body,
+.accordion-body *,
+form,
+form label,
+.form-label,
+label {
+    color: white !important;
+}
+
+/* Headers */
 h2 {
-    color: #39FF14; /* Bright green for the header */
-    text-align: Left;
-    margin-bottom: 30px; /* Increase spacing below header */
+    color: #39FF14 !important;
+    text-align: left;
+    margin-bottom: 30px;
     font-weight: bold;
-    font-size: 2rem; /* Make the header size prominent */
-    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8); /* Add subtle text shadow */
+    font-size: 2rem;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
 }
 
-
-/* Form Styling */
+/* Forms */
 form {
-    background-color: rgba(255, 255, 255, 0.15); /* Slightly brighter transparency for visibility */
-    padding: 25px; /* Increase padding for larger form appearance */
-    border-radius: 12px; /* Smoother rounded edges */
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3); /* Add a stronger shadow for depth */
-    margin-bottom: 30px; /* Create more spacing below the form */
-    width: 100%; /* Full width of the parent container */
-    max-width: 900px; /* Limit the form size for readability */
+    background-color: rgba(255, 255, 255, 0.15);
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    margin-bottom: 30px;
+    width: 100%;
+    max-width: 900px;
     margin-left: auto;
-    margin-right: auto; /* Center the form horizontally */
-    font-size: 1.1rem; /* Larger font size for readability */
+    margin-right: auto;
+    font-size: 1.1rem;
 }
 
-form label {
-    color: #ffffff; /* White labels for contrast */
-    font-weight: bold;
-}
-
+/* Form inputs - keep dark for readability */
 form input,
 form select,
 form textarea {
-    background-color: rgba(255, 255, 255, 0.9); /* Almost white for better readability */
-    color: #000000; /* Black text for inputs */
-    border: 1px solid rgba(0, 0, 0, 0.3); /* Light borders */
+    background-color: rgba(255, 255, 255, 0.9) !important;
+    color: #000000 !important;
+    border: 1px solid rgba(0, 0, 0, 0.3);
     border-radius: 5px;
     padding: 10px;
     margin-bottom: 10px;
 }
 
-form input:focus,
-form select:focus,
-form textarea:focus {
-    border-color: #007BFF; /* Blue focus outline */
-    background-color: white; /* Solid background when focused */
-    outline: none;
+/* ====================================
+   TABS - FIX OVERLAPPING
+   ==================================== */
+
+.nav-tabs {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    margin-bottom: 0;
+    border-bottom: 1px solid #dee2e6;
 }
 
-/* Accordion Styling */
-.accordion-button {
-    background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent background */
-    color: #ffffff; /* White text */
-    border: none; /* Remove border */
-}
-
-.accordion-button:not(.collapsed) {
-    color: #39FF14; /* Bright green for expanded state */
-    background-color: rgba(0, 0, 0, 0.8); /* Darker background when active */
-    border: none; /* Remove border when active */
-}
-
-.accordion-body {
-    background-color: rgba(0, 0, 0, 0.7); /* Semi-transparent for body */
-    color: white;
-    border-radius: 5px;
-}
-
-/* Tab Styling */
 .nav-tabs .nav-link {
-    background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent black */
-    color: white;
+    background-color: rgba(0, 0, 0, 0.5);
+    color: white !important;
     border-radius: 5px;
-    margin-right: 5px;
+    margin-right: 2px;
+    padding: 8px 12px;
+    white-space: nowrap;
+    font-size: 14px;
 }
 
 .nav-tabs .nav-link.active {
-    background-color: #39FF14; /* Bright green for active tab */
-    color: white;
+    background-color: #39FF14;
+    color: black !important;
     font-weight: bold;
 }
 
-/* Buttons */
+/* ====================================
+   ACCORDION STYLING
+   ==================================== */
+
+.accordion-button {
+    background-color: rgba(0, 0, 0, 0.5) !important;
+    color: white !important;
+    border: none;
+}
+
+.accordion-button:not(.collapsed) {
+    color: #39FF14 !important;
+    background-color: rgba(0, 0, 0, 0.8) !important;
+}
+
+.accordion-body {
+    background-color: rgba(0, 0, 0, 0.7) !important;
+    color: white !important;
+    border-radius: 5px;
+}
+
+/* ====================================
+   BUTTON STYLING
+   ==================================== */
+
 .btn {
     border-radius: 5px;
     font-weight: bold;
+    color: white !important;
 }
 
 .btn-primary {
     background-color: #007BFF;
-    color: white;
-    border: none;
 }
 
 .btn-primary:hover {
@@ -126,8 +172,6 @@ form textarea:focus {
 
 .btn-danger {
     background-color: #dc3545;
-    color: white;
-    border: none;
 }
 
 .btn-danger:hover {
@@ -136,90 +180,30 @@ form textarea:focus {
 
 .btn-success {
     background-color: #28a745;
-    color: white;
-    border: none;
 }
 
 .btn-success:hover {
     background-color: #218838;
 }
 
-.tab-content h4 {
-    color: #ffffff;
-}
-.tab-content h5 {
-    color: #ffffff;
-}
-.tab-content h6 {
-    color: #ffffff;
-}
-.tab-content label.form-label {
-    color: #ffffff; /* White text for labels inside tab content */
-}
+/* ====================================
+   RESPONSIVE DESIGN
+   ==================================== */
 
-/* Spinner */
-#loadingSpinner {
-    background-color: rgba(0, 0, 0, 0.6); /* Overlay spinner background */
-    padding: 20px;
-    border-radius: 10px;
-}
-
-/* Sidebar Styling */
-.sidebar {
-    width: 250px;
-    background-color: rgba(0, 0, 0, 0.6); /* Semi-transparent black */
-    color: white;
-    padding: 20px;
-    border-right: 1px solid rgba(255, 255, 255, 0.3);
-    overflow-y: auto; /* Allow vertical scrolling for long content */
-    z-index: 1000;
-}
-
-.sidebar h1,
-.sidebar h2 {
-    color: #fff; /* Improve text visibility */
-    margin-bottom: 20px;
-}
-
-.sidebar a {
-    padding: 10px;
-    margin-bottom: 5px;
-    display: block;
-    color: #39FF14; /* Bright green for links */
-    text-decoration: none;
-    font-size: 1em;
-}
-
-.sidebar a:hover {
-    background-color: rgba(255, 255, 255, 0.1); /* Highlight links on hover */
-}
-
-/* Responsive Design */
 @media (max-width: 768px) {
-    .sidebar {
-        width: 100%;
-        position: static;
-        height: auto;
-        margin-bottom: 20px;
-    }
-
-    .container {
-        padding: 10px;
-        width: 100%;
-    }
-
-    form {
-        padding: 10px;
-    }
-
-    .nav-tabs .nav-link {
-        font-size: 14px;
-        margin-bottom: 5px;
-    }
-
     .main-container {
-        flex-direction: column; /* Stack sidebar and content */
+        flex-direction: column;
+    }
+
+    .content,
+    .content.sidebar-collapsed {
+        margin-left: 0 !important;
+        width: 100% !important;
+    }
+
+    .container,
+    .container.mt-5 {
+        margin: 10px !important;
+        width: calc(100% - 20px) !important;
     }
 }
-
-
