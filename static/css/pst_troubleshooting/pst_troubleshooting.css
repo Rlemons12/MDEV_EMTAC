@@ -338,13 +338,21 @@ form textarea:disabled,
     border-color: rgba(255, 255, 255, 0.4) !important;
 }
 
-/* Tab Content Panels */
-.tab-pane {
-    padding: 10px !important;
+/* Fix for the main tab container */
+#troubleshootingTabContent,
+.tab-content,
+div[id$="TabContent"] {
+    background-color: transparent !important;
+}
+
+/* Ensure the tab panes themselves have the dark background */
+.tab-pane,
+.tab-pane.fade,
+.tab-pane.fade.active,
+.tab-pane.fade.active.show,
+#task-images,
+#task-tools {
     background-color: rgba(0, 0, 0, 0.6) !important;
-    border-radius: 10px;
-    margin-top: 1px;
-    width: 100% !important;
 }
 
 /* ====================================
@@ -918,4 +926,8 @@ div[class*="scroll"]::-webkit-scrollbar-thumb:hover,
 select[multiple]::-webkit-scrollbar-thumb:hover,
 .dropdown-menu.show::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.5);
+}
+/* Direct override for tab content */
+#task-images, #task-tools {
+    background-color: rgba(0, 0, 0, 0.6) !important;
 }
