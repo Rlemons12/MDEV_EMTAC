@@ -84,6 +84,98 @@ class SiteLocation(Base):
     
     position = relationship('Position', back_populates="site_location")
 
+    @classmethod
+    @with_request_id
+    def add_site_location(cls, session, title, room_number, site_area, request_id=None):
+        """
+        Add a new site location to the database.
+
+        Args:
+            session: SQLAlchemy database session
+            title (str): Title of the site location
+            room_number (str): Room number of the site location
+            site_area (str): Site area of the site location
+            request_id (str, optional): Unique identifier for the request
+
+        Returns:
+            SiteLocation: The newly created site location object
+        """
+        new_site_location = cls(
+            title=title,
+            room_number=room_number,
+            site_area=site_area
+        )
+
+        session.add(new_site_location)
+        session.commit()
+
+        logger.info(f"Created new site location: '{title}' in room {room_number}, area {site_area}")
+        return new_site_location
+
+    @classmethod
+    @with_request_id
+    def delete_site_location(cls, session, site_location_id, request_id=None):
+        """
+        Delete a site location from the database.
+
+        Args:
+            session: SQLAlchemy database session
+            site_location_id (int): ID of the site location to delete
+            request_id (str, optional): Unique identifier for the request
+
+        Returns:
+            bool: True if deletion was successful, False if site location not found
+        """
+        site_location = session.query(cls).filter(cls.id == site_location_id).first()
+
+        if site_location:
+            session.delete(site_location)
+            session.commit()
+            logger.info(f"Deleted site location ID {site_location_id}")
+            return True
+        else:
+            logger.warning(f"Failed to delete site location ID {site_location_id} - not found")
+            return False
+
+    @classmethod
+    @with_request_id
+    def find_related_entities(cls, session, identifier, is_id=True, request_id=None):
+        """
+        Find all related entities for a site location.
+
+        Args:
+            session: SQLAlchemy database session
+            identifier: Either site location ID (int) or title (str)
+            is_id (bool): If True, identifier is an ID, otherwise it's a title
+            request_id (str, optional): Unique identifier for the request
+
+        Returns:
+            dict: Dictionary containing:
+                - 'site_location': The found site location object
+                - 'downward': Dictionary containing:
+                    - 'positions': List of all positions at this site location
+        """
+        # Find the site location
+        if is_id:
+            site_location = session.query(cls).filter(cls.id == identifier).first()
+        else:
+            site_location = session.query(cls).filter(cls.title == identifier).first()
+
+        if not site_location:
+            logger.warning(f"Site location not found for identifier: {identifier}")
+            return None
+
+        # Going downward in the hierarchy
+        downward = {
+            'positions': site_location.position
+        }
+
+        logger.info(f"Found related entities for site location ID {site_location.id}")
+        return {
+            'site_location': site_location,
+            'downward': downward
+        }
+
 class Position(Base):
     __tablename__ = 'position'
     id = Column(Integer, primary_key=True)
@@ -455,7 +547,119 @@ class EquipmentGroup(Base):
     area = relationship("Area", back_populates="equipment_group") 
     model = relationship("Model", back_populates="equipment_group")
     position = relationship("Position", back_populates="equipment_group")
-    
+
+    @classmethod
+    @with_request_id
+    def add_equipment_group(cls, session, name, area_id, description=None, request_id=None):
+        """
+        Add a new equipment group to the database.
+
+        Args:
+            session: SQLAlchemy database session
+            name (str): Name of the equipment group
+            area_id (int): ID of the area this equipment group belongs to
+            description (str, optional): Description of the equipment group
+            request_id (str, optional): Unique identifier for the request
+
+        Returns:
+            EquipmentGroup: The newly created equipment group object
+        """
+        new_equipment_group = cls(
+            name=name,
+            area_id=area_id,
+            description=description
+        )
+
+        session.add(new_equipment_group)
+        session.commit()
+
+        return new_equipment_group
+
+    @classmethod
+    @with_request_id
+    def delete_equipment_group(cls, session, equipment_group_id, request_id=None):
+        """
+        Delete an equipment group from the database.
+
+        Args:
+            session: SQLAlchemy database session
+            equipment_group_id (int): ID of the equipment group to delete
+            request_id (str, optional): Unique identifier for the request
+
+        Returns:
+            bool: True if deletion was successful, False if equipment group not found
+        """
+        equipment_group = session.query(cls).filter(cls.id == equipment_group_id).first()
+
+        if equipment_group:
+            session.delete(equipment_group)
+            session.commit()
+            return True
+        else:
+            return False
+
+    @classmethod
+    @with_request_id
+    def find_related_entities(cls, session, identifier, is_id=True, request_id=None):
+        """
+        Find all related entities for an equipment group, traversing both up and down
+        the hierarchy: Area → EquipmentGroup → Model → (AssetNumber, Location, Position).
+
+        Args:
+            session: SQLAlchemy database session
+            identifier: Either equipment_group ID (int) or name (str)
+            is_id (bool): If True, identifier is an ID, otherwise it's a name
+            request_id (str, optional): Unique identifier for the request
+
+        Returns:
+            dict: Dictionary containing:
+                - 'equipment_group': The found equipment group object
+                - 'upward': Dictionary containing 'area' the equipment group belongs to
+                - 'downward': Dictionary containing:
+                    - 'models': List of all models belonging to this equipment group
+                    - 'positions': List of all positions directly related to this equipment group
+        """
+        # Find the equipment group
+        if is_id:
+            equipment_group = session.query(cls).filter(cls.id == identifier).first()
+        else:
+            equipment_group = session.query(cls).filter(cls.name == identifier).first()
+
+        if not equipment_group:
+            return None
+
+        # Going upward in the hierarchy
+        upward = {
+            'area': equipment_group.area
+        }
+
+        # Going downward in the hierarchy
+        downward = {
+            'models': equipment_group.model,
+            'positions': equipment_group.position
+        }
+
+        # Collecting more detailed information from models if needed
+        model_details = []
+        for model in equipment_group.model:
+            model_info = {
+                'id': model.id,
+                'name': model.name,
+                'description': model.description,
+                'asset_numbers': model.asset_number,
+                'locations': model.location,
+                'positions': model.position
+            }
+            model_details.append(model_info)
+
+        downward['model_details'] = model_details
+
+        return {
+            'equipment_group': equipment_group,
+            'upward': upward,
+            'downward': downward
+        }
+
 class Model(Base):
     __tablename__ = 'model'
 
@@ -524,6 +728,106 @@ class Model(Base):
             return []
         finally:
             logger.info("========== MODEL AUTOCOMPLETE SEARCH COMPLETE ==========")
+
+    @classmethod
+    @with_request_id
+    def add_model(cls, session, name, equipment_group_id, description=None, request_id=None):
+        """
+        Add a new model to the database.
+
+        Args:
+            session: SQLAlchemy database session
+            name (str): Name of the model
+            equipment_group_id (int): ID of the equipment group this model belongs to
+            description (str, optional): Description of the model
+            request_id (str, optional): Unique identifier for the request
+
+        Returns:
+            Model: The newly created model object
+        """
+        new_model = cls(
+            name=name,
+            equipment_group_id=equipment_group_id,
+            description=description
+        )
+
+        session.add(new_model)
+        session.commit()
+
+        return new_model
+
+    @classmethod
+    @with_request_id
+    def delete_model(cls, session, model_id, request_id=None):
+        """
+        Delete a model from the database.
+
+        Args:
+            session: SQLAlchemy database session
+            model_id (int): ID of the model to delete
+            request_id (str, optional): Unique identifier for the request
+
+        Returns:
+            bool: True if deletion was successful, False if model not found
+        """
+        model = session.query(cls).filter(cls.id == model_id).first()
+
+        if model:
+            session.delete(model)
+            session.commit()
+            return True
+        else:
+            return False
+
+    @classmethod
+    @with_request_id
+    def find_related_entities(cls, session, identifier, is_id=True, request_id=None):
+        """
+        Find all related entities for a model, traversing both up and down
+        the hierarchy: Area → EquipmentGroup → Model → (AssetNumber, Location, Position).
+
+        Args:
+            session: SQLAlchemy database session
+            identifier: Either model ID (int) or name (str)
+            is_id (bool): If True, identifier is an ID, otherwise it's a name
+            request_id (str, optional): Unique identifier for the request
+
+        Returns:
+            dict: Dictionary containing:
+                - 'model': The found model object
+                - 'upward': Dictionary containing 'equipment_group' and 'area'
+                - 'downward': Dictionary containing:
+                    - 'asset_numbers': List of all asset numbers belonging to this model
+                    - 'locations': List of all locations for this model
+                    - 'positions': List of all positions related to this model
+        """
+        # Find the model
+        if is_id:
+            model = session.query(cls).filter(cls.id == identifier).first()
+        else:
+            model = session.query(cls).filter(cls.name == identifier).first()
+
+        if not model:
+            return None
+
+        # Going upward in the hierarchy
+        upward = {
+            'equipment_group': model.equipment_group,
+            'area': model.equipment_group.area if model.equipment_group else None
+        }
+
+        # Going downward in the hierarchy
+        downward = {
+            'asset_numbers': model.asset_number,
+            'locations': model.location,
+            'positions': model.position
+        }
+
+        return {
+            'model': model,
+            'upward': upward,
+            'downward': downward
+        }
 
 class AssetNumber(Base):
     __tablename__ = 'asset_number'
@@ -914,6 +1218,108 @@ class AssetNumber(Base):
             return []
         finally:
             logger.info("========== ASSET NUMBER AUTOCOMPLETE SEARCH COMPLETE ==========")
+
+    @classmethod
+    @with_request_id
+    def add_asset_number(cls, session, number, model_id, description=None, request_id=None):
+        """
+        Add a new asset number to the database.
+
+        Args:
+            session: SQLAlchemy database session
+            number (str): Asset number
+            model_id (int): ID of the model this asset number belongs to
+            description (str, optional): Description of the asset number
+            request_id (str, optional): Unique identifier for the request
+
+        Returns:
+            AssetNumber: The newly created asset number object
+        """
+        new_asset_number = cls(
+            number=number,
+            model_id=model_id,
+            description=description
+        )
+
+        session.add(new_asset_number)
+        session.commit()
+
+        logger.info(f"Created new asset number: {number} for model ID {model_id}")
+        return new_asset_number
+
+    @classmethod
+    @with_request_id
+    def delete_asset_number(cls, session, asset_number_id, request_id=None):
+        """
+        Delete an asset number from the database.
+
+        Args:
+            session: SQLAlchemy database session
+            asset_number_id (int): ID of the asset number to delete
+            request_id (str, optional): Unique identifier for the request
+
+        Returns:
+            bool: True if deletion was successful, False if asset number not found
+        """
+        asset_number = session.query(cls).filter(cls.id == asset_number_id).first()
+
+        if asset_number:
+            session.delete(asset_number)
+            session.commit()
+            logger.info(f"Deleted asset number ID {asset_number_id}")
+            return True
+        else:
+            logger.warning(f"Failed to delete asset number ID {asset_number_id} - not found")
+            return False
+
+    @classmethod
+    @with_request_id
+    def find_related_entities(cls, session, identifier, is_id=True, request_id=None):
+        """
+        Find all related entities for an asset number, traversing both up and down
+        the hierarchy: Area → EquipmentGroup → Model → AssetNumber → Position.
+
+        Args:
+            session: SQLAlchemy database session
+            identifier: Either asset_number ID (int) or number (str)
+            is_id (bool): If True, identifier is an ID, otherwise it's a number
+            request_id (str, optional): Unique identifier for the request
+
+        Returns:
+            dict: Dictionary containing:
+                - 'asset_number': The found asset number object
+                - 'upward': Dictionary containing 'model', 'equipment_group', and 'area'
+                - 'downward': Dictionary containing:
+                    - 'positions': List of all positions related to this asset number
+        """
+        # Find the asset number
+        if is_id:
+            asset_number = session.query(cls).filter(cls.id == identifier).first()
+        else:
+            asset_number = session.query(cls).filter(cls.number == identifier).first()
+
+        if not asset_number:
+            logger.warning(f"Asset number not found for identifier: {identifier}")
+            return None
+
+        # Going upward in the hierarchy
+        upward = {
+            'model': asset_number.model,
+            'equipment_group': asset_number.model.equipment_group if asset_number.model else None,
+            'area': asset_number.model.equipment_group.area if asset_number.model and asset_number.model.equipment_group else None
+        }
+
+        # Going downward in the hierarchy
+        downward = {
+            'positions': asset_number.position
+        }
+
+        logger.info(f"Found related entities for asset number ID {asset_number.id}")
+        return {
+            'asset_number': asset_number,
+            'upward': upward,
+            'downward': downward
+        }
     
 class Location(Base):
     __tablename__ = 'location'
@@ -926,6 +1332,110 @@ class Location(Base):
     model = relationship("Model", back_populates="location")
     position = relationship("Position", back_populates="location")
     subassembly = relationship("Subassembly", back_populates="location")
+
+    @classmethod
+    @with_request_id
+    def add_location(cls, session, name, model_id, description=None, request_id=None):
+        """
+        Add a new location to the database.
+
+        Args:
+            session: SQLAlchemy database session
+            name (str): Name of the location
+            model_id (int): ID of the model this location belongs to
+            description (str, optional): Description of the location
+            request_id (str, optional): Unique identifier for the request
+
+        Returns:
+            Location: The newly created location object
+        """
+        new_location = cls(
+            name=name,
+            model_id=model_id,
+            description=description
+        )
+
+        session.add(new_location)
+        session.commit()
+
+        logger.info(f"Created new location: {name} for model ID {model_id}")
+        return new_location
+
+    @classmethod
+    @with_request_id
+    def delete_location(cls, session, location_id, request_id=None):
+        """
+        Delete a location from the database.
+
+        Args:
+            session: SQLAlchemy database session
+            location_id (int): ID of the location to delete
+            request_id (str, optional): Unique identifier for the request
+
+        Returns:
+            bool: True if deletion was successful, False if location not found
+        """
+        location = session.query(cls).filter(cls.id == location_id).first()
+
+        if location:
+            session.delete(location)
+            session.commit()
+            logger.info(f"Deleted location ID {location_id}")
+            return True
+        else:
+            logger.warning(f"Failed to delete location ID {location_id} - not found")
+            return False
+
+    @classmethod
+    @with_request_id
+    def find_related_entities(cls, session, identifier, is_id=True, request_id=None):
+        """
+        Find all related entities for a location, traversing both up and down
+        the hierarchy: Area → EquipmentGroup → Model → Location → (Position, Subassembly).
+
+        Args:
+            session: SQLAlchemy database session
+            identifier: Either location ID (int) or name (str)
+            is_id (bool): If True, identifier is an ID, otherwise it's a name
+            request_id (str, optional): Unique identifier for the request
+
+        Returns:
+            dict: Dictionary containing:
+                - 'location': The found location object
+                - 'upward': Dictionary containing 'model', 'equipment_group', and 'area'
+                - 'downward': Dictionary containing:
+                    - 'positions': List of all positions related to this location
+                    - 'subassemblies': List of all subassemblies related to this location
+        """
+        # Find the location
+        if is_id:
+            location = session.query(cls).filter(cls.id == identifier).first()
+        else:
+            location = session.query(cls).filter(cls.name == identifier).first()
+
+        if not location:
+            logger.warning(f"Location not found for identifier: {identifier}")
+            return None
+
+        # Going upward in the hierarchy
+        upward = {
+            'model': location.model,
+            'equipment_group': location.model.equipment_group if location.model else None,
+            'area': location.model.equipment_group.area if location.model and location.model.equipment_group else None
+        }
+
+        # Going downward in the hierarchy
+        downward = {
+            'positions': location.position,
+            'subassemblies': location.subassembly
+        }
+
+        logger.info(f"Found related entities for location ID {location.id}")
+        return {
+            'location': location,
+            'upward': upward,
+            'downward': downward
+        }
 
 #class's dealing with machine subassemblies.
 
@@ -1220,7 +1730,6 @@ class Part(Base):
             if not session_provided:
                 session.close()
                 debug_id(f"Closed database session for Part.get_by_id", rid)
-
 
 # region
 # Todo: create method for serving
