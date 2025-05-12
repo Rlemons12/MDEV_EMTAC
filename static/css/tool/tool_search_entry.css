@@ -226,9 +226,6 @@ button[type="submit"]:hover {
     border: none; /* Remove default borders */
 }
 
-
-
-
 .tab-content {
     display: none;
 }
