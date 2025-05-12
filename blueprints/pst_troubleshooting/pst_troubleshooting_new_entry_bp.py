@@ -413,3 +413,267 @@ def get_positions():
     finally:
         session.close()
         logger.info("Database session closed for /get_positions.")
+
+
+@pst_troubleshoot_new_entry_bp.route('/create_equipment_group', methods=['POST'])
+def create_equipment_group():
+    """
+    Handle the creation of a new equipment group using the class method.
+    """
+    session = db_config.get_main_session()
+    try:
+        # Extract form data
+        name = request.form.get('name')
+        area_id = request.form.get('area_id')
+        description = request.form.get('description')
+
+        # Validate required fields
+        if not all([name, area_id]):
+            logger.warning("Missing required fields for equipment group creation")
+            return jsonify({'success': False, 'message': 'Name and Area ID are required.'}), 400
+
+        # Log the incoming request data
+        logger.info(f"Creating equipment group - Name: {name}, Area ID: {area_id}, Description: {description}")
+
+        # Use the class method to add the equipment group
+        new_equipment_group = EquipmentGroup.add_equipment_group(
+            session=session,
+            name=name,
+            area_id=area_id,
+            description=description
+        )
+
+        logger.info(f"Created new Equipment Group: {name} with ID {new_equipment_group.id}")
+
+        # Return success response with the new equipment group details
+        return jsonify({
+            'success': True,
+            'message': 'Equipment Group created successfully!',
+            'equipment_group': {
+                'id': new_equipment_group.id,
+                'name': new_equipment_group.name,
+                'area_id': new_equipment_group.area_id,
+                'description': new_equipment_group.description
+            }
+        }), 200
+
+    except SQLAlchemyError as e:
+        session.rollback()
+        logger.error(f"Database error during equipment group creation: {e}")
+        return jsonify({'success': False, 'message': 'An error occurred while creating the equipment group.'}), 500
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Unexpected error during equipment group creation: {e}")
+        return jsonify({'success': False, 'message': 'An unexpected error occurred.'}), 500
+    finally:
+        session.close()
+
+@pst_troubleshoot_new_entry_bp.route('/create_model', methods=['POST'])
+def create_model():
+    """
+    Handle the creation of a new model using the class method.
+    """
+    session = db_config.get_main_session()
+    try:
+        # Extract form data
+        name = request.form.get('name')
+        equipment_group_id = request.form.get('equipment_group_id')
+        description = request.form.get('description')
+
+        # Validate required fields
+        if not all([name, equipment_group_id]):
+            logger.warning("Missing required fields for model creation")
+            return jsonify({'success': False, 'message': 'Name and Equipment Group ID are required.'}), 400
+
+        # Log the incoming request data
+        logger.info(
+            f"Creating model - Name: {name}, Equipment Group ID: {equipment_group_id}, Description: {description}")
+
+        # Use the class method to add the model
+        new_model = Model.add_model(
+            session=session,
+            name=name,
+            equipment_group_id=equipment_group_id,
+            description=description
+        )
+
+        logger.info(f"Created new Model: {name} with ID {new_model.id}")
+
+        # Return success response with the new model details
+        return jsonify({
+            'success': True,
+            'message': 'Model created successfully!',
+            'model': {
+                'id': new_model.id,
+                'name': new_model.name,
+                'equipment_group_id': new_model.equipment_group_id,
+                'description': new_model.description
+            }
+        }), 200
+
+    except SQLAlchemyError as e:
+        session.rollback()
+        logger.error(f"Database error during model creation: {e}")
+        return jsonify({'success': False, 'message': 'An error occurred while creating the model.'}), 500
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Unexpected error during model creation: {e}")
+        return jsonify({'success': False, 'message': 'An unexpected error occurred.'}), 500
+    finally:
+        session.close()
+
+
+@pst_troubleshoot_new_entry_bp.route('/create_asset_number', methods=['POST'])
+def create_asset_number():
+    """
+    Handle the creation of a new asset number using the class method.
+    """
+    session = db_config.get_main_session()
+    try:
+        # Extract form data
+        number = request.form.get('number')
+        model_id = request.form.get('model_id')
+        description = request.form.get('description')
+
+        # Validate required fields
+        if not all([number, model_id]):
+            logger.warning("Missing required fields for asset number creation")
+            return jsonify({'success': False, 'message': 'Number and Model ID are required.'}), 400
+
+        # Log the incoming request data
+        logger.info(f"Creating asset number - Number: {number}, Model ID: {model_id}, Description: {description}")
+
+        # Use the class method to add the asset number
+        new_asset_number = AssetNumber.add_asset_number(
+            session=session,
+            number=number,
+            model_id=model_id,
+            description=description
+        )
+
+        # Return success response with the new asset number details
+        return jsonify({
+            'success': True,
+            'message': 'Asset Number created successfully!',
+            'asset_number': {
+                'id': new_asset_number.id,
+                'number': new_asset_number.number,
+                'model_id': new_asset_number.model_id,
+                'description': new_asset_number.description
+            }
+        }), 200
+
+    except SQLAlchemyError as e:
+        session.rollback()
+        logger.error(f"Database error during asset number creation: {e}")
+        return jsonify({'success': False, 'message': 'An error occurred while creating the asset number.'}), 500
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Unexpected error during asset number creation: {e}")
+        return jsonify({'success': False, 'message': 'An unexpected error occurred.'}), 500
+    finally:
+        session.close()
+
+
+@pst_troubleshoot_new_entry_bp.route('/create_location', methods=['POST'])
+def create_location():
+    """
+    Handle the creation of a new location using the class method.
+    """
+    session = db_config.get_main_session()
+    try:
+        # Extract form data
+        name = request.form.get('name')
+        model_id = request.form.get('model_id')
+        description = request.form.get('description')
+
+        # Validate required fields
+        if not all([name, model_id]):
+            logger.warning("Missing required fields for location creation")
+            return jsonify({'success': False, 'message': 'Name and Model ID are required.'}), 400
+
+        # Log the incoming request data
+        logger.info(f"Creating location - Name: {name}, Model ID: {model_id}, Description: {description}")
+
+        # Use the class method to add the location
+        new_location = Location.add_location(
+            session=session,
+            name=name,
+            model_id=model_id,
+            description=description
+        )
+
+        # Return success response with the new location details
+        return jsonify({
+            'success': True,
+            'message': 'Location created successfully!',
+            'location': {
+                'id': new_location.id,
+                'name': new_location.name,
+                'model_id': new_location.model_id,
+                'description': new_location.description
+            }
+        }), 200
+
+    except SQLAlchemyError as e:
+        session.rollback()
+        logger.error(f"Database error during location creation: {e}")
+        return jsonify({'success': False, 'message': 'An error occurred while creating the location.'}), 500
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Unexpected error during location creation: {e}")
+        return jsonify({'success': False, 'message': 'An unexpected error occurred.'}), 500
+    finally:
+        session.close()
+
+
+@pst_troubleshoot_new_entry_bp.route('/create_site_location', methods=['POST'])
+def create_site_location():
+    """
+    Handle the creation of a new site location using the class method.
+    """
+    session = db_config.get_main_session()
+    try:
+        # Extract form data
+        title = request.form.get('title')
+        room_number = request.form.get('room_number')
+        site_area = request.form.get('site_area', 'Default Area')  # Provide a default if not specified
+
+        # Validate required fields
+        if not all([title, room_number]):
+            logger.warning("Missing required fields for site location creation")
+            return jsonify({'success': False, 'message': 'Title and Room Number are required.'}), 400
+
+        # Log the incoming request data
+        logger.info(f"Creating site location - Title: {title}, Room Number: {room_number}, Site Area: {site_area}")
+
+        # Use the class method to add the site location
+        new_site_location = SiteLocation.add_site_location(
+            session=session,
+            title=title,
+            room_number=room_number,
+            site_area=site_area
+        )
+
+        # Return success response with the new site location details
+        return jsonify({
+            'success': True,
+            'message': 'Site Location created successfully!',
+            'site_location': {
+                'id': new_site_location.id,
+                'title': new_site_location.title,
+                'room_number': new_site_location.room_number,
+                'site_area': new_site_location.site_area
+            }
+        }), 200
+
+    except SQLAlchemyError as e:
+        session.rollback()
+        logger.error(f"Database error during site location creation: {e}")
+        return jsonify({'success': False, 'message': 'An error occurred while creating the site location.'}), 500
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Unexpected error during site location creation: {e}")
+        return jsonify({'success': False, 'message': 'An unexpected error occurred.'}), 500
+    finally:
+        session.close()
