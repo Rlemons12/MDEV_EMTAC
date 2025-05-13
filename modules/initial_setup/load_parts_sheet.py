@@ -1,14 +1,15 @@
 import os
 import pandas as pd
-from modules.emtacdb.emtacdb_fts import Part  # Ensure this matches your file structure
+from modules.emtacdb.emtacdb_fts import Part
 from modules.configuration.config import DB_LOADSHEET
-from modules.configuration.config_env import DatabaseConfig  # Ensure this matches your file structure
-from modules.initial_setup.initializer_logger import initializer_logger  # Use your shared logger
+from modules.configuration.config_env import DatabaseConfig
+from modules.initial_setup.initializer_logger import initializer_logger
+from modules.database_manager.db_manager import RelationshipManager  # Import the RelationshipManager
 
 
 def load_equip_boms():
     """
-    Main function to load EQUIP_BOMS data into the database.
+    Main function to load EQUIP_BOMS data into the database and associate parts with matching images.
     """
     initializer_logger.info("Starting EQUIP_BOMS data loading process.")
 
@@ -74,6 +75,28 @@ def load_equip_boms():
             session.bulk_insert_mappings(Part, new_parts)
             session.commit()
             initializer_logger.info(f"Inserted {total_created} new parts into the database.")
+
+            # Get the part numbers of newly inserted parts
+            new_part_numbers = [p['part_number'] for p in new_parts]
+
+            # Query the database to get the IDs of the newly inserted parts
+            newly_inserted_parts = session.query(Part.id).filter(Part.part_number.in_(new_part_numbers)).all()
+            new_part_ids = [part.id for part in newly_inserted_parts]
+            initializer_logger.info(f"Retrieved {len(new_part_ids)} IDs for newly inserted parts.")
+
+            # Associate parts with matching images using RelationshipManager
+            initializer_logger.info("Starting automatic part-image association process...")
+            try:
+                with RelationshipManager(session=session, request_id="load-equip-boms") as manager:
+                    result = manager.associate_parts_with_images_by_title(part_ids=new_part_ids)
+                    manager.commit()
+
+                    # Count total associations created
+                    total_associations = sum(len(assocs) for assocs in result.values())
+                    initializer_logger.info(f"Created {total_associations} part-image associations automatically.")
+            except Exception as e:
+                initializer_logger.error(f"Error during part-image association: {e}", exc_info=True)
+                # Note: We don't want to roll back the main transaction if only the association fails
         else:
             initializer_logger.info("No new parts to insert.")
 
