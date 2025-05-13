@@ -1,63 +1,38 @@
 import os
 import sys
 import time
+import random
 from PIL import Image as PILImage, ImageFile
-from modules.configuration.log_config import logger  # Ensure you have the Logger imported if needed
-from sqlalchemy.orm import scoped_session
-
-# Additional imports needed for multithreading and numerical computations
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import numpy as np
 
+from modules.configuration.log_config import logger
 from modules.configuration.config import DATABASE_PATH_IMAGES_FOLDER
 from modules.initial_setup.initializer_logger import (
     LOG_DIRECTORY, initializer_logger, close_initializer_logger
 )
 from modules.configuration.config_env import DatabaseConfig
-from modules.emtacdb.emtacdb_fts import load_image_model_config_from_db
-from plugins.image_modules import CLIPModelHandler, NoImageModel, BaseImageModelHandler
+from modules.emtacdb.emtacdb_fts import load_image_model_config_from_db, Image
+from plugins.image_modules import CLIPModelHandler, NoImageModel
 
 # Make sure truncated images won't crash PIL
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 # Initialize Logging
 logger = initializer_logger
-logger.info(f"Using logs in directory: {LOG_DIRECTORY}")
+logger.info(f"Using logs directory: {LOG_DIRECTORY}")
 
-# Database Setup
+# Database Setup - Enable connection limiting and set lower max connections
+os.environ['DB_CONNECTION_LIMITING'] = 'True'
+os.environ['MAX_DB_CONNECTIONS'] = '4'  # Reduce from default 8 to 4
+os.environ['DB_CONNECTION_TIMEOUT'] = '60'  # Set a longer timeout of 60 seconds
+
+# Initialize database configuration
 db_config = DatabaseConfig()
-session_factory = db_config.get_main_session
 
 # Load the current image model
 CURRENT_IMAGE_MODEL = load_image_model_config_from_db()
 image_handler = CLIPModelHandler() if CURRENT_IMAGE_MODEL != "no_model" else NoImageModel()
-
-
-def is_duplicate_embedding(new_embedding, session, threshold=0.9):
-    """
-    Checks if the new_embedding is too similar to any stored embeddings.
-    This function queries the database for all stored image embeddings and computes
-    cosine similarity between the new embedding and each stored embedding.
-
-    Returns True if a duplicate is found, otherwise False.
-    """
-    # Import the ImageEmbedding model (adjust the import path to your project structure)
-    from modules.emtacdb.emtacdb_fts import ImageEmbedding
-
-    stored_embeddings = session.query(ImageEmbedding).all()
-    new_vec = np.array(new_embedding, dtype=np.float32)
-
-    for record in stored_embeddings:
-        # Convert the stored bytes back to a NumPy array.
-        # Adjust the dtype if needed to match your embeddings.
-        stored_vec = np.frombuffer(record.model_embedding, dtype=np.float32)
-        # Compute cosine similarity
-        similarity = np.dot(new_vec, stored_vec) / (np.linalg.norm(new_vec) * np.linalg.norm(stored_vec))
-        if similarity > threshold:
-            logger.debug(
-                f"Found duplicate with similarity {similarity:.2f} for image embedding record with image id {record.image_id}")
-            return True
-    return False
 
 
 def prompt_model_selection():
@@ -82,7 +57,7 @@ def prompt_model_selection():
 
 def set_models():
     """
-    Allow the admin to set the AI, embedding, and image models.
+    Allow the admin to set the image model.
     """
     global CURRENT_IMAGE_MODEL, image_handler
 
@@ -102,82 +77,95 @@ def set_models():
 
 def process_single_image(folder_path: str, filename: str):
     """
-    Process a single image: validate, generate embedding, optionally check for duplicates,
-    save the processed image, and store metadata.
-
-    This function measures how long it takes to process the image.
-
-    Returns:
-        tuple: (result_message, processing_time_in_seconds)
+    Process a single image using the Image class methods.
+    Now with improved error handling and retry logic.
     """
     start_time_image = time.time()
-    session = session_factory()  # Create a session for this thread
-    try:
-        source_file_path = os.path.join(folder_path, filename)
-        if os.path.isdir(source_file_path):
-            logger.debug(f"Skipping subdirectory: {source_file_path}")
-            result_message = f"Skipped directory: {filename}"
-            return (result_message, time.time() - start_time_image)
+    max_retries = 3
+    retry_count = 0
 
-        if image_handler.allowed_file(filename):
-            # Extract the base name without the extension
-            file_base, ext = os.path.splitext(filename)
-            # Determine file format based on the original extension
-            if ext.lower() in [".jpg", ".jpeg"]:
-                file_format = "JPEG"
-            elif ext.lower() == ".png":
-                file_format = "PNG"
+    while retry_count < max_retries:
+        # Get a session - connection limiting is now built-in to this method
+        session = db_config.get_main_session()
+
+        try:
+            source_file_path = os.path.join(folder_path, filename)
+            if os.path.isdir(source_file_path):
+                logger.debug(f"Skipping subdirectory: {source_file_path}")
+                result_message = f"Skipped directory: {filename}"
+                session.close()
+                return (result_message, time.time() - start_time_image)
+
+            if image_handler.allowed_file(filename):
+                # Extract the base name without the extension
+                file_base, ext = os.path.splitext(filename)
+
+                logger.info(f"Processing image: {filename}")
+
+                # Use the Image.add_to_db class method to add the image to the database
+                # It will now clean the title internally (clean_title=True by default)
+                new_image = Image.add_to_db(
+                    session=session,
+                    title=file_base,
+                    file_path=source_file_path,
+                    description="Auto-generated description"
+                )
+
+                # Immediately commit changes to reduce lock time
+                session.commit()
+
+                logger.info(f"Successfully processed and stored '{filename}' with ID: {new_image.id}")
+                result_message = f"Processed: {new_image.title}"  # Use the possibly cleaned title from the returned image
             else:
-                file_format = "JPEG"  # default fallback if extension is unknown
+                logger.info(f"Skipping non-image file: '{filename}'")
+                result_message = f"Skipped non-image: {filename}"
 
-            # Create destination file path without the file extension in the filename
-            dest_file_path = os.path.join(DATABASE_PATH_IMAGES_FOLDER, file_base)
-            logger.info(f"Processing image: {filename}")
+            # Successfully processed, break retry loop
+            break
 
-            # Open and convert image to RGB
-            image = PILImage.open(source_file_path)
-            image = image.convert("RGB")
-            logger.debug(f"Opened and converted image '{filename}' to RGB.")
+        except Exception as e:
+            # Check if it's a database lock error
+            if "database is locked" in str(e).lower():
+                retry_count += 1
+                backoff_time = random.uniform(0.5, 2.0) * retry_count  # Exponential backoff with jitter
+                logger.warning(
+                    f"Database locked while processing '{filename}'. Retry {retry_count}/{max_retries} after {backoff_time:.2f}s")
 
-            if not image_handler.is_valid_image(image):
-                logger.warning(f"Skipping '{filename}': Invalid dimension/aspect ratio.")
-                result_message = f"Skipped invalid image: {filename}"
-                return (result_message, time.time() - start_time_image)
+                # Always rollback on error
+                try:
+                    session.rollback()
+                except:
+                    pass
 
-            # Generate image embedding
-            embedding = image_handler.get_image_embedding(image)
-            embedding_preview = embedding[:10] if hasattr(embedding, '__iter__') else 'N/A'
-            logger.debug(f"Generated embedding for image '{filename}': {embedding_preview}...")
+                # Close session to release connection
+                try:
+                    session.close()
+                except:
+                    pass
 
-            # Optional: Check for duplicate using the embedding
-            if is_duplicate_embedding(embedding, session, threshold=0.9):
-                logger.info(f"Skipping '{filename}': duplicate image based on embedding.")
-                result_message = f"Skipped duplicate image: {filename}"
-                return (result_message, time.time() - start_time_image)
+                # Wait before retrying
+                time.sleep(backoff_time)
 
-            # Save the processed image without the file extension in its name.
-            image.save(dest_file_path, format=file_format, optimize=True, quality=85)
-            logger.debug(f"Saved image '{filename}' as '{file_base}' in '{DATABASE_PATH_IMAGES_FOLDER}'.")
+                # If it's not the last retry, continue to next iteration
+                if retry_count < max_retries:
+                    continue
 
-            # Store metadata in the database using the file base (name without extension) as the title.
-            image_handler.store_image_metadata(
-                session=session,
-                title=file_base,
-                description="Auto-generated description",
-                file_path=dest_file_path,
-                embedding=embedding,
-                model_name=CURRENT_IMAGE_MODEL
-            )
-            logger.info(f"Successfully processed and stored '{filename}' as '{file_base}'.")
-            result_message = f"Processed: {file_base}"
-        else:
-            logger.info(f"Skipping non-image file: '{filename}'")
-            result_message = f"Skipped non-image: {filename}"
-    except Exception as e:
-        logger.error(f"Failed to process '{filename}': {e}", exc_info=True)
-        result_message = f"Error processing: {filename}"
-    finally:
-        session.close()
+            # For non-lock errors or final retry failure
+            logger.error(f"Failed to process '{filename}': {e}", exc_info=True)
+            try:
+                session.rollback()
+            except:
+                pass
+
+            result_message = f"Error processing: {filename}"
+            break
+
+        finally:
+            # Always close the session in the finally block
+            try:
+                session.close()
+            except:
+                pass
 
     processing_time = time.time() - start_time_image
     return (result_message, processing_time)
@@ -186,51 +174,85 @@ def process_single_image(folder_path: str, filename: str):
 def process_and_store_images(folder_path: str):
     """
     Scans the given folder_path for images and processes them concurrently using multithreading.
-    Logs the total processing time for the folder and the average processing time per image.
-    Dynamically sets the number of worker threads.
+    Now with improved batch processing and worker management.
     """
     logger.debug(f"Starting processing for folder: {folder_path}")
     folder_start_time = time.time()
 
-    # Ensure the destination folder exists
+    # Ensure the destination folder exists (for database images)
     os.makedirs(DATABASE_PATH_IMAGES_FOLDER, exist_ok=True)
+
     filenames = os.listdir(folder_path)
     num_files = len(filenames)
     logger.info(f"Found {num_files} files in '{folder_path}'.")
 
     # Ask the user if they want to proceed
-    proceed = input(f"There are {num_files} files in folder '{folder_path}'. Do you want to proceed with processing? (y/n): ").strip().lower()
+    proceed = input(
+        f"There are {num_files} files in folder '{folder_path}'. Do you want to proceed with processing? (y/n): ").strip().lower()
     if proceed != "y":
         logger.info("User chose not to proceed with processing this folder.")
         return
 
-    # Dynamically determine the number of worker threads.
-    default_workers = os.cpu_count() or 1  # For example, 4 cores return 4.
-    dynamic_workers = default_workers * 5   # Multiply for I/O-bound tasks.
-    max_workers = min(num_files, dynamic_workers)  # Limit workers to the number of files if necessary.
+    # More conservative worker settings - don't let CPU count dictate this
+    # since SQLite is the bottleneck, not CPU
+    max_workers = min(num_files, os.cpu_count() or 1, 8)  # No more than 8 workers
     logger.info(f"Using {max_workers} worker threads for processing.")
 
+    # Log connection stats for monitoring
+    logger.info(f"Database connection stats: {db_config.get_connection_stats()}")
+
     individual_times = []
+    processed_count = 0
+    total_count = len(filenames)
 
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {
-            executor.submit(process_single_image, folder_path, filename): filename
-            for filename in filenames
-        }
-        for future in as_completed(futures):
-            filename = futures[future]
-            try:
-                result_message, process_time = future.result()
-                individual_times.append(process_time)
-                logger.info(f"{result_message} (Time: {process_time:.2f} sec)")
-            except Exception as e:
-                logger.error(f"Error processing file '{filename}': {e}", exc_info=True)
+    # Use smaller batches to reduce concurrent database load
+    batch_size = max(1, min(20, num_files // 20))  # Smaller batches
 
+    # Shuffle the filenames to distribute large/small images more evenly
+    random.shuffle(filenames)
+
+    for batch_start in range(0, num_files, batch_size):
+        batch_end = min(batch_start + batch_size, num_files)
+        batch_files = filenames[batch_start:batch_end]
+
+        # Log batch info
+        logger.info(
+            f"Processing batch {batch_start // batch_size + 1} of {(num_files + batch_size - 1) // batch_size} ({len(batch_files)} files)")
+
+        # Use a new ThreadPoolExecutor for each batch to ensure clean resources
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(process_single_image, folder_path, filename): filename
+                for filename in batch_files
+            }
+            for future in as_completed(futures):
+                filename = futures[future]
+                try:
+                    result_message, process_time = future.result()
+                    individual_times.append(process_time)
+                    processed_count += 1
+
+                    # Display progress
+                    progress = processed_count / total_count * 100
+                    logger.info(f"{result_message} (Time: {process_time:.2f} sec) - Progress: {progress:.1f}%")
+
+                except Exception as e:
+                    logger.error(f"Error processing file '{filename}': {e}", exc_info=True)
+
+        # Wait a short time between batches to let any lingering transactions complete
+        time.sleep(1.0)
+
+        # Log connection stats after each batch for monitoring
+        logger.info(f"Database connection stats after batch: {db_config.get_connection_stats()}")
+
+    # Calculate stats
     folder_elapsed_time = time.time() - folder_start_time
     avg_image_time = (sum(individual_times) / len(individual_times)) if individual_times else 0
+    success_rate = processed_count / total_count * 100 if total_count else 0
 
     logger.info(f"Finished processing folder '{folder_path}' in {folder_elapsed_time:.2f} seconds.")
     logger.info(f"Average processing time per image: {avg_image_time:.2f} seconds.")
+    logger.info(f"Successfully processed {processed_count} of {total_count} files ({success_rate:.1f}%).")
 
 
 def main():
@@ -238,6 +260,8 @@ def main():
     Main function for image processing setup.
     """
     logger.info("=== Starting EMTACDB Image Setup ===")
+    logger.info(f"DatabaseConfig settings: {db_config.get_connection_stats()}")
+
     set_models()
     logger.debug(f"Selected Image Model: {CURRENT_IMAGE_MODEL}")
 
@@ -273,4 +297,6 @@ if __name__ == "__main__":
     try:
         main()
     finally:
+        # Ensure all sessions are closed
+        db_config.get_main_session_registry().remove()
         close_initializer_logger()
