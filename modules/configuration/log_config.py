@@ -126,7 +126,6 @@ def clear_request_id():
     if hasattr(_local, 'request_id'):
         delattr(_local, 'request_id')
 
-
 # Enhanced logging functions that automatically include request ID
 # These don't replace the standard logger methods, they're additional
 def log_with_id(level, message, *args, request_id=None, **kwargs):
@@ -156,12 +155,9 @@ def log_with_id(level, message, *args, request_id=None, **kwargs):
     elif level == logging.CRITICAL:
         logger.critical(final, **kwargs)
 
-
-
 # Convenience functions that match the logger interface
 def debug_id(message, request_id=None, *args, **kwargs):
     log_with_id(logging.DEBUG, message, request_id, *args, **kwargs)
-
 
 def info_id(message, request_id=None, *args, **kwargs):
     log_with_id(logging.INFO, message, request_id, *args, **kwargs)
@@ -242,7 +238,6 @@ def log_timed_operation(operation_name, request_id=None):
                          self.request_id)
 
     return TimedOperationContext(operation_name, request_id)
-
 
 # EXISTING LOG ROTATION CODE - UNCHANGED
 # =====================================
