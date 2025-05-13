@@ -7,6 +7,10 @@ import logging
 import shutil
 from datetime import datetime
 from typing import Optional,List
+from sqlalchemy import or_, and_
+from sqlalchemy.orm import Session
+from typing import List, Optional
+
 
 import openai
 import spacy
@@ -1752,15 +1756,61 @@ class Image(Base):
     tool_image_association = relationship("ToolImageAssociation", back_populates="image", cascade="all, delete-orphan")
 
     @classmethod
-    def add_to_db(cls, session, title, file_path, description="", position_id=None, complete_document_id=None):
-        """Add an image to the database, handling file copying and deduplication."""
+    def add_to_db(cls, session, title, file_path, description="", position_id=None, complete_document_id=None,
+                  clean_title=True):
+        """
+        Add an image to the database, handling file copying and deduplication.
+
+        Args:
+            session: SQLAlchemy session
+            title: Image title
+            file_path: Path to image file
+            description: Optional image description
+            position_id: Optional position ID to associate with the image
+            complete_document_id: Optional completed document ID to associate with the image
+            clean_title: Whether to clean image extensions from the title (default: True)
+
+        Returns:
+            Image object
+        """
         # Import locally to avoid circular dependencies
         import os
         import shutil
+        import re
         from sqlalchemy import and_
         from PIL import Image as PILImage
         from plugins.image_modules.image_models import CLIPModelHandler, get_image_model_handler
 
+        # Common image extensions to remove from title
+        COMMON_EXTENSIONS = [
+            '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.tif', '.webp',
+            '.svg', '.ico', '.heic', '.raw', '.cr2', '.nef', '.arw'
+        ]
+
+        # Clean the title if requested
+        original_title = title
+        if clean_title:
+            # Remove any image extensions embedded in the title
+            pattern = '|'.join([re.escape(ext) for ext in COMMON_EXTENSIONS])
+            regex = re.compile(f"({pattern})", re.IGNORECASE)
+
+            # Iteratively remove extensions until none are found
+            while True:
+                new_title = regex.sub('', title)
+                if new_title == title:
+                    break
+                title = new_title
+
+            # Clean up any dots that might be left at the end
+            title = title.rstrip('.')
+
+            # If we've removed everything, use a default name
+            if not title:
+                title = "image"
+
+            # Log if title was changed
+            if title != original_title:
+                logger.info(f"Cleaned title from '{original_title}' to '{title}'")
 
         logger.info(f"Processing image: {title}")
 
@@ -2011,12 +2061,6 @@ class ImageEmbedding(Base):
     model_embedding = Column(LargeBinary, nullable=False)
 
     image = relationship("Image", back_populates="image_embedding")
-
-
-from sqlalchemy import or_, and_
-from sqlalchemy.orm import Session
-from typing import List, Optional
-
 
 class Drawing(Base):
     __tablename__ = 'drawing'
@@ -3229,6 +3273,7 @@ class ToolPackage(Base):
     description = Column(Text)
 
     tools = relationship('Tool', secondary=tool_package_association, back_populates='tool_packages')
+
 
 # Bind the engine to the Base class
 Base.metadata.bind = engine
