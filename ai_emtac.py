@@ -107,7 +107,8 @@ def create_app():
             'login_bp.login',
             'login_bp.logout',
             'static',  # Allow static files
-            'create_user_bp.create_user'
+            'create_user_bp.create_user',
+            'create_user_bp.submit_user_creation'
         ]
 
         if request.endpoint is None:
