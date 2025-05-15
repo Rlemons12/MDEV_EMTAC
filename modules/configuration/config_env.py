@@ -10,10 +10,10 @@ from modules.configuration.config import DATABASE_URL, REVISION_CONTROL_DB_PATH
 from modules.configuration.log_config import logger
 
 # Global environment variable that can be set to enable/disable connection limiting
-CONNECTION_LIMITING_ENABLED = os.environ.get('DB_CONNECTION_LIMITING', 'True').lower() in ('true', '1', 't')
+CONNECTION_LIMITING_ENABLED = False
 
 # Global maximum concurrent connections - can also be set via environment variable
-MAX_CONCURRENT_CONNECTIONS = int(os.environ.get('MAX_DB_CONNECTIONS', '8'))  # Reduced to 4 for better stability
+MAX_CONCURRENT_CONNECTIONS = int(os.environ.get('MAX_DB_CONNECTIONS', '12'))  # Reduced to 4 for better stability
 
 # Global timeout for acquiring a database connection (in seconds)
 CONNECTION_TIMEOUT = int(os.environ.get('DB_CONNECTION_TIMEOUT', '60'))
