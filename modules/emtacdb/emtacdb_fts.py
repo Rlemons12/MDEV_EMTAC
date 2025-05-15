@@ -2881,6 +2881,103 @@ class User(Base):
     def check_password_hash(self, password):
         return check_password_hash(self.hashed_password, password)
 
+    @classmethod
+    @with_request_id
+    def create_new_user(cls, employee_id, first_name, last_name, password, current_shift=None,
+                        primary_area=None, age=None, education_level=None, start_date=None,
+                        text_to_voice="default", voice_to_text="default"):
+        """
+        Creates a new user with comprehensive error handling and proper session management.
+        """
+        logger = logging.getLogger('ematac_logger')
+        logger.info(f"============ CREATE_NEW_USER STARTED for {employee_id} ============")
+
+        from modules.configuration.config_env import DatabaseConfig
+        from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+        import traceback
+
+        # Get database session
+        try:
+            logger.info("Getting database session...")
+            db_config = DatabaseConfig()
+            session = db_config.get_main_session()
+            logger.debug(f"Got database session: {session}")
+        except Exception as e:
+            logger.error(f"ERROR GETTING DATABASE SESSION: {e}")
+            logger.error(traceback.format_exc())
+            return False, f"Database connection error: {str(e)}"
+
+        try:
+            # Create new user object
+            logger.info(f"Creating User object with: {employee_id}, {first_name}, {last_name}")
+            new_user = User(
+                employee_id=employee_id,
+                first_name=first_name,
+                last_name=last_name,
+                current_shift=current_shift,
+                primary_area=primary_area,
+                age=age,
+                education_level=education_level,
+                start_date=start_date,
+                user_level=UserLevel.STANDARD
+            )
+            logger.debug("Created User object successfully")
+
+            # Set password
+            logger.debug("Setting password...")
+            new_user.set_password(password)
+            logger.debug("Password set successfully")
+
+            # Add to session
+            logger.debug("Adding user to database session...")
+            session.add(new_user)
+            logger.debug("User added to session")
+
+            # Commit changes
+            logger.info("Committing session...")
+            session.commit()
+            logger.info("Session committed successfully")
+            logger.info(f"User created successfully: {employee_id}")
+
+            return True, "User created successfully"
+
+        except IntegrityError as e:
+            logger.error(f"INTEGRITY ERROR: {str(e)}")
+            session.rollback()
+            error_msg = str(e)
+            logger.error(f"IntegrityError creating user: {error_msg}")
+
+            if "UNIQUE constraint failed" in error_msg:
+                return False, f"A user with employee ID {employee_id} already exists."
+            else:
+                return False, f"Database integrity error: {error_msg}"
+
+        except SQLAlchemyError as e:
+            logger.error(f"SQL ALCHEMY ERROR: {str(e)}")
+            session.rollback()
+            error_msg = str(e)
+            logger.error(f"SQLAlchemy error creating user: {error_msg}")
+            return False, f"Database error: {error_msg}"
+
+        except Exception as e:
+            logger.error(f"UNEXPECTED ERROR: {str(e)}")
+            logger.error(traceback.format_exc())
+            session.rollback()
+            error_msg = str(e)
+            logger.error(f"Unexpected error creating user: {error_msg}")
+            return False, f"An unexpected error occurred: {error_msg}"
+
+        finally:
+            # Always close the session
+            try:
+                logger.debug("Closing database session")
+                session.close()
+                logger.debug("Database session closed")
+            except Exception as e:
+                logger.error(f"ERROR CLOSING SESSION: {e}")
+
+            logger.info(f"============ CREATE_NEW_USER FINISHED for {employee_id} ============")
+
 class UserLogin(Base):
     __tablename__ = 'user_logins'
 
