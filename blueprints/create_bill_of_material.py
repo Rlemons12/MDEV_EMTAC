@@ -52,9 +52,17 @@ def bom_serve_image_route(image_id):
         db_session.close()
         logger.debug("Database session closed in bom_serve_image_route.")
 
-@create_bill_of_material_bp.route('/create_bill_of_material', methods=['POST'])
+
+@create_bill_of_material_bp.route('/create_bill_of_material', methods=['GET', 'POST'])
 def create_bill_of_material():
     logger.info("Entered create_bill_of_material route.")
+
+    # Handle GET requests
+    if request.method == 'GET':
+        logger.info("GET request to create_bill_of_material, rendering form template.")
+        return render_template('bill_of_materials/bill_of_materials.html')
+
+    # Handle POST requests
     db_session = db_config.get_main_session()
     try:
         logger.debug("Retrieving form data for create_bill_of_material.")
@@ -133,7 +141,7 @@ def create_bill_of_material():
 def view_bill_of_material():
     """
     View the bill of material results with pagination.
-    Uses a partial template that can be included in other pages.
+    Redirects to a standalone results page.
     """
     logger.info("Entered view_bill_of_material route.")
     db_session = db_config.get_main_session()
@@ -211,38 +219,21 @@ def view_bill_of_material():
         # Log rendering parameters
         logger.info(f"Rendering template with {len(parts_and_images)} parts/images")
 
-        # Check if request wants just the partial (for AJAX)
-        if request.args.get('partial', False):
-            # Return just the partial template
-            return render_template(
-                'bill_of_materials/bom_partials/bill_of_material_results_partial.html',
-                index=index,
-                parts_and_images=parts_and_images,
-                per_page=per_page,
-                total=total_results,
-                next_index=next_index,
-                prev_index=prev_index,
-                debug_info=debug_info,
-                model_name=model_name,
-                asset_number=asset_number,
-                location_name=location_name
-            )
-        else:
-            # Return the full bill_of_materials.html template with results
-            return render_template(
-                'bill_of_materials/bill_of_materials.html',
-                show_results=True,
-                index=index,
-                parts_and_images=parts_and_images,
-                per_page=per_page,
-                total=total_results,
-                next_index=next_index,
-                prev_index=prev_index,
-                debug_info=debug_info,
-                model_name=model_name,
-                asset_number=asset_number,
-                location_name=location_name
-            )
+        # Return the standalone results page
+        return render_template(
+            'bill_of_materials/bom_partials/bill_of_material_results_partial.html',
+            index=index,
+            parts_and_images=parts_and_images,
+            per_page=per_page,
+            total=total_results,
+            next_index=next_index,
+            prev_index=prev_index,
+            debug_info=debug_info,
+            model_name=model_name,
+            asset_number=asset_number,
+            location_name=location_name
+        )
+
     except Exception as e:
         logger.exception(f"Exception in view_bill_of_material: {e}")
         flash(f'An error occurred: {str(e)}', 'error')
