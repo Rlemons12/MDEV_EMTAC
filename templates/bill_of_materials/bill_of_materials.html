@@ -26,8 +26,13 @@
             display: none;
         }
 
-        /* Form labels */
-        #advancedSearchForm label {
+        /* Target the form within advancedSearchForm as well */
+        #advancedSearchFilterForm {
+            width: 100%;
+        }
+
+        /* Form labels - target both forms */
+        #advancedSearchForm label, #advancedSearchFilterForm label {
             display: block !important;
             color: yellow !important;
             font-size: 16px !important;
@@ -35,8 +40,8 @@
             margin-bottom: 8px !important;
         }
 
-        /* Select elements - direct styling */
-        #advancedSearchForm select {
+        /* Select elements - direct styling - target both forms */
+        #advancedSearchForm select, #advancedSearchFilterForm select {
             display: block !important;
             visibility: visible !important;
             width: 100% !important;
@@ -73,7 +78,7 @@
         }
 
         /* Filter button styling */
-        .filter-btn {
+        .filter-btn, #advancedSearchFilterForm input[type="submit"] {
             background-color: #007bff;
             color: white;
             padding: 10px 20px;
@@ -83,7 +88,7 @@
             font-size: 16px;
         }
 
-        .filter-btn:hover {
+        .filter-btn:hover, #advancedSearchFilterForm input[type="submit"]:hover {
             background-color: #0056b3;
         }
     </style>
@@ -95,7 +100,7 @@
 {% block content %}
 <div class="bom-container">
     <!-- Container for form elements -->
-    <div id="main-forms-area" {% if show_results %}style="display: none;"{% endif %}>
+    <div id="main-forms-area">
         <!-- Search Forms for BOM -->
         {% if session['user_level'] in ['LEVEL_I', 'LEVEL_II', 'LEVEL_III', 'ADMIN'] %}
         <div id="search-bill-of-materials" class="form-container">
@@ -106,33 +111,12 @@
                 Search (Area, Equipment Group, Model)
             </button>
 
-            <!-- Advanced Search Form -->
+            <!-- Advanced Search Form - Now using the partial template -->
             <div id="advancedSearchForm">
-                <form id="advancedSearchFormContent" method="POST" action="{{ url_for('create_bill_of_material_bp.create_bill_of_material') }}">
-                    <div>
-                        <label for="filter_areaDropdown">Area:</label>
-                        <select name="area" id="filter_areaDropdown"></select>
-                    </div>
-                    <div>
-                        <label for="filter_equipmentGroupDropdown">Equipment Group:</label>
-                        <select name="equipment_group" id="filter_equipmentGroupDropdown"></select>
-                    </div>
-                    <div>
-                        <label for="filter_modelDropdown">Model:</label>
-                        <select name="model" id="filter_modelDropdown"></select>
-                    </div>
-                    <div>
-                        <label for="filter_assetNumberDropdown">Asset Number:</label>
-                        <select name="asset_number" id="filter_assetNumberDropdown"></select>
-                    </div>
-                    <div>
-                        <label for="filter_locationDropdown">Location:</label>
-                        <select name="location" id="filter_locationDropdown"></select>
-                    </div>
-                    <div>
-                        <input type="submit" value="Filter" class="filter-btn">
-                    </div>
-                </form>
+                {% include 'bill_of_materials/bom_partials/advanced_search_form.html' %}
+
+                <!-- This hidden element helps with debugging -->
+                <div id="searchDebugInfo" style="display: none; margin-top: 10px; padding: 5px; background: #333; color: #0f0; font-family: monospace; font-size: 12px; max-height: 200px; overflow: auto;"></div>
             </div>
         </div>
         {% endif %}
@@ -184,12 +168,8 @@
         {% endwith %}
     </div>
 
-    <!-- Show BOM Results if applicable -->
-    {% if show_results %}
-    <div id="results-container">
-        {% include 'bill_of_materials/bom_partials/bill_of_material_results_partial.html' %}
-    </div>
-    {% endif %}
+    <!-- Results section has been removed - now using standalone page -->
+
 </div>
 {% endblock %}
 
@@ -208,12 +188,6 @@
         document.querySelectorAll('.form-container').forEach(function(container) {
             container.style.display = 'none';
         });
-
-        // Hide results container if it's showing
-        var resultsContainer = document.getElementById('results-container');
-        if (resultsContainer) {
-            resultsContainer.style.display = 'none';
-        }
 
         // Show main forms area
         var mainFormsArea = document.getElementById('main-forms-area');
@@ -237,35 +211,75 @@
             mainFormsArea.style.display = 'block';
         }
 
-        var resultsContainer = document.getElementById('results-container');
-        if (resultsContainer) {
-            resultsContainer.style.display = 'none';
-        }
-
         showForm('search-bill-of-materials');
     }
 
-    // Toggle function for advanced search form
+    // Toggle function for advanced search form - UPDATED to handle the partial template
     function toggleAndPopulate() {
-        console.log("toggleAndPopulate function called");
+    console.log("toggleAndPopulate function called");
 
-        var advancedForm = document.getElementById('advancedSearchForm');
-        console.log("Found advancedForm:", advancedForm);
+    var advancedForm = document.getElementById('advancedSearchForm');
+    console.log("Found advancedForm:", advancedForm);
 
-        var wasHidden = advancedForm.style.display === 'none' || getComputedStyle(advancedForm).display === 'none';
-        console.log("Form was hidden:", wasHidden);
+    var wasHidden = advancedForm.style.display === 'none' || getComputedStyle(advancedForm).display === 'none';
+    console.log("Form was hidden:", wasHidden);
 
-        // Toggle display
-        advancedForm.style.display = wasHidden ? 'block' : 'none';
-        console.log("Set display to:", advancedForm.style.display);
+    // Toggle display
+    advancedForm.style.display = wasHidden ? 'block' : 'none';
+    console.log("Set display to:", advancedForm.style.display);
 
-        // If showing the form, populate the dropdowns
-        if (wasHidden) {
-            console.log("Form is now visible, populating dropdowns");
-            populateDropdownsForPartsPosition();
+    // If showing the form, populate the dropdowns with a slight delay to ensure DOM is ready
+    if (wasHidden) {
+        console.log("Form is now visible, populating dropdowns");
+        setTimeout(function() {
+            // Check for form clearing flag here if needed
+            if (sessionStorage.getItem('clearAdvancedForm') === 'true') {
+                sessionStorage.removeItem('clearAdvancedForm');
+                window.BOMAdvancedSearch.clearAdvancedForm();
+            }
+
+            window.populateDropdownsForPartsPosition();
+
+            // Enhanced form visibility check
+            // ... rest of your existing code ...
+        }, 100);
+    }
+
+    return false;
+}
+
+    // Helper function to diagnose form issues
+    window.checkFormState = function() {
+        console.log("Checking form state...");
+
+        // Log which form containers exist
+        console.log("advancedSearchForm exists:", document.getElementById('advancedSearchForm') !== null);
+        console.log("advancedSearchFilterForm exists:", document.getElementById('advancedSearchFilterForm') !== null);
+
+        // Check all form elements
+        ['filter_areaDropdown', 'filter_equipmentGroupDropdown', 'filter_modelDropdown',
+         'filter_assetNumberDropdown', 'filter_locationDropdown'].forEach(function(id) {
+            const element = document.getElementById(id);
+            console.log(`Element #${id} exists:`, element !== null);
+            if (element) {
+                console.log(`- Options: ${element.options.length}`);
+                console.log(`- Visible: ${getComputedStyle(element).display !== 'none'}`);
+            }
+        });
+
+        // Check Select2 initialization
+        if (window.jQuery && $.fn.select2) {
+            console.log("Select2 is available");
+            ['filter_areaDropdown', 'filter_equipmentGroupDropdown', 'filter_modelDropdown',
+             'filter_assetNumberDropdown', 'filter_locationDropdown'].forEach(function(id) {
+                const element = document.getElementById(id);
+                if (element) {
+                    console.log(`#${id} has Select2:`, $(element).data('select2') !== undefined);
+                }
+            });
+        } else {
+            console.log("Select2 is NOT available");
         }
-
-        return false;
     }
     </script>
 
@@ -287,11 +301,7 @@
             if (hash) {
                 showForm(hash);
             } else {
-                {% if show_results %}
-                    // Do nothing, keep showing results
-                {% else %}
-                    showForm('search-bill-of-materials');
-                {% endif %}
+                showForm('search-bill-of-materials');
             }
         }
 
@@ -318,6 +328,4 @@
     <script src="{{ url_for('static', filename='js/bill_of_materials/get_bill_of_material_query.js') }}"></script>
     <script src="{{ url_for('static', filename='js/bill_of_materials/bill_of_materials.js') }}"></script>
     <script src="{{ url_for('static', filename='js/bill_of_materials/search_edit_part.js') }}"></script>
-
-
 {% endblock %}
