@@ -1,4 +1,5 @@
 /**
+ * static/js/bill_of_materials/get_bill_of_material_query.js
  * Enhanced Bill of Materials - Advanced Search Functionality
  * This script handles the population of dropdown menus in the advanced search form.
  */
@@ -84,8 +85,8 @@ window.populateDropdownsForPartsPosition = function() {
 window.BOMAdvancedSearch.clearAdvancedForm = function() {
     window.BOMAdvancedSearch.logDebug("Clearing advanced search form");
 
-    // Get all select elements in the advanced search form
-    const formSelects = $('#advancedSearchForm select');
+    // Get all select elements in both possible form versions
+    const formSelects = $('#advancedSearchForm select, #advancedSearchFilterForm select');
 
     // Reset each select to empty value
     formSelects.each(function() {
@@ -200,41 +201,6 @@ window.BOMAdvancedSearch.setupDropdownEvents = function(data) {
     // Reset button event handler
     $('#resetFilterBtn').off('click').on('click', function() {
         window.BOMAdvancedSearch.resetAllDropdowns();
-    });
-
-    // Enhanced form submission handler to keep track of submissions
-    $('#advancedSearchForm form').off('submit').on('submit', function(e) {
-        window.BOMAdvancedSearch.logDebug("Form submitted, setting flags");
-
-        // Check if any values are selected
-        let hasValue = false;
-        $(this).find('select').each(function() {
-            if ($(this).val()) {
-                hasValue = true;
-                return false; // Break the loop
-            }
-        });
-
-        if (!hasValue) {
-            window.BOMAdvancedSearch.logDebug("No values selected in form");
-            window.BOMAdvancedSearch.showError('Please select at least one search criteria');
-            e.preventDefault();
-            return false;
-        }
-
-        // Get form data for debugging
-        const formData = $(this).serialize();
-        window.BOMAdvancedSearch.logDebug("Form data: " + formData);
-
-        // Set flag in sessionStorage to clear form on next view
-        sessionStorage.setItem('clearAdvancedForm', 'true');
-
-        // Set flag in localStorage that we're expecting results
-        localStorage.setItem('expectingResults', 'true');
-        localStorage.setItem('lastSearchTime', new Date().getTime());
-
-        // Let the form submit normally
-        return true;
     });
 };
 
@@ -379,6 +345,12 @@ window.BOMAdvancedSearch.safeSelect2Initialize = function(dropdown) {
     }
 
     try {
+        // Make sure dropdown exists and is in the DOM
+        if (dropdown.length === 0 || !document.getElementById(dropdown.attr('id'))) {
+            window.BOMAdvancedSearch.logDebug(`Skip Select2 init for non-existent element: ${dropdown.attr('id')}`);
+            return;
+        }
+
         // Check if Select2 is already initialized
         if (dropdown.data('select2')) {
             // Safely destroy existing instance
@@ -472,7 +444,7 @@ window.BOMAdvancedSearch.initializeSelect2 = function() {
  */
 window.BOMAdvancedSearch.ensureElementsVisible = function() {
     // Make sure the form container is visible
-    $('#advancedSearchForm').css({
+    $('#advancedSearchForm, #advancedSearchFilterForm').css({
         'display': 'block',
         'visibility': 'visible'
     });
@@ -484,37 +456,12 @@ window.BOMAdvancedSearch.ensureElementsVisible = function() {
             element.style.display = 'block';
             element.style.visibility = 'visible';
             element.style.opacity = '1';
+        } else {
+            window.BOMAdvancedSearch.logDebug(`WARNING: Element with ID ${id} not found!`);
         }
     });
 
-    // Apply direct styling to ensure elements are visible
-    setTimeout(function() {
-        const formElement = document.getElementById('advancedSearchForm');
-        if (formElement) {
-            formElement.style.display = 'block';
-            formElement.style.backgroundColor = 'rgba(0, 0, 0, 0.9)';
-            formElement.style.padding = '20px';
-            formElement.style.border = '2px solid red';
-            formElement.style.borderRadius = '5px';
-            formElement.style.zIndex = '9999';
-        }
-
-        // Apply styling to all select elements
-        Object.values(window.BOMAdvancedSearch.DROPDOWN_IDS).forEach(id => {
-            const select = document.getElementById(id);
-            if (select) {
-                select.style.display = 'block';
-                select.style.visibility = 'visible';
-                select.style.width = '100%';
-                select.style.maxWidth = '600px';
-                select.style.backgroundColor = 'white';
-                select.style.color = 'black';
-                select.style.zIndex = '10000';
-            }
-        });
-
-        window.BOMAdvancedSearch.logDebug('Applied direct styling to ensure elements are visible');
-    }, 300);
+    // The rest of your function...
 };
 
 /**
@@ -547,7 +494,8 @@ window.BOMAdvancedSearch.hideLoadingIndicators = function() {
 window.BOMAdvancedSearch.showError = function(message) {
     // Create error element if it doesn't exist
     if ($('#searchFormError').length === 0) {
-        $('#advancedSearchForm').prepend(
+        const formContainer = $('#advancedSearchForm, #advancedSearchFilterForm').first();
+        formContainer.prepend(
             $('<div id="searchFormError"></div>')
                 .css({
                     'background-color': '#f8d7da',
@@ -611,64 +559,44 @@ window.BOMAdvancedSearch.toggleDebugInfo = function() {
  * Function to ensure results stay visible
  */
 window.BOMAdvancedSearch.ensureResultsStayVisible = function() {
-    window.BOMAdvancedSearch.logDebug("Ensuring results stay visible");
+    window.BOMAdvancedSearch.logDebug("Using standalone results page approach");
 
-    // Check if we're on a results page
-    const resultsContainer = $('#results-container');
-    if (resultsContainer.length) {
-        // Force results to be visible
-        resultsContainer.show();
+    // Since we're now using a separate page for results, we just need to clear the flags
+    // No need to manipulate DOM elements as results are on another page
+    localStorage.removeItem('expectingResults');
+    localStorage.removeItem('lastSearchTime');
 
-        // Hide main forms area
-        $('#main-forms-area').hide();
+    window.BOMAdvancedSearch.logDebug("Cleared result flags for standalone page");
 
-        // Remove the expecting results flag
-        localStorage.removeItem('expectingResults');
-
-        window.BOMAdvancedSearch.logDebug("Results container is now visible");
-
-        // Keep checking to make sure results stay visible
-        setTimeout(function() {
-            if (resultsContainer.is(':hidden')) {
-                window.BOMAdvancedSearch.logDebug("Results were hidden, showing again");
-                resultsContainer.show();
-                $('#main-forms-area').hide();
-            }
-        }, 500);
-    } else {
-        window.BOMAdvancedSearch.logDebug("No results container found on this page");
-    }
+    // No need for setTimeout checks since we're using a full page redirect
 };
 
 /**
- * Update the toggleAndPopulate function to check for form clearing
+ * Global clear function that works for both forms
  */
-window.toggleAndPopulate = function() {
-    console.log("toggleAndPopulate function called");
+window.clearAdvancedForm = function() {
+    console.log("clearAdvancedForm called");
 
-    // Toggle the advanced search form
-    var advancedForm = document.getElementById('advancedSearchForm');
-    if (!advancedForm) {
-        console.error("Advanced form not found!");
-        return false;
+    // Check for both possible form IDs
+    const advFilterForm = document.getElementById('advancedSearchFilterForm');
+    const advContentForm = document.getElementById('advancedSearchFormContent');
+
+    console.log("Forms found:", {
+        advFilterForm: !!advFilterForm,
+        advContentForm: !!advContentForm
+    });
+
+    // Find the form that currently exists
+    const formToReset = advFilterForm || (advContentForm ? advContentForm.form : null);
+    if (formToReset) {
+        console.log("Resetting form:", formToReset.id);
+        formToReset.reset();
+
+        // Also clear all selects to default state
+        window.BOMAdvancedSearch.resetAllDropdowns();
+    } else {
+        console.warn("No form found to reset!");
     }
-
-    console.log("Found advancedForm:", advancedForm);
-
-    var wasHidden = advancedForm.style.display === 'none' || getComputedStyle(advancedForm).display === 'none';
-    console.log("Form was hidden:", wasHidden);
-
-    // Toggle display
-    advancedForm.style.display = wasHidden ? 'block' : 'none';
-    console.log("Set display to:", advancedForm.style.display);
-
-    // If showing the form, check for clearing and populate
-    if (wasHidden) {
-        console.log("Form is now visible, populating dropdowns");
-        window.populateDropdownsForPartsPosition();
-    }
-
-    return false;
 };
 
 // Override any document location changes after search
@@ -687,11 +615,76 @@ window.location.assign = function(url) {
     originalAssign.call(window.location, url);
 };
 
-// Initialize when document is ready
+/**
+ * Add a debug function for diagnosing form state issues
+ */
+window.debugForms = function() {
+    console.group("Advanced Search Form Debug Info");
+
+    // Check for both possible forms
+    const advancedSearchForm = document.getElementById('advancedSearchForm');
+    const advancedSearchFilterForm = document.getElementById('advancedSearchFilterForm');
+    const advancedSearchFormContent = document.getElementById('advancedSearchFormContent');
+
+    console.log("Form containers found:", {
+        advancedSearchForm: !!advancedSearchForm,
+        advancedSearchFilterForm: !!advancedSearchFilterForm,
+        advancedSearchFormContent: !!advancedSearchFormContent
+    });
+
+    // Check all form attributes
+    if (advancedSearchFilterForm) {
+        console.log("advancedSearchFilterForm attributes:", {
+            method: advancedSearchFilterForm.method,
+            action: advancedSearchFilterForm.action,
+            id: advancedSearchFilterForm.id,
+            display: getComputedStyle(advancedSearchFilterForm).display,
+            visible: advancedSearchFilterForm.offsetParent !== null
+        });
+    }
+
+    if (advancedSearchFormContent) {
+        console.log("advancedSearchFormContent attributes:", {
+            method: advancedSearchFormContent.method,
+            action: advancedSearchFormContent.action,
+            id: advancedSearchFormContent.id,
+            display: getComputedStyle(advancedSearchFormContent).display,
+            visible: advancedSearchFormContent.offsetParent !== null
+        });
+    }
+
+    // Check dropdown elements
+    const dropdownIds = Object.values(window.BOMAdvancedSearch.DROPDOWN_IDS);
+
+    const dropdownsInfo = {};
+
+    dropdownIds.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+            dropdownsInfo[id] = {
+                exists: true,
+                options: element.options.length,
+                value: element.value,
+                display: getComputedStyle(element).display,
+                visible: element.offsetParent !== null
+            };
+        } else {
+            dropdownsInfo[id] = { exists: false };
+        }
+    });
+
+    console.log("Dropdown elements:", dropdownsInfo);
+
+    console.groupEnd();
+
+    return "Form debug completed - see console for details";
+};
+
+// Initialize when document is ready - ONE document.ready handler
 $(document).ready(function() {
     window.BOMAdvancedSearch.logDebug('Document ready - Advanced Search JS loaded');
 
-    // Check jQuery and Select2 availability
+    // 1. Check jQuery and Select2 availability
     if (window.jQuery) {
         window.BOMAdvancedSearch.logDebug('jQuery is available');
 
@@ -704,97 +697,129 @@ $(document).ready(function() {
         console.error('jQuery is not available - this should never happen');
     }
 
-    // Check if we were expecting results
-    if (localStorage.getItem('expectingResults') === 'true') {
-        window.BOMAdvancedSearch.logDebug("We were expecting search results");
+    // 2. Determine what page we're on
+    const isResultsPage = window.location.pathname.includes('view_bill_of_material') ||
+                         window.location.pathname.includes('bill_of_material_results') ||
+                         window.location.pathname.includes('/create_bill_of_material');
 
-        // Get the time of the last search
-        const lastSearchTime = localStorage.getItem('lastSearchTime');
-        const currentTime = new Date().getTime();
-
-        // Only process if search was recent (within last 30 seconds)
-        if (lastSearchTime && (currentTime - lastSearchTime < 30000)) {
-            window.BOMAdvancedSearch.logDebug("Recent search detected, ensuring results stay visible");
-            window.BOMAdvancedSearch.ensureResultsStayVisible();
-        } else {
-            // Too much time has passed, clear the flag
-            localStorage.removeItem('expectingResults');
-            localStorage.removeItem('lastSearchTime');
-        }
+    if (isResultsPage) {
+        window.BOMAdvancedSearch.logDebug("We're on the results page - minimal initialization");
+        // Clear any leftover flags
+        sessionStorage.removeItem('clearAdvancedForm');
+        // Skip form initialization on results page
+        return;
     }
 
-    // Add handler for "Back to Search" links
+    // 3. Find the form with a SINGLE selector - don't use the comma selector that can find duplicates
+    var advancedForm = $('#advancedSearchFilterForm');
+
+    // Debug what we found
+    window.BOMAdvancedSearch.logDebug("Found form count: " + advancedForm.length);
+    if (advancedForm.length > 1) {
+        window.BOMAdvancedSearch.logDebug("WARNING: Found multiple forms with the same ID!");
+        // Log each form's parent for troubleshooting
+        advancedForm.each(function(idx) {
+            window.BOMAdvancedSearch.logDebug(`Form ${idx} parent: ${$(this).parent().attr('id') || 'unknown'}`);
+        });
+        // Keep only the first one to avoid duplicates
+        advancedForm = advancedForm.eq(0);
+    }
+
+    if (advancedForm.length) {
+        window.BOMAdvancedSearch.logDebug("Using search form ID: " + advancedForm.attr('id'));
+
+        // Remove any existing handlers to prevent duplicates
+        advancedForm.off('submit');
+
+        // Add submit handler
+        advancedForm.on('submit', function(event) {
+            window.BOMAdvancedSearch.logDebug("Form submitted: " + this.id);
+
+            // Verify form method
+            if ($(this).attr('method').toUpperCase() !== 'POST') {
+                window.BOMAdvancedSearch.logDebug("Form method is not POST! Correcting...");
+                $(this).attr('method', 'POST');
+            }
+
+            // Verify form has values
+            let hasValue = false;
+            $(this).find('select').each(function() {
+                if ($(this).val()) {
+                    hasValue = true;
+                    return false; // Break the loop
+                }
+            });
+
+            if (!hasValue) {
+                window.BOMAdvancedSearch.logDebug("No values selected in form");
+                window.BOMAdvancedSearch.showError('Please select at least one search criteria');
+                event.preventDefault();
+                return false;
+            }
+
+            // Get form data for debugging
+            const formData = $(this).serialize();
+            window.BOMAdvancedSearch.logDebug("Form data: " + formData);
+            window.BOMAdvancedSearch.logDebug("Form action: " + $(this).attr('action'));
+            window.BOMAdvancedSearch.logDebug("Form method: " + $(this).attr('method'));
+
+            // Set flag to clear form on next view
+            sessionStorage.setItem('clearAdvancedForm', 'true');
+
+            // Let the form submit normally
+            return true;
+        });
+    } else {
+        window.BOMAdvancedSearch.logDebug("Warning: Advanced search form not found!");
+    }
+
+    // 4. Add handler for "Back to Search" links
     $('.back-to-form').off('click').on('click', function(e) {
         window.BOMAdvancedSearch.logDebug("Back to search clicked, setting clear flag");
-
         // Prevent default link behavior
         e.preventDefault();
-
         // Set the clear flag
         sessionStorage.setItem('clearAdvancedForm', 'true');
-
-        // Clear the expecting results flag
-        localStorage.removeItem('expectingResults');
-        localStorage.removeItem('lastSearchTime');
-
         // Navigate to the target URL
         window.location.href = $(this).attr('href');
     });
 
-    // Check for the clear flag when page loads
+    // 5. Check for the clear flag when page loads
     if (sessionStorage.getItem('clearAdvancedForm') === 'true') {
         window.BOMAdvancedSearch.logDebug("Clear flag found on page load");
-        // Flag will be processed in populateDropdownsForPartsPosition
+        // Will be processed in populateDropdownsForPartsPosition
+        // Don't remove the flag yet - it will be used by the populate function
     }
 
-    // Only initialize when the form is visible
-    const advancedForm = document.getElementById('advancedSearchForm');
-    if (advancedForm && (advancedForm.style.display !== 'none' && getComputedStyle(advancedForm).display !== 'none')) {
+    // 6. Only initialize the form when it's visible
+    const advancedFormContainer = document.getElementById('advancedSearchForm');
+    if (advancedFormContainer && (advancedFormContainer.style.display !== 'none' && getComputedStyle(advancedFormContainer).display !== 'none')) {
         window.BOMAdvancedSearch.logDebug('Advanced form is visible on page load, populating dropdowns');
         window.populateDropdownsForPartsPosition();
     } else {
         window.BOMAdvancedSearch.logDebug('Advanced form is hidden on page load');
     }
 
-    // Add debug toggle (hidden in production)
+    // 7. Add debug toggle (only in development)
     if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
-        $('<button type="button" id="toggleDebugBtn">Toggle Debug Info</button>')
-            .css({
-                'position': 'fixed',
-                'bottom': '10px',
-                'right': '10px',
-                'z-index': '9999',
-                'background': '#333',
-                'color': '#fff',
-                'border': 'none',
-                'padding': '5px 10px',
-                'cursor': 'pointer'
-            })
-            .click(window.BOMAdvancedSearch.toggleDebugInfo)
-            .appendTo('body');
-
+        // Only add if it doesn't already exist
+        if ($('#toggleDebugBtn').length === 0) {
+            $('<button type="button" id="toggleDebugBtn">Toggle Debug Info</button>')
+                .css({
+                    'position': 'fixed',
+                    'bottom': '10px',
+                    'right': '10px',
+                    'z-index': '9999',
+                    'background': '#333',
+                    'color': '#fff',
+                    'border': 'none',
+                    'padding': '5px 10px',
+                    'cursor': 'pointer'
+                })
+                .click(window.BOMAdvancedSearch.toggleDebugInfo)
+                .appendTo('body');
+        }
         // Show debug area in development environment
         $('#searchDebugInfo').show();
     }
 });
-
-// Add helper to check form data before submission
-window.BOMAdvancedSearch.validateFormBeforeSubmit = function() {
-    // Check that at least one dropdown has a value
-    const formSelects = $('#advancedSearchForm select');
-    let hasValue = false;
-
-    formSelects.each(function() {
-        if ($(this).val()) {
-            hasValue = true;
-            return false; // Break the loop
-        }
-    });
-
-    if (!hasValue) {
-        window.BOMAdvancedSearch.showError('Please select at least one search criteria');
-        return false;
-    }
-
-    return true;
-};
