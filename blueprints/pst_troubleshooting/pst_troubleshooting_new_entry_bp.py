@@ -2,16 +2,14 @@
 
 from flask import Blueprint, render_template, request, jsonify, flash
 from modules.configuration.config_env import DatabaseConfig
+from modules.configuration.log_config import with_request_id
 from modules.emtacdb.emtacdb_fts import (
     Problem, Area, EquipmentGroup, Model, AssetNumber, Location, SiteLocation,
     Part, Position, ProblemPositionAssociation
 )
 from sqlalchemy.exc import SQLAlchemyError
-import logging
+from modules.configuration.log_config import logger,with_request_id
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 # Initialize Blueprint
 pst_troubleshoot_new_entry_bp = Blueprint('pst_troubleshoot_new_entry_bp', __name__,)
@@ -20,6 +18,7 @@ pst_troubleshoot_new_entry_bp = Blueprint('pst_troubleshoot_new_entry_bp', __nam
 db_config = DatabaseConfig()
 
 @pst_troubleshoot_new_entry_bp.route('/', methods=['GET'])
+@with_request_id
 def new_entry_form():
     """
     Render the New Problem Entry Form.
@@ -37,7 +36,9 @@ def new_entry_form():
     finally:
         session.close()
 
+
 @pst_troubleshoot_new_entry_bp.route('/create_problem', methods=['POST'])
+@with_request_id
 def create_new_problem():
     """
     Handle the creation of a new problem via AJAX, including position handling and association.
@@ -45,48 +46,87 @@ def create_new_problem():
     session = db_config.get_main_session()
     try:
         # Extract form data
-        problem_name = request.form.get('name')
+        problem_name = request.form.get('name')  # Make sure this matches your form field
         problem_description = request.form.get('description')
         area_id = request.form.get('area_id')
         equipment_group_id = request.form.get('equipment_group_id')
         model_id = request.form.get('model_id')
+
+        # Get both ID and input string for asset number and location
+        asset_number_id = request.form.get('asset_number_id')
         asset_number_input = request.form.get('asset_number')
+        location_id = request.form.get('location_id')
         location_input = request.form.get('location')
         site_location_id = request.form.get('site_location_id')
 
         logger.info(f"Form Data - Name: {problem_name}, Description: {problem_description}, Area: {area_id}, "
-                    f"Equipment Group: {equipment_group_id}, Model: {model_id}, Asset Number: {asset_number_input}, "
-                    f"Location: {location_input}, Site Location: {site_location_id}")
+                    f"Equipment Group: {equipment_group_id}, Model: {model_id}, Asset Number ID: {asset_number_id}, "
+                    f"Asset Number Input: {asset_number_input}, Location ID: {location_id}, "
+                    f"Location Input: {location_input}, Site Location: {site_location_id}")
 
         # Validate required fields
         if not all([problem_name, problem_description, area_id, equipment_group_id, model_id]):
             return jsonify({'success': False, 'message': 'All required fields must be filled out.'}), 400
 
-        # Handle optional fields and database operations
+        # Handle asset number logic
         asset_number = None
-        if asset_number_input:
-            asset_number = session.query(AssetNumber).filter_by(number=asset_number_input, model_id=model_id).first()
+        if asset_number_id:
+            asset_number = session.query(AssetNumber).filter_by(id=asset_number_id).first()
+            if asset_number:
+                logger.info(f"Found asset number with ID: {asset_number_id}")
+        elif asset_number_input:
+            # Try to interpret as ID first
+            try:
+                aid = int(asset_number_input)
+                asset_number = session.query(AssetNumber).filter_by(id=aid).first()
+                if asset_number:
+                    logger.info(f"Found asset number by ID: {aid}")
+            except (ValueError, TypeError):
+                pass
+
+            # If not found, try by number
             if not asset_number:
-                asset_number = AssetNumber(number=asset_number_input, model_id=model_id)
-                session.add(asset_number)
-                session.commit()
-                logger.info(f"Created new Asset Number: {asset_number_input}")
+                asset_number = session.query(AssetNumber).filter_by(number=asset_number_input,
+                                                                    model_id=model_id).first()
+                if not asset_number:
+                    asset_number = AssetNumber(number=asset_number_input, model_id=model_id)
+                    session.add(asset_number)
+                    session.commit()
+                    logger.info(f"Created new Asset Number: {asset_number_input}")
 
+        # Handle location logic
         location = None
-        if location_input:
-            location = session.query(Location).filter_by(name=location_input, model_id=model_id).first()
-            if not location:
-                location = Location(name=location_input, model_id=model_id)
-                session.add(location)
-                session.commit()
-                logger.info(f"Created new Location: {location_input}")
+        if location_id:
+            location = session.query(Location).filter_by(id=location_id).first()
+            if location:
+                logger.info(f"Found location with ID: {location_id}")
+        elif location_input:
+            # Try to interpret as ID first
+            try:
+                lid = int(location_input)
+                location = session.query(Location).filter_by(id=lid).first()
+                if location:
+                    logger.info(f"Found location by ID: {lid}")
+            except (ValueError, TypeError):
+                pass
 
+            # If not found, try by name
+            if not location:
+                location = session.query(Location).filter_by(name=location_input, model_id=model_id).first()
+                if not location:
+                    location = Location(name=location_input, model_id=model_id)
+                    session.add(location)
+                    session.commit()
+                    logger.info(f"Created new Location: {location_input}")
+
+        # Handle site location
         site_location = None
         if site_location_id == 'new':
             new_site_location_title = request.form.get('new_siteLocation_title')
             new_site_location_room_number = request.form.get('new_siteLocation_room_number')
             if not all([new_site_location_title, new_site_location_room_number]):
-                return jsonify({'success': False, 'message': 'New Site Location title and room number are required.'}), 400
+                return jsonify(
+                    {'success': False, 'message': 'New Site Location title and room number are required.'}), 400
             site_location = SiteLocation(title=new_site_location_title, room_number=new_site_location_room_number)
             session.add(site_location)
             session.commit()
@@ -105,7 +145,7 @@ def create_new_problem():
         session.commit()
         logger.info(f"Created new Problem: {problem_name} with ID {new_problem.id}")
 
-        # Check if a matching Position exists, otherwise create a new Position
+        # Create or find Position
         position = session.query(Position).filter_by(
             area_id=area_id,
             equipment_group_id=equipment_group_id,
@@ -128,7 +168,7 @@ def create_new_problem():
             session.commit()
             logger.info(f"Created new Position with ID {position.id}")
 
-        # Create an entry in ProblemPositionAssociation to associate Problem and Position
+        # Create association
         problem_position_association = ProblemPositionAssociation(
             problem_id=new_problem.id,
             position_id=position.id
@@ -151,6 +191,7 @@ def create_new_problem():
         session.close()
 
 @pst_troubleshoot_new_entry_bp.route('/get_equipment_groups', methods=['GET'])
+@with_request_id
 def get_equipment_groups():
     area_id = request.args.get('area_id')
     if not area_id:
@@ -168,6 +209,7 @@ def get_equipment_groups():
         session.close()
 
 @pst_troubleshoot_new_entry_bp.route('/get_models', methods=['GET'])
+@with_request_id
 def get_models():
     equipment_group_id = request.args.get('equipment_group_id')
     if not equipment_group_id:
@@ -185,6 +227,7 @@ def get_models():
         session.close()
 
 @pst_troubleshoot_new_entry_bp.route('/get_asset_numbers', methods=['GET'])
+@with_request_id
 def get_asset_numbers():
     model_id = request.args.get('model_id')
     if not model_id:
@@ -202,6 +245,7 @@ def get_asset_numbers():
         session.close()
 
 @pst_troubleshoot_new_entry_bp.route('/get_locations', methods=['GET'])
+@with_request_id
 def get_locations():
     model_id = request.args.get('model_id')
     if not model_id:
@@ -219,6 +263,7 @@ def get_locations():
         session.close()
 
 @pst_troubleshoot_new_entry_bp.route('/get_site_locations', methods=['GET'])
+@with_request_id
 def get_site_locations():
     """
     Fetch all Site Locations with detailed logging for debugging.
@@ -264,6 +309,7 @@ def get_site_locations():
             logger.info("Database session closed after fetching site locations.")
 
 @pst_troubleshoot_new_entry_bp.route('/get_positions', methods=['GET'])
+@with_request_id
 def get_positions():
     try:
         # Get filter parameters from the request
@@ -414,8 +460,8 @@ def get_positions():
         session.close()
         logger.info("Database session closed for /get_positions.")
 
-
 @pst_troubleshoot_new_entry_bp.route('/create_equipment_group', methods=['POST'])
+@with_request_id
 def create_equipment_group():
     """
     Handle the creation of a new equipment group using the class method.
@@ -469,6 +515,7 @@ def create_equipment_group():
         session.close()
 
 @pst_troubleshoot_new_entry_bp.route('/create_model', methods=['POST'])
+@with_request_id
 def create_model():
     """
     Handle the creation of a new model using the class method.
@@ -522,8 +569,8 @@ def create_model():
     finally:
         session.close()
 
-
 @pst_troubleshoot_new_entry_bp.route('/create_asset_number', methods=['POST'])
+@with_request_id
 def create_asset_number():
     """
     Handle the creation of a new asset number using the class method.
@@ -574,8 +621,8 @@ def create_asset_number():
     finally:
         session.close()
 
-
 @pst_troubleshoot_new_entry_bp.route('/create_location', methods=['POST'])
+@with_request_id
 def create_location():
     """
     Handle the creation of a new location using the class method.
@@ -626,8 +673,8 @@ def create_location():
     finally:
         session.close()
 
-
 @pst_troubleshoot_new_entry_bp.route('/create_site_location', methods=['POST'])
+@with_request_id
 def create_site_location():
     """
     Handle the creation of a new site location using the class method.
