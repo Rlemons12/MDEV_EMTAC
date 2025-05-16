@@ -350,3 +350,68 @@ textarea {
         font-size: 18px !important;
     }
 }
+/* Add this to your CSS */
+/* CRITICAL override for suggestion boxes */
+#image-suggestion-box.suggestion-box[style*="display: block"],
+#drawing-suggestion-box.suggestion-box[style*="display: block"],
+#part-suggestion-box.suggestion-box[style*="display: block"] {
+    position: absolute !important;
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    top: 100% !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    background-color: rgba(0, 0, 0, 0.95) !important;
+    border: 3px solid yellow !important;
+    color: yellow !important;
+    z-index: 999999 !important;
+    max-height: 300px !important;
+    overflow-y: auto !important;
+    transform: none !important;
+    pointer-events: auto !important;
+    clip: auto !important;
+    clip-path: none !important;
+}
+
+.suggestion-box .suggestion-item {
+    padding: 8px !important;
+    cursor: pointer !important;
+    border-bottom: 1px solid yellow !important;
+}
+
+.suggestion-box .suggestion-item:hover {
+    background-color: rgba(255, 255, 0, 0.2) !important;
+}
+
+/* Styling for all suggestion boxes */
+.suggestion-box {
+    position: absolute !important;
+    top: 100% !important;
+    left: 0 !important;
+    background-color: rgba(0, 0, 0, 0.9) !important;
+    border: 2px solid yellow !important;
+    width: 100% !important;
+    max-height: 300px !important;
+    overflow-y: auto !important;
+    z-index: 9999 !important;
+    color: yellow !important;
+    display: none !important;
+}
+
+/* Make sure items are clearly visible */
+.suggestion-item {
+    padding: 10px !important;
+    cursor: pointer !important;
+    border-bottom: 1px solid yellow !important;
+}
+
+.suggestion-item:hover {
+    background-color: rgba(255, 255, 0, 0.2) !important;
+}
+
+/* Override any overflow hidden settings on parent elements */
+body, .main-container, .content, .tab-content, #drawings-container {
+    overflow: visible !important;
+}
