@@ -1,274 +1,282 @@
 document.addEventListener('DOMContentLoaded', function () {
-    // Utility function to escape HTML to prevent XSS
-    function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-
-    // Function to add a new part entry for input
-    function addPartEntry() {
-        const newPartsContainer = document.getElementById('new-parts-container');
-        const partEntry = document.createElement('div');
-        partEntry.className = 'part-entry';
-        partEntry.innerHTML = `
-            <label>Part Number:</label>
-            <input type="text" name="part_numbers[]" class="new-part-input" required>
-            <button type="button" class="remove-part-button">Remove</button>
-        `;
-        newPartsContainer.appendChild(partEntry);
-    }
-
-    // Function to remove a new part entry (from the UI)
-    function removePartEntry(button) {
-        const partEntry = button.parentElement;
-        partEntry.remove();
-    }
-
-    // Function to add a new part to the database and associate it with a position
-    function submitNewPart(partNumber, positionId, callback) {
-        if (!partNumber || !positionId) {
-            callback('Part number and Position ID are required.');
-            return;
-        }
-
-        fetch('/create_and_add_part', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ part_number: partNumber, position_id: positionId })
-        })
-        .then(response => response.json().then(data => ({ data, status: response.status })))
-        .then(({ data, status }) => {
-            console.log('Submit New Part Response:', data); // Debugging log
-            if (status === 200 && data.success) {
-                callback(null, data);
-            } else {
-                callback(data.message || 'Failed to add part.');
-            }
-        })
-        .catch(error => {
-            console.error('Error adding part:', error);
-            callback('Failed to add part.');
-        });
-    }
-
-    // Function to submit an existing part to be associated with a position
-    function submitExistingPart(partId, positionId, callback) {
-    if (!partId || !positionId) {
-        callback('Part ID and Position ID are required.');
-        return;
-    }
-
-    fetch('/add_part_to_position', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ part_id: partId, position_id: positionId })
-    })
-    .then(response => response.json().then(data => ({ data, status: response.status })))
-    .then(({ data, status }) => {
-        console.log('Submit Existing Part Response:', data); // Debugging log
-        if (status === 200) {
-            callback(null, data);
-        } else {
-            callback(data.message || 'Failed to add part.');
-        }
-    })
-    .catch(error => {
-        console.error('Error adding existing part:', error);
-        callback('Failed to add part.');
-    });
-}
-
-
-    // Function to handle part form submission for new parts
-    function handleAddParts() {
-        const newPartInputs = document.querySelectorAll('.new-part-input');
-        const positionIdElement = document.getElementById('position_id');
-        if (!positionIdElement) {
-            alert('Position ID element not found.');
-            return;
-        }
-        const positionId = positionIdElement.value;
-
-        newPartInputs.forEach(input => {
-            const partNumber = input.value.trim();
-            if (partNumber) {
-                submitNewPart(partNumber, positionId, (err, data) => {
-                    if (err) {
-                        alert(`Error: ${err}`);
-                    } else {
-                        alert(`Success: ${data.message}`);
-                        const existingPartsList = document.getElementById('existing-parts-list');
-                        const newPartEntry = document.createElement('div');
-                        newPartEntry.className = 'existing-part';
-                        newPartEntry.id = `part-${data.id}`; // Changed from data.part_id to data.id
-                        newPartEntry.innerHTML = `
-                            <span>Part Number: ${escapeHtml(data.part_number)}</span>
-                            <button type="button" class="remove-existing-part-button"
-                                    data-part-id="${data.id}" data-position-id="${positionId}">Remove</button>
-                        `;
-                        existingPartsList.appendChild(newPartEntry);
-                        input.parentElement.remove();
-                    }
-                });
-            }
-        });
-    }
-
-    // Function to search for parts and display them in a suggestion box
+    // Function to search for parts
     function searchParts() {
         const searchInputElement = document.getElementById('parts-search');
-        const searchInput = searchInputElement.value.trim().toLowerCase();
+        const searchInput = searchInputElement.value.trim();
         const suggestionBox = document.getElementById('parts-suggestion-box');
 
-        console.log('Search input:', searchInput); // Debugging statement
+        console.log('Parts search input:', searchInput);
 
         if (!searchInput) {
-            suggestionBox.innerHTML = '';  // Clear suggestion box
-            suggestionBox.style.display = 'none';  // Hide the suggestion box
+            suggestionBox.innerHTML = '';
+            suggestionBox.style.cssText = 'display: none !important;';
             return;
         }
 
         // Add a timestamp to prevent caching
         const timestamp = new Date().getTime();
+        const fetchUrl = `/pda_search_parts?query=${encodeURIComponent(searchInput)}&t=${timestamp}`;
+        console.log('Fetching URL:', fetchUrl);
 
-        fetch(`/pda_search_parts?query=${encodeURIComponent(searchInput)}&t=${timestamp}`, {
+        fetch(fetchUrl, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json'
             }
         })
-        .then(response => response.json())
+        .then(response => {
+            console.log('Received response:', response);
+            return response.json();
+        })
         .then(data => {
-            console.log('Search Parts Response:', data); // Debugging log
+            console.log('Received data:', data);
             suggestionBox.innerHTML = '';  // Clear previous results
 
-            if (data.length > 0) {
-                data.forEach(part => {
+            if (Array.isArray(data) && data.length > 0) {
+                data.forEach((part, index) => {
+                    console.log(`Processing part ${index}:`, part);
                     const partEntry = document.createElement('div');
                     partEntry.className = 'suggestion-item';
+
+                    // Display part details
                     partEntry.innerHTML = `
-                        <span>Part Number: ${escapeHtml(part.part_number)}</span>
+                        <div>
+                            <strong>Part Number:</strong> ${part.part_number || ''}<br>
+                            <strong>Name:</strong> ${part.name || ''}<br>
+                            <strong>Manufacturer:</strong> ${part.manufacturer || ''}
+                        </div>
                     `;
+
                     partEntry.addEventListener('click', function () {
-                        addPartToPosition(part.id, part.part_number); // Changed from part.part_id to part.id
-                        suggestionBox.style.display = 'none'; // Hide suggestion box after selection
-                        searchInputElement.value = ''; // Clear the search input
+                        addPartToPosition(part.id, part.part_number, part.name);
+                        suggestionBox.style.cssText = 'display: none !important;';
+                        searchInputElement.value = '';
                     });
                     suggestionBox.appendChild(partEntry);
                 });
-                suggestionBox.style.display = 'block'; // Show the suggestion box when results are available
+
+                // Apply aggressive styling to make dropdown visible
+                suggestionBox.style.cssText = 'display: block !important; z-index: 999999 !important; visibility: visible !important; opacity: 1 !important; position: absolute !important; top: 100% !important; left: 0 !important; width: 100% !important; background-color: rgba(0, 0, 0, 0.95) !important; border: 3px solid yellow !important; color: yellow !important; max-height: 300px !important; overflow-y: auto !important;';
+
+                // Force a browser reflow/repaint
+                const forceRepaint = suggestionBox.offsetHeight;
+
+                console.log('Setting parts suggestion box display to visible:', suggestionBox);
             } else {
+                console.log('No parts found for search input:', searchInput);
                 suggestionBox.innerHTML = '<p>No parts found.</p>';
-                suggestionBox.style.display = 'block';
+
+                // Apply aggressive styling to make dropdown visible
+                suggestionBox.style.cssText = 'display: block !important; z-index: 999999 !important; visibility: visible !important; opacity: 1 !important; position: absolute !important; top: 100% !important; left: 0 !important; width: 100% !important; background-color: rgba(0, 0, 0, 0.95) !important; border: 3px solid yellow !important; color: yellow !important; max-height: 300px !important; overflow-y: auto !important;';
+
+                // Force a browser reflow/repaint
+                const forceRepaint = suggestionBox.offsetHeight;
+
+                console.log('Setting parts suggestion box display to visible (no results):', suggestionBox);
             }
         })
         .catch(error => {
             alert('Error searching parts: ' + error.message);
-            console.error('Error details:', error);
+            console.error('Error searching parts:', error);
         });
     }
 
-    // Function to add part to position from search result
-    function addPartToPosition(partId, partNumber) {
-        const positionIdElement = document.getElementById('position_id');
-        if (!positionIdElement) {
-            alert('Position ID element not found.');
+    // Function to add part to position
+    function addPartToPosition(partId, partNumber, partName) {
+        const positionId = document.getElementById('position_id').value;
+        console.log(`Adding part ${partId} (${partNumber}) to position ${positionId}`);
+
+        if (!partId || !positionId) {
+            alert('Part ID and Position ID are required.');
+            console.error('Missing partId or positionId:', { partId, positionId });
             return;
         }
-        const positionId = positionIdElement.value;
 
-        submitExistingPart(partId, positionId, (err, data) => {
-            if (err) {
-                alert(`Error: ${err}`);
-            } else {
-                alert(`Success: ${data.message}`);
+        fetch('/add_part_to_position', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ part_id: partId, position_id: positionId })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.message) {
+                alert(data.message);
+
+                // Add the part to existing parts list
                 const existingPartsList = document.getElementById('existing-parts-list');
                 const newPartEntry = document.createElement('div');
                 newPartEntry.className = 'existing-part';
                 newPartEntry.id = `part-${partId}`;
-                newPartEntry.innerHTML = `
-                    <span>Part Number: ${escapeHtml(partNumber)}</span>
-                    <button type="button" class="remove-existing-part-button"
-                            data-part-id="${partId}" data-position-id="${positionId}">Remove</button>
-                `;
+
+                // Create span for part info
+                const partInfoSpan = document.createElement('span');
+                partInfoSpan.textContent = `Part Number: ${partNumber}, Name: ${partName}`;
+
+                // Create remove button
+                const removeButton = document.createElement('button');
+                removeButton.type = 'button';
+                removeButton.textContent = 'Remove';
+                removeButton.className = 'remove-existing-part-button';
+                removeButton.setAttribute('data-part-id', partId);
+                removeButton.setAttribute('data-position-id', positionId);
+
+                // Append to newPartEntry
+                newPartEntry.appendChild(partInfoSpan);
+                newPartEntry.appendChild(removeButton);
+
                 existingPartsList.appendChild(newPartEntry);
+            } else {
+                alert('Error: ' + (data.error || 'Unknown error'));
             }
+        })
+        .catch(error => {
+            alert('Error adding part: ' + error.message);
+            console.error('Error adding part:', error);
         });
     }
 
-    // Event listener for the "Add Another Part" button
-    document.getElementById('add-part-button').addEventListener('click', addPartEntry);
-
-    // Event listener for the "Submit New Parts" button
-    document.getElementById('submit-parts-button').addEventListener('click', handleAddParts);
-
-    // Event listener for the "Search Parts" input field with debounce
-    let debounceTimer;
-    document.getElementById('parts-search').addEventListener('keyup', function() {
-        clearTimeout(debounceTimer);
-        const query = this.value.trim();
-        debounceTimer = setTimeout(function() {
-            if (query.length >= 2) { // Start searching after 2 characters
-                searchParts();
-            }
-        }, 300); // 300 milliseconds delay
-    });
-
-    // Event delegation for removing existing parts
-    document.getElementById('existing-parts-list').addEventListener('click', function(event) {
-    if (event.target && event.target.classList.contains('remove-existing-part-button')) {
-        console.log('Event listener attached for remove button');
-        const button = event.target;
-        const partId = button.getAttribute('data-part-id');
-        const positionIdElement = document.getElementById('position_id');
-        console.log('positionIdElement:', positionIdElement); // Debug log
-
-        const positionId = positionIdElement ? positionIdElement.value : null;
-        console.log('Remove button clicked:', { partId, positionId }); // Debug log
-
-        if (!partId || !positionId) {
-            alert('Invalid part or position ID.');
-            return;
-        }
-
+    // Function to remove part from position
+    function removePartFromPosition(button, partId, positionId) {
         if (confirm('Are you sure you want to remove this part?')) {
-            fetch('/remove_part_from_position', {
+            fetch('/pda_remove_part_from_position', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
-                    // Include CSRF token if necessary
                 },
                 body: JSON.stringify({ part_id: partId, position_id: positionId })
             })
             .then(response => response.json())
             .then(data => {
-                console.log('Remove Part Response:', data); // Debugging log
-                if (data.success) {
-                    // Remove the part from the DOM
-                    button.parentElement.remove();
-                    alert('Part removed successfully.');
+                if (data.message) {
+                    alert(data.message);
+                    // Remove the part from the UI
+                    button.closest('.existing-part').remove();
                 } else {
-                    alert('Error removing part: ' + data.message);
+                    alert('Error: ' + (data.error || 'Unknown error'));
                 }
             })
             .catch(error => {
-                alert('Failed to remove part.');
-                console.error('Error:', error);
+                alert('Error removing part: ' + error.message);
+                console.error('Error removing part:', error);
             });
         }
     }
-});
 
+    // Add event listener to search input
+    const partsSearchInput = document.getElementById('parts-search');
+    if (partsSearchInput) {
+        partsSearchInput.addEventListener('keyup', searchParts);
+    } else {
+        console.error('Parts Search Input not found.');
+    }
 
-    // Event delegation for removing dynamically added new parts (optional)
-    document.getElementById('new-parts-container').addEventListener('click', function(event) {
-        if (event.target && event.target.classList.contains('remove-part-button')) {
-            removePartEntry(event.target);
+    // Add event listeners to remove buttons
+    document.addEventListener('click', function(event) {
+        if (event.target && event.target.classList.contains('remove-existing-part-button')) {
+            const partId = event.target.getAttribute('data-part-id');
+            const positionId = event.target.getAttribute('data-position-id');
+            removePartFromPosition(event.target, partId, positionId);
         }
     });
+
+    // Add event listener for "Add Another Part" button
+    const addPartButton = document.getElementById('add-part-button');
+    if (addPartButton) {
+        addPartButton.addEventListener('click', function() {
+            // Add new part entry
+            const newPartsContainer = document.getElementById('new-parts-container');
+            const partEntry = document.createElement('div');
+            partEntry.className = 'part-entry';
+
+            partEntry.innerHTML = `
+                <label for="part-number">Part Number:</label>
+                <input type="text" class="part-number" required>
+                <label for="part-name">Part Name:</label>
+                <input type="text" class="part-name" required>
+                <label for="part-manufacturer">Manufacturer:</label>
+                <input type="text" class="part-manufacturer">
+                <button type="button" class="remove-part-entry">Remove</button>
+            `;
+
+            // Add event listener to remove button
+            const removeButton = partEntry.querySelector('.remove-part-entry');
+            removeButton.addEventListener('click', function() {
+                partEntry.remove();
+            });
+
+            newPartsContainer.appendChild(partEntry);
+        });
+    }
+
+    // Add event listener for "Submit New Parts" button
+    const submitPartsButton = document.getElementById('submit-parts-button');
+    if (submitPartsButton) {
+        submitPartsButton.addEventListener('click', function() {
+            const partEntries = document.querySelectorAll('.part-entry');
+            const positionId = document.getElementById('position_id').value;
+            const partsData = [];
+
+            partEntries.forEach(entry => {
+                const partNumber = entry.querySelector('.part-number').value.trim();
+                const partName = entry.querySelector('.part-name').value.trim();
+                const manufacturer = entry.querySelector('.part-manufacturer').value.trim();
+
+                if (partNumber && partName) {
+                    partsData.push({
+                        part_number: partNumber,
+                        name: partName,
+                        manufacturer: manufacturer,
+                        position_id: positionId
+                    });
+                }
+            });
+
+            if (partsData.length > 0) {
+                fetch('/pda_create_and_add_parts', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ parts: partsData })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.message) {
+                        alert(data.message);
+                        // Clear the new parts container
+                        document.getElementById('new-parts-container').innerHTML = '';
+
+                        // Refresh the existing parts list if needed
+                        if (data.added_parts && Array.isArray(data.added_parts)) {
+                            const existingPartsList = document.getElementById('existing-parts-list');
+
+                            data.added_parts.forEach(part => {
+                                const newPartEntry = document.createElement('div');
+                                newPartEntry.className = 'existing-part';
+                                newPartEntry.id = `part-${part.id}`;
+
+                                newPartEntry.innerHTML = `
+                                    <span>Part Number: ${part.part_number}, Name: ${part.name}</span>
+                                    <button type="button" class="remove-existing-part-button" 
+                                            data-part-id="${part.id}" data-position-id="${positionId}">Remove</button>
+                                `;
+
+                                existingPartsList.appendChild(newPartEntry);
+                            });
+                        }
+                    } else {
+                        alert('Error: ' + (data.error || 'Unknown error'));
+                    }
+                })
+                .catch(error => {
+                    alert('Error submitting parts: ' + error.message);
+                    console.error('Error submitting parts:', error);
+                });
+            } else {
+                alert('Please add at least one part with part number and name.');
+            }
+        });
+    }
 });
