@@ -2,18 +2,17 @@ import logging
 import os
 from werkzeug.utils import secure_filename
 from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file
-from modules.emtacdb.emtacdb_fts import Part  # Assuming you have a session manager
+from modules.emtacdb.emtacdb_fts import Part
 from sqlalchemy.exc import IntegrityError
 from modules.configuration.config_env import DatabaseConfig
 from modules.emtacdb.emtacdb_fts import PartsPositionImageAssociation, Image, Position
 from modules.configuration.config import UPLOAD_FOLDER, ALLOWED_EXTENSIONS,DATABASE_DIR, BASE_DIR
 from blueprints.bill_of_materials import update_part_bp
-from modules.configuration.log_config import logger
+from modules.configuration.log_config import logger, with_request_id
 from sqlalchemy import and_
 
-
-# Updated edit_part route to handle AJAX requests
 @update_part_bp.route('/edit_part/<int:part_id>', methods=['GET', 'POST'])
+@with_request_id
 def edit_part(part_id):
     logger.info(f'Starting edit_part function for part_id: {part_id}')
     db_session = DatabaseConfig().get_main_session()
@@ -259,6 +258,7 @@ def edit_part(part_id):
 
 # Add route to serve images directly if needed
 @update_part_bp.route('/part_image/<int:image_id>')
+@with_request_id
 def serve_part_image(image_id):
     logger.info(f"Attempting to serve image with ID: {image_id}")
     db_session = DatabaseConfig().get_main_session()
@@ -281,9 +281,8 @@ def serve_part_image(image_id):
         logger.error(f"An error occurred while serving the image: {e}")
         return "Internal Server Error", 500
 
-# fixme: returns white HTML page
-
 @update_part_bp.route('/search_part', methods=['GET'])
+@with_request_id
 def search_part():
     logger.info(f'Starting search_part function')
     db_session = DatabaseConfig().get_main_session()
@@ -351,8 +350,8 @@ def search_part():
                                positions=positions,
                                search_query=search_query)
 
-
 @update_part_bp.route('/search_part_ajax', methods=['GET'])
+@with_request_id
 def search_part_ajax():
     logger.info(f'Starting search_part_ajax function')
     db_session = DatabaseConfig().get_main_session()
@@ -387,8 +386,8 @@ def search_part_ajax():
 
     return '<div class="alert alert-info">Please enter a search query.</div>'
 
-
 @update_part_bp.route('/edit_part_ajax/<int:part_id>', methods=['GET'])
+@with_request_id
 def edit_part_ajax(part_id):
     logger.info(f'Starting edit_part_ajax function for part_id: {part_id}')
     db_session = DatabaseConfig().get_main_session()
