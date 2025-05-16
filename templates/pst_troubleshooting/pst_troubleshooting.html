@@ -2,6 +2,7 @@
 
 {% block title %}PST Troubleshooting{% endblock %}
 
+
 {% block extra_head %}
     <style>
     /* Page-specific styles can go here, or move them into a separate CSS file */
@@ -12,9 +13,13 @@
         resize: both; 
     }*/
     </style>
-
+    <!-- Add these to your extra_head block -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intro.js/6.0.0/introjs.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intro.js/6.0.0/introjs-rtl.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <!-- Bootstrap CSS -->
     <link href="https://gcore.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- IntroJS CSS -->
 
     <!-- Select2 CSS -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-rc.0/css/select2.min.css" rel="stylesheet" />
@@ -23,6 +28,8 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/module_template/base.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/pst_troubleshooting/role_base_button_acc_ctrl.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/pst_troubleshooting/pst_troubleshooting.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tutorial/tour.css') }}">
+
 {% endblock %}
 
 {% block content %}
@@ -32,7 +39,12 @@
 <!-- Main Container -->
 <div class="container mt-5">
     <!-- Page Header -->
-    <h2>Troubleshooting Entry</h2>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2>Troubleshooting Entry</h2>
+        <button id="startTourBtn" class="btn btn-info">
+            <i class="fas fa-question-circle me-1"></i> Take a Tour
+        </button>
+    </div>
 
     <!-- Alert Container for User Feedback -->
     <div id="alertContainer" class="mt-3"></div>
@@ -75,6 +87,9 @@
 {% endblock %}
 
 {% block extra_scripts %}
+<!-- Add this to your extra_scripts block -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/intro.js/6.0.0/intro.min.js"></script>
+<script src="{{ url_for('static', filename='js/pst_troubleshooting/tour.js') }}"></script>
 <!-- Bootstrap JS Bundle (Includes Popper) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
 <!-- jQuery and Select2 JS -->
