@@ -18,33 +18,35 @@ document.addEventListener('DOMContentLoaded', function () {
         fetch(fetchUrl)
             .then(response => response.json())
             .then(data => {
-                suggestionBox.innerHTML = '';
-                if (Array.isArray(data) && data.length > 0) {
-                    data.forEach(drawing => {
-                        const drawingEntry = document.createElement('div');
-                        drawingEntry.className = 'suggestion-item';
-                        drawingEntry.innerHTML = `
-                            <div>
-                                <strong>Name:</strong> ${drawing.drw_name || ''}<br>
-                                <strong>Number:</strong> ${drawing.drw_number || ''}<br>
-                                <strong>Equipment Name:</strong> ${drawing.drw_equipment_name || ''}<br>
-                                <strong>Revision:</strong> ${drawing.drw_revision || ''}<br>
-                                <strong>Spare Part Number:</strong> ${drawing.drw_spare_part_number || ''}
-                            </div>
-                        `;
-                        drawingEntry.addEventListener('click', function () {
-                            addDrawingToPosition(drawing.id, drawing.drw_name);
-                            suggestionBox.style.display = 'none';
-                            searchInputElement.value = '';
-                        });
-                        suggestionBox.appendChild(drawingEntry);
-                    });
-                    suggestionBox.style.display = 'block';
-                } else {
-                    suggestionBox.innerHTML = '<p>No drawings found.</p>';
-                    suggestionBox.style.display = 'block';
-                }
-            })
+    suggestionBox.innerHTML = '';
+    if (Array.isArray(data) && data.length > 0) {
+        data.forEach(drawing => {
+            const drawingEntry = document.createElement('div');
+            drawingEntry.className = 'suggestion-item';
+            drawingEntry.innerHTML = `
+                <div>
+                    <strong>Name:</strong> ${drawing.drw_name || ''}<br>
+                    <strong>Number:</strong> ${drawing.drw_number || ''}<br>
+                    <strong>Equipment Name:</strong> ${drawing.drw_equipment_name || ''}<br>
+                    <strong>Revision:</strong> ${drawing.drw_revision || ''}<br>
+                    <strong>Spare Part Number:</strong> ${drawing.drw_spare_part_number || ''}
+                </div>
+            `;
+            drawingEntry.addEventListener('click', function () {
+                addDrawingToPosition(drawing.id, drawing.drw_name);
+                suggestionBox.setAttribute('style', 'display: none !important;');
+                searchInputElement.value = '';
+            });
+            suggestionBox.appendChild(drawingEntry);
+        });
+        suggestionBox.setAttribute('style', 'display: block !important; z-index: 9999 !important;');
+        console.log('Setting drawing suggestion box display to visible:', suggestionBox);
+    } else {
+        suggestionBox.innerHTML = '<p>No drawings found.</p>';
+        suggestionBox.setAttribute('style', 'display: block !important; z-index: 9999 !important;');
+        console.log('Setting drawing suggestion box display to visible (no results):', suggestionBox);
+    }
+})
             .catch(error => {
                 alert('Error searching drawings: ' + error.message);
                 console.error('Error searching drawings:', error);
