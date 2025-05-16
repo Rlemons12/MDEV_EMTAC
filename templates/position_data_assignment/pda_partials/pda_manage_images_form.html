@@ -2,11 +2,12 @@
 <!-- Hidden Field for Position ID -->
 <input type="hidden" id="position_id" name="position_id" value="{{ position.id }}">
 
+
 <!-- Search Images -->
-<div>
+<div style="position: relative !important; overflow: visible !important; z-index: 9998 !important;">
     <label for="images-search">Search Images:</label>
     <input type="text" id="images-search" placeholder="Search images...">
-    <div id="image-suggestion-box" class="suggestion-box"></div>
+    <div id="image-suggestion-box" class="suggestion-box" style="display: none !important;"></div>
 </div>
 
 <!-- Existing Images List -->
