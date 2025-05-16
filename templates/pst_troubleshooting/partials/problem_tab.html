@@ -169,7 +169,7 @@
             <!-- Dynamic search results will appear here -->
         </ul>
     </div>
-    <!-- FIXME: Asset Number and Location loading ID and missing Site location Data -->
+    <!-- PUNCHLIST: Asset Number and Location loading ID and missing Site location Data -->
     <div id="pst_updateProblemSection" class="mt-4" style="display: none;">
         <h5>Update Selected Problem:</h5>
         <form id="updateProblemForm" method="post">
@@ -210,13 +210,17 @@
             </div>
 
             <div class="mb-3">
-                <label for="update_pst_assetNumberInput" class="form-label">Asset Number:</label>
-                <input type="text" class="form-control" id="update_pst_assetNumberInput" name="asset_number" placeholder="Enter Asset Number" required>
+                <label for="update_pst_assetNumberDropdown" class="form-label">Asset Number:</label>
+                <select class="form-select" id="update_pst_assetNumberDropdown" name="asset_number_id" required>
+                    <option value="">Select Asset Number</option>
+                </select>
             </div>
 
             <div class="mb-3">
-                <label for="update_pst_locationInput" class="form-label">Location:</label>
-                <input type="text" class="form-control" id="update_pst_locationInput" name="location" placeholder="Enter Location" required>
+                <label for="update_pst_locationDropdown" class="form-label">Location:</label>
+                <select class="form-select" id="update_pst_locationDropdown" name="location_id" required>
+                    <option value="">Select Location</option>
+                </select>
             </div>
 
             <div class="mb-3">
