@@ -1,0 +1,98 @@
+/* static/css/tutorial/tour.css */
+
+/* Tooltip styling */
+.introjs-tooltip {
+    min-width: 300px;
+    max-width: 400px;
+    background-color: #f8f9fa;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+    border-radius: 6px;
+    position: relative !important;
+    margin-top: 40px !important; /* Make space for the skip button */
+}
+
+.introjs-tooltiptext {
+    font-size: 1rem;
+    line-height: 1.5;
+    color: #333;
+}
+
+/* Position the skip button above the tooltip content */
+.introjs-skipbutton {
+    position: absolute !important;
+    top: -40px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    z-index: 999999 !important;
+    padding: 6px 12px !important;
+    background-color: #dc3545 !important;
+    color: white !important;
+    border-radius: 4px !important;
+    font-weight: bold !important;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2) !important;
+    opacity: 0.9 !important;
+    width: auto !important;
+    height: auto !important;
+    text-align: center !important;
+}
+
+.introjs-skipbutton:hover {
+    opacity: 1 !important;
+    background-color: #bd2130 !important;
+}
+
+/* Tour button styling */
+#startTourBtn {
+    background-color: #17a2b8;
+    color: white;
+    font-weight: bold;
+    transition: all 0.3s ease;
+}
+
+#startTourBtn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+/* Fix tooltip text color in dark mode */
+.introjs-tooltip, .introjs-tooltiptext, .introjs-tooltip * {
+    color: #333 !important;
+}
+
+/* Make the highlighted elements more visible */
+.introjs-helperLayer {
+    background-color: rgba(255, 255, 255, 0.1);
+    border: 2px solid #17a2b8;
+    box-shadow: 0 0 0 1000px rgba(0, 0, 0, 0.6);
+}
+
+/* Improve navigation buttons */
+.introjs-nextbutton, .introjs-prevbutton {
+    background-color: #17a2b8 !important;
+    color: white !important;
+    border: none !important;
+    text-shadow: none !important;
+    padding: 6px 12px !important;
+    font-weight: bold !important;
+}
+
+.introjs-nextbutton:hover, .introjs-prevbutton:hover {
+    background-color: #138496 !important;
+}
+
+/* Highlight active tour step more clearly */
+.introjs-helperLayer {
+    border: 3px solid #17a2b8 !important;
+}
+
+/* Improve tooltip positioning on narrow screens */
+@media (max-width: 768px) {
+    .introjs-tooltip {
+        max-width: 300px !important;
+        min-width: 250px !important;
+    }
+
+    .introjs-tooltiptext {
+        font-size: 0.9rem !important;
+    }
+}
