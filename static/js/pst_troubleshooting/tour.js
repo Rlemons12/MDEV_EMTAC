@@ -14,7 +14,8 @@ document.addEventListener('DOMContentLoaded', function () {
         // Welcome step
         steps.push({
             element: document.querySelector('.container'),
-            intro: "Welcome to the PST Troubleshooting System! This tour will guide you through each part of the interface, starting with the Problem tab.",
+            intro: "<div class='intro-left-text'>Welcome to the PST Troubleshooting System! This tour will guide you through each part of the  " +
+                " interface, starting with the Problem tab.</div>",
             position: 'auto'
         });
 
@@ -402,395 +403,395 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Enhanced Task Edit portion for the tour.js file
 
-// ===== EDIT TASK TAB =====
-const editTaskTab = document.getElementById('edit-task-tab');
-if (editTaskTab) {
-    steps.push({
-        element: editTaskTab,
-        intro: "The <strong>Edit Task tab</strong> is where you configure all aspects of a task. You'll access this after creating a task or selecting an existing one to edit.",
-        position: 'right',
-        onShow: function() {
-            // Switch to the Edit Task tab
-            editTaskTab.click();
-        }
-    });
-
-    // Task Name and Description
-    const taskName = document.getElementById('pst_task_edit_task_name');
-    if (taskName) {
-        steps.push({
-            element: taskName,
-            intro: "Enter a clear, concise <strong>Task Name</strong> that describes what this task accomplishes. Good names help technicians quickly understand the task's purpose.",
-            position: 'right'
-        });
-    }
-
-    const taskDescription = document.getElementById('pst_task_edit_task_description');
-    if (taskDescription) {
-        steps.push({
-            element: taskDescription,
-            intro: "Provide a detailed <strong>Task Description</strong> with step-by-step instructions or important context. Be thorough but clear in your explanation.",
-            position: 'right'
-        });
-    }
-
-    const updateTaskBtn = document.getElementById('updateTaskDetailsBtn');
-    if (updateTaskBtn) {
-        steps.push({
-            element: updateTaskBtn,
-            intro: "After editing the name or description, <strong>CLICK</strong> this button to save those changes.",
-            position: 'right'
-        });
-    }
-
-    // Tab Navigation
-    const editTaskSubTabs = document.getElementById('editTaskSubTabs');
-    if (editTaskSubTabs) {
-        steps.push({
-            element: editTaskSubTabs,
-            intro: "These sub-tabs organize different types of information for your task. You'll need to work through each tab to fully configure the task.",
-            position: 'bottom'
-        });
-    }
-
-    // TASK DETAILS TAB
-    const taskDetailsTab = document.getElementById('task-details-tab');
-    if (taskDetailsTab) {
-        steps.push({
-            element: taskDetailsTab,
-            intro: "The <strong>Task Details</strong> tab is where you define position information - the specific equipment locations this task applies to.",
-            position: 'bottom',
-            onShow: function() {
-                // Switch to Task Details tab
-                taskDetailsTab.click();
-            }
-        });
-    }
-
-
-
-    const addPositionBtn = document.getElementById('addPositionBtn');
-    if (addPositionBtn) {
-        steps.push({
-            element: addPositionBtn,
-            intro: "<strong>CLICK</strong> this button to add a new position. You can add multiple positions if the task applies to different equipment locations.",
-            position: 'right',
-            onShow: function() {
-                // Make sure at least one position is visible for the tour, even if empty
-                if (positionsContainer && positionsContainer.children.length === 0) {
-                    // Trigger a click on the Add Position button
-                    addPositionBtn.click();
+        // ===== EDIT TASK TAB =====
+        const editTaskTab = document.getElementById('edit-task-tab');
+        if (editTaskTab) {
+            steps.push({
+                element: editTaskTab,
+                intro: "The <strong>Edit Task tab</strong> is where you configure all aspects of a task. You'll access this after creating a task or selecting an existing one to edit.",
+                position: 'right',
+                onShow: function() {
+                    // Switch to the Edit Task tab
+                    editTaskTab.click();
                 }
+            });
+
+            // Task Name and Description
+            const taskName = document.getElementById('pst_task_edit_task_name');
+            if (taskName) {
+                steps.push({
+                    element: taskName,
+                    intro: "Enter a clear, concise <strong>Task Name</strong> that describes what this task accomplishes. Good names help technicians quickly understand the task's purpose.",
+                    position: 'right'
+                });
             }
-        });
-    }
 
-    // If a position is added, explain its fields
-    // We'll target these by class since the IDs include unique identifiers
-    setTimeout(() => {
-        const areaDropdown = document.querySelector('.areaDropdown');
-        if (areaDropdown) {
-            steps.push({
-                element: areaDropdown,
-                intro: "For each position, first select the <strong>Area</strong> where the equipment is located. This is the highest level in the equipment hierarchy.",
-                position: 'right'
-            });
-        }
-
-        const equipmentGroupDropdown = document.querySelector('.equipmentGroupDropdown');
-        if (equipmentGroupDropdown) {
-            steps.push({
-                element: equipmentGroupDropdown,
-                intro: "Next, select the <strong>Equipment Group</strong>. This dropdown populates based on your Area selection.",
-                position: 'right'
-            });
-        }
-
-        const modelDropdown = document.querySelector('.modelDropdown');
-        if (modelDropdown) {
-            steps.push({
-                element: modelDropdown,
-                intro: "Then select the equipment <strong>Model</strong>. This dropdown populates based on your Equipment Group selection.",
-                position: 'right'
-            });
-        }
-
-        const assetNumberInput = document.querySelector('.assetNumberInput');
-        if (assetNumberInput) {
-            steps.push({
-                element: assetNumberInput,
-                intro: "Select an <strong>Asset Number</strong> if applicable. This identifies a specific piece of equipment within the model type.",
-                position: 'right'
-            });
-        }
-
-        const locationInput = document.querySelector('.locationInput');
-        if (locationInput) {
-            steps.push({
-                element: locationInput,
-                intro: "Select a <strong>Location</strong> to specify where on the equipment this task takes place.",
-                position: 'right'
-            });
-        }
-
-        const assembliesDropdown = document.querySelector('.assembliesDropdown');
-        if (assembliesDropdown) {
-            steps.push({
-                element: assembliesDropdown,
-                intro: "If applicable, select a <strong>Subassembly</strong> to specify which subcomponent the task involves.",
-                position: 'right'
-            });
-        }
-
-        const subassembliesDropdown = document.querySelector('.subassembliesDropdown');
-        if (subassembliesDropdown) {
-            steps.push({
-                element: subassembliesDropdown,
-                intro: "Further refine the location by selecting a <strong>Component Assembly</strong> within the subassembly.",
-                position: 'right'
-            });
-        }
-
-        const assemblyViewsDropdown = document.querySelector('.assemblyViewsDropdown');
-        if (assemblyViewsDropdown) {
-            steps.push({
-                element: assemblyViewsDropdown,
-                intro: "If needed, select an <strong>Assembly View</strong> to specify a particular view or configuration of the component.",
-                position: 'right'
-            });
-        }
-
-        const siteLocationDropdown = document.querySelector('.siteLocationDropdown');
-        if (siteLocationDropdown) {
-            steps.push({
-                element: siteLocationDropdown,
-                intro: "Select a <strong>Site Location</strong> to indicate the physical location where this equipment is installed.",
-                position: 'right'
-            });
-        }
-
-        const savePositionBtn = document.querySelector('.savePositionBtn');
-        if (savePositionBtn) {
-            steps.push({
-                element: savePositionBtn,
-                intro: "After configuring the position details, <strong>CLICK</strong> this button to save the position information.",
-                position: 'right'
-            });
-        }
-    }, 500); // Small delay to allow for DOM updates
-
-    // IMAGES TAB
-    const imagesTab = document.getElementById('task-images-tab');
-    if (imagesTab) {
-        steps.push({
-            element: imagesTab,
-            intro: "The <strong>Images</strong> tab allows you to associate relevant images with this task, such as equipment photos or visual guides.",
-            position: 'bottom',
-            onShow: function() {
-                // Switch to Images tab
-                imagesTab.click();
+            const taskDescription = document.getElementById('pst_task_edit_task_description');
+            if (taskDescription) {
+                steps.push({
+                    element: taskDescription,
+                    intro: "Provide a detailed <strong>Task Description</strong> with step-by-step instructions or important context. Be thorough but clear in your explanation.",
+                    position: 'right'
+                });
             }
-        });
-    }
 
-    const imagesSelect = document.getElementById('pst_task_edit_task_images');
-    if (imagesSelect) {
-        steps.push({
-            element: imagesSelect,
-            intro: "This searchable dropdown lets you find and select images. You can type to search and select multiple images for the task.",
-            position: 'right'
-        });
-    }
-
-    const saveImagesBtn = document.getElementById('saveImagesBtn');
-    if (saveImagesBtn) {
-        steps.push({
-            element: saveImagesBtn,
-            intro: "After selecting images, <strong>CLICK</strong> this button to save the image associations to the task.",
-            position: 'right'
-        });
-    }
-
-    const selectedImages = document.getElementById('pst_task_edit_selected_images');
-    if (selectedImages) {
-        steps.push({
-            element: selectedImages,
-            intro: "This area displays all images currently associated with the task. Each image has a 'Remove' button to delete associations if needed.",
-            position: 'right'
-        });
-    }
-
-    // PARTS TAB
-    const partsTab = document.getElementById('task-parts-tab');
-    if (partsTab) {
-        steps.push({
-            element: partsTab,
-            intro: "The <strong>Parts</strong> tab lets you associate parts that are needed or affected by this task. This helps technicians know which parts to have on hand.",
-            position: 'bottom',
-            onShow: function() {
-                // Switch to Parts tab
-                partsTab.click();
+            const updateTaskBtn = document.getElementById('updateTaskDetailsBtn');
+            if (updateTaskBtn) {
+                steps.push({
+                    element: updateTaskBtn,
+                    intro: "After editing the name or description, <strong>CLICK</strong> this button to save those changes.",
+                    position: 'right'
+                });
             }
-        });
-    }
 
-    const partsSelect = document.getElementById('pst_task_edit_task_parts');
-    if (partsSelect) {
-        steps.push({
-            element: partsSelect,
-            intro: "This searchable dropdown lets you find and select parts by part number or name. You can select multiple parts for the task.",
-            position: 'right'
-        });
-    }
-
-    const savePartsBtn = document.getElementById('savePartsBtn');
-    if (savePartsBtn) {
-        steps.push({
-            element: savePartsBtn,
-            intro: "After selecting parts, <strong>CLICK</strong> this button to save the part associations to the task.",
-            position: 'right'
-        });
-    }
-
-    const selectedParts = document.getElementById('pst_task_edit_selected_parts');
-    if (selectedParts) {
-        steps.push({
-            element: selectedParts,
-            intro: "This area displays all parts currently associated with the task, showing part numbers and names for quick reference.",
-            position: 'right'
-        });
-    }
-
-    // DRAWINGS TAB
-    const drawingsTab = document.getElementById('task-drawings-tab');
-    if (drawingsTab) {
-        steps.push({
-            element: drawingsTab,
-            intro: "The <strong>Drawings</strong> tab lets you associate technical drawings that are relevant to completing this task.",
-            position: 'bottom',
-            onShow: function() {
-                // Switch to Drawings tab
-                drawingsTab.click();
+            // Tab Navigation
+            const editTaskSubTabs = document.getElementById('editTaskSubTabs');
+            if (editTaskSubTabs) {
+                steps.push({
+                    element: editTaskSubTabs,
+                    intro: "These sub-tabs organize different types of information for your task. You'll need to work through each tab to fully configure the task.",
+                    position: 'bottom'
+                });
             }
-        });
-    }
 
-    const drawingsSelect = document.getElementById('pst_task_edit_task_drawings');
-    if (drawingsSelect) {
-        steps.push({
-            element: drawingsSelect,
-            intro: "This searchable dropdown lets you find and select technical drawings by number or name. You can select multiple drawings.",
-            position: 'right'
-        });
-    }
-
-    const saveDrawingsBtn = document.getElementById('saveDrawingsBtn');
-    if (saveDrawingsBtn) {
-        steps.push({
-            element: saveDrawingsBtn,
-            intro: "After selecting drawings, <strong>CLICK</strong> this button to save the drawing associations to the task.",
-            position: 'right'
-        });
-    }
-
-    const selectedDrawings = document.getElementById('pst_task_edit_selected_drawings');
-    if (selectedDrawings) {
-        steps.push({
-            element: selectedDrawings,
-            intro: "This area displays all drawings currently associated with the task, showing drawing numbers and names for quick reference.",
-            position: 'right'
-        });
-    }
-
-    // DOCUMENTS TAB
-    const documentsTab = document.getElementById('task-documents-tab');
-    if (documentsTab) {
-        steps.push({
-            element: documentsTab,
-            intro: "The <strong>Documents</strong> tab lets you associate reference documents needed for completing this task, such as manuals or procedures.",
-            position: 'bottom',
-            onShow: function() {
-                // Switch to Documents tab
-                documentsTab.click();
+            // TASK DETAILS TAB
+            const taskDetailsTab = document.getElementById('task-details-tab');
+            if (taskDetailsTab) {
+                steps.push({
+                    element: taskDetailsTab,
+                    intro: "The <strong>Task Details</strong> tab is where you define position information - the specific equipment locations this task applies to.",
+                    position: 'bottom',
+                    onShow: function() {
+                        // Switch to Task Details tab
+                        taskDetailsTab.click();
+                    }
+                });
             }
-        });
-    }
 
-    const documentsSelect = document.getElementById('pst_task_edit_task_documents');
-    if (documentsSelect) {
-        steps.push({
-            element: documentsSelect,
-            intro: "This searchable dropdown lets you find and select documents by title or content. You can select multiple documents.",
-            position: 'right'
-        });
-    }
 
-    const saveDocumentsBtn = document.getElementById('saveDocumentsBtn');
-    if (saveDocumentsBtn) {
-        steps.push({
-            element: saveDocumentsBtn,
-            intro: "After selecting documents, <strong>CLICK</strong> this button to save the document associations to the task.",
-            position: 'right'
-        });
-    }
 
-    const selectedDocuments = document.getElementById('pst_task_edit_selected_documents');
-    if (selectedDocuments) {
-        steps.push({
-            element: selectedDocuments,
-            intro: "This area displays all documents currently associated with the task, showing document titles for quick reference.",
-            position: 'right'
-        });
-    }
-
-    // TOOLS TAB
-    const toolsTab = document.getElementById('task-tools-tab');
-    if (toolsTab) {
-        steps.push({
-            element: toolsTab,
-            intro: "The <strong>Tools</strong> tab lets you specify what tools are required to complete this task. This helps technicians prepare properly.",
-            position: 'bottom',
-            onShow: function() {
-                // Switch to Tools tab
-                toolsTab.click();
+            const addPositionBtn = document.getElementById('addPositionBtn');
+            if (addPositionBtn) {
+                steps.push({
+                    element: addPositionBtn,
+                    intro: "<strong>CLICK</strong> this button to add a new position. You can add multiple positions if the task applies to different equipment locations.",
+                    position: 'right',
+                    onShow: function() {
+                        // Make sure at least one position is visible for the tour, even if empty
+                        if (positionsContainer && positionsContainer.children.length === 0) {
+                            // Trigger a click on the Add Position button
+                            addPositionBtn.click();
+                        }
+                    }
+                });
             }
-        });
-    }
 
-    const toolsSelect = document.getElementById('pst_task_edit_task_tools');
-    if (toolsSelect) {
-        steps.push({
-            element: toolsSelect,
-            intro: "This searchable dropdown lets you find and select tools by name or type. You can select multiple tools that are needed for this task.",
-            position: 'right'
-        });
-    }
+            // If a position is added, explain its fields
+            // We'll target these by class since the IDs include unique identifiers
+            setTimeout(() => {
+                const areaDropdown = document.querySelector('.areaDropdown');
+                if (areaDropdown) {
+                    steps.push({
+                        element: areaDropdown,
+                        intro: "For each position, first select the <strong>Area</strong> where the equipment is located. This is the highest level in the equipment hierarchy.",
+                        position: 'right'
+                    });
+                }
 
-    const saveToolsBtn = document.getElementById('saveToolsBtn');
-    if (saveToolsBtn) {
-        steps.push({
-            element: saveToolsBtn,
-            intro: "After selecting tools, <strong>CLICK</strong> this button to save the tool associations to the task.",
-            position: 'right'
-        });
-    }
+                const equipmentGroupDropdown = document.querySelector('.equipmentGroupDropdown');
+                if (equipmentGroupDropdown) {
+                    steps.push({
+                        element: equipmentGroupDropdown,
+                        intro: "Next, select the <strong>Equipment Group</strong>. This dropdown populates based on your Area selection.",
+                        position: 'right'
+                    });
+                }
 
-    const selectedTools = document.getElementById('pst_task_edit_selected_tools');
-    if (selectedTools) {
-        steps.push({
-            element: selectedTools,
-            intro: "This area displays all tools currently associated with the task, showing tool names and types for quick reference.",
-            position: 'right'
-        });
-    }
+                const modelDropdown = document.querySelector('.modelDropdown');
+                if (modelDropdown) {
+                    steps.push({
+                        element: modelDropdown,
+                        intro: "Then select the equipment <strong>Model</strong>. This dropdown populates based on your Equipment Group selection.",
+                        position: 'right'
+                    });
+                }
 
-    // Final Task Edit Guidance
-    steps.push({
-        element: editTaskTab,
-        intro: "For a complete task, make sure to configure the position details and add any relevant images, parts, drawings, documents, and tools before moving on.",
-        position: 'bottom'
-    });
-}
+                const assetNumberInput = document.querySelector('.assetNumberInput');
+                if (assetNumberInput) {
+                    steps.push({
+                        element: assetNumberInput,
+                        intro: "Select an <strong>Asset Number</strong> if applicable. This identifies a specific piece of equipment within the model type.",
+                        position: 'right'
+                    });
+                }
+
+                const locationInput = document.querySelector('.locationInput');
+                if (locationInput) {
+                    steps.push({
+                        element: locationInput,
+                        intro: "Select a <strong>Location</strong> to specify where on the equipment this task takes place.",
+                        position: 'right'
+                    });
+                }
+
+                const assembliesDropdown = document.querySelector('.assembliesDropdown');
+                if (assembliesDropdown) {
+                    steps.push({
+                        element: assembliesDropdown,
+                        intro: "If applicable, select a <strong>Subassembly</strong> to specify which subcomponent the task involves.",
+                        position: 'right'
+                    });
+                }
+
+                const subassembliesDropdown = document.querySelector('.subassembliesDropdown');
+                if (subassembliesDropdown) {
+                    steps.push({
+                        element: subassembliesDropdown,
+                        intro: "Further refine the location by selecting a <strong>Component Assembly</strong> within the subassembly.",
+                        position: 'right'
+                    });
+                }
+
+                const assemblyViewsDropdown = document.querySelector('.assemblyViewsDropdown');
+                if (assemblyViewsDropdown) {
+                    steps.push({
+                        element: assemblyViewsDropdown,
+                        intro: "If needed, select an <strong>Assembly View</strong> to specify a particular view or configuration of the component.",
+                        position: 'right'
+                    });
+                }
+
+                const siteLocationDropdown = document.querySelector('.siteLocationDropdown');
+                if (siteLocationDropdown) {
+                    steps.push({
+                        element: siteLocationDropdown,
+                        intro: "Select a <strong>Site Location</strong> to indicate the physical location where this equipment is installed.",
+                        position: 'right'
+                    });
+                }
+
+                const savePositionBtn = document.querySelector('.savePositionBtn');
+                if (savePositionBtn) {
+                    steps.push({
+                        element: savePositionBtn,
+                        intro: "After configuring the position details, <strong>CLICK</strong> this button to save the position information.",
+                        position: 'right'
+                    });
+                }
+            }, 500); // Small delay to allow for DOM updates
+
+            // IMAGES TAB
+            const imagesTab = document.getElementById('task-images-tab');
+            if (imagesTab) {
+                steps.push({
+                    element: imagesTab,
+                    intro: "The <strong>Images</strong> tab allows you to associate relevant images with this task, such as equipment photos or visual guides.",
+                    position: 'bottom',
+                    onShow: function() {
+                        // Switch to Images tab
+                        imagesTab.click();
+                    }
+                });
+            }
+
+            const imagesSelect = document.getElementById('pst_task_edit_task_images');
+            if (imagesSelect) {
+                steps.push({
+                    element: imagesSelect,
+                    intro: "This searchable dropdown lets you find and select images. You can type to search and select multiple images for the task.",
+                    position: 'right'
+                });
+            }
+
+            const saveImagesBtn = document.getElementById('saveImagesBtn');
+            if (saveImagesBtn) {
+                steps.push({
+                    element: saveImagesBtn,
+                    intro: "After selecting images, <strong>CLICK</strong> this button to save the image associations to the task.",
+                    position: 'right'
+                });
+            }
+
+            const selectedImages = document.getElementById('pst_task_edit_selected_images');
+            if (selectedImages) {
+                steps.push({
+                    element: selectedImages,
+                    intro: "This area displays all images currently associated with the task. Each image has a 'Remove' button to delete associations if needed.",
+                    position: 'right'
+                });
+            }
+
+            // PARTS TAB
+            const partsTab = document.getElementById('task-parts-tab');
+            if (partsTab) {
+                steps.push({
+                    element: partsTab,
+                    intro: "The <strong>Parts</strong> tab lets you associate parts that are needed or affected by this task. This helps technicians know which parts to have on hand.",
+                    position: 'bottom',
+                    onShow: function() {
+                        // Switch to Parts tab
+                        partsTab.click();
+                    }
+                });
+            }
+
+            const partsSelect = document.getElementById('pst_task_edit_task_parts');
+            if (partsSelect) {
+                steps.push({
+                    element: partsSelect,
+                    intro: "This searchable dropdown lets you find and select parts by part number or name. You can select multiple parts for the task.",
+                    position: 'right'
+                });
+            }
+
+            const savePartsBtn = document.getElementById('savePartsBtn');
+            if (savePartsBtn) {
+                steps.push({
+                    element: savePartsBtn,
+                    intro: "After selecting parts, <strong>CLICK</strong> this button to save the part associations to the task.",
+                    position: 'right'
+                });
+            }
+
+            const selectedParts = document.getElementById('pst_task_edit_selected_parts');
+            if (selectedParts) {
+                steps.push({
+                    element: selectedParts,
+                    intro: "This area displays all parts currently associated with the task, showing part numbers and names for quick reference.",
+                    position: 'right'
+                });
+            }
+
+            // DRAWINGS TAB
+            const drawingsTab = document.getElementById('task-drawings-tab');
+            if (drawingsTab) {
+                steps.push({
+                    element: drawingsTab,
+                    intro: "The <strong>Drawings</strong> tab lets you associate technical drawings that are relevant to completing this task.",
+                    position: 'bottom',
+                    onShow: function() {
+                        // Switch to Drawings tab
+                        drawingsTab.click();
+                    }
+                });
+            }
+
+            const drawingsSelect = document.getElementById('pst_task_edit_task_drawings');
+            if (drawingsSelect) {
+                steps.push({
+                    element: drawingsSelect,
+                    intro: "This searchable dropdown lets you find and select technical drawings by number or name. You can select multiple drawings.",
+                    position: 'right'
+                });
+            }
+
+            const saveDrawingsBtn = document.getElementById('saveDrawingsBtn');
+            if (saveDrawingsBtn) {
+                steps.push({
+                    element: saveDrawingsBtn,
+                    intro: "After selecting drawings, <strong>CLICK</strong> this button to save the drawing associations to the task.",
+                    position: 'right'
+                });
+            }
+
+            const selectedDrawings = document.getElementById('pst_task_edit_selected_drawings');
+            if (selectedDrawings) {
+                steps.push({
+                    element: selectedDrawings,
+                    intro: "This area displays all drawings currently associated with the task, showing drawing numbers and names for quick reference.",
+                    position: 'right'
+                });
+            }
+
+            // DOCUMENTS TAB
+            const documentsTab = document.getElementById('task-documents-tab');
+            if (documentsTab) {
+                steps.push({
+                    element: documentsTab,
+                    intro: "The <strong>Documents</strong> tab lets you associate reference documents needed for completing this task, such as manuals or procedures.",
+                    position: 'bottom',
+                    onShow: function() {
+                        // Switch to Documents tab
+                        documentsTab.click();
+                    }
+                });
+            }
+
+            const documentsSelect = document.getElementById('pst_task_edit_task_documents');
+            if (documentsSelect) {
+                steps.push({
+                    element: documentsSelect,
+                    intro: "This searchable dropdown lets you find and select documents by title or content. You can select multiple documents.",
+                    position: 'right'
+                });
+            }
+
+            const saveDocumentsBtn = document.getElementById('saveDocumentsBtn');
+            if (saveDocumentsBtn) {
+                steps.push({
+                    element: saveDocumentsBtn,
+                    intro: "After selecting documents, <strong>CLICK</strong> this button to save the document associations to the task.",
+                    position: 'right'
+                });
+            }
+
+            const selectedDocuments = document.getElementById('pst_task_edit_selected_documents');
+            if (selectedDocuments) {
+                steps.push({
+                    element: selectedDocuments,
+                    intro: "This area displays all documents currently associated with the task, showing document titles for quick reference.",
+                    position: 'right'
+                });
+            }
+
+            // TOOLS TAB
+            const toolsTab = document.getElementById('task-tools-tab');
+            if (toolsTab) {
+                steps.push({
+                    element: toolsTab,
+                    intro: "The <strong>Tools</strong> tab lets you specify what tools are required to complete this task. This helps technicians prepare properly.",
+                    position: 'bottom',
+                    onShow: function() {
+                        // Switch to Tools tab
+                        toolsTab.click();
+                    }
+                });
+            }
+
+            const toolsSelect = document.getElementById('pst_task_edit_task_tools');
+            if (toolsSelect) {
+                steps.push({
+                    element: toolsSelect,
+                    intro: "This searchable dropdown lets you find and select tools by name or type. You can select multiple tools that are needed for this task.",
+                    position: 'right'
+                });
+            }
+
+            const saveToolsBtn = document.getElementById('saveToolsBtn');
+            if (saveToolsBtn) {
+                steps.push({
+                    element: saveToolsBtn,
+                    intro: "After selecting tools, <strong>CLICK</strong> this button to save the tool associations to the task.",
+                    position: 'right'
+                });
+            }
+
+            const selectedTools = document.getElementById('pst_task_edit_selected_tools');
+            if (selectedTools) {
+                steps.push({
+                    element: selectedTools,
+                    intro: "This area displays all tools currently associated with the task, showing tool names and types for quick reference.",
+                    position: 'right'
+                });
+            }
+
+            // Final Task Edit Guidance
+            steps.push({
+                element: editTaskTab,
+                intro: "For a complete task, make sure to configure the position details and add any relevant images, parts, drawings, documents, and tools before moving on.",
+                position: 'bottom'
+            });
+        }
 
         // Conclusion
         steps.push({
@@ -838,7 +839,7 @@ if (editTaskTab) {
             hideNext: false,
             hidePrev: false,
             exitOnOverlayClick: false,
-            showStepNumbers: true,
+            showStepNumbers: false, // Change to false to disable the default counter
             keyboardNavigation: true,
             showButtons: true,
             showBullets: true,
@@ -848,6 +849,101 @@ if (editTaskTab) {
             positionPrecedence: ['bottom', 'top', 'right', 'left'],
             tooltipClass: 'custom-tooltip',
             skipButtonClass: 'centered-skip'
+        });
+
+        // Handle button positioning and step counter
+        tour.onafterchange(function() {
+            // Run after a small delay to ensure DOM is updated
+            setTimeout(() => {
+                // Current step is 0-based, so add 1 for display
+                const currentStep = this._currentStep + 1;
+                const totalSteps = this._options.steps.length;
+
+                // Find the tooltip text container
+                const tooltipText = document.querySelector('.introjs-tooltiptext');
+
+                // Check if our custom counter already exists and remove it if so
+                const existingCounter = document.getElementById('custom-step-counter');
+                if (existingCounter) {
+                    existingCounter.remove();
+                }
+
+                // Create our custom counter
+                if (tooltipText) {
+                    const counterDiv = document.createElement('div');
+                    counterDiv.id = 'custom-step-counter';
+                    counterDiv.style.textAlign = 'center';
+                    counterDiv.style.marginTop = '10px';
+                    counterDiv.style.paddingTop = '5px';
+                    counterDiv.style.borderTop = '1px solid rgba(255,255,255,0.2)';
+
+                    // Create separate spans for each part to ensure correct order
+                    const stepSpan = document.createElement('span');
+                    stepSpan.textContent = currentStep;
+
+                    const ofSpan = document.createElement('span');
+                    ofSpan.textContent = ' of ';
+
+                    const totalSpan = document.createElement('span');
+                    totalSpan.textContent = totalSteps;
+
+                    // Clear and append in the correct order
+                    counterDiv.innerHTML = '';
+                    counterDiv.appendChild(stepSpan);
+                    counterDiv.appendChild(ofSpan);
+                    counterDiv.appendChild(totalSpan);
+
+                    // Append to tooltip
+                    tooltipText.appendChild(counterDiv);
+                }
+
+                // Button positioning logic
+                const skipButton = document.querySelector('.introjs-skipbutton');
+                const tooltipButtons = document.querySelector('.introjs-tooltipbuttons');
+
+                if (skipButton && tooltipButtons) {
+                    // First, try to remove any skip button that might be outside the tooltip
+                    const outsideSkipButton = document.querySelector('body > .introjs-skipbutton');
+                    if (outsideSkipButton) {
+                        outsideSkipButton.remove();
+                    }
+
+                    // If skip button is not already inside the tooltip buttons, move it there
+                    if (!tooltipButtons.contains(skipButton)) {
+                        tooltipButtons.appendChild(skipButton);
+                    }
+
+                    // Style the skip button
+                    skipButton.classList.add('btn', 'btn-danger', 'btn-sm');
+
+                    // Set up the flexbox layout for buttons
+                    tooltipButtons.style.display = 'flex';
+                    tooltipButtons.style.justifyContent = 'space-between';
+                    tooltipButtons.style.width = '100%';
+
+                    // Position Back button on the left
+                    const backButton = document.querySelector('.introjs-prevbutton');
+                    if (backButton) {
+                        backButton.style.order = '0';
+                        backButton.style.marginRight = 'auto';
+                        // Make sure it's first in DOM order too
+                        tooltipButtons.insertBefore(backButton, tooltipButtons.firstChild);
+                    }
+
+                    // Position Skip button in the center
+                    skipButton.style.order = '1';
+                    skipButton.style.margin = '0 10px';
+
+                    // Position Next button on the right
+                    const nextButton = document.querySelector('.introjs-nextbutton');
+                    if (nextButton) {
+                        nextButton.style.order = '2';
+                        nextButton.style.marginLeft = 'auto';
+                        // Make sure it's last in DOM order too
+                        tooltipButtons.appendChild(nextButton);
+                    }
+                }
+            }, 50); // Small delay to ensure DOM is updated
         });
 
         // Clean up function to restore original state when tour ends
