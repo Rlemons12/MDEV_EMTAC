@@ -7,21 +7,93 @@ $(document).ready(function () {
                 this.cacheElements();
                 this.bindEvents();
 
-                // 1) Read position ID from hidden input #position_id
-                // this.positionId = $('#position_id').val();
-                console.log('[ToolManagement] positionId (from hidden input):', this.positionId);
+                // Try to find position ID on initialization
+                this.positionId = this.findPositionId();
+                console.log('[ToolManagement] positionId (from initialization):', this.positionId);
 
-                // 2) If valid, fetch associated tools immediately
+                // If valid, fetch associated tools immediately
                 if (this.positionId) {
                     this.fetchAssociatedTools(this.positionId);
                 } else {
-                    console.warn('[ToolManagement] No position_id found in hidden input.');
+                    console.warn('[ToolManagement] No position_id found during initialization.');
                 }
 
                 console.log('%c[ToolManagement] Module initialized successfully.', 'color: green;');
             } catch (error) {
                 console.error('%c[ToolManagement] Initialization failed:', 'color: red; font-weight: bold;', error);
             }
+        },
+
+        // Find position ID using multiple methods
+        findPositionId: function () {
+            console.log('[ToolManagement] Searching for position ID with multiple methods');
+
+            var positionId = '';
+
+            // Method 1: From tool_position_id element
+            if ($('#tool_position_id').length > 0) {
+                positionId = $('#tool_position_id').val();
+                console.log('[ToolManagement] Method 1 (tool_position_id):', positionId);
+            }
+
+            // Method 2: From position_id element
+            if (!positionId && $('#position_id').length > 0) {
+                positionId = $('#position_id').val();
+                console.log('[ToolManagement] Method 2 (position_id):', positionId);
+            }
+
+            // Method 3: From URL parameter
+            if (!positionId) {
+                var urlParams = new URLSearchParams(window.location.search);
+                positionId = urlParams.get('position_id');
+                console.log('[ToolManagement] Method 3 (URL param):', positionId);
+            }
+
+            // Method 4: From global variable if it exists
+            if (!positionId && typeof window.currentPositionId !== 'undefined') {
+                positionId = window.currentPositionId;
+                console.log('[ToolManagement] Method 4 (global variable):', positionId);
+            }
+
+            // Method 5: From localStorage
+            if (!positionId && localStorage.getItem('currentPositionId')) {
+                positionId = localStorage.getItem('currentPositionId');
+                console.log('[ToolManagement] Method 5 (localStorage):', positionId);
+            }
+
+            // Method 6: From any element with data-position-id attribute
+            if (!positionId && $('[data-position-id]').length > 0) {
+                positionId = $('[data-position-id]').first().data('position-id');
+                console.log('[ToolManagement] Method 6 (data attribute):', positionId);
+            }
+
+            console.log('[ToolManagement] Final position ID found:', positionId);
+            return positionId;
+        },
+
+        // Method to set position ID
+        setPositionId: function (id) {
+            if (id) {
+                this.positionId = id;
+                console.log('[ToolManagement] Manually set position ID:', id);
+
+                // Store in form elements
+                if ($('#position_id').length > 0) {
+                    $('#position_id').val(id);
+                }
+                if ($('#tool_position_id').length > 0) {
+                    $('#tool_position_id').val(id);
+                }
+
+                // Store in global variable
+                window.currentPositionId = id;
+
+                // Store in localStorage for persistence
+                localStorage.setItem('currentPositionId', id);
+
+                return true;
+            }
+            return false;
         },
 
         cacheElements: function () {
@@ -136,30 +208,90 @@ $(document).ready(function () {
         },
 
         renderAssociatedTools: function (tools) {
-            console.log('[ToolManagement] Rendering associated tools:', tools);
-            var $tbody = this.$associatedToolsTableBody;
+    console.log('[ToolManagement] Rendering associated tools:', tools);
 
-            // Clear existing rows
-            $tbody.empty();
+    // Use the existing-tools-list element instead of the non-existent associatedToolsTableBody
+    var $container = $('#existing-tools-list');
 
-            if (!tools || tools.length === 0) {
-                $tbody.append('<tr><td colspan="6">No associated tools found.</td></tr>');
-                return;
-            }
+    // Clear existing tools
+    $container.empty();
 
-            // Build table rows
-            tools.forEach(function (tool) {
-                var rowHtml = '<tr>' +
-                    '<td>' + tool.id + '</td>' +
-                    '<td>' + (tool.name || '') + '</td>' +
-                    '<td>' + (tool.manufacturer || '') + '</td>' +
-                    '<td>' + (tool.type || '') + '</td>' +
-                    '<td>' + (tool.material || '') + '</td>' +
-                    '<td>' + (tool.category || '') + '</td>' +
-                '</tr>';
-                $tbody.append(rowHtml);
+    if (!tools || tools.length === 0) {
+        $container.html('<div class="no-tools-message">No associated tools found.</div>');
+        return;
+    }
+
+    // Build tool entries to match the HTML structure in position_data_assignment_tool_management.html
+    tools.forEach(function (tool) {
+        var toolHtml = `
+            <div class="existing-tool" id="tool-${tool.id}">
+                <div class="tool-info">
+                    <span class="tool-details">
+                        Tool ID: ${tool.id}, 
+                        Name: ${tool.name || 'N/A'}, 
+                        Type: ${tool.type || 'N/A'}, 
+                        Material: ${tool.material || 'N/A'}
+                    </span>
+                    <button type="button" class="remove-existing-tool-button"
+                            data-tool-id="${tool.id}"
+                            data-position-id="${window.ToolManagement.positionId}">Remove</button>
+                </div>
+            </div>
+        `;
+        $container.append(toolHtml);
+    });
+
+    // Bind events for remove buttons
+    this.bindRemoveToolEvents();
+},
+
+// Add this new function to handle the remove tool functionality
+bindRemoveToolEvents: function() {
+    var self = this;
+    $('.remove-existing-tool-button').off('click').on('click', function() {
+        var toolId = $(this).data('tool-id');
+        var positionId = $(this).data('position-id');
+
+        if (confirm('Are you sure you want to remove this tool from the position?')) {
+            self.removeToolFromPosition(toolId, positionId);
+        }
+    });
+},
+
+// Add this new function to remove tools
+removeToolFromPosition: function(toolId, positionId) {
+    var self = this;
+
+    $.ajax({
+        url: '/pda_remove_tool_from_position',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            tool_id: toolId,
+            position_id: positionId
+        }),
+        success: function(response) {
+            console.log('[ToolManagement] Tool removed successfully:', response);
+
+            // Remove the tool element from the DOM
+            $('#tool-' + toolId).fadeOut(300, function() {
+                $(this).remove();
+
+                // Check if there are no tools left
+                if ($('#existing-tools-list').children().length === 0) {
+                    $('#existing-tools-list').html('<div class="no-tools-message">No associated tools found.</div>');
+                }
             });
+
+            // Show success message
+            alert(response.message || 'Tool removed successfully.');
         },
+        error: function(xhr, status, error) {
+            console.error('[ToolManagement] Error removing tool:', error);
+            alert('Failed to remove tool: ' + error);
+        }
+    });
+},
 
         // ------------------------------------
         // SEARCH TOOLS
@@ -249,15 +381,28 @@ $(document).ready(function () {
         // ------------------------------------
         addToolToPosition: function (toolId) {
             var self = this;
-            var positionId = $('#tool_position_id').val(); // Dynamically read positionId
+
+            // Get position ID with our robust method
+            var positionId = this.positionId;
+
+            // If we don't have a cached position ID, try to find it again
+            if (!positionId) {
+                positionId = this.findPositionId();
+
+                // If we found it, cache it
+                if (positionId) {
+                    this.setPositionId(positionId);
+                }
+            }
+
             console.log('[ToolManagement] addToolToPosition called. toolId:', toolId, 'positionId:', positionId);
 
             if (!toolId || !positionId) {
-                alert('Missing tool ID or position ID.');
+                alert('Missing tool ID or position ID. Please select a position first.');
                 return;
             }
 
-            // Example POST to /pda_add_tool_to_position
+            // AJAX call to add tool to position
             $.ajax({
                 url: '/pda_add_tool_to_position',
                 method: 'POST',
@@ -272,18 +417,28 @@ $(document).ready(function () {
                     // Show a success message
                     alert(resp.message || 'Tool added successfully!');
 
-                    // Re-fetch associated tools so we see the newly added one
+                    // Re-fetch associated tools
                     self.fetchAssociatedTools(positionId);
 
-                    // Optionally switch sub-tabs to show the user the updated list
-                    self.$subTabs.removeClass('active');
-                    self.$subTabContents.removeClass('active').hide();
-                    self.$subTabs.filter('[data-subtab="associated-tools"]').addClass('active');
-                    $('#associated-tools').addClass('active').fadeIn();
+                    // Switch tabs if needed
+                    if (self.$subTabs && self.$subTabs.length > 0) {
+                        self.$subTabs.removeClass('active');
+                        self.$subTabContents.removeClass('active').hide();
+                        self.$subTabs.filter('[data-subtab="associated-tools"]').addClass('active');
+                        $('#associated-tools').addClass('active').fadeIn();
+                    }
                 },
                 error: function (xhr, status, error) {
                     console.error('[ToolManagement] addToolToPosition error:', error);
-                    alert('Failed to add tool. See console for more info.');
+
+                    // Handle specific error codes
+                    if (xhr.status === 409) {
+                        // 409 CONFLICT - Tool already associated
+                        alert('This tool is already associated with this position.');
+                    } else {
+                        // Other errors
+                        alert('Failed to add tool: ' + error);
+                    }
                 }
             });
         },
@@ -292,96 +447,112 @@ $(document).ready(function () {
         // SEARCH TOOLS DROPDOWN
         // ------------------------------------
         searchTools: function() {
-    var self = this;
-    var searchInput = $('#tool-search').val().trim();
-    var suggestionBox = $('#tool-suggestion-box');
+            var self = this;
+            var searchInput = $('#tool-search').val().trim();
+            var suggestionBox = $('#tool-suggestion-box');
 
-    console.log('[ToolManagement] Search input:', searchInput);
+            console.log('[ToolManagement] Search input:', searchInput);
 
-    if (!searchInput) {
-        suggestionBox.html('');
-        suggestionBox.css('display', 'none');
-        return;
-    }
-
-    // Add timestamp to prevent caching
-    var timestamp = new Date().getTime();
-
-    $.ajax({
-        url: '/pda_search_tools',  // Don't append query parameters for POST
-        method: 'POST',           // MUST be POST as the backend only accepts POST
-        data: {                   // These field names MUST match what backend expects
-            tool_name: searchInput,
-            tool_size: '',
-            tool_type: '',
-            tool_material: '',
-            t: timestamp
-        },
-        dataType: 'json',
-        success: function(response) {
-            // The rest of your success handler stays the same...
-            console.log('[ToolManagement] Received data:', response);
-            suggestionBox.html('');
-
-            // Extract tools from the response
-            var tools = response.tools || [];
-
-            if (tools.length > 0) {
-                tools.forEach(function(tool) {
-                    var toolEntry = $('<div class="suggestion-item"></div>');
-                    toolEntry.html(
-                        '<div>' +
-                        '<strong>Name:</strong> ' + (tool.name || '') + '<br>' +
-                        '<strong>Category:</strong> ' + (tool.tool_category || '') + '<br>' +  // Note: backend returns tool_category, not category
-                        '<strong>Manufacturer:</strong> ' + (tool.tool_manufacturer || '') +   // Note: backend returns tool_manufacturer, not manufacturer
-                        '</div>'
-                    );
-
-                    toolEntry.on('click', function() {
-                        self.addToolToPosition(tool.id);
-                        suggestionBox.css('display', 'none');
-                        $('#tool-search').val('');
-                    });
-
-                    suggestionBox.append(toolEntry);
-                });
-
-                // Apply aggressive styling to make dropdown visible
-                suggestionBox.attr('style',
-                    'display: block !important; z-index: 999999 !important; ' +
-                    'visibility: visible !important; opacity: 1 !important; ' +
-                    'position: absolute !important; top: 100% !important; ' +
-                    'left: 0 !important; width: 100% !important; ' +
-                    'background-color: rgba(0, 0, 0, 0.95) !important; ' +
-                    'border: 3px solid yellow !important; color: yellow !important; ' +
-                    'max-height: 300px !important; overflow-y: auto !important;'
-                );
-                console.log('[ToolManagement] Set suggestion box to visible');
-            } else {
-                // No changes needed to the "no results" handling
-                console.log('[ToolManagement] No tools found for search input:', searchInput);
-                suggestionBox.html('<p style="padding: 10px; margin: 0;">No tools found.</p>');
-                suggestionBox.attr('style',
-                    'display: block !important; z-index: 999999 !important; ' +
-                    'visibility: visible !important; opacity: 1 !important; ' +
-                    'position: absolute !important; top: 100% !important; ' +
-                    'left: 0 !important; width: 100% !important; ' +
-                    'background-color: rgba(0, 0, 0, 0.95) !important; ' +
-                    'border: 3px solid yellow !important; color: yellow !important; ' +
-                    'max-height: 300px !important; overflow-y: auto !important;'
-                );
+            if (!searchInput) {
+                suggestionBox.html('');
+                suggestionBox.css('display', 'none');
+                return;
             }
-        },
-        error: function(xhr, status, error) {
-            console.error('[ToolManagement] Error searching tools:', error);
-            console.error('[ToolManagement] Status code:', xhr.status);
-            console.error('[ToolManagement] Response text:', xhr.responseText);
-            alert('Error searching tools: ' + error);
+
+            // Add timestamp to prevent caching
+            var timestamp = new Date().getTime();
+
+            $.ajax({
+                url: '/pda_search_tools',
+                method: 'POST',
+                data: {
+                    tool_name: searchInput,
+                    tool_size: '',
+                    tool_type: '',
+                    tool_material: '',
+                    t: timestamp
+                },
+                dataType: 'json',
+                success: function(response) {
+                    console.log('[ToolManagement] Received data:', response);
+                    suggestionBox.html('');
+
+                    // Extract tools from the response
+                    var tools = response.tools || [];
+
+                    if (tools.length > 0) {
+                        tools.forEach(function(tool) {
+                            var toolEntry = $('<div class="suggestion-item"></div>');
+                            toolEntry.html(
+                                '<div>' +
+                                '<strong>Name:</strong> ' + (tool.name || '') + '<br>' +
+                                '<strong>Category:</strong> ' + (tool.tool_category || '') + '<br>' +
+                                '<strong>Manufacturer:</strong> ' + (tool.tool_manufacturer || '') +
+                                '</div>'
+                            );
+
+                            toolEntry.on('click', function() {
+                                self.addToolToPosition(tool.id);
+                                suggestionBox.css('display', 'none');
+                                $('#tool-search').val('');
+                            });
+
+                            suggestionBox.append(toolEntry);
+                        });
+
+                        // Apply aggressive styling to make dropdown visible
+                        suggestionBox.attr('style',
+                            'display: block !important; z-index: 999999 !important; ' +
+                            'visibility: visible !important; opacity: 1 !important; ' +
+                            'position: absolute !important; top: 100% !important; ' +
+                            'left: 0 !important; width: 100% !important; ' +
+                            'background-color: rgba(0, 0, 0, 0.95) !important; ' +
+                            'border: 3px solid yellow !important; color: yellow !important; ' +
+                            'max-height: 300px !important; overflow-y: auto !important;'
+                        );
+                        console.log('[ToolManagement] Set suggestion box to visible');
+                    } else {
+                        console.log('[ToolManagement] No tools found for search input:', searchInput);
+                        suggestionBox.html('<p style="padding: 10px; margin: 0;">No tools found.</p>');
+                        suggestionBox.attr('style',
+                            'display: block !important; z-index: 999999 !important; ' +
+                            'visibility: visible !important; opacity: 1 !important; ' +
+                            'position: absolute !important; top: 100% !important; ' +
+                            'left: 0 !important; width: 100% !important; ' +
+                            'background-color: rgba(0, 0, 0, 0.95) !important; ' +
+                            'border: 3px solid yellow !important; color: yellow !important; ' +
+                            'max-height: 300px !important; overflow-y: auto !important;'
+                        );
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('[ToolManagement] Error searching tools:', error);
+                    console.error('[ToolManagement] Status code:', xhr.status);
+                    console.error('[ToolManagement] Response text:', xhr.responseText);
+                    alert('Error searching tools: ' + error);
+                }
+            });
         }
-    });
-}
     };
 
     // Initialize the ToolManagement module
     ToolManagement.init();
+
+    // Listen for position ID changes from other scripts
+    $(document).on('positionIdChanged', function(e, newPositionId) {
+        if (window.ToolManagement) {
+            window.ToolManagement.setPositionId(newPositionId);
+        }
+    });
+
+    // Additional code: Check if position ID is set somewhere else on the page
+    // This can capture position IDs set by other scripts after our module loads
+    setInterval(function() {
+        if (window.ToolManagement && !window.ToolManagement.positionId) {
+            var newPositionId = window.ToolManagement.findPositionId();
+            if (newPositionId) {
+                window.ToolManagement.setPositionId(newPositionId);
+            }
+        }
+    }, 2000); // Check every 2 seconds
 });
