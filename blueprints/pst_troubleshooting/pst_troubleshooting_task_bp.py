@@ -3,20 +3,16 @@ from modules.configuration.config_env import DatabaseConfig
 from sqlalchemy.exc import SQLAlchemyError
 from modules.emtacdb.emtacdb_fts import (TaskToolAssociation,Task, PartTaskAssociation, DrawingTaskAssociation,
                                          ImageTaskAssociation, CompleteDocumentTaskAssociation)
-import logging
-
-# region fixme: Remove logging and use model logger
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-# endregion
+from modules.configuration.log_config import logger, with_request_id
 
 db_config = DatabaseConfig()
 
 # Blueprint for task-related routes
 pst_troubleshooting_task_bp = Blueprint('pst_troubleshooting_task_bp', __name__)
 
+
 @pst_troubleshooting_task_bp.route('/get_task_details/<int:task_id>', methods=['GET'])
+@with_request_id
 def get_task_details(task_id):
     session = db_config.get_main_session()
     logger.info(f"Fetching details for task ID: {task_id}")
