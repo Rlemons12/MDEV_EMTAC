@@ -3,10 +3,10 @@
 <input type="hidden" id="position_id" name="position_id" value="{{ position.id }}">
 
 <!-- Parts Search -->
-<div style="position: relative;">
+<div style="position: relative !important; overflow: visible !important; z-index: 9998 !important;">
     <label for="parts-search">Search Parts:</label>
     <input type="text" id="parts-search" placeholder="Search parts...">
-    <div id="parts-suggestion-box" class="suggestion-box" style="display: none;"></div>
+    <div id="parts-suggestion-box" class="suggestion-box"></div>
 </div>
 
 <!-- Existing Parts List -->
