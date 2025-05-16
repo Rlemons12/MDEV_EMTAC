@@ -2826,7 +2826,7 @@ class UserLevel(PyEnum):
     LEVEL_I = 'LEVEL_I'
     STANDARD = 'STANDARD'
 
-# region Todo: Refactor to classs' to ModelsConfig
+# region Todo: Create and Refactor class's to a new class called ModelsConfig
 
 class AIModelConfig(Base):
     __tablename__ = 'ai_model_config'
