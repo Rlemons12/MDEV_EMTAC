@@ -99,25 +99,42 @@ console.log('Initialized AppState in pst_troubleshooting.js:', window.AppState);
     });
 
     // Search button event listener
-    document.getElementById('searchProblemByPositionBtn').addEventListener('click', () => {
-        const searchParams = {
-            area_id: dropdowns.area.value,
-            equipment_group_id: dropdowns.equipmentGroup.value,
-            model_id: dropdowns.model.value,
-            asset_number: dropdowns.assetNumber.value.trim(),
-            location: dropdowns.location.value.trim(),
-            site_location_id: dropdowns.siteLocation.value
-        };
+document.getElementById('searchProblemByPositionBtn').addEventListener('click', () => {
+    const assetNumberDropdown = dropdowns.assetNumber;
+    const locationDropdown = dropdowns.location;
 
-        if (Object.values(searchParams).some(value => value)) {
-            fetch(`${SEARCH_PROBLEMS_URL}?${new URLSearchParams(searchParams)}`)
-                .then(response => response.json())
-                .then(data => displaySearchResults(data))
-                .catch(error => console.error('Error searching for problems:', error));
-        } else {
-            alert('Please enter at least one search criterion.');
-        }
-    });
+    // Get asset number text if available
+    let assetNumberText = '';
+    if (assetNumberDropdown.value) {
+        const selectedOption = assetNumberDropdown.options[assetNumberDropdown.selectedIndex];
+        assetNumberText = selectedOption.text.trim();
+    }
+
+    // Get location text if available
+    let locationText = '';
+    if (locationDropdown.value) {
+        const selectedOption = locationDropdown.options[locationDropdown.selectedIndex];
+        locationText = selectedOption.text.trim();
+    }
+
+    const searchParams = {
+        area_id: dropdowns.area.value,
+        equipment_group_id: dropdowns.equipmentGroup.value,
+        model_id: dropdowns.model.value,
+        asset_number: assetNumberText,  // Use text, not ID
+        location: locationText,         // Use text, not ID
+        site_location_id: dropdowns.siteLocation.value
+    };
+
+    if (Object.values(searchParams).some(value => value)) {
+        fetch(`${SEARCH_PROBLEMS_URL}?${new URLSearchParams(searchParams)}`)
+            .then(response => response.json())
+            .then(data => displaySearchResults(data))
+            .catch(error => console.error('Error searching for problems:', error));
+    } else {
+        alert('Please enter at least one search criterion.');
+    }
+});
 
     /**
      * Display search results with Update and Edit Solutions buttons
@@ -272,13 +289,13 @@ async function deleteProblem(problemId) {
         document.getElementById('update_problem_description').value = data.problem.description || '';
 
         const updateDropdowns = {
-            area: document.getElementById('update_pst_areaDropdown'),
-            equipmentGroup: document.getElementById('update_pst_equipmentGroupDropdown'),
-            model: document.getElementById('update_pst_modelDropdown'),
-            assetNumber: document.getElementById('update_pst_assetNumberInput'),
-            location: document.getElementById('update_pst_locationInput'),
-            siteLocation: document.getElementById('update_pst_siteLocationDropdown')
-        };
+    area: document.getElementById('update_pst_areaDropdown'),
+    equipmentGroup: document.getElementById('update_pst_equipmentGroupDropdown'),
+    model: document.getElementById('update_pst_modelDropdown'),
+    assetNumber: document.getElementById('update_pst_assetNumberDropdown'), // Changed from assetNumberInput
+    location: document.getElementById('update_pst_locationDropdown'),       // Changed from locationInput
+    siteLocation: document.getElementById('update_pst_siteLocationDropdown')
+};
 
         if (updateDropdowns.area && data.position.area_id) {
             updateDropdowns.area.value = data.position.area_id;
@@ -292,17 +309,111 @@ async function deleteProblem(problemId) {
                     return fetchData(`${GET_MODELS_URL}?equipment_group_id=${encodeURIComponent(data.position.equipment_group_id)}`);
                 })
                 .then(models => {
-                    populateDropdown(updateDropdowns.model, models, 'Select Model', item => item.name);
-                    updateDropdowns.model.value = data.position.model_id || '';
+    // Only proceed if model dropdown exists
+    if (updateDropdowns.model) {
+        populateDropdown(updateDropdowns.model, models, 'Select Model', item => item.name);
+        updateDropdowns.model.value = data.position.model_id || '';
+        updateDropdowns.model.disabled = false;
+    } else {
+        console.warn('Model dropdown not found in the DOM');
+    }
 
-                    updateDropdowns.equipmentGroup.disabled = false;
-                    updateDropdowns.model.disabled = false;
+    // Only enable equipment group if it exists
+    if (updateDropdowns.equipmentGroup) {
+        updateDropdowns.equipmentGroup.disabled = false;
+    }
 
-                    updateDropdowns.assetNumber.value = data.position.asset_number || '';
-                    updateDropdowns.location.value = data.position.location || '';
+    // Now that we have model ID, fetch asset numbers for this model
+    if (data.position.model_id) {
+        console.log(`Fetching asset numbers for model ID: ${data.position.model_id}`);
+        return fetchData(`${GET_ASSET_NUMBERS_URL}?model_id=${encodeURIComponent(data.position.model_id)}`);
+    } else {
+        console.warn('No model ID available to fetch asset numbers');
+        return Promise.resolve([]);  // Return empty array to continue chain
+    }
+})
+.then(assetNumbers => {
+    // Populate asset number dropdown if it exists
+    if (updateDropdowns.assetNumber) {
+        console.log(`Populating asset number dropdown with ${assetNumbers.length} options`);
+        populateDropdown(updateDropdowns.assetNumber, assetNumbers, 'Select Asset Number', item => item.number);
 
-                    // Site Location is independent; it was already fetched on page load
-                })
+        // If we have asset_number_id in the data, select it
+        if (data.position.asset_number_id) {
+            updateDropdowns.assetNumber.value = data.position.asset_number_id;
+        } else if (data.position.asset_number) {
+            // Try to find asset by number as fallback
+            const matchingAsset = assetNumbers.find(a => a.number === data.position.asset_number);
+            if (matchingAsset) {
+                updateDropdowns.assetNumber.value = matchingAsset.id;
+            }
+        }
+        updateDropdowns.assetNumber.disabled = false;
+    } else {
+        console.warn('Asset Number dropdown not found in the DOM');
+    }
+
+    // Now fetch locations for this model
+    if (data.position.model_id) {
+        console.log(`Fetching locations for model ID: ${data.position.model_id}`);
+        return fetchData(`${GET_LOCATIONS_URL}?model_id=${encodeURIComponent(data.position.model_id)}`);
+    } else {
+        console.warn('No model ID available to fetch locations');
+        return Promise.resolve([]);  // Return empty array to continue chain
+    }
+})
+.then(locations => {
+    // Populate location dropdown if it exists
+    if (updateDropdowns.location) {
+        console.log(`Populating location dropdown with ${locations.length} options`);
+        populateDropdown(updateDropdowns.location, locations, 'Select Location', item => item.name);
+
+        // If we have location_id in the data, select it
+        if (data.position.location_id) {
+            updateDropdowns.location.value = data.position.location_id;
+        } else if (data.position.location) {
+            // Try to find location by name as fallback
+            const matchingLocation = locations.find(l => l.name === data.position.location);
+            if (matchingLocation) {
+                updateDropdowns.location.value = matchingLocation.id;
+            }
+        }
+        updateDropdowns.location.disabled = false;
+    } else {
+        console.warn('Location dropdown not found in the DOM');
+    }
+
+    // Now we can fetch site locations with all params
+    const siteLocationParams = new URLSearchParams({
+        model_id: data.position.model_id || '',
+        area_id: data.position.area_id || '',
+        equipment_group_id: data.position.equipment_group_id || ''
+        // We could add asset_number_id and location_id here too if they're needed for filtering
+    }).toString();
+
+    if (updateDropdowns.siteLocation) {
+        console.log(`Fetching site locations with params: ${siteLocationParams}`);
+        return fetchData(`${GET_SITE_LOCATIONS_URL}?${siteLocationParams}`);
+    } else {
+        console.warn('Site Location dropdown not found');
+        return Promise.resolve([]);
+    }
+})
+.then(siteLocations => {
+    // Populate site location dropdown if it exists
+    if (updateDropdowns.siteLocation && Array.isArray(siteLocations)) {
+        console.log(`Populating site location dropdown with ${siteLocations.length} options`);
+        populateDropdown(updateDropdowns.siteLocation, siteLocations, 'Select Site Location',
+            item => `${item.title} - Room ${item.room_number}`);
+
+        if (data.position.site_location_id) {
+            updateDropdowns.siteLocation.value = data.position.site_location_id;
+        }
+        updateDropdowns.siteLocation.disabled = false;
+    } else {
+        console.warn('Site Location dropdown not found or invalid data format');
+    }
+})
                 .catch(error => console.error('Error fetching equipment groups or models:', error));
         } else {
             console.error('Area ID is missing in position data.');
