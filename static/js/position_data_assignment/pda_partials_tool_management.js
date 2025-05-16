@@ -100,6 +100,12 @@ $(document).ready(function () {
                 console.log('[ToolManagement] "Add to Position" clicked for toolId:', toolId);
                 self.addToolToPosition(toolId);
             });
+
+            // Add this new event binding for tool search input
+            $('#tool-search').on('keyup', function() {
+                console.log('[ToolManagement] Tool search input changed');
+                self.searchTools();
+            });
         },
 
         // ------------------------------------
@@ -242,42 +248,135 @@ $(document).ready(function () {
         // ADD TOOL TO POSITION
         // ------------------------------------
         addToolToPosition: function (toolId) {
-    var self = this;
-    var positionId = $('#position_id').val(); // Dynamically read positionId
-    console.log('[ToolManagement] addToolToPosition called. toolId:', toolId, 'positionId:', positionId);
+            var self = this;
+            var positionId = $('#tool_position_id').val(); // Dynamically read positionId
+            console.log('[ToolManagement] addToolToPosition called. toolId:', toolId, 'positionId:', positionId);
 
-    if (!toolId || !positionId) {
-        alert('Missing tool ID or position ID.');
+            if (!toolId || !positionId) {
+                alert('Missing tool ID or position ID.');
+                return;
+            }
+
+            // Example POST to /pda_add_tool_to_position
+            $.ajax({
+                url: '/pda_add_tool_to_position',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    tool_id: toolId,
+                    position_id: positionId
+                }),
+                success: function (resp) {
+                    console.log('[ToolManagement] addToolToPosition success:', resp);
+
+                    // Show a success message
+                    alert(resp.message || 'Tool added successfully!');
+
+                    // Re-fetch associated tools so we see the newly added one
+                    self.fetchAssociatedTools(positionId);
+
+                    // Optionally switch sub-tabs to show the user the updated list
+                    self.$subTabs.removeClass('active');
+                    self.$subTabContents.removeClass('active').hide();
+                    self.$subTabs.filter('[data-subtab="associated-tools"]').addClass('active');
+                    $('#associated-tools').addClass('active').fadeIn();
+                },
+                error: function (xhr, status, error) {
+                    console.error('[ToolManagement] addToolToPosition error:', error);
+                    alert('Failed to add tool. See console for more info.');
+                }
+            });
+        },
+
+        // ------------------------------------
+        // SEARCH TOOLS DROPDOWN
+        // ------------------------------------
+        searchTools: function() {
+    var self = this;
+    var searchInput = $('#tool-search').val().trim();
+    var suggestionBox = $('#tool-suggestion-box');
+
+    console.log('[ToolManagement] Search input:', searchInput);
+
+    if (!searchInput) {
+        suggestionBox.html('');
+        suggestionBox.css('display', 'none');
         return;
     }
 
-    // Example POST to /pda_add_tool_to_position
+    // Add timestamp to prevent caching
+    var timestamp = new Date().getTime();
+
     $.ajax({
-        url: '/pda_add_tool_to_position',
-        method: 'POST',
-        contentType: 'application/json',
-        data: JSON.stringify({
-            tool_id: toolId,
-            position_id: positionId
-        }),
-        success: function (resp) {
-            console.log('[ToolManagement] addToolToPosition success:', resp);
-
-            // Show a success message
-            alert(resp.message || 'Tool added successfully!');
-
-            // Re-fetch associated tools so we see the newly added one
-            self.fetchAssociatedTools(positionId);
-
-            // Optionally switch sub-tabs to show the user the updated list
-            self.$subTabs.removeClass('active');
-            self.$subTabContents.removeClass('active').hide();
-            self.$subTabs.filter('[data-subtab="associated-tools"]').addClass('active');
-            $('#associated-tools').addClass('active').fadeIn();
+        url: '/pda_search_tools',  // Don't append query parameters for POST
+        method: 'POST',           // MUST be POST as the backend only accepts POST
+        data: {                   // These field names MUST match what backend expects
+            tool_name: searchInput,
+            tool_size: '',
+            tool_type: '',
+            tool_material: '',
+            t: timestamp
         },
-        error: function (xhr, status, error) {
-            console.error('[ToolManagement] addToolToPosition error:', error);
-            alert('Failed to add tool. See console for more info.');
+        dataType: 'json',
+        success: function(response) {
+            // The rest of your success handler stays the same...
+            console.log('[ToolManagement] Received data:', response);
+            suggestionBox.html('');
+
+            // Extract tools from the response
+            var tools = response.tools || [];
+
+            if (tools.length > 0) {
+                tools.forEach(function(tool) {
+                    var toolEntry = $('<div class="suggestion-item"></div>');
+                    toolEntry.html(
+                        '<div>' +
+                        '<strong>Name:</strong> ' + (tool.name || '') + '<br>' +
+                        '<strong>Category:</strong> ' + (tool.tool_category || '') + '<br>' +  // Note: backend returns tool_category, not category
+                        '<strong>Manufacturer:</strong> ' + (tool.tool_manufacturer || '') +   // Note: backend returns tool_manufacturer, not manufacturer
+                        '</div>'
+                    );
+
+                    toolEntry.on('click', function() {
+                        self.addToolToPosition(tool.id);
+                        suggestionBox.css('display', 'none');
+                        $('#tool-search').val('');
+                    });
+
+                    suggestionBox.append(toolEntry);
+                });
+
+                // Apply aggressive styling to make dropdown visible
+                suggestionBox.attr('style',
+                    'display: block !important; z-index: 999999 !important; ' +
+                    'visibility: visible !important; opacity: 1 !important; ' +
+                    'position: absolute !important; top: 100% !important; ' +
+                    'left: 0 !important; width: 100% !important; ' +
+                    'background-color: rgba(0, 0, 0, 0.95) !important; ' +
+                    'border: 3px solid yellow !important; color: yellow !important; ' +
+                    'max-height: 300px !important; overflow-y: auto !important;'
+                );
+                console.log('[ToolManagement] Set suggestion box to visible');
+            } else {
+                // No changes needed to the "no results" handling
+                console.log('[ToolManagement] No tools found for search input:', searchInput);
+                suggestionBox.html('<p style="padding: 10px; margin: 0;">No tools found.</p>');
+                suggestionBox.attr('style',
+                    'display: block !important; z-index: 999999 !important; ' +
+                    'visibility: visible !important; opacity: 1 !important; ' +
+                    'position: absolute !important; top: 100% !important; ' +
+                    'left: 0 !important; width: 100% !important; ' +
+                    'background-color: rgba(0, 0, 0, 0.95) !important; ' +
+                    'border: 3px solid yellow !important; color: yellow !important; ' +
+                    'max-height: 300px !important; overflow-y: auto !important;'
+                );
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error('[ToolManagement] Error searching tools:', error);
+            console.error('[ToolManagement] Status code:', xhr.status);
+            console.error('[ToolManagement] Response text:', xhr.responseText);
+            alert('Error searching tools: ' + error);
         }
     });
 }
