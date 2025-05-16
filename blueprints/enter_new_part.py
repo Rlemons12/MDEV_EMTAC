@@ -37,7 +37,7 @@ def get_part_form_data():
     finally:
         session.close()
 
-# region fixme: Data entry issue adds 2 items to the part_position_table
+
 @enter_new_part_bp.route('/enter_part', methods=['GET', 'POST'])
 def enter_part():
     logger.info("Enter part route accessed")
@@ -205,7 +205,7 @@ def enter_part():
             return redirect(url_for('enter_new_part_bp.enter_part'))
         finally:
             session.close()
-# endregion
+
 
 # Add route to serve part images
 @enter_new_part_bp.route('/part_image/<int:image_id>')
