@@ -18,8 +18,8 @@ document.addEventListener('DOMContentLoaded', () => {
         area: document.getElementById('pst_areaDropdown'),
         equipmentGroup: document.getElementById('pst_equipmentGroupDropdown'),
         model: document.getElementById('pst_modelDropdown'),
-        assetNumberInput: document.getElementById('pst_assetNumberInput'),
-        locationInput: document.getElementById('pst_locationInput'),
+        assetNumber: document.getElementById('pst_assetNumberDropdown'), // Changed from assetNumberInput
+        location: document.getElementById('pst_locationDropdown'), // Changed from locationInput
         siteLocation: document.getElementById('pst_siteLocationDropdown')
     };
 
@@ -58,6 +58,48 @@ document.addEventListener('DOMContentLoaded', () => {
         resultsList.addEventListener('click', handleResultsListClick);
     }
 
+    // Add event listener for the update problem form submission
+    const updateProblemForm = document.getElementById('updateProblemForm');
+    if (updateProblemForm) {
+        updateProblemForm.addEventListener('submit', handleFormSubmit);
+    }
+
+    // Function to handle form submission
+    function handleFormSubmit(event) {
+        // Get the dropdown elements
+        const assetNumberDropdown = document.getElementById('update_pst_assetNumberDropdown');
+        const locationDropdown = document.getElementById('update_pst_locationDropdown');
+
+        // Extract the text values from the selected options
+        let assetNumberText = '';
+        if (assetNumberDropdown && assetNumberDropdown.selectedIndex > 0) {
+            assetNumberText = assetNumberDropdown.options[assetNumberDropdown.selectedIndex].text;
+        }
+
+        let locationText = '';
+        if (locationDropdown && locationDropdown.selectedIndex > 0) {
+            locationText = locationDropdown.options[locationDropdown.selectedIndex].text;
+        }
+
+        console.log(`Form submission: Asset Number text = "${assetNumberText}", Location text = "${locationText}"`);
+
+        // Create hidden fields to send these text values
+        const assetNumberInput = document.createElement('input');
+        assetNumberInput.type = 'hidden';
+        assetNumberInput.name = 'asset_number';  // Match what the backend expects
+        assetNumberInput.value = assetNumberText;
+        this.appendChild(assetNumberInput);
+
+        const locationInput = document.createElement('input');
+        locationInput.type = 'hidden';
+        locationInput.name = 'location';  // Match what the backend expects
+        locationInput.value = locationText;
+        this.appendChild(locationInput);
+
+        // Form will now submit with both the selected IDs and the text values
+        // No need to preventDefault() - let the form submit normally
+    }
+
     // Function to handle Area change
     function handleAreaChange() {
         const areaId = dropdowns.area.value;
@@ -79,6 +121,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 .catch(error => console.error('Error fetching models:', error));
         } else {
             resetDropdown(dropdowns.model, 'Select Model');
+            resetDropdown(dropdowns.assetNumber, 'Select Asset Number'); // Reset asset number dropdown
+            resetDropdown(dropdowns.location, 'Select Location'); // Reset location dropdown
             resetDropdown(dropdowns.siteLocation, 'Select Site Location');
         }
     }
@@ -87,32 +131,53 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleModelChange() {
         const modelId = dropdowns.model.value;
         if (modelId) {
+            // Fetch and populate asset numbers for the selected model
             fetchData(`${GET_ASSET_NUMBERS_URL}?model_id=${encodeURIComponent(modelId)}`)
                 .then(data => {
-                    // Handle asset numbers if needed
                     console.log("Asset numbers loaded:", data);
-                    // If you need to populate a dropdown, call populateDropdown here
+                    populateDropdown(dropdowns.assetNumber, data, 'Select Asset Number', item => item.number);
                 })
                 .catch(error => console.error('Error fetching asset numbers:', error));
 
+            // Fetch and populate locations for the selected model
             fetchData(`${GET_LOCATIONS_URL}?model_id=${encodeURIComponent(modelId)}`)
-                .then(data => populateDropdown(dropdowns.siteLocation, data, 'Select Site Location'))
+                .then(data => {
+                    console.log("Locations loaded:", data);
+                    populateDropdown(dropdowns.location, data, 'Select Location', item => item.name);
+                })
                 .catch(error => console.error('Error fetching locations:', error));
+
+            // Do not touch the siteLocation dropdown here
         } else {
+            resetDropdown(dropdowns.assetNumber, 'Select Asset Number');
+            resetDropdown(dropdowns.location, 'Select Location');
             resetDropdown(dropdowns.siteLocation, 'Select Site Location');
         }
     }
 
     // Function to handle Search button click
     function handleSearchButtonClick() {
+        // Get text from the selected options (not the ID values)
+        let assetNumberText = '';
+        if (dropdowns.assetNumber && dropdowns.assetNumber.selectedIndex > 0) {
+            assetNumberText = dropdowns.assetNumber.options[dropdowns.assetNumber.selectedIndex].text;
+        }
+
+        let locationText = '';
+        if (dropdowns.location && dropdowns.location.selectedIndex > 0) {
+            locationText = dropdowns.location.options[dropdowns.location.selectedIndex].text;
+        }
+
         const searchParams = {
             area_id: dropdowns.area.value,
             equipment_group_id: dropdowns.equipmentGroup.value,
             model_id: dropdowns.model.value,
-            asset_number: dropdowns.assetNumberInput.value.trim(),
-            location: dropdowns.locationInput.value.trim(),
+            asset_number: assetNumberText,  // Use the displayed text, not the ID value
+            location: locationText,         // Use the displayed text, not the ID value
             site_location_id: dropdowns.siteLocation.value
         };
+
+        console.log("Search parameters:", searchParams);
 
         // Check if at least one search criterion is provided
         const hasCriteria = Object.values(searchParams).some(value => value && value !== '');
@@ -177,7 +242,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         Edit Related Solutions
                     </button>
                 </div>
-                
             `;
             resultsList.appendChild(listItem);
         });
@@ -197,15 +261,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Populate Update Form
     function populateUpdateForm(data) {
-        // References to update form elements
+        // Log incoming data for debugging
+        console.log("Populating update form with data:", data);
+
+        // References to update form elements - update to use dropdown elements
         const updateDropdowns = {
             area: document.getElementById('update_pst_areaDropdown'),
             equipmentGroup: document.getElementById('update_pst_equipmentGroupDropdown'),
             model: document.getElementById('update_pst_modelDropdown'),
-            assetNumberInput: document.getElementById('update_pst_assetNumberInput'),
-            locationInput: document.getElementById('update_pst_locationInput'),
+            assetNumber: document.getElementById('update_pst_assetNumberDropdown'), // Changed to dropdown
+            location: document.getElementById('update_pst_locationDropdown'), // Changed to dropdown
             siteLocation: document.getElementById('update_pst_siteLocationDropdown')
         };
+
+        // Log which elements were found/not found
+        Object.entries(updateDropdowns).forEach(([key, element]) => {
+            console.log(`Element ${key} found: ${element !== null}`);
+        });
 
         if (!data || !data.problem || !data.position) {
             console.error('Problem data is undefined or null.');
@@ -213,12 +285,17 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Set hidden problem ID
-        document.getElementById('update_problem_id').value = data.problem.id || '';
-        document.getElementById('update_problem_name').value = data.problem.name || '';
-        document.getElementById('update_problem_description').value = data.problem.description || '';
+        // Set hidden problem ID and other fields with null checks
+        const problemIdField = document.getElementById('update_problem_id');
+        if (problemIdField) problemIdField.value = data.problem.id || '';
 
-        // Populate and set the Area dropdown
+        const problemNameField = document.getElementById('update_problem_name');
+        if (problemNameField) problemNameField.value = data.problem.name || '';
+
+        const problemDescField = document.getElementById('update_problem_description');
+        if (problemDescField) problemDescField.value = data.problem.description || '';
+
+        // Populate and set the Area dropdown - with defensive null checks
         if (updateDropdowns.area && data.position.area_id) {
             updateDropdowns.area.value = data.position.area_id;
             updateDropdowns.area.disabled = false;
@@ -226,47 +303,151 @@ document.addEventListener('DOMContentLoaded', () => {
             // Fetch equipment groups based on the area
             fetchData(`${GET_EQUIPMENT_GROUPS_URL}?area_id=${encodeURIComponent(data.position.area_id)}`)
                 .then(equipmentGroups => {
+                    // Only proceed if equipment group dropdown exists
+                    if (!updateDropdowns.equipmentGroup) {
+                        console.warn('Equipment Group dropdown not found in DOM');
+                        return Promise.reject('Equipment Group dropdown not found');
+                    }
+
                     populateDropdown(updateDropdowns.equipmentGroup, equipmentGroups, 'Select Equipment Group');
-                    updateDropdowns.equipmentGroup.value = data.position.equipment_group_id || '';
 
-                    // Fetch and populate Models based on the Equipment Group
-                    return fetchData(`${GET_MODELS_URL}?equipment_group_id=${encodeURIComponent(data.position.equipment_group_id)}`);
-                })
-                .then(models => {
-                    populateDropdown(updateDropdowns.model, models, 'Select Model');
-                    updateDropdowns.model.value = data.position.model_id || '';
+                    // Check if equipment_group_id exists before setting value
+                    if (data.position.equipment_group_id) {
+                        updateDropdowns.equipmentGroup.value = data.position.equipment_group_id;
+                        updateDropdowns.equipmentGroup.disabled = false;
+                    }
 
-                    // Enable the dropdowns
-                    updateDropdowns.equipmentGroup.disabled = false;
-                    updateDropdowns.model.disabled = false;
-                })
-                .catch(error => console.error('Error fetching equipment groups or models:', error));
-        } else {
-            console.error('Area ID is missing in position data.');
-            alert('Area information is missing in problem details.');
-        }
-
-        // Set Asset Number and Location
-        if (updateDropdowns.assetNumberInput) {
-            updateDropdowns.assetNumberInput.value = data.position.asset_number || '';
-        }
-        if (updateDropdowns.locationInput) {
-            updateDropdowns.locationInput.value = data.position.location || '';
-        }
-
-        // Fetch and populate Site Locations
-        if (updateDropdowns.siteLocation) {
-            fetchData(GET_SITE_LOCATIONS_URL)
-                .then(siteLocations => {
-                    if (Array.isArray(siteLocations)) {
-                        populateDropdown(updateDropdowns.siteLocation, siteLocations, 'Select Site Location');
-                        updateDropdowns.siteLocation.value = data.position.site_location_id || '';
-                        updateDropdowns.siteLocation.disabled = false;
+                    // Only proceed to fetch models if we have an equipment group ID
+                    if (data.position.equipment_group_id) {
+                        return fetchData(`${GET_MODELS_URL}?equipment_group_id=${encodeURIComponent(data.position.equipment_group_id)}`);
                     } else {
-                        console.error('Invalid site locations data format.');
+                        return Promise.reject('No equipment group ID available');
                     }
                 })
-                .catch(error => console.error('Error fetching site locations:', error));
+                .then(models => {
+                    // Only proceed if model dropdown exists
+                    if (!updateDropdowns.model) {
+                        console.warn('Model dropdown not found in DOM');
+                        return Promise.reject('Model dropdown not found');
+                    }
+
+                    populateDropdown(updateDropdowns.model, models, 'Select Model');
+
+                    // Check if model_id exists before setting value
+                    if (data.position.model_id) {
+                        updateDropdowns.model.value = data.position.model_id;
+                        updateDropdowns.model.disabled = false;
+                    }
+
+                    // Only proceed to fetch asset numbers if we have a model ID
+                    if (data.position.model_id) {
+                        return fetchData(`${GET_ASSET_NUMBERS_URL}?model_id=${encodeURIComponent(data.position.model_id)}`);
+                    } else {
+                        return Promise.reject('No model ID available');
+                    }
+                })
+                .then(assetNumbers => {
+                    // Populate asset number dropdown
+                    if (updateDropdowns.assetNumber) {
+                        console.log(`Populating asset number dropdown with ${assetNumbers.length} options`);
+                        populateDropdown(updateDropdowns.assetNumber, assetNumbers, 'Select Asset Number', item => item.number);
+
+                        // If we have asset_number_id, use that to select
+                        if (data.position.asset_number_id) {
+                            updateDropdowns.assetNumber.value = data.position.asset_number_id;
+                        }
+                        // Otherwise, try to find matching asset by number
+                        else if (data.position.asset_number) {
+                            // Look for option text that matches the asset number
+                            for (let i = 0; i < updateDropdowns.assetNumber.options.length; i++) {
+                                if (updateDropdowns.assetNumber.options[i].text === data.position.asset_number) {
+                                    updateDropdowns.assetNumber.selectedIndex = i;
+                                    break;
+                                }
+                            }
+                        }
+                        updateDropdowns.assetNumber.disabled = false;
+                    }
+
+                    // Fetch locations for the selected model
+                    if (data.position.model_id) {
+                        return fetchData(`${GET_LOCATIONS_URL}?model_id=${encodeURIComponent(data.position.model_id)}`);
+                    } else {
+                        return Promise.reject('No model ID available for locations');
+                    }
+                })
+                .then(locations => {
+                    // Populate location dropdown
+                    if (updateDropdowns.location) {
+                        console.log(`Populating location dropdown with ${locations.length} options`);
+                        populateDropdown(updateDropdowns.location, locations, 'Select Location', item => item.name);
+
+                        // If we have location_id, use that to select
+                        if (data.position.location_id) {
+                            updateDropdowns.location.value = data.position.location_id;
+                        }
+                        // Otherwise, try to find matching location by name
+                        else if (data.position.location) {
+                            // Look for option text that matches the location name
+                            for (let i = 0; i < updateDropdowns.location.options.length; i++) {
+                                if (updateDropdowns.location.options[i].text === data.position.location) {
+                                    updateDropdowns.location.selectedIndex = i;
+                                    break;
+                                }
+                            }
+                        }
+                        updateDropdowns.location.disabled = false;
+                    }
+
+                    // Prepare parameters for site locations fetch
+                    if (updateDropdowns.siteLocation) {
+                        // Build parameters object, only including those that exist
+                        const params = {};
+                        if (data.position.model_id) params.model_id = data.position.model_id;
+                        if (data.position.area_id) params.area_id = data.position.area_id;
+                        if (data.position.equipment_group_id) params.equipment_group_id = data.position.equipment_group_id;
+
+                        // Only fetch if we have at least one parameter
+                        if (Object.keys(params).length > 0) {
+                            const siteLocationParams = new URLSearchParams(params).toString();
+                            console.log(`Fetching site locations with params: ${siteLocationParams}`);
+                            return fetchData(`${GET_SITE_LOCATIONS_URL}?${siteLocationParams}`);
+                        } else {
+                            // Fall back to fetching all site locations if no params
+                            console.log('Fetching all site locations (no specific params)');
+                            return fetchData(GET_SITE_LOCATIONS_URL);
+                        }
+                    } else {
+                        return Promise.reject('Site location dropdown not found');
+                    }
+                })
+                .then(siteLocations => {
+                    if (Array.isArray(siteLocations) && updateDropdowns.siteLocation) {
+                        populateDropdown(updateDropdowns.siteLocation, siteLocations, 'Select Site Location');
+
+                        // Only set site location value if it exists
+                        if (data.position.site_location_id) {
+                            updateDropdowns.siteLocation.value = data.position.site_location_id;
+                        }
+                        updateDropdowns.siteLocation.disabled = false;
+                    } else {
+                        console.error('Invalid site locations data format or dropdown not found');
+                    }
+                })
+                .catch(error => {
+                    // Only log real errors, not our control flow rejections
+                    if (typeof error === 'string' &&
+                        (error.includes('dropdown not found') ||
+                         error.includes('No model ID available') ||
+                         error.includes('No equipment group ID available'))) {
+                        console.warn(error); // Just a warning for expected issues
+                    } else {
+                        console.error('Error in the update form data loading chain:', error);
+                    }
+                });
+        } else {
+            console.error('Area dropdown not found or Area ID is missing in position data.');
+            alert('Area information is missing or area dropdown not found.');
         }
 
         // Show the update problem section
@@ -275,7 +456,6 @@ document.addEventListener('DOMContentLoaded', () => {
             updateSection.style.display = 'block';
         }
     }
-
 
     // Fetch and populate Solutions Tab with related solutions for the selected problem
     function editRelatedSolutions(problemId) {
@@ -319,7 +499,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Utility functions
-    function populateDropdown(dropdown, data, placeholder) {
+    function populateDropdown(dropdown, data, placeholder, displayTextFunc) {
         if (!dropdown) {
             console.error('Dropdown element is undefined.');
             return;
@@ -329,7 +509,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (Array.isArray(data)) {
             data.forEach(item => {
-                let displayText = item.name || `${item.title} - Room ${item.room_number}`;
+                // Use the provided displayTextFunc if available, otherwise use default
+                let displayText = displayTextFunc ? displayTextFunc(item) :
+                    (item.name || `${item.title} - Room ${item.room_number}`);
+
                 const option = document.createElement('option');
                 option.value = item.id;
                 option.textContent = displayText;
@@ -351,12 +534,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function resetAllDropdowns() {
         resetDropdown(dropdowns.equipmentGroup, 'Select Equipment Group');
         resetDropdown(dropdowns.model, 'Select Model');
+        resetDropdown(dropdowns.assetNumber, 'Select Asset Number');
+        resetDropdown(dropdowns.location, 'Select Location');
         resetDropdown(dropdowns.siteLocation, 'Select Site Location');
-        if (dropdowns.assetNumberInput) {
-            dropdowns.assetNumberInput.value = '';
-        }
-        if (dropdowns.locationInput) {
-            dropdowns.locationInput.value = '';
-        }
     }
 });
