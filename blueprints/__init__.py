@@ -71,8 +71,7 @@ from blueprints.comment_pop_up_bp import comment_pop_up_bp
 from blueprints.bill_of_materials.update_part_bp import update_part_bp
 from blueprints.position_data_assignment.position_data_assignment import position_data_assignment_bp
 from blueprints.position_data_assignment.position_data_assignment_data_add_dependencies_bp import position_data_assignment_data_add_dependencies_bp
-
-
+from blueprints.upload_search_db.search_drawing import search_drawings, drawing_routes
 
 engine = create_engine(DATABASE_URL)
 Session = sessionmaker(bind=engine)
@@ -97,7 +96,7 @@ ai_model = load_ai_model(current_ai_model)
 embedding_model = load_embedding_model(current_embedding_model)
 
 def register_blueprints(app):
-
+    app.register_blueprint(drawing_routes)
     app.register_blueprint(assembly_model_bp,url_prefix='/assembly_model')
     app.register_blueprint(tool_blueprint_bp, url_prefix='/tool')
     app.register_blueprint(pst_troubleshooting_guide_edit_update_bp, url_prefix='/pst_troubleshooting_guide_edit_update')
