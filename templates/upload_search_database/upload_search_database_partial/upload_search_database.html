@@ -39,9 +39,10 @@
 
 {% block content %}
     <!-- User level-restricted forms -->
+
     <!-- Upload forms - only visible to LEVEL_III and ADMIN -->
     {% if session['user_level'] == 'LEVEL_III' or session['user_level'] == 'ADMIN' %}
-        {% include 'upload_search_database/upload_search_database_parial/upload_image_form_partial.html' %}
+        {% include 'upload_image_form_partial.html' %}
 
     <div id="upload-document" class="form-container">
         <h2>Upload Document</h2>
