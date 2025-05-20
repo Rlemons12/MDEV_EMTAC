@@ -87,7 +87,7 @@ button[type="submit"]:hover {
 
 /* Main Container Adjustments */
 .main-container {
-    background-image: url("/static/background images/dark-blue-futuristic-technology.jpg");
+    background-image: url("/static/background_images/dark-blue-futuristic-technology.jpg");
     background-size: cover;
     background-repeat: no-repeat;
     background-position: center;

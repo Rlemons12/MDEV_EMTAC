@@ -1,6 +1,6 @@
 /* Custom background image for this page */
 body {
-    background-image: url("/static/background images/abstractfractal.jpg");
+    background-image: url("/static/background_images/abstractfractal.jpg");
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
