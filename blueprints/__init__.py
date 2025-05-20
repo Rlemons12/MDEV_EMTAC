@@ -4,7 +4,7 @@ import os
 from blueprints.tool_routes import tool_blueprint_bp
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from modules.emtacdb.emtacdb_fts import (AIModelConfig)
+
 
 from modules.configuration.config import DATABASE_URL
 from sqlalchemy import create_engine
@@ -72,30 +72,14 @@ from blueprints.bill_of_materials.update_part_bp import update_part_bp
 from blueprints.position_data_assignment.position_data_assignment import position_data_assignment_bp
 from blueprints.position_data_assignment.position_data_assignment_data_add_dependencies_bp import position_data_assignment_data_add_dependencies_bp
 from blueprints.upload_search_db.search_drawing import search_drawings, drawing_routes
+from blueprints.chatbot.keyword_search_bp import keyword_search_bp
 
 engine = create_engine(DATABASE_URL)
 Session = sessionmaker(bind=engine)
 
-# Function to load config from the database
-def load_config_from_db():
-    session = Session()
-    ai_model_config = session.query(AIModelConfig).filter_by(key="CURRENT_AI_MODEL").first()
-    embedding_model_config = session.query(AIModelConfig).filter_by(key="CURRENT_EMBEDDING_MODEL").first()
-    session.close()
-
-    current_ai_model = ai_model_config.value if ai_model_config else "NoAIModel"
-    current_embedding_model = embedding_model_config.value if embedding_model_config else "NoEmbeddingModel"
-
-    return current_ai_model, current_embedding_model
-
-# Load the current AI and embedding models from the database
-current_ai_model, current_embedding_model = load_config_from_db()
-
-# Load the models
-ai_model = load_ai_model(current_ai_model)
-embedding_model = load_embedding_model(current_embedding_model)
 
 def register_blueprints(app):
+    app.register_blueprint(keyword_search_bp, url_prefix='/keyword_search')
     app.register_blueprint(drawing_routes)
     app.register_blueprint(assembly_model_bp,url_prefix='/assembly_model')
     app.register_blueprint(tool_blueprint_bp, url_prefix='/tool')

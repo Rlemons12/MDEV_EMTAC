@@ -6,9 +6,11 @@ from .ai_models import (
     store_embedding,
     OpenAIModel,
     Llama3Model,
+    AnthropicModel,  # Added this line
     OpenAIEmbeddingModel,
     NoAIModel,
-    NoEmbeddingModel
+    NoEmbeddingModel,
+    ModelsConfig
 )
 
 __all__ = [
@@ -18,7 +20,9 @@ __all__ = [
     'generate_embedding',
     'OpenAIModel',
     'Llama3Model',
+    'AnthropicModel',  # Added this line
     'OpenAIEmbeddingModel',
     'NoAIModel',
-    'NoEmbeddingModel'
+    'NoEmbeddingModel',
+    'ModelsConfig'
 ]
