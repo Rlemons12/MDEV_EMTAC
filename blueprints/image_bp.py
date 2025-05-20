@@ -55,7 +55,7 @@ def allowed_file(filename):
 @image_bp.route('/upload_search_database', methods=['GET'])
 def upload_image_page():
     filename = request.args.get('filename', '')
-    return render_template('upload_search_database.html', filename=filename)
+    return render_template('upload_search_database/upload_search_database.html', filename=filename)
 
 # Route for uploading images
 @image_bp.route('/upload_image', methods=['GET', 'POST'])
