@@ -7,7 +7,7 @@ html, body {
 }
 
 .main-container {
-    background-image: url("/static/background images/dark-blue-futuristic-technology.jpg");
+    background-image: url("/static/background_images/dark-blue-futuristic-technology.jpg");
     background-size: cover;
     background-position: center;
     display: flex;
