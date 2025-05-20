@@ -17,7 +17,6 @@ sys.path.append(BASE_DIR)
 #Important pathways
 
 ENABLE_REVISION_CONTROL = False   # or True once you wire it up
-
 TEMPLATE_FOLDER_PATH = os.path.join(BASE_DIR, 'templates')
 LOAD_FOLDER = os.path.join(BASE_DIR, 'load_process')
 LOAD_FOLDER_REFERENCE = os.path.join(BASE_DIR, 'load_process', 'load_reference')
@@ -45,6 +44,7 @@ TEMPORARY_UPLOAD_FILES = os.path.join(DATABASE_DIR, 'temp_upload_files')
 DB_LOADSHEET = os.path.join(DATABASE_DIR, "DB_LOADSHEETS")
 DB_LOADSHEETS_BACKUP = os.path.join(DATABASE_DIR, "DB_LOADSHEETS_BACKUP")
 DB_LOADSHEET_BOMS = os.path.join(DATABASE_DIR, "DB_LOADSHEET_BOMS")
+DRAWING_IMPORT_DATA_DIR = os.path.join(DB_LOADSHEET, "drawing_import_data")
 BACKUP_DIR = os.path.join(DATABASE_DIR, "db_backup")
 Utility_tools = os.path.join(BASE_DIR, "utility_tools")
 UTILITIES = os.path.join(BASE_DIR,'utilities')
