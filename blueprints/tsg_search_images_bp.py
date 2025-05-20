@@ -80,7 +80,7 @@ def search_images():
         flash("No search criteria provided", "error")
         logger.info("No search criteria provided. Redirecting to upload_search_database.html.")
         session.close()
-        return render_template('upload_search_database.html')
+        return render_template('upload_search_database/upload_search_database.html')
 
     try:
         # Query the images with pagination
