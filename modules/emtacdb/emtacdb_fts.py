@@ -10,6 +10,12 @@ from typing import Optional,List
 from sqlalchemy import or_, and_
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from typing import Dict, Any, List, Optional, Tuple, Union
+from flask import send_file, jsonify, request, abort, flash, redirect, url_for, render_template
+from sqlalchemy import desc, asc
+from werkzeug.utils import secure_filename
+import mimetypes
+from PIL import Image as PILImage
 
 
 import openai
@@ -27,6 +33,8 @@ from modules.configuration.base import Base
 from modules.configuration.log_config import *
 from modules.configuration.config import DATABASE_DIR
 from modules.configuration.config_env import DatabaseConfig
+from flask import g  # Required for access to g.request_id in the methods
+from functools import wraps  # Required if you need to recreate with_request_id
 
 # Configure mappers (must be called after all ORM classes are defined)
 configure_mappers()
@@ -267,6 +275,7 @@ class Position(Base):
     MODELS_MAP = None
 
     @classmethod
+    @with_request_id
     def get_dependent_items(cls, session, parent_type, parent_id, child_type=None):
         """
         Generic method to get dependent items based on parent type and ID.
@@ -354,6 +363,7 @@ class Position(Base):
         return query.all()
 
     @classmethod
+    @with_request_id
     def get_next_level_type(cls, current_level):
         """Get the next level type in the hierarchy"""
         config = cls.HIERARCHY.get(current_level)
@@ -483,6 +493,7 @@ class Position(Base):
             raise
 
     @classmethod
+    @with_request_id
     def _get_positions_by_hierarchy(cls, session, area_id=None, equipment_group_id=None, model_id=None,
                                     asset_number_id=None, location_id=None):
         """
@@ -678,6 +689,7 @@ class Model(Base):
     position = relationship("Position", back_populates="model")
 
     @classmethod
+    @with_request_id
     def search_models(cls, session, query, limit=10):
         """
         Searches for models that match the provided query using a case-insensitive
@@ -845,6 +857,7 @@ class AssetNumber(Base):
     position = relationship("Position", back_populates="asset_number")
 
     @classmethod
+    @with_request_id
     def get_ids_by_number(cls, session, number):
         """Retrieve all AssetNumber IDs that match the given number."""
         logger.info(f"========== ASSET NUMBER SEARCH ==========")
@@ -891,6 +904,7 @@ class AssetNumber(Base):
             logger.info(f"========== ASSET NUMBER SEARCH COMPLETE ==========")
 
     @classmethod
+    @with_request_id
     def get_model_id_by_asset_number_id(cls, session, asset_number_id):
         """
         Given an asset_number_id, returns the associated model_id.
@@ -941,6 +955,7 @@ class AssetNumber(Base):
             logger.info(f"========== MODEL SEARCH COMPLETE ==========")
 
     @classmethod
+    @with_request_id
     def get_equipment_group_id_by_asset_number_id(cls, session, asset_number_id):
         """
         Given an asset_number_id, retrieves the equipment_group id that is associated with its model.
@@ -1017,6 +1032,7 @@ class AssetNumber(Base):
             logger.info(f"========== EQUIPMENT GROUP SEARCH COMPLETE ==========")
 
     @classmethod
+    @with_request_id
     def get_area_id_by_asset_number_id(cls, session, asset_number_id):
         """
         Given an asset_number_id, retrieves the associated area_id.
@@ -1097,6 +1113,7 @@ class AssetNumber(Base):
             logger.info(f"========== AREA SEARCH COMPLETE ==========")
 
     @classmethod
+    @with_request_id
     def get_position_ids_by_asset_number_id(cls, session, asset_number_id):
         """
         Given an asset_number_id, retrieves all Position IDs that reference this asset_number.
@@ -1162,6 +1179,7 @@ class AssetNumber(Base):
             logger.info(f"========== POSITION SEARCH COMPLETE ==========")
 
     @classmethod
+    @with_request_id
     def search_asset_numbers(cls, session, query, limit=10):
         """
         Searches for asset numbers that match the provided query using
@@ -1500,6 +1518,7 @@ class Part(Base):
     __table_args__ = (UniqueConstraint('part_number', name='_part_number_uc'),)
 
     @classmethod
+    @with_request_id
     def search(cls,
                search_text: Optional[str] = None,
                fields: Optional[List[str]] = None,
@@ -1695,6 +1714,7 @@ class Part(Base):
                 debug_id(f"Closed database session for Part.search", rid)
 
     @classmethod
+    @with_request_id
     def get_by_id(cls, part_id: int, request_id: Optional[str] = None, session: Optional[Session] = None) -> Optional[
         'Part']:
         """
@@ -1735,9 +1755,6 @@ class Part(Base):
                 session.close()
                 debug_id(f"Closed database session for Part.get_by_id", rid)
 
-# region
-# Todo: create method for serving
-# todo: create method for searching image
 class Image(Base):
     __tablename__ = 'image'
 
@@ -1756,6 +1773,7 @@ class Image(Base):
     tool_image_association = relationship("ToolImageAssociation", back_populates="image", cascade="all, delete-orphan")
 
     @classmethod
+    @with_request_id
     def add_to_db(cls, session, title, file_path, description="", position_id=None, complete_document_id=None,
                   clean_title=True):
         """
@@ -1945,6 +1963,7 @@ class Image(Base):
         return new_image
 
     @classmethod
+    @with_request_id
     def create_with_tool_association(cls, session, title, file_path, tool, description=""):
         """
         Create an image and associate it with a tool
@@ -2051,7 +2070,347 @@ class Image(Base):
 
             return False
 
-# end region
+    @classmethod
+    @with_request_id
+    def serve_image(cls,
+                    image_id: Optional[int] = None,
+                    title: Optional[str] = None,
+                    file_path: Optional[str] = None,
+                    request_id: Optional[str] = None,
+                    session: Optional[Session] = None) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve an image from the database and construct file information for serving.
+
+        Args:
+            image_id: Optional ID of the image to retrieve
+            title: Optional title to search for
+            file_path: Optional file path to search for
+            request_id: Optional request ID for tracking this operation in logs
+            session: Optional SQLAlchemy session. If None, a new session will be created
+
+        Returns:
+            Dictionary containing image data if found, None otherwise. Dictionary includes:
+            - id: Image ID
+            - title: Image title
+            - description: Image description
+            - file_path: Relative path to the file
+            - absolute_path: Absolute path to the file on disk
+            - exists: Boolean indicating if the file exists on disk
+            - content_type: MIME type of the image
+            - modified_time: Last modified time of the file
+            - size: File size in bytes
+        """
+        # Get or use the provided request_id
+        rid = request_id or get_request_id()
+
+        # Get a database session if one wasn't provided
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+            debug_id(f"Created new database session for Image.serve_image", rid)
+
+        # Log the operation with request ID
+        debug_id(
+            f"Starting Image.serve_image with parameters: image_id={image_id}, title={title}, file_path={file_path}",
+            rid)
+
+        try:
+            import os
+            import mimetypes
+            from datetime import datetime
+
+            # Build a query to find the image
+            query = session.query(cls)
+            if image_id is not None:
+                query = query.filter(cls.id == image_id)
+            if title is not None:
+                query = query.filter(cls.title == title)
+            if file_path is not None:
+                query = query.filter(cls.file_path == file_path)
+
+            # Get the first matching image
+            image = query.first()
+            if not image:
+                debug_id(f"No image found with parameters: image_id={image_id}, title={title}, file_path={file_path}",
+                         rid)
+                return None
+
+            # Construct the absolute file path
+            relative_path = image.file_path
+
+            # Try to resolve the absolute path using different possibilities
+            file_exists = False
+            absolute_path = None
+
+            # Potential paths to check - in order of most likely to least likely
+            potential_paths = [
+                # Path is directly stored in DB as absolute path
+                relative_path if os.path.isabs(relative_path) else None,
+
+                # Path using DATABASE_DIR as base
+                os.path.join(DATABASE_DIR, relative_path),
+
+                # Path explicitly using DATABASE_PATH_IMAGES_FOLDER
+                os.path.join(DATABASE_PATH_IMAGES_FOLDER, os.path.basename(relative_path)),
+
+                # Try just the filename in DATABASE_PATH_IMAGES_FOLDER
+                os.path.join(DATABASE_PATH_IMAGES_FOLDER, os.path.basename(relative_path))
+                if os.path.basename(relative_path) != relative_path else None,
+
+                # Try using BASE_DIR instead of DATABASE_DIR
+                os.path.join(BASE_DIR, relative_path)
+            ]
+
+            # Filter out None values
+            potential_paths = [p for p in potential_paths if p is not None]
+
+            # Check each path
+            for path in potential_paths:
+                if os.path.isfile(path):
+                    absolute_path = path
+                    file_exists = True
+                    debug_id(f"Found image at path: {absolute_path}", rid)
+                    break
+
+            # If file wasn't found, use the first potential path for error reporting
+            if not file_exists and potential_paths:
+                absolute_path = potential_paths[0]
+                error_id(f"Image file not found at any of the potential paths. "
+                         f"First path checked: {absolute_path}", rid)
+            elif not file_exists:
+                error_id(f"Image file not found and no potential paths to check", rid)
+                absolute_path = relative_path  # Default fallback
+
+            # Get file stats if the file exists
+            file_size = 0
+            modified_time = None
+            if file_exists:
+                file_stats = os.stat(absolute_path)
+                file_size = file_stats.st_size
+                modified_time = datetime.fromtimestamp(file_stats.st_mtime)
+
+            # Determine content type
+            content_type = mimetypes.guess_type(absolute_path)[0] or 'application/octet-stream'
+
+            # Build the response data
+            image_data = {
+                'id': image.id,
+                'title': image.title,
+                'description': image.description,
+                'file_path': relative_path,
+                'absolute_path': absolute_path,
+                'exists': file_exists,
+                'content_type': content_type,
+                'modified_time': modified_time,
+                'size': file_size
+            }
+
+            debug_id(f"Image.serve_image completed successfully for image ID: {image.id}", rid)
+            return image_data
+
+        except Exception as e:
+            error_id(f"Error in Image.serve_image: {str(e)}", rid, exc_info=True)
+            return None
+        finally:
+            # Close the session if we created it
+            if not session_provided:
+                session.close()
+                debug_id(f"Closed database session for Image.serve_image", rid)
+
+    @classmethod
+    @with_request_id
+    def search(cls,
+               search_text: Optional[str] = None,
+               fields: Optional[List[str]] = None,
+               image_id: Optional[int] = None,
+               title: Optional[str] = None,
+               description: Optional[str] = None,
+               file_path: Optional[str] = None,
+               position_id: Optional[int] = None,
+               tool_id: Optional[int] = None,
+               complete_document_id: Optional[int] = None,
+               exact_match: bool = False,
+               limit: int = 100,
+               offset: int = 0,
+               sort_by: str = 'id',
+               sort_order: str = 'asc',
+               request_id: Optional[str] = None,
+               session: Optional[Session] = None) -> List['Image']:
+        """
+        Comprehensive search method for Image objects with flexible search options.
+
+        Args:
+            search_text: Text to search for across specified fields
+            fields: List of field names to search in. If None, searches in title and description
+            image_id: Optional image ID to filter by
+            title: Optional title to filter by
+            description: Optional description to filter by
+            file_path: Optional file path to filter by
+            position_id: Optional position ID to filter by (will search through associations)
+            tool_id: Optional tool ID to filter by (will search through associations)
+            complete_document_id: Optional complete document ID to filter by (will search through associations)
+            exact_match: If True, performs exact matching instead of partial matching for string fields
+            limit: Maximum number of results to return (default 100)
+            offset: Number of results to skip (for pagination)
+            sort_by: Field to sort by (default 'id')
+            sort_order: Sort direction: 'asc' or 'desc' (default 'asc')
+            request_id: Optional request ID for tracking this operation in logs
+            session: Optional SQLAlchemy session. If None, a new session will be created
+
+        Returns:
+            List of Image objects matching the search criteria
+        """
+        # Get or use the provided request_id
+        rid = request_id or get_request_id()
+
+        # Get a database session if one wasn't provided
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+            debug_id(f"Created new database session for Image.search", rid)
+
+        # Log the search operation with request ID
+        search_params = {
+            'search_text': search_text,
+            'fields': fields,
+            'image_id': image_id,
+            'title': title,
+            'description': description,
+            'file_path': file_path,
+            'position_id': position_id,
+            'tool_id': tool_id,
+            'complete_document_id': complete_document_id,
+            'exact_match': exact_match,
+            'limit': limit,
+            'offset': offset,
+            'sort_by': sort_by,
+            'sort_order': sort_order
+        }
+        # Filter out None values for cleaner logging
+        logged_params = {k: v for k, v in search_params.items() if v is not None}
+        debug_id(f"Starting Image.search with parameters: {logged_params}", rid)
+
+        try:
+            # Use the timed operation context manager with request ID
+            with log_timed_operation("Image.search", rid):
+                from sqlalchemy import or_, and_, desc, asc
+
+                # Start with a base query
+                query = session.query(cls)
+                joins_needed = set()
+                filters = []
+
+                # Process search_text across multiple fields if provided
+                if search_text and search_text.strip():
+                    search_text = search_text.strip()
+
+                    # Default fields to search in if none specified
+                    if fields is None or len(fields) == 0:
+                        fields = ['title', 'description']
+
+                    debug_id(f"Searching for text '{search_text}' in fields: {fields}", rid)
+
+                    # Create field-specific filters
+                    text_filters = []
+                    for field_name in fields:
+                        if hasattr(cls, field_name):
+                            field = getattr(cls, field_name)
+                            if exact_match:
+                                text_filters.append(field == search_text)
+                            else:
+                                text_filters.append(field.ilike(f"%{search_text}%"))
+
+                    # Add the combined text search filter if we have any
+                    if text_filters:
+                        filters.append(or_(*text_filters))
+
+                # Add filters for specific fields if provided
+                if image_id is not None:
+                    filters.append(cls.id == image_id)
+
+                if title is not None:
+                    if exact_match:
+                        filters.append(cls.title == title)
+                    else:
+                        filters.append(cls.title.ilike(f"%{title}%"))
+
+                if description is not None:
+                    if exact_match:
+                        filters.append(cls.description == description)
+                    else:
+                        filters.append(cls.description.ilike(f"%{description}%"))
+
+                if file_path is not None:
+                    if exact_match:
+                        filters.append(cls.file_path == file_path)
+                    else:
+                        filters.append(cls.file_path.ilike(f"%{file_path}%"))
+
+                # Apply association-based filters
+                if position_id is not None:
+                    joins_needed.add('position')
+
+                if tool_id is not None:
+                    joins_needed.add('tool')
+
+                if complete_document_id is not None:
+                    joins_needed.add('complete_document')
+
+                # Perform necessary joins
+                if 'position' in joins_needed:
+                    from models import ImagePositionAssociation, Position
+                    query = query.join(ImagePositionAssociation, cls.id == ImagePositionAssociation.image_id)
+                    query = query.join(Position, Position.id == ImagePositionAssociation.position_id)
+                    filters.append(Position.id == position_id)
+
+                if 'tool' in joins_needed:
+                    from models import ToolImageAssociation, Tool
+                    query = query.join(ToolImageAssociation, cls.id == ToolImageAssociation.image_id)
+                    query = query.join(Tool, Tool.id == ToolImageAssociation.tool_id)
+                    filters.append(Tool.id == tool_id)
+
+                if 'complete_document' in joins_needed:
+                    from models import ImageCompletedDocumentAssociation, CompleteDocument
+                    query = query.join(ImageCompletedDocumentAssociation,
+                                       cls.id == ImageCompletedDocumentAssociation.image_id)
+                    query = query.join(CompleteDocument,
+                                       CompleteDocument.id == ImageCompletedDocumentAssociation.complete_document_id)
+                    filters.append(CompleteDocument.id == complete_document_id)
+
+                # Apply all filters with AND logic if we have any
+                if filters:
+                    query = query.filter(and_(*filters))
+
+                # Make results distinct to avoid duplicates from joins
+                if joins_needed:
+                    query = query.distinct()
+
+                # Apply sorting
+                sort_column = getattr(cls, sort_by, cls.id)
+                if sort_order.lower() == 'desc':
+                    query = query.order_by(desc(sort_column))
+                else:
+                    query = query.order_by(asc(sort_column))
+
+                # Apply pagination
+                query = query.offset(offset).limit(limit)
+
+                # Execute query and log results
+                results = query.all()
+                debug_id(f"Image.search completed, found {len(results)} results", rid)
+                return results
+
+        except Exception as e:
+            error_id(f"Error in Image.search: {str(e)}", rid, exc_info=True)
+            return []
+        finally:
+            # Close the session if we created it
+            if not session_provided:
+                session.close()
+                debug_id(f"Closed database session for Image.search", rid)
+
 class ImageEmbedding(Base):
     __tablename__ = 'image_embedding'
 
@@ -2062,6 +2421,7 @@ class ImageEmbedding(Base):
 
     image = relationship("Image", back_populates="image_embedding")
 
+# TODO: add Drawing type ex: Electrical, Mechanical....
 class Drawing(Base):
     __tablename__ = 'drawing'
 
@@ -2079,6 +2439,7 @@ class Drawing(Base):
     drawing_part = relationship("DrawingPartAssociation", back_populates="drawing")
 
     @classmethod
+    @with_request_id
     def search(cls,
                search_text: Optional[str] = None,
                fields: Optional[List[str]] = None,
@@ -2244,6 +2605,7 @@ class Drawing(Base):
                 debug_id(f"Closed database session for Drawing.search", rid)
 
     @classmethod
+    @with_request_id
     def get_by_id(cls, drawing_id: int, request_id: Optional[str] = None, session: Optional[Session] = None) -> \
     Optional['Drawing']:
         """
@@ -2409,6 +2771,334 @@ class DrawingPartAssociation(Base):
     
     drawing = relationship("Drawing", back_populates="drawing_part")
     part = relationship("Part", back_populates="drawing_part")
+
+    @classmethod
+    @with_request_id
+    def get_parts_by_drawing(cls,
+                             drawing_id: Optional[int] = None,
+                             drw_equipment_name: Optional[str] = None,
+                             drw_number: Optional[str] = None,
+                             drw_name: Optional[str] = None,
+                             drw_revision: Optional[str] = None,
+                             drw_spare_part_number: Optional[str] = None,
+                             part_id: Optional[int] = None,
+                             part_number: Optional[str] = None,
+                             part_name: Optional[str] = None,
+                             oem_mfg: Optional[str] = None,
+                             model: Optional[str] = None,
+                             class_flag: Optional[str] = None,
+                             exact_match: bool = False,
+                             limit: int = 100,
+                             request_id: Optional[str] = None,
+                             session: Optional[Session] = None) -> List['Part']:
+        """
+        Get parts associated with drawings based on flexible search criteria.
+
+        Args:
+            drawing_id: Optional drawing ID to filter by
+            drw_equipment_name, drw_number, drw_name, drw_revision, drw_spare_part_number:
+                Optional drawing attributes to filter by
+            part_id: Optional part ID to filter by
+            part_number, part_name, oem_mfg, model, class_flag:
+                Optional part attributes to filter by
+            exact_match: If True, performs exact matching instead of partial matching for string fields
+            limit: Maximum number of results to return (default 100)
+            request_id: Optional request ID for tracking this operation in logs
+            session: Optional SQLAlchemy session. If None, a new session will be created
+
+        Returns:
+            List of Part objects matching the search criteria
+        """
+        # Get or use the provided request_id
+        rid = request_id or get_request_id()
+
+        # Get a database session if one wasn't provided
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+            debug_id(f"Created new database session for Drawing.get_parts_by_drawing", rid)
+
+        # Log the search operation with request ID
+        search_params = {
+            'drawing_id': drawing_id,
+            'drw_equipment_name': drw_equipment_name,
+            'drw_number': drw_number,
+            'drw_name': drw_name,
+            'drw_revision': drw_revision,
+            'drw_spare_part_number': drw_spare_part_number,
+            'part_id': part_id,
+            'part_number': part_number,
+            'part_name': part_name,
+            'oem_mfg': oem_mfg,
+            'model': model,
+            'class_flag': class_flag,
+            'exact_match': exact_match,
+            'limit': limit
+        }
+        # Filter out None values for cleaner logging
+        logged_params = {k: v for k, v in search_params.items() if v is not None}
+        debug_id(f"Starting Drawing.get_parts_by_drawing with parameters: {logged_params}", rid)
+
+        try:
+            # Use the timed operation context manager with request ID
+            with log_timed_operation("Drawing.get_parts_by_drawing", rid):
+                from models import Part, DrawingPartAssociation
+
+                # Start with a query that joins Part and DrawingPartAssociation
+                query = session.query(Part).join(DrawingPartAssociation).join(cls)
+
+                # Apply drawing filters
+                if drawing_id is not None:
+                    query = query.filter(cls.id == drawing_id)
+
+                if drw_equipment_name is not None:
+                    if exact_match:
+                        query = query.filter(cls.drw_equipment_name == drw_equipment_name)
+                    else:
+                        query = query.filter(cls.drw_equipment_name.ilike(f"%{drw_equipment_name}%"))
+
+                if drw_number is not None:
+                    if exact_match:
+                        query = query.filter(cls.drw_number == drw_number)
+                    else:
+                        query = query.filter(cls.drw_number.ilike(f"%{drw_number}%"))
+
+                if drw_name is not None:
+                    if exact_match:
+                        query = query.filter(cls.drw_name == drw_name)
+                    else:
+                        query = query.filter(cls.drw_name.ilike(f"%{drw_name}%"))
+
+                if drw_revision is not None:
+                    if exact_match:
+                        query = query.filter(cls.drw_revision == drw_revision)
+                    else:
+                        query = query.filter(cls.drw_revision.ilike(f"%{drw_revision}%"))
+
+                if drw_spare_part_number is not None:
+                    if exact_match:
+                        query = query.filter(cls.drw_spare_part_number == drw_spare_part_number)
+                    else:
+                        query = query.filter(cls.drw_spare_part_number.ilike(f"%{drw_spare_part_number}%"))
+
+                # Apply part filters
+                if part_id is not None:
+                    query = query.filter(Part.id == part_id)
+
+                if part_number is not None:
+                    if exact_match:
+                        query = query.filter(Part.part_number == part_number)
+                    else:
+                        query = query.filter(Part.part_number.ilike(f"%{part_number}%"))
+
+                if part_name is not None:
+                    if exact_match:
+                        query = query.filter(Part.name == part_name)
+                    else:
+                        query = query.filter(Part.name.ilike(f"%{part_name}%"))
+
+                if oem_mfg is not None:
+                    if exact_match:
+                        query = query.filter(Part.oem_mfg == oem_mfg)
+                    else:
+                        query = query.filter(Part.oem_mfg.ilike(f"%{oem_mfg}%"))
+
+                if model is not None:
+                    if exact_match:
+                        query = query.filter(Part.model == model)
+                    else:
+                        query = query.filter(Part.model.ilike(f"%{model}%"))
+
+                if class_flag is not None:
+                    if exact_match:
+                        query = query.filter(Part.class_flag == class_flag)
+                    else:
+                        query = query.filter(Part.class_flag.ilike(f"%{class_flag}%"))
+
+                # Make results distinct to avoid duplicates
+                query = query.distinct()
+
+                # Apply limit
+                query = query.limit(limit)
+
+                # Execute query and log results
+                results = query.all()
+                debug_id(f"Drawing.get_parts_by_drawing completed, found {len(results)} parts", rid)
+                return results
+
+        except Exception as e:
+            error_id(f"Error in Drawing.get_parts_by_drawing: {str(e)}", rid, exc_info=True)
+            return []
+        finally:
+            # Close the session if we created it
+            if not session_provided:
+                session.close()
+                debug_id(f"Closed database session for Drawing.get_parts_by_drawing", rid)
+
+    @classmethod
+    @with_request_id
+    def get_drawings_by_part(cls,
+                             part_id: Optional[int] = None,
+                             part_number: Optional[str] = None,
+                             part_name: Optional[str] = None,
+                             oem_mfg: Optional[str] = None,
+                             model: Optional[str] = None,
+                             class_flag: Optional[str] = None,
+                             drawing_id: Optional[int] = None,
+                             drw_equipment_name: Optional[str] = None,
+                             drw_number: Optional[str] = None,
+                             drw_name: Optional[str] = None,
+                             drw_revision: Optional[str] = None,
+                             drw_spare_part_number: Optional[str] = None,
+                             exact_match: bool = False,
+                             limit: int = 100,
+                             request_id: Optional[str] = None,
+                             session: Optional[Session] = None) -> List['Drawing']:
+        """
+        Get drawings associated with parts based on flexible search criteria.
+
+        Args:
+            part_id: Optional part ID to filter by
+            part_number, part_name, oem_mfg, model, class_flag:
+                Optional part attributes to filter by
+            drawing_id: Optional drawing ID to filter by
+            drw_equipment_name, drw_number, drw_name, drw_revision, drw_spare_part_number:
+                Optional drawing attributes to filter by
+            exact_match: If True, performs exact matching instead of partial matching for string fields
+            limit: Maximum number of results to return (default 100)
+            request_id: Optional request ID for tracking this operation in logs
+            session: Optional SQLAlchemy session. If None, a new session will be created
+
+        Returns:
+            List of Drawing objects matching the search criteria
+        """
+        # Get or use the provided request_id
+        rid = request_id or get_request_id()
+
+        # Get a database session if one wasn't provided
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+            debug_id(f"Created new database session for Part.get_drawings_by_part", rid)
+
+        # Log the search operation with request ID
+        search_params = {
+            'part_id': part_id,
+            'part_number': part_number,
+            'part_name': part_name,
+            'oem_mfg': oem_mfg,
+            'model': model,
+            'class_flag': class_flag,
+            'drawing_id': drawing_id,
+            'drw_equipment_name': drw_equipment_name,
+            'drw_number': drw_number,
+            'drw_name': drw_name,
+            'drw_revision': drw_revision,
+            'drw_spare_part_number': drw_spare_part_number,
+            'exact_match': exact_match,
+            'limit': limit
+        }
+        # Filter out None values for cleaner logging
+        logged_params = {k: v for k, v in search_params.items() if v is not None}
+        debug_id(f"Starting Part.get_drawings_by_part with parameters: {logged_params}", rid)
+
+        try:
+            # Use the timed operation context manager with request ID
+            with log_timed_operation("Part.get_drawings_by_part", rid):
+                from models import Drawing, DrawingPartAssociation
+
+                # Start with a query that joins Drawing and DrawingPartAssociation
+                query = session.query(Drawing).join(DrawingPartAssociation).join(cls)
+
+                # Apply part filters
+                if part_id is not None:
+                    query = query.filter(cls.id == part_id)
+
+                if part_number is not None:
+                    if exact_match:
+                        query = query.filter(cls.part_number == part_number)
+                    else:
+                        query = query.filter(cls.part_number.ilike(f"%{part_number}%"))
+
+                if part_name is not None:
+                    if exact_match:
+                        query = query.filter(cls.name == part_name)
+                    else:
+                        query = query.filter(cls.name.ilike(f"%{part_name}%"))
+
+                if oem_mfg is not None:
+                    if exact_match:
+                        query = query.filter(cls.oem_mfg == oem_mfg)
+                    else:
+                        query = query.filter(cls.oem_mfg.ilike(f"%{oem_mfg}%"))
+
+                if model is not None:
+                    if exact_match:
+                        query = query.filter(cls.model == model)
+                    else:
+                        query = query.filter(cls.model.ilike(f"%{model}%"))
+
+                if class_flag is not None:
+                    if exact_match:
+                        query = query.filter(cls.class_flag == class_flag)
+                    else:
+                        query = query.filter(cls.class_flag.ilike(f"%{class_flag}%"))
+
+                # Apply drawing filters
+                if drawing_id is not None:
+                    query = query.filter(Drawing.id == drawing_id)
+
+                if drw_equipment_name is not None:
+                    if exact_match:
+                        query = query.filter(Drawing.drw_equipment_name == drw_equipment_name)
+                    else:
+                        query = query.filter(Drawing.drw_equipment_name.ilike(f"%{drw_equipment_name}%"))
+
+                if drw_number is not None:
+                    if exact_match:
+                        query = query.filter(Drawing.drw_number == drw_number)
+                    else:
+                        query = query.filter(Drawing.drw_number.ilike(f"%{drw_number}%"))
+
+                if drw_name is not None:
+                    if exact_match:
+                        query = query.filter(Drawing.drw_name == drw_name)
+                    else:
+                        query = query.filter(Drawing.drw_name.ilike(f"%{drw_name}%"))
+
+                if drw_revision is not None:
+                    if exact_match:
+                        query = query.filter(Drawing.drw_revision == drw_revision)
+                    else:
+                        query = query.filter(Drawing.drw_revision.ilike(f"%{drw_revision}%"))
+
+                if drw_spare_part_number is not None:
+                    if exact_match:
+                        query = query.filter(Drawing.drw_spare_part_number == drw_spare_part_number)
+                    else:
+                        query = query.filter(Drawing.drw_spare_part_number.ilike(f"%{drw_spare_part_number}%"))
+
+                # Make results distinct to avoid duplicates
+                query = query.distinct()
+
+                # Apply limit
+                query = query.limit(limit)
+
+                # Execute query and log results
+                results = query.all()
+                debug_id(f"Part.get_drawings_by_part completed, found {len(results)} drawings", rid)
+                return results
+
+        except Exception as e:
+            error_id(f"Error in Part.get_drawings_by_part: {str(e)}", rid, exc_info=True)
+            return []
+        finally:
+            # Close the session if we created it
+            if not session_provided:
+                session.close()
+                debug_id(f"Closed database session for Part.get_drawings_by_part", rid)
     
 class PartProblemAssociation(Base):
     __tablename__ = 'part_problem'
@@ -2430,6 +3120,498 @@ class TaskPositionAssociation(Base):
     task = relationship("Task", back_populates="task_positions")
     position = relationship("Position", back_populates="position_tasks")
 
+    @classmethod
+    @with_request_id
+    def get_positions_by_task_id(cls, session=None, task_id=None, name=None, description=None,
+                                 area_id=None, equipment_group_id=None, model_id=None,
+                                 asset_number_id=None, location_id=None, subassembly_id=None,
+                                 component_assembly_id=None, assembly_view_id=None, site_location_id=None):
+        """
+        Get all positions associated with a specific task or set of task criteria.
+
+        Args:
+            session: SQLAlchemy session (Optional)
+            task_id: ID of the task (Optional)
+            name: Filter by task name (Optional)
+            description: Filter by task description (Optional)
+            area_id, equipment_group_id, etc.: Position hierarchy filters (Optional)
+
+        Returns:
+            List of Position objects matching the criteria
+        """
+        if session is None:
+            session = DatabaseConfig().get_main_session()
+
+        try:
+            from models import TaskPositionAssociation
+
+            # Start with a query to get task(s)
+            task_query = session.query(cls)
+
+            # Apply task filters if provided
+            if task_id is not None:
+                task_query = task_query.filter(cls.id == task_id)
+            if name is not None:
+                task_query = task_query.filter(cls.name.like(f"%{name}%"))
+            if description is not None:
+                task_query = task_query.filter(cls.description.like(f"%{description}%"))
+
+            tasks = task_query.all()
+            if not tasks:
+                return []
+
+            task_ids = [t.id for t in tasks]
+
+            # Start with a query that joins Position and TaskPositionAssociation
+            query = session.query(Position).join(TaskPositionAssociation)
+
+            # Filter by task IDs
+            query = query.filter(TaskPositionAssociation.task_id.in_(task_ids))
+
+            # Apply position hierarchy filters if provided
+            if area_id is not None:
+                query = query.filter(Position.area_id == area_id)
+            if equipment_group_id is not None:
+                query = query.filter(Position.equipment_group_id == equipment_group_id)
+            if model_id is not None:
+                query = query.filter(Position.model_id == model_id)
+            if asset_number_id is not None:
+                query = query.filter(Position.asset_number_id == asset_number_id)
+            if location_id is not None:
+                query = query.filter(Position.location_id == location_id)
+            if subassembly_id is not None:
+                query = query.filter(Position.subassembly_id == subassembly_id)
+            if component_assembly_id is not None:
+                query = query.filter(Position.component_assembly_id == component_assembly_id)
+            if assembly_view_id is not None:
+                query = query.filter(Position.assembly_view_id == assembly_view_id)
+            if site_location_id is not None:
+                query = query.filter(Position.site_location_id == site_location_id)
+
+            # Make results distinct in case multiple tasks point to same position
+            query = query.distinct()
+
+            debug_id(f"Getting positions with filters: task_id={task_id}, name={name}, description={description}")
+            positions = query.all()
+            info_id(f"Found {len(positions)} positions matching the criteria")
+
+            return positions
+
+        except SQLAlchemyError as e:
+            error_id(f"Error getting positions: {str(e)}", exc_info=True)
+            return []
+
+    @classmethod
+    @with_request_id
+    def get_tasks_by_position_id(cls, session=None, position_id=None, name=None, description=None,
+                                 area_id=None, equipment_group_id=None, model_id=None,
+                                 asset_number_id=None, location_id=None, subassembly_id=None,
+                                 component_assembly_id=None, assembly_view_id=None, site_location_id=None):
+        """
+        Get all tasks associated with a specific position or set of position criteria.
+
+        Args:
+            session: SQLAlchemy session (Optional)
+            position_id: ID of the position (Optional)
+            name: Filter tasks by name (Optional)
+            description: Filter tasks by description (Optional)
+            area_id, equipment_group_id, etc.: Position hierarchy filters (Optional)
+
+        Returns:
+            List of Task objects matching the criteria
+        """
+        if session is None:
+            session = DatabaseConfig().get_main_session()
+
+        try:
+            from models import TaskPositionAssociation, Task
+
+            # Start with a query that joins Task and TaskPositionAssociation
+            query = session.query(Task).join(TaskPositionAssociation)
+
+            # If position_id is provided, filter by that specific position
+            if position_id:
+                query = query.filter(TaskPositionAssociation.position_id == position_id)
+            else:
+                # If no position_id but position hierarchy filters are provided
+                position_filters = {}
+                if area_id is not None:
+                    position_filters['area_id'] = area_id
+                if equipment_group_id is not None:
+                    position_filters['equipment_group_id'] = equipment_group_id
+                if model_id is not None:
+                    position_filters['model_id'] = model_id
+                if asset_number_id is not None:
+                    position_filters['asset_number_id'] = asset_number_id
+                if location_id is not None:
+                    position_filters['location_id'] = location_id
+                if subassembly_id is not None:
+                    position_filters['subassembly_id'] = subassembly_id
+                if component_assembly_id is not None:
+                    position_filters['component_assembly_id'] = component_assembly_id
+                if assembly_view_id is not None:
+                    position_filters['assembly_view_id'] = assembly_view_id
+                if site_location_id is not None:
+                    position_filters['site_location_id'] = site_location_id
+
+                if position_filters:
+                    # Get position IDs matching the criteria
+                    positions = session.query(cls).filter_by(**position_filters).all()
+                    position_ids = [p.id for p in positions]
+
+                    if not position_ids:
+                        return []  # No positions match the criteria
+
+                    query = query.filter(TaskPositionAssociation.position_id.in_(position_ids))
+
+            # Apply task-specific filters if provided
+            if name is not None:
+                query = query.filter(Task.name.like(f"%{name}%"))
+            if description is not None:
+                query = query.filter(Task.description.like(f"%{description}%"))
+
+            # Make results distinct in case same task appears in multiple positions
+            query = query.distinct()
+
+            debug_id(f"Getting tasks with filters: position_id={position_id}, name={name}, description={description}")
+            tasks = query.all()
+            info_id(f"Found {len(tasks)} tasks matching the criteria")
+
+            return tasks
+
+        except SQLAlchemyError as e:
+            error_id(f"Error getting tasks: {str(e)}", exc_info=True)
+            return []
+
+    @classmethod
+    @with_request_id
+    def associate_task_position(cls,
+                                task_id: int,
+                                position_id: int,
+                                request_id: Optional[str] = None,
+                                session: Optional[Session] = None) -> Optional['TaskPositionAssociation']:
+        """
+        Associate a task with a position.
+
+        Args:
+            task_id: ID of the task to associate
+            position_id: ID of the position to associate
+            request_id: Optional request ID for tracking this operation in logs
+            session: Optional SQLAlchemy session. If None, a new session will be created
+
+        Returns:
+            The created TaskPositionAssociation object if successful, None otherwise
+        """
+        # Get or use the provided request_id
+        rid = request_id or get_request_id()
+
+        # Get a database session if one wasn't provided
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+            debug_id(f"Created new database session for TaskPositionAssociation.associate_task_position", rid)
+
+        # Log the operation with request ID
+        debug_id(
+            f"Starting TaskPositionAssociation.associate_task_position with parameters: task_id={task_id}, position_id={position_id}",
+            rid)
+
+        try:
+            # Use the timed operation context manager with request ID
+            with log_timed_operation("TaskPositionAssociation.associate_task_position", rid):
+                from models import Task, Position
+
+                # Check if task exists
+                task = session.query(Task).filter(Task.id == task_id).first()
+                if not task:
+                    error_id(
+                        f"Error in TaskPositionAssociation.associate_task_position: Task with ID {task_id} not found",
+                        rid)
+                    return None
+
+                # Check if position exists
+                position = session.query(Position).filter(Position.id == position_id).first()
+                if not position:
+                    error_id(
+                        f"Error in TaskPositionAssociation.associate_task_position: Position with ID {position_id} not found",
+                        rid)
+                    return None
+
+                # Check if association already exists
+                existing = session.query(cls).filter(
+                    cls.task_id == task_id,
+                    cls.position_id == position_id
+                ).first()
+
+                if existing:
+                    debug_id(f"Association between task {task_id} and position {position_id} already exists", rid)
+                    return existing
+
+                # Create new association
+                association = cls(task_id=task_id, position_id=position_id)
+                session.add(association)
+
+                # Commit if we created the session
+                if not session_provided:
+                    session.commit()
+                    debug_id(f"Committed new association between task {task_id} and position {position_id}", rid)
+
+                return association
+
+        except Exception as e:
+            error_id(f"Error in TaskPositionAssociation.associate_task_position: {str(e)}", rid, exc_info=True)
+            if not session_provided:
+                session.rollback()
+                debug_id(f"Rolled back transaction in TaskPositionAssociation.associate_task_position", rid)
+            return None
+        finally:
+            # Close the session if we created it
+            if not session_provided:
+                session.close()
+                debug_id(f"Closed database session for TaskPositionAssociation.associate_task_position", rid)
+
+    @classmethod
+    @with_request_id
+    def dissociate_task_position(cls,
+                                 task_id: int,
+                                 position_id: int,
+                                 request_id: Optional[str] = None,
+                                 session: Optional[Session] = None) -> bool:
+        """
+        Remove an association between a task and a position.
+
+        Args:
+            task_id: ID of the task to dissociate
+            position_id: ID of the position to dissociate
+            request_id: Optional request ID for tracking this operation in logs
+            session: Optional SQLAlchemy session. If None, a new session will be created
+
+        Returns:
+            True if the association was removed, False otherwise
+        """
+        # Get or use the provided request_id
+        rid = request_id or get_request_id()
+
+        # Get a database session if one wasn't provided
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+            debug_id(f"Created new database session for TaskPositionAssociation.dissociate_task_position", rid)
+
+        # Log the operation with request ID
+        debug_id(
+            f"Starting TaskPositionAssociation.dissociate_task_position with parameters: task_id={task_id}, position_id={position_id}",
+            rid)
+
+        try:
+            # Use the timed operation context manager with request ID
+            with log_timed_operation("TaskPositionAssociation.dissociate_task_position", rid):
+                # Find the association
+                association = session.query(cls).filter(
+                    cls.task_id == task_id,
+                    cls.position_id == position_id
+                ).first()
+
+                if not association:
+                    debug_id(f"No association found between task {task_id} and position {position_id}", rid)
+                    return False
+
+                # Delete the association
+                session.delete(association)
+
+                # Commit if we created the session
+                if not session_provided:
+                    session.commit()
+                    debug_id(f"Removed association between task {task_id} and position {position_id}", rid)
+
+                return True
+
+        except Exception as e:
+            error_id(f"Error in TaskPositionAssociation.dissociate_task_position: {str(e)}", rid, exc_info=True)
+            if not session_provided:
+                session.rollback()
+                debug_id(f"Rolled back transaction in TaskPositionAssociation.dissociate_task_position", rid)
+            return False
+        finally:
+            # Close the session if we created it
+            if not session_provided:
+                session.close()
+                debug_id(f"Closed database session for TaskPositionAssociation.dissociate_task_position", rid)
+
+    @classmethod
+    @with_request_id
+    def associate_multiple_tasks_to_position(cls,
+                                             task_ids: List[int],
+                                             position_id: int,
+                                             request_id: Optional[str] = None,
+                                             session: Optional[Session] = None) -> Dict[int, bool]:
+        """
+        Associate multiple tasks with a single position.
+
+        Args:
+            task_ids: List of task IDs to associate
+            position_id: ID of the position to associate with all tasks
+            request_id: Optional request ID for tracking this operation in logs
+            session: Optional SQLAlchemy session. If None, a new session will be created
+
+        Returns:
+            Dictionary mapping task IDs to success status (True if associated, False if failed)
+        """
+        # Get or use the provided request_id
+        rid = request_id or get_request_id()
+
+        # Get a database session if one wasn't provided
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+            debug_id(f"Created new database session for TaskPositionAssociation.associate_multiple_tasks_to_position",
+                     rid)
+
+        # Log the operation with request ID
+        debug_id(f"Starting TaskPositionAssociation.associate_multiple_tasks_to_position with parameters: "
+                 f"task_ids={task_ids}, position_id={position_id}", rid)
+
+        results = {}
+        try:
+            # Check if position exists
+            from models import Position
+            position = session.query(Position).filter(Position.id == position_id).first()
+            if not position:
+                error_id(f"Error in TaskPositionAssociation.associate_multiple_tasks_to_position: "
+                         f"Position with ID {position_id} not found", rid)
+                return {task_id: False for task_id in task_ids}
+
+            # Process each task
+            for task_id in task_ids:
+                try:
+                    association = cls.associate_task_position(
+                        task_id=task_id,
+                        position_id=position_id,
+                        request_id=rid,
+                        session=session
+                    )
+                    results[task_id] = association is not None
+                except Exception as e:
+                    error_id(f"Error associating task {task_id} with position {position_id}: {str(e)}", rid)
+                    results[task_id] = False
+
+            # Commit if we created the session
+            if not session_provided:
+                session.commit()
+                debug_id(f"Committed all associations in associate_multiple_tasks_to_position", rid)
+
+            # Log summary
+            success_count = sum(1 for success in results.values() if success)
+            debug_id(
+                f"Successfully associated {success_count} out of {len(task_ids)} tasks with position {position_id}",
+                rid)
+
+            return results
+
+        except Exception as e:
+            error_id(f"Error in TaskPositionAssociation.associate_multiple_tasks_to_position: {str(e)}", rid,
+                     exc_info=True)
+            if not session_provided:
+                session.rollback()
+                debug_id(f"Rolled back transaction in TaskPositionAssociation.associate_multiple_tasks_to_position",
+                         rid)
+            return {task_id: False for task_id in task_ids}
+        finally:
+            # Close the session if we created it
+            if not session_provided:
+                session.close()
+                debug_id(f"Closed database session for TaskPositionAssociation.associate_multiple_tasks_to_position",
+                         rid)
+
+    @classmethod
+    @with_request_id
+    def associate_task_to_multiple_positions(cls,
+                                             task_id: int,
+                                             position_ids: List[int],
+                                             request_id: Optional[str] = None,
+                                             session: Optional[Session] = None) -> Dict[int, bool]:
+        """
+        Associate a single task with multiple positions.
+
+        Args:
+            task_id: ID of the task to associate
+            position_ids: List of position IDs to associate with the task
+            request_id: Optional request ID for tracking this operation in logs
+            session: Optional SQLAlchemy session. If None, a new session will be created
+
+        Returns:
+            Dictionary mapping position IDs to success status (True if associated, False if failed)
+        """
+        # Get or use the provided request_id
+        rid = request_id or get_request_id()
+
+        # Get a database session if one wasn't provided
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+            debug_id(f"Created new database session for TaskPositionAssociation.associate_task_to_multiple_positions",
+                     rid)
+
+        # Log the operation with request ID
+        debug_id(f"Starting TaskPositionAssociation.associate_task_to_multiple_positions with parameters: "
+                 f"task_id={task_id}, position_ids={position_ids}", rid)
+
+        results = {}
+        try:
+            # Check if task exists
+            from models import Task
+            task = session.query(Task).filter(Task.id == task_id).first()
+            if not task:
+                error_id(f"Error in TaskPositionAssociation.associate_task_to_multiple_positions: "
+                         f"Task with ID {task_id} not found", rid)
+                return {position_id: False for position_id in position_ids}
+
+            # Process each position
+            for position_id in position_ids:
+                try:
+                    association = cls.associate_task_position(
+                        task_id=task_id,
+                        position_id=position_id,
+                        request_id=rid,
+                        session=session
+                    )
+                    results[position_id] = association is not None
+                except Exception as e:
+                    error_id(f"Error associating task {task_id} with position {position_id}: {str(e)}", rid)
+                    results[position_id] = False
+
+            # Commit if we created the session
+            if not session_provided:
+                session.commit()
+                debug_id(f"Committed all associations in associate_task_to_multiple_positions", rid)
+
+            # Log summary
+            success_count = sum(1 for success in results.values() if success)
+            debug_id(
+                f"Successfully associated task {task_id} with {success_count} out of {len(position_ids)} positions",
+                rid)
+
+            return results
+
+        except Exception as e:
+            error_id(f"Error in TaskPositionAssociation.associate_task_to_multiple_positions: {str(e)}", rid,
+                     exc_info=True)
+            if not session_provided:
+                session.rollback()
+                debug_id(f"Rolled back transaction in TaskPositionAssociation.associate_task_to_multiple_positions",
+                         rid)
+            return {position_id: False for position_id in position_ids}
+        finally:
+            # Close the session if we created it
+            if not session_provided:
+                session.close()
+                debug_id(f"Closed database session for TaskPositionAssociation.associate_task_to_multiple_positions",
+                         rid)
+
 class PartTaskAssociation(Base):
     __tablename__ = 'part_task'
 
@@ -2440,6 +3622,351 @@ class PartTaskAssociation(Base):
     part = relationship("Part", back_populates="part_task")
     task = relationship("Task", back_populates="part_task")
 
+    @classmethod
+    @with_request_id
+    def get_tasks_by_part(cls,
+                          part_id: Optional[int] = None,
+                          part_number: Optional[str] = None,
+                          name: Optional[str] = None,
+                          oem_mfg: Optional[str] = None,
+                          model: Optional[str] = None,
+                          task_id: Optional[int] = None,
+                          task_name: Optional[str] = None,
+                          task_description: Optional[str] = None,
+                          exact_match: bool = False,
+                          limit: int = 100,
+                          request_id: Optional[str] = None,
+                          session: Optional[Session] = None) -> List['Task']:
+        """
+        Get tasks associated with parts based on flexible search criteria.
+
+        Args:
+            part_id: Optional part ID to filter by
+            part_number, name, oem_mfg, model: Optional part attributes to filter by
+            task_id: Optional task ID to filter by
+            task_name: Optional task name to filter by
+            task_description: Optional task description to filter by
+            exact_match: If True, performs exact matching instead of partial matching for string fields
+            limit: Maximum number of results to return (default 100)
+            request_id: Optional request ID for tracking this operation in logs
+            session: Optional SQLAlchemy session. If None, a new session will be created
+
+        Returns:
+            List of Task objects matching the search criteria
+        """
+        # Get or use the provided request_id
+        rid = request_id or get_request_id()
+
+        # Get a database session if one wasn't provided
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+            debug_id(f"Created new database session for Part.get_tasks_by_part", rid)
+
+        # Log the search operation with request ID
+        search_params = {
+            'part_id': part_id,
+            'part_number': part_number,
+            'name': name,
+            'oem_mfg': oem_mfg,
+            'model': model,
+            'task_id': task_id,
+            'task_name': task_name,
+            'task_description': task_description,
+            'exact_match': exact_match,
+            'limit': limit
+        }
+        # Filter out None values for cleaner logging
+        logged_params = {k: v for k, v in search_params.items() if v is not None}
+        debug_id(f"Starting Part.get_tasks_by_part with parameters: {logged_params}", rid)
+
+        try:
+            # Use the timed operation context manager with request ID
+            with log_timed_operation("Part.get_tasks_by_part", rid):
+                from models import Task, PartTaskAssociation
+
+                # Start with a query that joins Task and PartTaskAssociation
+                query = session.query(Task).join(PartTaskAssociation).join(Part)
+
+                # Apply part filters
+                if part_id is not None:
+                    query = query.filter(Part.id == part_id)
+
+                if part_number is not None:
+                    if exact_match:
+                        query = query.filter(Part.part_number == part_number)
+                    else:
+                        query = query.filter(Part.part_number.ilike(f"%{part_number}%"))
+
+                if name is not None:
+                    if exact_match:
+                        query = query.filter(Part.name == name)
+                    else:
+                        query = query.filter(Part.name.ilike(f"%{name}%"))
+
+                if oem_mfg is not None:
+                    if exact_match:
+                        query = query.filter(Part.oem_mfg == oem_mfg)
+                    else:
+                        query = query.filter(Part.oem_mfg.ilike(f"%{oem_mfg}%"))
+
+                if model is not None:
+                    if exact_match:
+                        query = query.filter(Part.model == model)
+                    else:
+                        query = query.filter(Part.model.ilike(f"%{model}%"))
+
+                # Apply task filters
+                if task_id is not None:
+                    query = query.filter(Task.id == task_id)
+
+                if task_name is not None:
+                    if exact_match:
+                        query = query.filter(Task.name == task_name)
+                    else:
+                        query = query.filter(Task.name.ilike(f"%{task_name}%"))
+
+                if task_description is not None:
+                    if exact_match:
+                        query = query.filter(Task.description == task_description)
+                    else:
+                        query = query.filter(Task.description.ilike(f"%{task_description}%"))
+
+                # Make results distinct to avoid duplicates
+                query = query.distinct()
+
+                # Apply limit
+                query = query.limit(limit)
+
+                # Execute query and log results
+                results = query.all()
+                debug_id(f"Part.get_tasks_by_part completed, found {len(results)} tasks", rid)
+                return results
+
+        except Exception as e:
+            error_id(f"Error in Part.get_tasks_by_part: {str(e)}", rid, exc_info=True)
+            return []
+        finally:
+            # Close the session if we created it
+            if not session_provided:
+                session.close()
+                debug_id(f"Closed database session for Part.get_tasks_by_part", rid)
+
+    @classmethod
+    @with_request_id
+    def get_parts_by_task(cls,
+                          task_id: Optional[int] = None,
+                          task_name: Optional[str] = None,
+                          task_description: Optional[str] = None,
+                          part_id: Optional[int] = None,
+                          part_number: Optional[str] = None,
+                          part_name: Optional[str] = None,
+                          oem_mfg: Optional[str] = None,
+                          model: Optional[str] = None,
+                          class_flag: Optional[str] = None,
+                          exact_match: bool = False,
+                          limit: int = 100,
+                          request_id: Optional[str] = None,
+                          session: Optional[Session] = None) -> List['Part']:
+        """
+        Get parts associated with tasks based on flexible search criteria.
+
+        Args:
+            task_id: Optional task ID to filter by
+            task_name: Optional task name to filter by
+            task_description: Optional task description to filter by
+            part_id: Optional part ID to filter by
+            part_number, part_name, oem_mfg, model, class_flag: Optional part attributes to filter by
+            exact_match: If True, performs exact matching instead of partial matching for string fields
+            limit: Maximum number of results to return (default 100)
+            request_id: Optional request ID for tracking this operation in logs
+            session: Optional SQLAlchemy session. If None, a new session will be created
+
+        Returns:
+            List of Part objects matching the search criteria
+        """
+        # Get or use the provided request_id
+        rid = request_id or get_request_id()
+
+        # Get a database session if one wasn't provided
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+            debug_id(f"Created new database session for Task.get_parts_by_task", rid)
+
+        # Log the search operation with request ID
+        search_params = {
+            'task_id': task_id,
+            'task_name': task_name,
+            'task_description': task_description,
+            'part_id': part_id,
+            'part_number': part_number,
+            'part_name': part_name,
+            'oem_mfg': oem_mfg,
+            'model': model,
+            'class_flag': class_flag,
+            'exact_match': exact_match,
+            'limit': limit
+        }
+        # Filter out None values for cleaner logging
+        logged_params = {k: v for k, v in search_params.items() if v is not None}
+        debug_id(f"Starting Task.get_parts_by_task with parameters: {logged_params}", rid)
+
+        try:
+            # Use the timed operation context manager with request ID
+            with log_timed_operation("Task.get_parts_by_task", rid):
+                from models import Part, PartTaskAssociation
+
+                # Start with a query that joins Part and PartTaskAssociation
+                query = session.query(Part).join(PartTaskAssociation).join(Task)
+
+                # Apply task filters
+                if task_id is not None:
+                    query = query.filter(Task.id == task_id)
+
+                if task_name is not None:
+                    if exact_match:
+                        query = query.filter(Task.name == task_name)
+                    else:
+                        query = query.filter(Task.name.ilike(f"%{task_name}%"))
+
+                if task_description is not None:
+                    if exact_match:
+                        query = query.filter(Task.description == task_description)
+                    else:
+                        query = query.filter(Task.description.ilike(f"%{task_description}%"))
+
+                # Apply part filters
+                if part_id is not None:
+                    query = query.filter(Part.id == part_id)
+
+                if part_number is not None:
+                    if exact_match:
+                        query = query.filter(Part.part_number == part_number)
+                    else:
+                        query = query.filter(Part.part_number.ilike(f"%{part_number}%"))
+
+                if part_name is not None:
+                    if exact_match:
+                        query = query.filter(Part.name == part_name)
+                    else:
+                        query = query.filter(Part.name.ilike(f"%{part_name}%"))
+
+                if oem_mfg is not None:
+                    if exact_match:
+                        query = query.filter(Part.oem_mfg == oem_mfg)
+                    else:
+                        query = query.filter(Part.oem_mfg.ilike(f"%{oem_mfg}%"))
+
+                if model is not None:
+                    if exact_match:
+                        query = query.filter(Part.model == model)
+                    else:
+                        query = query.filter(Part.model.ilike(f"%{model}%"))
+
+                if class_flag is not None:
+                    if exact_match:
+                        query = query.filter(Part.class_flag == class_flag)
+                    else:
+                        query = query.filter(Part.class_flag.ilike(f"%{class_flag}%"))
+
+                # Make results distinct to avoid duplicates
+                query = query.distinct()
+
+                # Apply limit
+                query = query.limit(limit)
+
+                # Execute query and log results
+                results = query.all()
+                debug_id(f"Task.get_parts_by_task completed, found {len(results)} parts", rid)
+                return results
+
+        except Exception as e:
+            error_id(f"Error in Task.get_parts_by_task: {str(e)}", rid, exc_info=True)
+            return []
+        finally:
+            # Close the session if we created it
+            if not session_provided:
+                session.close()
+                debug_id(f"Closed database session for Task.get_parts_by_task", rid)
+
+    @classmethod
+    @with_request_id
+    def associate_part_with_task(cls, session=None, part_id=None, task_id=None, request_id=None):
+        """
+        Create an association between a part and a task if it doesn't already exist.
+
+        Args:
+            session: SQLAlchemy session (optional)
+            part_id: ID of the part to associate
+            task_id: ID of the task to associate
+            request_id: Optional request ID for tracking
+
+        Returns:
+            The PartTaskAssociation instance (existing or new)
+        """
+        # Get or use the provided request_id
+        rid = request_id or get_request_id()
+
+        # Get a database session if one wasn't provided
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+            debug_id(f"Created new database session for PartTaskAssociation.associate_part_with_task", rid)
+
+        debug_id(f"Associating part ID {part_id} with task ID {task_id}", rid)
+
+        try:
+            from models import Part, Task
+            from sqlalchemy import and_
+
+            # Check if the part and task exist
+            part = session.query(Part).get(part_id)
+            task = session.query(Task).get(task_id)
+
+            if not part:
+                error_id(f"Part with ID {part_id} not found", rid)
+                return None
+
+            if not task:
+                error_id(f"Task with ID {task_id} not found", rid)
+                return None
+
+            # Check if the association already exists
+            existing = session.query(cls).filter(
+                and_(
+                    cls.part_id == part_id,
+                    cls.task_id == task_id
+                )
+            ).first()
+
+            if existing:
+                debug_id(f"Association between part ID {part_id} and task ID {task_id} already exists", rid)
+                return existing
+
+            # Create new association
+            association = cls(
+                part_id=part_id,
+                task_id=task_id
+            )
+            session.add(association)
+            session.flush()
+
+            debug_id(f"Created new association between part ID {part_id} and task ID {task_id}", rid)
+            return association
+
+        except Exception as e:
+            error_id(f"Error associating part with task: {str(e)}", rid, exc_info=True)
+            return None
+        finally:
+            # Close the session if we created it
+            if not session_provided and session:
+                session.close()
+                debug_id(f"Closed database session for PartTaskAssociation.associate_part_with_task", rid)
+
 class DrawingTaskAssociation(Base):
     __tablename__ = 'drawing_task'
     id = Column(Integer, primary_key=True)
@@ -2449,7 +3976,365 @@ class DrawingTaskAssociation(Base):
     drawing = relationship("Drawing", back_populates="drawing_task")
     task = relationship("Task", back_populates="drawing_task")
 
+    @classmethod
+    def get_tasks_by_drawing(cls,
+                             drawing_id: Optional[int] = None,
+                             drw_equipment_name: Optional[str] = None,
+                             drw_number: Optional[str] = None,
+                             drw_name: Optional[str] = None,
+                             drw_revision: Optional[str] = None,
+                             drw_spare_part_number: Optional[str] = None,
+                             file_path: Optional[str] = None,
+                             task_id: Optional[int] = None,
+                             task_name: Optional[str] = None,
+                             task_description: Optional[str] = None,
+                             exact_match: bool = False,
+                             limit: int = 100,
+                             request_id: Optional[str] = None,
+                             session: Optional[Session] = None) -> List['Task']:
+        """
+        Get tasks associated with drawings based on flexible search criteria.
+
+        Args:
+            drawing_id: Optional drawing ID to filter by
+            drw_equipment_name, drw_number, drw_name, drw_revision, drw_spare_part_number, file_path:
+                Optional drawing attributes to filter by
+            task_id: Optional task ID to filter by
+            task_name: Optional task name to filter by
+            task_description: Optional task description to filter by
+            exact_match: If True, performs exact matching instead of partial matching for string fields
+            limit: Maximum number of results to return (default 100)
+            request_id: Optional request ID for tracking this operation in logs
+            session: Optional SQLAlchemy session. If None, a new session will be created
+
+        Returns:
+            List of Task objects matching the search criteria
+        """
+        # Get or use the provided request_id
+        rid = request_id or get_request_id()
+
+        # Get a database session if one wasn't provided
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+            debug_id(f"Created new database session for Drawing.get_tasks_by_drawing", rid)
+
+        # Log the search operation with request ID
+        search_params = {
+            'drawing_id': drawing_id,
+            'drw_equipment_name': drw_equipment_name,
+            'drw_number': drw_number,
+            'drw_name': drw_name,
+            'drw_revision': drw_revision,
+            'drw_spare_part_number': drw_spare_part_number,
+            'file_path': file_path,
+            'task_id': task_id,
+            'task_name': task_name,
+            'task_description': task_description,
+            'exact_match': exact_match,
+            'limit': limit
+        }
+        # Filter out None values for cleaner logging
+        logged_params = {k: v for k, v in search_params.items() if v is not None}
+        debug_id(f"Starting Drawing.get_tasks_by_drawing with parameters: {logged_params}", rid)
+
+        try:
+            # Use the timed operation context manager with request ID
+            with log_timed_operation("Drawing.get_tasks_by_drawing", rid):
+                from models import Task, DrawingTaskAssociation
+
+                # Start with a query that joins Task and DrawingTaskAssociation
+                query = session.query(Task).join(DrawingTaskAssociation).join(cls)
+
+                # Apply drawing filters
+                if drawing_id is not None:
+                    query = query.filter(cls.id == drawing_id)
+
+                if drw_equipment_name is not None:
+                    if exact_match:
+                        query = query.filter(cls.drw_equipment_name == drw_equipment_name)
+                    else:
+                        query = query.filter(cls.drw_equipment_name.ilike(f"%{drw_equipment_name}%"))
+
+                if drw_number is not None:
+                    if exact_match:
+                        query = query.filter(cls.drw_number == drw_number)
+                    else:
+                        query = query.filter(cls.drw_number.ilike(f"%{drw_number}%"))
+
+                if drw_name is not None:
+                    if exact_match:
+                        query = query.filter(cls.drw_name == drw_name)
+                    else:
+                        query = query.filter(cls.drw_name.ilike(f"%{drw_name}%"))
+
+                if drw_revision is not None:
+                    if exact_match:
+                        query = query.filter(cls.drw_revision == drw_revision)
+                    else:
+                        query = query.filter(cls.drw_revision.ilike(f"%{drw_revision}%"))
+
+                if drw_spare_part_number is not None:
+                    if exact_match:
+                        query = query.filter(cls.drw_spare_part_number == drw_spare_part_number)
+                    else:
+                        query = query.filter(cls.drw_spare_part_number.ilike(f"%{drw_spare_part_number}%"))
+
+                if file_path is not None:
+                    if exact_match:
+                        query = query.filter(cls.file_path == file_path)
+                    else:
+                        query = query.filter(cls.file_path.ilike(f"%{file_path}%"))
+
+                # Apply task filters
+                if task_id is not None:
+                    query = query.filter(Task.id == task_id)
+
+                if task_name is not None:
+                    if exact_match:
+                        query = query.filter(Task.name == task_name)
+                    else:
+                        query = query.filter(Task.name.ilike(f"%{task_name}%"))
+
+                if task_description is not None:
+                    if exact_match:
+                        query = query.filter(Task.description == task_description)
+                    else:
+                        query = query.filter(Task.description.ilike(f"%{task_description}%"))
+
+                # Make results distinct to avoid duplicates
+                query = query.distinct()
+
+                # Apply limit
+                query = query.limit(limit)
+
+                # Execute query and log results
+                results = query.all()
+                debug_id(f"Drawing.get_tasks_by_drawing completed, found {len(results)} tasks", rid)
+                return results
+
+        except Exception as e:
+            error_id(f"Error in Drawing.get_tasks_by_drawing: {str(e)}", rid, exc_info=True)
+            return []
+        finally:
+            # Close the session if we created it
+            if not session_provided:
+                session.close()
+                debug_id(f"Closed database session for Drawing.get_tasks_by_drawing", rid)
+
+    @classmethod
+    def get_drawings_by_task(cls,
+                             task_id: Optional[int] = None,
+                             task_name: Optional[str] = None,
+                             task_description: Optional[str] = None,
+                             drawing_id: Optional[int] = None,
+                             drw_equipment_name: Optional[str] = None,
+                             drw_number: Optional[str] = None,
+                             drw_name: Optional[str] = None,
+                             drw_revision: Optional[str] = None,
+                             drw_spare_part_number: Optional[str] = None,
+                             file_path: Optional[str] = None,
+                             exact_match: bool = False,
+                             limit: int = 100,
+                             request_id: Optional[str] = None,
+                             session: Optional[Session] = None) -> List['Drawing']:
+        """
+        Get drawings associated with tasks based on flexible search criteria.
+
+        Args:
+            task_id: Optional task ID to filter by
+            task_name: Optional task name to filter by
+            task_description: Optional task description to filter by
+            drawing_id: Optional drawing ID to filter by
+            drw_equipment_name, drw_number, drw_name, drw_revision, drw_spare_part_number, file_path:
+                Optional drawing attributes to filter by
+            exact_match: If True, performs exact matching instead of partial matching for string fields
+            limit: Maximum number of results to return (default 100)
+            request_id: Optional request ID for tracking this operation in logs
+            session: Optional SQLAlchemy session. If None, a new session will be created
+
+        Returns:
+            List of Drawing objects matching the search criteria
+        """
+        # Get or use the provided request_id
+        rid = request_id or get_request_id()
+
+        # Get a database session if one wasn't provided
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+            debug_id(f"Created new database session for Task.get_drawings_by_task", rid)
+
+        # Log the search operation with request ID
+        search_params = {
+            'task_id': task_id,
+            'task_name': task_name,
+            'task_description': task_description,
+            'drawing_id': drawing_id,
+            'drw_equipment_name': drw_equipment_name,
+            'drw_number': drw_number,
+            'drw_name': drw_name,
+            'drw_revision': drw_revision,
+            'drw_spare_part_number': drw_spare_part_number,
+            'file_path': file_path,
+            'exact_match': exact_match,
+            'limit': limit
+        }
+        # Filter out None values for cleaner logging
+        logged_params = {k: v for k, v in search_params.items() if v is not None}
+        debug_id(f"Starting Task.get_drawings_by_task with parameters: {logged_params}", rid)
+
+        try:
+            # Use the timed operation context manager with request ID
+            with log_timed_operation("Task.get_drawings_by_task", rid):
+                from models import Drawing, DrawingTaskAssociation
+
+                # Start with a query that joins Drawing and DrawingTaskAssociation
+                query = session.query(Drawing).join(DrawingTaskAssociation).join(cls)
+
+                # Apply task filters
+                if task_id is not None:
+                    query = query.filter(cls.id == task_id)
+
+                if task_name is not None:
+                    if exact_match:
+                        query = query.filter(cls.name == task_name)
+                    else:
+                        query = query.filter(cls.name.ilike(f"%{task_name}%"))
+
+                if task_description is not None:
+                    if exact_match:
+                        query = query.filter(cls.description == task_description)
+                    else:
+                        query = query.filter(cls.description.ilike(f"%{task_description}%"))
+
+                # Apply drawing filters
+                if drawing_id is not None:
+                    query = query.filter(Drawing.id == drawing_id)
+
+                if drw_equipment_name is not None:
+                    if exact_match:
+                        query = query.filter(Drawing.drw_equipment_name == drw_equipment_name)
+                    else:
+                        query = query.filter(Drawing.drw_equipment_name.ilike(f"%{drw_equipment_name}%"))
+
+                if drw_number is not None:
+                    if exact_match:
+                        query = query.filter(Drawing.drw_number == drw_number)
+                    else:
+                        query = query.filter(Drawing.drw_number.ilike(f"%{drw_number}%"))
+
+                if drw_name is not None:
+                    if exact_match:
+                        query = query.filter(Drawing.drw_name == drw_name)
+                    else:
+                        query = query.filter(Drawing.drw_name.ilike(f"%{drw_name}%"))
+
+                if drw_revision is not None:
+                    if exact_match:
+                        query = query.filter(Drawing.drw_revision == drw_revision)
+                    else:
+                        query = query.filter(Drawing.drw_revision.ilike(f"%{drw_revision}%"))
+
+                if drw_spare_part_number is not None:
+                    if exact_match:
+                        query = query.filter(Drawing.drw_spare_part_number == drw_spare_part_number)
+                    else:
+                        query = query.filter(Drawing.drw_spare_part_number.ilike(f"%{drw_spare_part_number}%"))
+
+                if file_path is not None:
+                    if exact_match:
+                        query = query.filter(Drawing.file_path == file_path)
+                    else:
+                        query = query.filter(Drawing.file_path.ilike(f"%{file_path}%"))
+
+                # Make results distinct to avoid duplicates
+                query = query.distinct()
+
+                # Apply limit
+                query = query.limit(limit)
+
+                # Execute query and log results
+                results = query.all()
+                debug_id(f"Task.get_drawings_by_task completed, found {len(results)} drawings", rid)
+                return results
+
+        except Exception as e:
+            error_id(f"Error in Task.get_drawings_by_task: {str(e)}", rid, exc_info=True)
+            return []
+        finally:
+            # Close the session if we created it
+            if not session_provided:
+                session.close()
+                debug_id(f"Closed database session for Task.get_drawings_by_task", rid)
+
+    @classmethod
+    @with_request_id
+    def associate_drawing_with_task(cls, session, drawing_id, task_id, request_id=None):
+        """
+        Create an association between a drawing and a task if it doesn't already exist.
+
+        Args:
+            session: SQLAlchemy session
+            drawing_id: ID of the drawing to associate
+            task_id: ID of the task to associate
+            request_id: Optional request ID for tracking
+
+        Returns:
+            The DrawingTaskAssociation instance (existing or new)
+        """
+        from models import DrawingTaskAssociation, Drawing, Task
+        from sqlalchemy import and_
+
+        # Get or use the provided request_id
+        rid = request_id or get_request_id()
+
+        debug_id(f"Associating drawing ID {drawing_id} with task ID {task_id}", rid)
+
+        try:
+            # Check if the drawing and task exist
+            drawing = session.query(Drawing).get(drawing_id)
+            task = session.query(cls).get(task_id)
+
+            if not drawing:
+                error_id(f"Drawing with ID {drawing_id} not found", rid)
+                return None
+
+            if not task:
+                error_id(f"Task with ID {task_id} not found", rid)
+                return None
+
+            # Check if the association already exists
+            existing = session.query(DrawingTaskAssociation).filter(
+                and_(
+                    DrawingTaskAssociation.drawing_id == drawing_id,
+                    DrawingTaskAssociation.task_id == task_id
+                )
+            ).first()
+
+            if existing:
+                debug_id(f"Association between drawing ID {drawing_id} and task ID {task_id} already exists", rid)
+                return existing
+
+            # Create new association
+            association = DrawingTaskAssociation(
+                drawing_id=drawing_id,
+                task_id=task_id
+            )
+            session.add(association)
+            session.flush()
+
+            debug_id(f"Created new association between drawing ID {drawing_id} and task ID {task_id}", rid)
+            return association
+
+        except Exception as e:
+            error_id(f"Error associating drawing with task: {str(e)}", rid, exc_info=True)
+            return None
+
 class ImageTaskAssociation(Base):
+
     __tablename__ = 'image_task'
 
     id = Column(Integer, primary_key=True)
@@ -2458,6 +4343,342 @@ class ImageTaskAssociation(Base):
 
     image = relationship("Image", back_populates="image_task")
     task = relationship("Task", back_populates="image_task")
+
+    @classmethod
+    @with_request_id
+    def get_tasks_by_image(cls,
+                           image_id: Optional[int] = None,
+                           title: Optional[str] = None,
+                           description: Optional[str] = None,
+                           file_path: Optional[str] = None,
+                           task_id: Optional[int] = None,
+                           task_name: Optional[str] = None,
+                           task_description: Optional[str] = None,
+                           exact_match: bool = False,
+                           limit: int = 100,
+                           request_id: Optional[str] = None,
+                           session: Optional[Session] = None) -> List['Task']:
+        """
+        Get tasks associated with images based on flexible search criteria.
+
+        Args:
+            image_id: Optional image ID to filter by
+            title: Optional image title to filter by
+            description: Optional image description to filter by
+            file_path: Optional file path to filter by
+            task_id: Optional task ID to filter by
+            task_name: Optional task name to filter by
+            task_description: Optional task description to filter by
+            exact_match: If True, performs exact matching instead of partial matching for string fields
+            limit: Maximum number of results to return (default 100)
+            request_id: Optional request ID for tracking this operation in logs
+            session: Optional SQLAlchemy session. If None, a new session will be created
+
+        Returns:
+            List of Task objects matching the search criteria
+        """
+        # Get or use the provided request_id
+        rid = request_id or get_request_id()
+
+        # Get a database session if one wasn't provided
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+            debug_id(f"Created new database session for Image.get_tasks_by_image", rid)
+
+        # Log the search operation with request ID
+        search_params = {
+            'image_id': image_id,
+            'title': title,
+            'description': description,
+            'file_path': file_path,
+            'task_id': task_id,
+            'task_name': task_name,
+            'task_description': task_description,
+            'exact_match': exact_match,
+            'limit': limit
+        }
+        # Filter out None values for cleaner logging
+        logged_params = {k: v for k, v in search_params.items() if v is not None}
+        debug_id(f"Starting Image.get_tasks_by_image with parameters: {logged_params}", rid)
+
+        try:
+            # Use the timed operation context manager with request ID
+            with log_timed_operation("Image.get_tasks_by_image", rid):
+                from models import Task, ImageTaskAssociation
+
+                # Start with a query that joins Task and ImageTaskAssociation
+                query = session.query(Task).join(ImageTaskAssociation).join(cls)
+
+                # Apply image filters
+                if image_id is not None:
+                    query = query.filter(cls.id == image_id)
+
+                if title is not None:
+                    if exact_match:
+                        query = query.filter(cls.title == title)
+                    else:
+                        query = query.filter(cls.title.ilike(f"%{title}%"))
+
+                if description is not None:
+                    if exact_match:
+                        query = query.filter(cls.description == description)
+                    else:
+                        query = query.filter(cls.description.ilike(f"%{description}%"))
+
+                if file_path is not None:
+                    if exact_match:
+                        query = query.filter(cls.file_path == file_path)
+                    else:
+                        query = query.filter(cls.file_path.ilike(f"%{file_path}%"))
+
+                # Apply task filters
+                if task_id is not None:
+                    query = query.filter(Task.id == task_id)
+
+                if task_name is not None:
+                    if exact_match:
+                        query = query.filter(Task.name == task_name)
+                    else:
+                        query = query.filter(Task.name.ilike(f"%{task_name}%"))
+
+                if task_description is not None:
+                    if exact_match:
+                        query = query.filter(Task.description == task_description)
+                    else:
+                        query = query.filter(Task.description.ilike(f"%{task_description}%"))
+
+                # Make results distinct to avoid duplicates
+                query = query.distinct()
+
+                # Apply limit
+                query = query.limit(limit)
+
+                # Execute query and log results
+                results = query.all()
+                debug_id(f"Image.get_tasks_by_image completed, found {len(results)} tasks", rid)
+                return results
+
+        except Exception as e:
+            error_id(f"Error in Image.get_tasks_by_image: {str(e)}", rid, exc_info=True)
+            return []
+        finally:
+            # Close the session if we created it
+            if not session_provided:
+                session.close()
+                debug_id(f"Closed database session for Image.get_tasks_by_image", rid)
+
+    @classmethod
+    @with_request_id
+    def get_images_by_task(cls,
+                           task_id: Optional[int] = None,
+                           task_name: Optional[str] = None,
+                           task_description: Optional[str] = None,
+                           image_id: Optional[int] = None,
+                           title: Optional[str] = None,
+                           description: Optional[str] = None,
+                           file_path: Optional[str] = None,
+                           exact_match: bool = False,
+                           limit: int = 100,
+                           request_id: Optional[str] = None,
+                           session: Optional[Session] = None) -> List['Image']:
+        """
+        Get images associated with tasks based on flexible search criteria.
+
+        Args:
+            task_id: Optional task ID to filter by
+            task_name: Optional task name to filter by
+            task_description: Optional task description to filter by
+            image_id: Optional image ID to filter by
+            title: Optional image title to filter by
+            description: Optional image description to filter by
+            file_path: Optional file path to filter by
+            exact_match: If True, performs exact matching instead of partial matching for string fields
+            limit: Maximum number of results to return (default 100)
+            request_id: Optional request ID for tracking this operation in logs
+            session: Optional SQLAlchemy session. If None, a new session will be created
+
+        Returns:
+            List of Image objects matching the search criteria
+        """
+        # Get or use the provided request_id
+        rid = request_id or get_request_id()
+
+        # Get a database session if one wasn't provided
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+            debug_id(f"Created new database session for Task.get_images_by_task", rid)
+
+        # Log the search operation with request ID
+        search_params = {
+            'task_id': task_id,
+            'task_name': task_name,
+            'task_description': task_description,
+            'image_id': image_id,
+            'title': title,
+            'description': description,
+            'file_path': file_path,
+            'exact_match': exact_match,
+            'limit': limit
+        }
+        # Filter out None values for cleaner logging
+        logged_params = {k: v for k, v in search_params.items() if v is not None}
+        debug_id(f"Starting Task.get_images_by_task with parameters: {logged_params}", rid)
+
+        try:
+            # Use the timed operation context manager with request ID
+            with log_timed_operation("Task.get_images_by_task", rid):
+                from models import Image, ImageTaskAssociation
+
+                # Start with a query that joins Image and ImageTaskAssociation
+                query = session.query(Image).join(ImageTaskAssociation).join(cls)
+
+                # Apply task filters
+                if task_id is not None:
+                    query = query.filter(cls.id == task_id)
+
+                if task_name is not None:
+                    if exact_match:
+                        query = query.filter(cls.name == task_name)
+                    else:
+                        query = query.filter(cls.name.ilike(f"%{task_name}%"))
+
+                if task_description is not None:
+                    if exact_match:
+                        query = query.filter(cls.description == task_description)
+                    else:
+                        query = query.filter(cls.description.ilike(f"%{task_description}%"))
+
+                # Apply image filters
+                if image_id is not None:
+                    query = query.filter(Image.id == image_id)
+
+                if title is not None:
+                    if exact_match:
+                        query = query.filter(Image.title == title)
+                    else:
+                        query = query.filter(Image.title.ilike(f"%{title}%"))
+
+                if description is not None:
+                    if exact_match:
+                        query = query.filter(Image.description == description)
+                    else:
+                        query = query.filter(Image.description.ilike(f"%{description}%"))
+
+                if file_path is not None:
+                    if exact_match:
+                        query = query.filter(Image.file_path == file_path)
+                    else:
+                        query = query.filter(Image.file_path.ilike(f"%{file_path}%"))
+
+                # Make results distinct to avoid duplicates
+                query = query.distinct()
+
+                # Apply limit
+                query = query.limit(limit)
+
+                # Execute query and log results
+                results = query.all()
+                debug_id(f"Task.get_images_by_task completed, found {len(results)} images", rid)
+                return results
+
+        except Exception as e:
+            error_id(f"Error in Task.get_images_by_task: {str(e)}", rid, exc_info=True)
+            return []
+        finally:
+            # Close the session if we created it
+            if not session_provided:
+                session.close()
+                debug_id(f"Closed database session for Task.get_images_by_task", rid)
+
+    @classmethod
+    @with_request_id
+    def associate_image_task(cls,
+                             image_id: int,
+                             task_id: int,
+                             request_id: Optional[str] = None,
+                             session: Optional[Session] = None) -> Optional['ImageTaskAssociation']:
+        """
+        Associate an image with a task.
+
+        Args:
+            image_id: ID of the image to associate
+            task_id: ID of the task to associate
+            request_id: Optional request ID for tracking this operation in logs
+            session: Optional SQLAlchemy session. If None, a new session will be created
+
+        Returns:
+            The created ImageTaskAssociation object if successful, None otherwise
+        """
+        # Get or use the provided request_id
+        rid = request_id or get_request_id()
+
+        # Get a database session if one wasn't provided
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+            debug_id(f"Created new database session for ImageTaskAssociation.associate_image_task", rid)
+
+        # Log the operation with request ID
+        debug_id(
+            f"Starting ImageTaskAssociation.associate_image_task with parameters: image_id={image_id}, task_id={task_id}",
+            rid)
+
+        try:
+            # Use the timed operation context manager with request ID
+            with log_timed_operation("ImageTaskAssociation.associate_image_task", rid):
+                from models import Image, Task
+
+                # Check if image exists
+                image = session.query(Image).filter(Image.id == image_id).first()
+                if not image:
+                    error_id(f"Error in ImageTaskAssociation.associate_image_task: Image with ID {image_id} not found",
+                             rid)
+                    return None
+
+                # Check if task exists
+                task = session.query(Task).filter(Task.id == task_id).first()
+                if not task:
+                    error_id(f"Error in ImageTaskAssociation.associate_image_task: Task with ID {task_id} not found",
+                             rid)
+                    return None
+
+                # Check if association already exists
+                existing = session.query(cls).filter(
+                    cls.image_id == image_id,
+                    cls.task_id == task_id
+                ).first()
+
+                if existing:
+                    debug_id(f"Association between image {image_id} and task {task_id} already exists", rid)
+                    return existing
+
+                # Create new association
+                association = cls(image_id=image_id, task_id=task_id)
+                session.add(association)
+
+                # Commit if we created the session
+                if not session_provided:
+                    session.commit()
+                    debug_id(f"Committed new association between image {image_id} and task {task_id}", rid)
+
+                return association
+
+        except Exception as e:
+            error_id(f"Error in ImageTaskAssociation.associate_image_task: {str(e)}", rid, exc_info=True)
+            if not session_provided:
+                session.rollback()
+                debug_id(f"Rolled back transaction in ImageTaskAssociation.associate_image_task", rid)
+            return None
+        finally:
+            # Close the session if we created it
+            if not session_provided:
+                session.close()
+                debug_id(f"Closed database session for ImageTaskAssociation.associate_image_task", rid)
 
 class TaskToolAssociation(Base):
     __tablename__ = 'tool_task'
@@ -2469,6 +4690,427 @@ class TaskToolAssociation(Base):
     # Relationships
     tool = relationship("Tool", back_populates="tool_tasks")
     task = relationship("Task", back_populates="tool_tasks")
+
+    @classmethod
+    @with_request_id
+    def associate_task_tool(cls,
+                            task_id: int,
+                            tool_id: int,
+                            request_id: Optional[str] = None,
+                            session: Optional[Session] = None) -> Optional['TaskToolAssociation']:
+        """
+        Associate a task with a tool.
+
+        Args:
+            task_id: ID of the task to associate
+            tool_id: ID of the tool to associate
+            request_id: Optional request ID for tracking this operation in logs
+            session: Optional SQLAlchemy session. If None, a new session will be created
+
+        Returns:
+            The created TaskToolAssociation object if successful, None otherwise
+        """
+        # Get or use the provided request_id
+        rid = request_id or get_request_id()
+
+        # Get a database session if one wasn't provided
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+            debug_id(f"Created new database session for TaskToolAssociation.associate_task_tool", rid)
+
+        # Log the operation with request ID
+        debug_id(
+            f"Starting TaskToolAssociation.associate_task_tool with parameters: task_id={task_id}, tool_id={tool_id}",
+            rid)
+
+        try:
+            # Use the timed operation context manager with request ID
+            with log_timed_operation("TaskToolAssociation.associate_task_tool", rid):
+                from models import Task, Tool
+
+                # Check if task exists
+                task = session.query(Task).filter(Task.id == task_id).first()
+                if not task:
+                    error_id(f"Error in TaskToolAssociation.associate_task_tool: Task with ID {task_id} not found", rid)
+                    return None
+
+                # Check if tool exists
+                tool = session.query(Tool).filter(Tool.id == tool_id).first()
+                if not tool:
+                    error_id(f"Error in TaskToolAssociation.associate_task_tool: Tool with ID {tool_id} not found", rid)
+                    return None
+
+                # Check if association already exists
+                existing = session.query(cls).filter(
+                    cls.task_id == task_id,
+                    cls.tool_id == tool_id
+                ).first()
+
+                if existing:
+                    debug_id(f"Association between task {task_id} and tool {tool_id} already exists", rid)
+                    return existing
+
+                # Create new association
+                association = cls(task_id=task_id, tool_id=tool_id)
+                session.add(association)
+
+                # Commit if we created the session
+                if not session_provided:
+                    session.commit()
+                    debug_id(f"Committed new association between task {task_id} and tool {tool_id}", rid)
+
+                return association
+
+        except Exception as e:
+            error_id(f"Error in TaskToolAssociation.associate_task_tool: {str(e)}", rid, exc_info=True)
+            if not session_provided:
+                session.rollback()
+                debug_id(f"Rolled back transaction in TaskToolAssociation.associate_task_tool", rid)
+            return None
+        finally:
+            # Close the session if we created it
+            if not session_provided:
+                session.close()
+                debug_id(f"Closed database session for TaskToolAssociation.associate_task_tool", rid)
+
+    @classmethod
+    @with_request_id
+    def dissociate_task_tool(cls,
+                             task_id: int,
+                             tool_id: int,
+                             request_id: Optional[str] = None,
+                             session: Optional[Session] = None) -> bool:
+        """
+        Remove an association between a task and a tool.
+
+        Args:
+            task_id: ID of the task to dissociate
+            tool_id: ID of the tool to dissociate
+            request_id: Optional request ID for tracking this operation in logs
+            session: Optional SQLAlchemy session. If None, a new session will be created
+
+        Returns:
+            True if the association was removed, False otherwise
+        """
+        # Get or use the provided request_id
+        rid = request_id or get_request_id()
+
+        # Get a database session if one wasn't provided
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+            debug_id(f"Created new database session for TaskToolAssociation.dissociate_task_tool", rid)
+
+        # Log the operation with request ID
+        debug_id(
+            f"Starting TaskToolAssociation.dissociate_task_tool with parameters: task_id={task_id}, tool_id={tool_id}",
+            rid)
+
+        try:
+            # Use the timed operation context manager with request ID
+            with log_timed_operation("TaskToolAssociation.dissociate_task_tool", rid):
+                # Find the association
+                association = session.query(cls).filter(
+                    cls.task_id == task_id,
+                    cls.tool_id == tool_id
+                ).first()
+
+                if not association:
+                    debug_id(f"No association found between task {task_id} and tool {tool_id}", rid)
+                    return False
+
+                # Delete the association
+                session.delete(association)
+
+                # Commit if we created the session
+                if not session_provided:
+                    session.commit()
+                    debug_id(f"Removed association between task {task_id} and tool {tool_id}", rid)
+
+                return True
+
+        except Exception as e:
+            error_id(f"Error in TaskToolAssociation.dissociate_task_tool: {str(e)}", rid, exc_info=True)
+            if not session_provided:
+                session.rollback()
+                debug_id(f"Rolled back transaction in TaskToolAssociation.dissociate_task_tool", rid)
+            return False
+        finally:
+            # Close the session if we created it
+            if not session_provided:
+                session.close()
+                debug_id(f"Closed database session for TaskToolAssociation.dissociate_task_tool", rid)
+
+    @classmethod
+    @with_request_id
+    def get_tools_by_task(cls,
+                          task_id: Optional[int] = None,
+                          task_name: Optional[str] = None,
+                          task_description: Optional[str] = None,
+                          tool_id: Optional[int] = None,
+                          tool_name: Optional[str] = None,
+                          tool_type: Optional[str] = None,
+                          tool_material: Optional[str] = None,
+                          tool_size: Optional[str] = None,
+                          exact_match: bool = False,
+                          limit: int = 100,
+                          request_id: Optional[str] = None,
+                          session: Optional[Session] = None) -> List['Tool']:
+        """
+        Get tools associated with tasks based on flexible search criteria.
+
+        Args:
+            task_id: Optional task ID to filter by
+            task_name: Optional task name to filter by
+            task_description: Optional task description to filter by
+            tool_id: Optional tool ID to filter by
+            tool_name: Optional tool name to filter by
+            tool_type: Optional tool type to filter by
+            tool_material: Optional tool material to filter by
+            tool_size: Optional tool size to filter by
+            exact_match: If True, performs exact matching instead of partial matching for string fields
+            limit: Maximum number of results to return (default 100)
+            request_id: Optional request ID for tracking this operation in logs
+            session: Optional SQLAlchemy session. If None, a new session will be created
+
+        Returns:
+            List of Tool objects matching the search criteria
+        """
+        # Get or use the provided request_id
+        rid = request_id or get_request_id()
+
+        # Get a database session if one wasn't provided
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+            debug_id(f"Created new database session for TaskToolAssociation.get_tools_by_task", rid)
+
+        # Log the search operation with request ID
+        search_params = {
+            'task_id': task_id,
+            'task_name': task_name,
+            'task_description': task_description,
+            'tool_id': tool_id,
+            'tool_name': tool_name,
+            'tool_type': tool_type,
+            'tool_material': tool_material,
+            'tool_size': tool_size,
+            'exact_match': exact_match,
+            'limit': limit
+        }
+        # Filter out None values for cleaner logging
+        logged_params = {k: v for k, v in search_params.items() if v is not None}
+        debug_id(f"Starting TaskToolAssociation.get_tools_by_task with parameters: {logged_params}", rid)
+
+        try:
+            # Use the timed operation context manager with request ID
+            with log_timed_operation("TaskToolAssociation.get_tools_by_task", rid):
+                from models import Task, Tool
+
+                # Start with a query that joins Tool and TaskToolAssociation
+                query = session.query(Tool).join(cls, Tool.id == cls.tool_id).join(Task, Task.id == cls.task_id)
+
+                # Apply task filters
+                if task_id is not None:
+                    query = query.filter(Task.id == task_id)
+
+                if task_name is not None:
+                    if exact_match:
+                        query = query.filter(Task.name == task_name)
+                    else:
+                        query = query.filter(Task.name.ilike(f"%{task_name}%"))
+
+                if task_description is not None:
+                    if exact_match:
+                        query = query.filter(Task.description == task_description)
+                    else:
+                        query = query.filter(Task.description.ilike(f"%{task_description}%"))
+
+                # Apply tool filters
+                if tool_id is not None:
+                    query = query.filter(Tool.id == tool_id)
+
+                if tool_name is not None:
+                    if exact_match:
+                        query = query.filter(Tool.name == tool_name)
+                    else:
+                        query = query.filter(Tool.name.ilike(f"%{tool_name}%"))
+
+                if tool_type is not None:
+                    if exact_match:
+                        query = query.filter(Tool.type == tool_type)
+                    else:
+                        query = query.filter(Tool.type.ilike(f"%{tool_type}%"))
+
+                if tool_material is not None:
+                    if exact_match:
+                        query = query.filter(Tool.material == tool_material)
+                    else:
+                        query = query.filter(Tool.material.ilike(f"%{tool_material}%"))
+
+                if tool_size is not None:
+                    if exact_match:
+                        query = query.filter(Tool.size == tool_size)
+                    else:
+                        query = query.filter(Tool.size.ilike(f"%{tool_size}%"))
+
+                # Make results distinct to avoid duplicates
+                query = query.distinct()
+
+                # Apply limit
+                query = query.limit(limit)
+
+                # Execute query and log results
+                results = query.all()
+                debug_id(f"TaskToolAssociation.get_tools_by_task completed, found {len(results)} tools", rid)
+                return results
+
+        except Exception as e:
+            error_id(f"Error in TaskToolAssociation.get_tools_by_task: {str(e)}", rid, exc_info=True)
+            return []
+        finally:
+            # Close the session if we created it
+            if not session_provided:
+                session.close()
+                debug_id(f"Closed database session for TaskToolAssociation.get_tools_by_task", rid)
+
+    @classmethod
+    @with_request_id
+    def get_tasks_by_tool(cls,
+                          tool_id: Optional[int] = None,
+                          tool_name: Optional[str] = None,
+                          tool_type: Optional[str] = None,
+                          tool_material: Optional[str] = None,
+                          tool_size: Optional[str] = None,
+                          task_id: Optional[int] = None,
+                          task_name: Optional[str] = None,
+                          task_description: Optional[str] = None,
+                          exact_match: bool = False,
+                          limit: int = 100,
+                          request_id: Optional[str] = None,
+                          session: Optional[Session] = None) -> List['Task']:
+        """
+        Get tasks associated with tools based on flexible search criteria.
+
+        Args:
+            tool_id: Optional tool ID to filter by
+            tool_name: Optional tool name to filter by
+            tool_type: Optional tool type to filter by
+            tool_material: Optional tool material to filter by
+            tool_size: Optional tool size to filter by
+            task_id: Optional task ID to filter by
+            task_name: Optional task name to filter by
+            task_description: Optional task description to filter by
+            exact_match: If True, performs exact matching instead of partial matching for string fields
+            limit: Maximum number of results to return (default 100)
+            request_id: Optional request ID for tracking this operation in logs
+            session: Optional SQLAlchemy session. If None, a new session will be created
+
+        Returns:
+            List of Task objects matching the search criteria
+        """
+        # Get or use the provided request_id
+        rid = request_id or get_request_id()
+
+        # Get a database session if one wasn't provided
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+            debug_id(f"Created new database session for TaskToolAssociation.get_tasks_by_tool", rid)
+
+        # Log the search operation with request ID
+        search_params = {
+            'tool_id': tool_id,
+            'tool_name': tool_name,
+            'tool_type': tool_type,
+            'tool_material': tool_material,
+            'tool_size': tool_size,
+            'task_id': task_id,
+            'task_name': task_name,
+            'task_description': task_description,
+            'exact_match': exact_match,
+            'limit': limit
+        }
+        # Filter out None values for cleaner logging
+        logged_params = {k: v for k, v in search_params.items() if v is not None}
+        debug_id(f"Starting TaskToolAssociation.get_tasks_by_tool with parameters: {logged_params}", rid)
+
+        try:
+            # Use the timed operation context manager with request ID
+            with log_timed_operation("TaskToolAssociation.get_tasks_by_tool", rid):
+                from models import Task, Tool
+
+                # Start with a query that joins Task and TaskToolAssociation
+                query = session.query(Task).join(cls, Task.id == cls.task_id).join(Tool, Tool.id == cls.tool_id)
+
+                # Apply tool filters
+                if tool_id is not None:
+                    query = query.filter(Tool.id == tool_id)
+
+                if tool_name is not None:
+                    if exact_match:
+                        query = query.filter(Tool.name == tool_name)
+                    else:
+                        query = query.filter(Tool.name.ilike(f"%{tool_name}%"))
+
+                if tool_type is not None:
+                    if exact_match:
+                        query = query.filter(Tool.type == tool_type)
+                    else:
+                        query = query.filter(Tool.type.ilike(f"%{tool_type}%"))
+
+                if tool_material is not None:
+                    if exact_match:
+                        query = query.filter(Tool.material == tool_material)
+                    else:
+                        query = query.filter(Tool.material.ilike(f"%{tool_material}%"))
+
+                if tool_size is not None:
+                    if exact_match:
+                        query = query.filter(Tool.size == tool_size)
+                    else:
+                        query = query.filter(Tool.size.ilike(f"%{tool_size}%"))
+
+                # Apply task filters
+                if task_id is not None:
+                    query = query.filter(Task.id == task_id)
+
+                if task_name is not None:
+                    if exact_match:
+                        query = query.filter(Task.name == task_name)
+                    else:
+                        query = query.filter(Task.name.ilike(f"%{task_name}%"))
+
+                if task_description is not None:
+                    if exact_match:
+                        query = query.filter(Task.description == task_description)
+                    else:
+                        query = query.filter(Task.description.ilike(f"%{task_description}%"))
+
+                # Make results distinct to avoid duplicates
+                query = query.distinct()
+
+                # Apply limit
+                query = query.limit(limit)
+
+                # Execute query and log results
+                results = query.all()
+                debug_id(f"TaskToolAssociation.get_tasks_by_tool completed, found {len(results)} tasks", rid)
+                return results
+
+        except Exception as e:
+            error_id(f"Error in TaskToolAssociation.get_tasks_by_tool: {str(e)}", rid, exc_info=True)
+            return []
+        finally:
+            # Close the session if we created it
+            if not session_provided:
+                session.close()
+                debug_id(f"Closed database session for TaskToolAssociation.get_tasks_by_tool", rid)
 
 class DrawingProblemAssociation(Base):
     __tablename__ = 'drawing_problem'
@@ -2498,9 +5140,221 @@ class ProblemPositionAssociation(Base):
     id = Column(Integer, primary_key=True)
     problem_id = Column(Integer, ForeignKey('problem.id'))
     position_id = Column(Integer, ForeignKey('position.id'))
-    
+
     problem = relationship("Problem", back_populates="problem_position")
     position = relationship("Position", back_populates="problem_position")
+
+    @classmethod
+    @with_request_id
+    def add_to_db(cls, session=None, problem_id=None, position_id=None):
+        """
+        Get-or-create a ProblemPositionAssociation with the specified problem_id and position_id.
+        If `session` is None, uses DatabaseConfig().get_main_session().
+        Returns the ProblemPositionAssociation instance (new or existing).
+        """
+        # 1) ensure we have a session
+        if session is None:
+            session = DatabaseConfig().get_main_session()
+
+        # 2) log input parameters
+        debug_id(
+            "add_to_db called with problem_id=%s, position_id=%s",
+            problem_id, position_id
+        )
+
+        # Check for required parameters
+        if problem_id is None or position_id is None:
+            error_id("Both problem_id and position_id must be provided")
+            raise ValueError("Both problem_id and position_id must be provided")
+
+        # 3) build filter dict
+        filters = {
+            "problem_id": problem_id,
+            "position_id": position_id,
+        }
+
+        try:
+            # 4) try to find an existing row
+            existing = session.query(cls).filter_by(**filters).first()
+            if existing:
+                info_id("Found existing ProblemPositionAssociation id=%s", existing.id)
+                return existing
+
+            # 5) not found → create new
+            association = cls(**filters)
+            session.add(association)
+            session.commit()
+            info_id("Created new ProblemPositionAssociation id=%s", association.id)
+            return association
+
+        except SQLAlchemyError as e:
+            session.rollback()
+            error_id("Failed to add_or_get ProblemPositionAssociation: %s", e, exc_info=True)
+            raise
+
+    @classmethod
+    @with_request_id
+    def get_positions_for_problem(cls, session, problem_id):
+        """
+        Get all positions associated with a specific problem.
+
+        Args:
+            session: SQLAlchemy session
+            problem_id: ID of the problem
+
+        Returns:
+            List of Position objects associated with the problem
+        """
+        if session is None:
+            session = DatabaseConfig().get_main_session()
+
+        if problem_id is None:
+            error_id("problem_id must be provided")
+            return []
+
+        try:
+            # Query for all associations with this problem_id
+            associations = session.query(cls).filter_by(problem_id=problem_id).all()
+
+            # Extract the positions
+            positions = [assoc.position for assoc in associations if assoc.position]
+
+            info_id(f"Retrieved {len(positions)} positions for problem_id={problem_id}")
+            return positions
+
+        except SQLAlchemyError as e:
+            error_id(f"Error retrieving positions for problem_id={problem_id}: {str(e)}", exc_info=True)
+            return []
+
+    @classmethod
+    @with_request_id
+    def get_problems_for_position(cls, session, position_id):
+        """
+        Get all problems associated with a specific position.
+
+        Args:
+            session: SQLAlchemy session
+            position_id: ID of the position
+
+        Returns:
+            List of Problem objects associated with the position
+        """
+        if session is None:
+            session = DatabaseConfig().get_main_session()
+
+        if position_id is None:
+            error_id("position_id must be provided")
+            return []
+
+        try:
+            # Query for all associations with this position_id
+            associations = session.query(cls).filter_by(position_id=position_id).all()
+
+            # Extract the problems
+            problems = [assoc.problem for assoc in associations if assoc.problem]
+
+            info_id(f"Retrieved {len(problems)} problems for position_id={position_id}")
+            return problems
+
+        except SQLAlchemyError as e:
+            error_id(f"Error retrieving problems for position_id={position_id}: {str(e)}", exc_info=True)
+            return []
+
+    @classmethod
+    @with_request_id
+    def delete_association(cls, session, problem_id=None, position_id=None, association_id=None):
+        """
+        Delete a problem-position association.
+        Can delete by providing either the association_id or both problem_id and position_id.
+
+        Args:
+            session: SQLAlchemy session
+            problem_id: ID of the problem (optional if association_id is provided)
+            position_id: ID of the position (optional if association_id is provided)
+            association_id: ID of the association (optional if both problem_id and position_id are provided)
+
+        Returns:
+            Boolean indicating success
+        """
+        if session is None:
+            session = DatabaseConfig().get_main_session()
+
+        try:
+            if association_id:
+                # Delete by association ID
+                association = session.query(cls).filter_by(id=association_id).first()
+                if association:
+                    session.delete(association)
+                    session.commit()
+                    info_id(f"Deleted ProblemPositionAssociation id={association_id}")
+                    return True
+                else:
+                    warn_id(f"No ProblemPositionAssociation found with id={association_id}")
+                    return False
+            elif problem_id and position_id:
+                # Delete by problem_id and position_id
+                association = session.query(cls).filter_by(
+                    problem_id=problem_id, position_id=position_id).first()
+                if association:
+                    session.delete(association)
+                    session.commit()
+                    info_id(
+                        f"Deleted ProblemPositionAssociation with problem_id={problem_id}, position_id={position_id}")
+                    return True
+                else:
+                    warn_id(
+                        f"No ProblemPositionAssociation found with problem_id={problem_id}, position_id={position_id}")
+                    return False
+            else:
+                error_id("Either association_id or both problem_id and position_id must be provided")
+                return False
+
+        except SQLAlchemyError as e:
+            session.rollback()
+            error_id(f"Error deleting ProblemPositionAssociation: {str(e)}", exc_info=True)
+            return False
+
+    @classmethod
+    @with_request_id
+    def get_positions_for_problem_by_hierarchy(cls, session, problem_id, level_filters=None):
+        """
+        Get positions associated with a problem filtered by hierarchy levels.
+
+        Args:
+            session: SQLAlchemy session
+            problem_id: ID of the problem
+            level_filters: Dictionary with level names as keys and IDs as values
+                           e.g., {'area_id': 1, 'equipment_group_id': 2}
+
+        Returns:
+            List of Position objects matching the criteria
+        """
+        if session is None:
+            session = DatabaseConfig().get_main_session()
+
+        if problem_id is None:
+            error_id("problem_id must be provided")
+            return []
+
+        try:
+            # Start with base query for the problem
+            query = session.query(Position).join(
+                cls, Position.id == cls.position_id
+            ).filter(cls.problem_id == problem_id)
+
+            # Apply hierarchy filters if provided
+            if level_filters and isinstance(level_filters, dict):
+                for field, value in level_filters.items():
+                    if hasattr(Position, field) and value is not None:
+                        query = query.filter(getattr(Position, field) == value)
+
+            positions = query.all()
+            info_id(f"Retrieved {len(positions)} positions for problem_id={problem_id} with hierarchy filters")
+            return positions
+
+        except SQLAlchemyError as e:
+            error_id(f"Error in get_positions_for_problem_by_hierarchy: {str(e)}", exc_info=True)
+            return []
 
 class CompleteDocumentProblemAssociation(Base):
     __tablename__ = 'complete_document_problem'
@@ -2521,6 +5375,451 @@ class CompleteDocumentTaskAssociation(Base):
     
     complete_document = relationship("CompleteDocument", back_populates="complete_document_task")
     task = relationship("Task", back_populates="complete_document_task")
+
+    @classmethod
+    @with_request_id
+    def associate_complete_document_task(cls,
+                                         complete_document_id: int,
+                                         task_id: int,
+                                         request_id: Optional[str] = None,
+                                         session: Optional[Session] = None) -> Optional[
+        'CompleteDocumentTaskAssociation']:
+        """
+        Associate a complete document with a task.
+
+        Args:
+            complete_document_id: ID of the complete document to associate
+            task_id: ID of the task to associate
+            request_id: Optional request ID for tracking this operation in logs
+            session: Optional SQLAlchemy session. If None, a new session will be created
+
+        Returns:
+            The created CompleteDocumentTaskAssociation object if successful, None otherwise
+        """
+        # Get or use the provided request_id
+        rid = request_id or get_request_id()
+
+        # Get a database session if one wasn't provided
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+            debug_id(
+                f"Created new database session for CompleteDocumentTaskAssociation.associate_complete_document_task",
+                rid)
+
+        # Log the operation with request ID
+        debug_id(
+            f"Starting CompleteDocumentTaskAssociation.associate_complete_document_task with parameters: complete_document_id={complete_document_id}, task_id={task_id}",
+            rid)
+
+        try:
+            # Use the timed operation context manager with request ID
+            with log_timed_operation("CompleteDocumentTaskAssociation.associate_complete_document_task", rid):
+                from models import CompleteDocument, Task
+
+                # Check if complete document exists
+                complete_document = session.query(CompleteDocument).filter(
+                    CompleteDocument.id == complete_document_id).first()
+                if not complete_document:
+                    error_id(
+                        f"Error in CompleteDocumentTaskAssociation.associate_complete_document_task: CompleteDocument with ID {complete_document_id} not found",
+                        rid)
+                    return None
+
+                # Check if task exists
+                task = session.query(Task).filter(Task.id == task_id).first()
+                if not task:
+                    error_id(
+                        f"Error in CompleteDocumentTaskAssociation.associate_complete_document_task: Task with ID {task_id} not found",
+                        rid)
+                    return None
+
+                # Check if association already exists
+                existing = session.query(cls).filter(
+                    cls.complete_document_id == complete_document_id,
+                    cls.task_id == task_id
+                ).first()
+
+                if existing:
+                    debug_id(
+                        f"Association between complete document {complete_document_id} and task {task_id} already exists",
+                        rid)
+                    return existing
+
+                # Create new association
+                association = cls(complete_document_id=complete_document_id, task_id=task_id)
+                session.add(association)
+
+                # Commit if we created the session
+                if not session_provided:
+                    session.commit()
+                    debug_id(
+                        f"Committed new association between complete document {complete_document_id} and task {task_id}",
+                        rid)
+
+                return association
+
+        except Exception as e:
+            error_id(f"Error in CompleteDocumentTaskAssociation.associate_complete_document_task: {str(e)}", rid,
+                     exc_info=True)
+            if not session_provided:
+                session.rollback()
+                debug_id(f"Rolled back transaction in CompleteDocumentTaskAssociation.associate_complete_document_task",
+                         rid)
+            return None
+        finally:
+            # Close the session if we created it
+            if not session_provided:
+                session.close()
+                debug_id(
+                    f"Closed database session for CompleteDocumentTaskAssociation.associate_complete_document_task",
+                    rid)
+
+    @classmethod
+    @with_request_id
+    def dissociate_complete_document_task(cls,
+                                          complete_document_id: int,
+                                          task_id: int,
+                                          request_id: Optional[str] = None,
+                                          session: Optional[Session] = None) -> bool:
+        """
+        Remove an association between a complete document and a task.
+
+        Args:
+            complete_document_id: ID of the complete document to dissociate
+            task_id: ID of the task to dissociate
+            request_id: Optional request ID for tracking this operation in logs
+            session: Optional SQLAlchemy session. If None, a new session will be created
+
+        Returns:
+            True if the association was removed, False otherwise
+        """
+        # Get or use the provided request_id
+        rid = request_id or get_request_id()
+
+        # Get a database session if one wasn't provided
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+            debug_id(
+                f"Created new database session for CompleteDocumentTaskAssociation.dissociate_complete_document_task",
+                rid)
+
+        # Log the operation with request ID
+        debug_id(
+            f"Starting CompleteDocumentTaskAssociation.dissociate_complete_document_task with parameters: complete_document_id={complete_document_id}, task_id={task_id}",
+            rid)
+
+        try:
+            # Use the timed operation context manager with request ID
+            with log_timed_operation("CompleteDocumentTaskAssociation.dissociate_complete_document_task", rid):
+                # Find the association
+                association = session.query(cls).filter(
+                    cls.complete_document_id == complete_document_id,
+                    cls.task_id == task_id
+                ).first()
+
+                if not association:
+                    debug_id(
+                        f"No association found between complete document {complete_document_id} and task {task_id}",
+                        rid)
+                    return False
+
+                # Delete the association
+                session.delete(association)
+
+                # Commit if we created the session
+                if not session_provided:
+                    session.commit()
+                    debug_id(f"Removed association between complete document {complete_document_id} and task {task_id}",
+                             rid)
+
+                return True
+
+        except Exception as e:
+            error_id(f"Error in CompleteDocumentTaskAssociation.dissociate_complete_document_task: {str(e)}", rid,
+                     exc_info=True)
+            if not session_provided:
+                session.rollback()
+                debug_id(
+                    f"Rolled back transaction in CompleteDocumentTaskAssociation.dissociate_complete_document_task",
+                    rid)
+            return False
+        finally:
+            # Close the session if we created it
+            if not session_provided:
+                session.close()
+                debug_id(
+                    f"Closed database session for CompleteDocumentTaskAssociation.dissociate_complete_document_task",
+                    rid)
+
+    @classmethod
+    @with_request_id
+    def get_tasks_by_complete_document(cls,
+                                       complete_document_id: Optional[int] = None,
+                                       title: Optional[str] = None,
+                                       file_path: Optional[str] = None,
+                                       rev: Optional[str] = None,
+                                       task_id: Optional[int] = None,
+                                       task_name: Optional[str] = None,
+                                       task_description: Optional[str] = None,
+                                       exact_match: bool = False,
+                                       limit: int = 100,
+                                       request_id: Optional[str] = None,
+                                       session: Optional[Session] = None) -> List['Task']:
+        """
+        Get tasks associated with complete documents based on flexible search criteria.
+
+        Args:
+            complete_document_id: Optional complete document ID to filter by
+            title: Optional document title to filter by
+            file_path: Optional file path to filter by
+            rev: Optional revision to filter by
+            task_id: Optional task ID to filter by
+            task_name: Optional task name to filter by
+            task_description: Optional task description to filter by
+            exact_match: If True, performs exact matching instead of partial matching for string fields
+            limit: Maximum number of results to return (default 100)
+            request_id: Optional request ID for tracking this operation in logs
+            session: Optional SQLAlchemy session. If None, a new session will be created
+
+        Returns:
+            List of Task objects matching the search criteria
+        """
+        # Get or use the provided request_id
+        rid = request_id or get_request_id()
+
+        # Get a database session if one wasn't provided
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+            debug_id(f"Created new database session for CompleteDocumentTaskAssociation.get_tasks_by_complete_document",
+                     rid)
+
+        # Log the search operation with request ID
+        search_params = {
+            'complete_document_id': complete_document_id,
+            'title': title,
+            'file_path': file_path,
+            'rev': rev,
+            'task_id': task_id,
+            'task_name': task_name,
+            'task_description': task_description,
+            'exact_match': exact_match,
+            'limit': limit
+        }
+        # Filter out None values for cleaner logging
+        logged_params = {k: v for k, v in search_params.items() if v is not None}
+        debug_id(
+            f"Starting CompleteDocumentTaskAssociation.get_tasks_by_complete_document with parameters: {logged_params}",
+            rid)
+
+        try:
+            # Use the timed operation context manager with request ID
+            with log_timed_operation("CompleteDocumentTaskAssociation.get_tasks_by_complete_document", rid):
+                from models import Task, CompleteDocument
+
+                # Start with a query that joins Task and CompleteDocumentTaskAssociation
+                query = session.query(Task).join(cls, Task.id == cls.task_id).join(CompleteDocument,
+                                                                                   CompleteDocument.id == cls.complete_document_id)
+
+                # Apply complete document filters
+                if complete_document_id is not None:
+                    query = query.filter(CompleteDocument.id == complete_document_id)
+
+                if title is not None:
+                    if exact_match:
+                        query = query.filter(CompleteDocument.title == title)
+                    else:
+                        query = query.filter(CompleteDocument.title.ilike(f"%{title}%"))
+
+                if file_path is not None:
+                    if exact_match:
+                        query = query.filter(CompleteDocument.file_path == file_path)
+                    else:
+                        query = query.filter(CompleteDocument.file_path.ilike(f"%{file_path}%"))
+
+                if rev is not None:
+                    if exact_match:
+                        query = query.filter(CompleteDocument.rev == rev)
+                    else:
+                        query = query.filter(CompleteDocument.rev.ilike(f"%{rev}%"))
+
+                # Apply task filters
+                if task_id is not None:
+                    query = query.filter(Task.id == task_id)
+
+                if task_name is not None:
+                    if exact_match:
+                        query = query.filter(Task.name == task_name)
+                    else:
+                        query = query.filter(Task.name.ilike(f"%{task_name}%"))
+
+                if task_description is not None:
+                    if exact_match:
+                        query = query.filter(Task.description == task_description)
+                    else:
+                        query = query.filter(Task.description.ilike(f"%{task_description}%"))
+
+                # Make results distinct to avoid duplicates
+                query = query.distinct()
+
+                # Apply limit
+                query = query.limit(limit)
+
+                # Execute query and log results
+                results = query.all()
+                debug_id(
+                    f"CompleteDocumentTaskAssociation.get_tasks_by_complete_document completed, found {len(results)} tasks",
+                    rid)
+                return results
+
+        except Exception as e:
+            error_id(f"Error in CompleteDocumentTaskAssociation.get_tasks_by_complete_document: {str(e)}", rid,
+                     exc_info=True)
+            return []
+        finally:
+            # Close the session if we created it
+            if not session_provided:
+                session.close()
+                debug_id(f"Closed database session for CompleteDocumentTaskAssociation.get_tasks_by_complete_document",
+                         rid)
+
+    @classmethod
+    @with_request_id
+    def get_complete_documents_by_task(cls,
+                                       task_id: Optional[int] = None,
+                                       task_name: Optional[str] = None,
+                                       task_description: Optional[str] = None,
+                                       complete_document_id: Optional[int] = None,
+                                       title: Optional[str] = None,
+                                       file_path: Optional[str] = None,
+                                       rev: Optional[str] = None,
+                                       exact_match: bool = False,
+                                       limit: int = 100,
+                                       request_id: Optional[str] = None,
+                                       session: Optional[Session] = None) -> List['CompleteDocument']:
+        """
+        Get complete documents associated with tasks based on flexible search criteria.
+
+        Args:
+            task_id: Optional task ID to filter by
+            task_name: Optional task name to filter by
+            task_description: Optional task description to filter by
+            complete_document_id: Optional complete document ID to filter by
+            title: Optional document title to filter by
+            file_path: Optional file path to filter by
+            rev: Optional revision to filter by
+            exact_match: If True, performs exact matching instead of partial matching for string fields
+            limit: Maximum number of results to return (default 100)
+            request_id: Optional request ID for tracking this operation in logs
+            session: Optional SQLAlchemy session. If None, a new session will be created
+
+        Returns:
+            List of CompleteDocument objects matching the search criteria
+        """
+        # Get or use the provided request_id
+        rid = request_id or get_request_id()
+
+        # Get a database session if one wasn't provided
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+            debug_id(f"Created new database session for CompleteDocumentTaskAssociation.get_complete_documents_by_task",
+                     rid)
+
+        # Log the search operation with request ID
+        search_params = {
+            'task_id': task_id,
+            'task_name': task_name,
+            'task_description': task_description,
+            'complete_document_id': complete_document_id,
+            'title': title,
+            'file_path': file_path,
+            'rev': rev,
+            'exact_match': exact_match,
+            'limit': limit
+        }
+        # Filter out None values for cleaner logging
+        logged_params = {k: v for k, v in search_params.items() if v is not None}
+        debug_id(
+            f"Starting CompleteDocumentTaskAssociation.get_complete_documents_by_task with parameters: {logged_params}",
+            rid)
+
+        try:
+            # Use the timed operation context manager with request ID
+            with log_timed_operation("CompleteDocumentTaskAssociation.get_complete_documents_by_task", rid):
+                from models import Task, CompleteDocument
+
+                # Start with a query that joins CompleteDocument and CompleteDocumentTaskAssociation
+                query = session.query(CompleteDocument).join(cls, CompleteDocument.id == cls.complete_document_id).join(
+                    Task, Task.id == cls.task_id)
+
+                # Apply task filters
+                if task_id is not None:
+                    query = query.filter(Task.id == task_id)
+
+                if task_name is not None:
+                    if exact_match:
+                        query = query.filter(Task.name == task_name)
+                    else:
+                        query = query.filter(Task.name.ilike(f"%{task_name}%"))
+
+                if task_description is not None:
+                    if exact_match:
+                        query = query.filter(Task.description == task_description)
+                    else:
+                        query = query.filter(Task.description.ilike(f"%{task_description}%"))
+
+                # Apply complete document filters
+                if complete_document_id is not None:
+                    query = query.filter(CompleteDocument.id == complete_document_id)
+
+                if title is not None:
+                    if exact_match:
+                        query = query.filter(CompleteDocument.title == title)
+                    else:
+                        query = query.filter(CompleteDocument.title.ilike(f"%{title}%"))
+
+                if file_path is not None:
+                    if exact_match:
+                        query = query.filter(CompleteDocument.file_path == file_path)
+                    else:
+                        query = query.filter(CompleteDocument.file_path.ilike(f"%{file_path}%"))
+
+                if rev is not None:
+                    if exact_match:
+                        query = query.filter(CompleteDocument.rev == rev)
+                    else:
+                        query = query.filter(CompleteDocument.rev.ilike(f"%{rev}%"))
+
+                # Make results distinct to avoid duplicates
+                query = query.distinct()
+
+                # Apply limit
+                query = query.limit(limit)
+
+                # Execute query and log results
+                results = query.all()
+                debug_id(
+                    f"CompleteDocumentTaskAssociation.get_complete_documents_by_task completed, found {len(results)} complete documents",
+                    rid)
+                return results
+
+        except Exception as e:
+            error_id(f"Error in CompleteDocumentTaskAssociation.get_complete_documents_by_task: {str(e)}", rid,
+                     exc_info=True)
+            return []
+        finally:
+            # Close the session if we created it
+            if not session_provided:
+                session.close()
+                debug_id(f"Closed database session for CompleteDocumentTaskAssociation.get_complete_documents_by_task",
+                         rid)
 
 class ImageProblemAssociation(Base):
     __tablename__ = 'image_problem'
@@ -2693,6 +5992,488 @@ class ImagePositionAssociation(Base):
     image = relationship("Image", back_populates="image_position_association")
     position = relationship("Position", back_populates="image_position_association")
 
+    @classmethod
+    @with_request_id
+    def associate_image_position(cls,
+                                 image_id: int,
+                                 position_id: int,
+                                 request_id: Optional[str] = None,
+                                 session: Optional[Session] = None) -> Optional['ImagePositionAssociation']:
+        """
+        Associate an image with a position.
+
+        Args:
+            image_id: ID of the image to associate
+            position_id: ID of the position to associate
+            request_id: Optional request ID for tracking this operation in logs
+            session: Optional SQLAlchemy session. If None, a new session will be created
+
+        Returns:
+            The created ImagePositionAssociation object if successful, None otherwise
+        """
+        # Get or use the provided request_id
+        rid = request_id or get_request_id()
+
+        # Get a database session if one wasn't provided
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+            debug_id(f"Created new database session for ImagePositionAssociation.associate_image_position", rid)
+
+        # Log the operation with request ID
+        debug_id(
+            f"Starting ImagePositionAssociation.associate_image_position with parameters: image_id={image_id}, position_id={position_id}",
+            rid)
+
+        try:
+            # Use the timed operation context manager with request ID
+            with log_timed_operation("ImagePositionAssociation.associate_image_position", rid):
+                from models import Image, Position
+
+                # Check if image exists
+                image = session.query(Image).filter(Image.id == image_id).first()
+                if not image:
+                    error_id(
+                        f"Error in ImagePositionAssociation.associate_image_position: Image with ID {image_id} not found",
+                        rid)
+                    return None
+
+                # Check if position exists
+                position = session.query(Position).filter(Position.id == position_id).first()
+                if not position:
+                    error_id(
+                        f"Error in ImagePositionAssociation.associate_image_position: Position with ID {position_id} not found",
+                        rid)
+                    return None
+
+                # Check if association already exists
+                existing = session.query(cls).filter(
+                    cls.image_id == image_id,
+                    cls.position_id == position_id
+                ).first()
+
+                if existing:
+                    debug_id(f"Association between image {image_id} and position {position_id} already exists", rid)
+                    return existing
+
+                # Create new association
+                association = cls(image_id=image_id, position_id=position_id)
+                session.add(association)
+
+                # Commit if we created the session
+                if not session_provided:
+                    session.commit()
+                    debug_id(f"Committed new association between image {image_id} and position {position_id}", rid)
+
+                return association
+
+        except Exception as e:
+            error_id(f"Error in ImagePositionAssociation.associate_image_position: {str(e)}", rid, exc_info=True)
+            if not session_provided:
+                session.rollback()
+                debug_id(f"Rolled back transaction in ImagePositionAssociation.associate_image_position", rid)
+            return None
+        finally:
+            # Close the session if we created it
+            if not session_provided:
+                session.close()
+                debug_id(f"Closed database session for ImagePositionAssociation.associate_image_position", rid)
+
+    @classmethod
+    @with_request_id
+    def dissociate_image_position(cls,
+                                  image_id: int,
+                                  position_id: int,
+                                  request_id: Optional[str] = None,
+                                  session: Optional[Session] = None) -> bool:
+        """
+        Remove an association between an image and a position.
+
+        Args:
+            image_id: ID of the image to dissociate
+            position_id: ID of the position to dissociate
+            request_id: Optional request ID for tracking this operation in logs
+            session: Optional SQLAlchemy session. If None, a new session will be created
+
+        Returns:
+            True if the association was removed, False otherwise
+        """
+        # Get or use the provided request_id
+        rid = request_id or get_request_id()
+
+        # Get a database session if one wasn't provided
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+            debug_id(f"Created new database session for ImagePositionAssociation.dissociate_image_position", rid)
+
+        # Log the operation with request ID
+        debug_id(
+            f"Starting ImagePositionAssociation.dissociate_image_position with parameters: image_id={image_id}, position_id={position_id}",
+            rid)
+
+        try:
+            # Use the timed operation context manager with request ID
+            with log_timed_operation("ImagePositionAssociation.dissociate_image_position", rid):
+                # Find the association
+                association = session.query(cls).filter(
+                    cls.image_id == image_id,
+                    cls.position_id == position_id
+                ).first()
+
+                if not association:
+                    debug_id(f"No association found between image {image_id} and position {position_id}", rid)
+                    return False
+
+                # Delete the association
+                session.delete(association)
+
+                # Commit if we created the session
+                if not session_provided:
+                    session.commit()
+                    debug_id(f"Removed association between image {image_id} and position {position_id}", rid)
+
+                return True
+
+        except Exception as e:
+            error_id(f"Error in ImagePositionAssociation.dissociate_image_position: {str(e)}", rid, exc_info=True)
+            if not session_provided:
+                session.rollback()
+                debug_id(f"Rolled back transaction in ImagePositionAssociation.dissociate_image_position", rid)
+            return False
+        finally:
+            # Close the session if we created it
+            if not session_provided:
+                session.close()
+                debug_id(f"Closed database session for ImagePositionAssociation.dissociate_image_position", rid)
+
+    @classmethod
+    @with_request_id
+    def get_positions_by_image(cls,
+                               image_id: Optional[int] = None,
+                               title: Optional[str] = None,
+                               description: Optional[str] = None,
+                               file_path: Optional[str] = None,
+                               position_id: Optional[int] = None,
+                               area_id: Optional[int] = None,
+                               equipment_group_id: Optional[int] = None,
+                               model_id: Optional[int] = None,
+                               asset_number_id: Optional[int] = None,
+                               location_id: Optional[int] = None,
+                               subassembly_id: Optional[int] = None,
+                               component_assembly_id: Optional[int] = None,
+                               assembly_view_id: Optional[int] = None,
+                               site_location_id: Optional[int] = None,
+                               exact_match: bool = False,
+                               limit: int = 100,
+                               request_id: Optional[str] = None,
+                               session: Optional[Session] = None) -> List['Position']:
+        """
+        Get positions associated with images based on flexible search criteria.
+
+        Args:
+            image_id: Optional image ID to filter by
+            title: Optional image title to filter by
+            description: Optional image description to filter by
+            file_path: Optional file path to filter by
+            position_id: Optional position ID to filter by
+            area_id: Optional area ID to filter by
+            equipment_group_id: Optional equipment group ID to filter by
+            model_id: Optional model ID to filter by
+            asset_number_id: Optional asset number ID to filter by
+            location_id: Optional location ID to filter by
+            subassembly_id: Optional subassembly ID to filter by
+            component_assembly_id: Optional component assembly ID to filter by
+            assembly_view_id: Optional assembly view ID to filter by
+            site_location_id: Optional site location ID to filter by
+            exact_match: If True, performs exact matching instead of partial matching for string fields
+            limit: Maximum number of results to return (default 100)
+            request_id: Optional request ID for tracking this operation in logs
+            session: Optional SQLAlchemy session. If None, a new session will be created
+
+        Returns:
+            List of Position objects matching the search criteria
+        """
+        # Get or use the provided request_id
+        rid = request_id or get_request_id()
+
+        # Get a database session if one wasn't provided
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+            debug_id(f"Created new database session for ImagePositionAssociation.get_positions_by_image", rid)
+
+        # Log the search operation with request ID
+        search_params = {
+            'image_id': image_id,
+            'title': title,
+            'description': description,
+            'file_path': file_path,
+            'position_id': position_id,
+            'area_id': area_id,
+            'equipment_group_id': equipment_group_id,
+            'model_id': model_id,
+            'asset_number_id': asset_number_id,
+            'location_id': location_id,
+            'subassembly_id': subassembly_id,
+            'component_assembly_id': component_assembly_id,
+            'assembly_view_id': assembly_view_id,
+            'site_location_id': site_location_id,
+            'exact_match': exact_match,
+            'limit': limit
+        }
+        # Filter out None values for cleaner logging
+        logged_params = {k: v for k, v in search_params.items() if v is not None}
+        debug_id(f"Starting ImagePositionAssociation.get_positions_by_image with parameters: {logged_params}", rid)
+
+        try:
+            # Use the timed operation context manager with request ID
+            with log_timed_operation("ImagePositionAssociation.get_positions_by_image", rid):
+                from models import Image, Position
+
+                # Start with a query that joins Position and ImagePositionAssociation
+                query = session.query(Position).join(cls, Position.id == cls.position_id).join(Image,
+                                                                                               Image.id == cls.image_id)
+
+                # Apply image filters
+                if image_id is not None:
+                    query = query.filter(Image.id == image_id)
+
+                if title is not None:
+                    if exact_match:
+                        query = query.filter(Image.title == title)
+                    else:
+                        query = query.filter(Image.title.ilike(f"%{title}%"))
+
+                if description is not None:
+                    if exact_match:
+                        query = query.filter(Image.description == description)
+                    else:
+                        query = query.filter(Image.description.ilike(f"%{description}%"))
+
+                if file_path is not None:
+                    if exact_match:
+                        query = query.filter(Image.file_path == file_path)
+                    else:
+                        query = query.filter(Image.file_path.ilike(f"%{file_path}%"))
+
+                # Apply position filters
+                if position_id is not None:
+                    query = query.filter(Position.id == position_id)
+
+                if area_id is not None:
+                    query = query.filter(Position.area_id == area_id)
+
+                if equipment_group_id is not None:
+                    query = query.filter(Position.equipment_group_id == equipment_group_id)
+
+                if model_id is not None:
+                    query = query.filter(Position.model_id == model_id)
+
+                if asset_number_id is not None:
+                    query = query.filter(Position.asset_number_id == asset_number_id)
+
+                if location_id is not None:
+                    query = query.filter(Position.location_id == location_id)
+
+                if subassembly_id is not None:
+                    query = query.filter(Position.subassembly_id == subassembly_id)
+
+                if component_assembly_id is not None:
+                    query = query.filter(Position.component_assembly_id == component_assembly_id)
+
+                if assembly_view_id is not None:
+                    query = query.filter(Position.assembly_view_id == assembly_view_id)
+
+                if site_location_id is not None:
+                    query = query.filter(Position.site_location_id == site_location_id)
+
+                # Make results distinct to avoid duplicates
+                query = query.distinct()
+
+                # Apply limit
+                query = query.limit(limit)
+
+                # Execute query and log results
+                results = query.all()
+                debug_id(f"ImagePositionAssociation.get_positions_by_image completed, found {len(results)} positions",
+                         rid)
+                return results
+
+        except Exception as e:
+            error_id(f"Error in ImagePositionAssociation.get_positions_by_image: {str(e)}", rid, exc_info=True)
+            return []
+        finally:
+            # Close the session if we created it
+            if not session_provided:
+                session.close()
+                debug_id(f"Closed database session for ImagePositionAssociation.get_positions_by_image", rid)
+
+    @classmethod
+    @with_request_id
+    def get_images_by_position(cls,
+                               position_id: Optional[int] = None,
+                               area_id: Optional[int] = None,
+                               equipment_group_id: Optional[int] = None,
+                               model_id: Optional[int] = None,
+                               asset_number_id: Optional[int] = None,
+                               location_id: Optional[int] = None,
+                               subassembly_id: Optional[int] = None,
+                               component_assembly_id: Optional[int] = None,
+                               assembly_view_id: Optional[int] = None,
+                               site_location_id: Optional[int] = None,
+                               image_id: Optional[int] = None,
+                               title: Optional[str] = None,
+                               description: Optional[str] = None,
+                               file_path: Optional[str] = None,
+                               exact_match: bool = False,
+                               limit: int = 100,
+                               request_id: Optional[str] = None,
+                               session: Optional[Session] = None) -> List['Image']:
+        """
+        Get images associated with positions based on flexible search criteria.
+
+        Args:
+            position_id: Optional position ID to filter by
+            area_id: Optional area ID to filter by
+            equipment_group_id: Optional equipment group ID to filter by
+            model_id: Optional model ID to filter by
+            asset_number_id: Optional asset number ID to filter by
+            location_id: Optional location ID to filter by
+            subassembly_id: Optional subassembly ID to filter by
+            component_assembly_id: Optional component assembly ID to filter by
+            assembly_view_id: Optional assembly view ID to filter by
+            site_location_id: Optional site location ID to filter by
+            image_id: Optional image ID to filter by
+            title: Optional image title to filter by
+            description: Optional image description to filter by
+            file_path: Optional file path to filter by
+            exact_match: If True, performs exact matching instead of partial matching for string fields
+            limit: Maximum number of results to return (default 100)
+            request_id: Optional request ID for tracking this operation in logs
+            session: Optional SQLAlchemy session. If None, a new session will be created
+
+        Returns:
+            List of Image objects matching the search criteria
+        """
+        # Get or use the provided request_id
+        rid = request_id or get_request_id()
+
+        # Get a database session if one wasn't provided
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+            debug_id(f"Created new database session for ImagePositionAssociation.get_images_by_position", rid)
+
+        # Log the search operation with request ID
+        search_params = {
+            'position_id': position_id,
+            'area_id': area_id,
+            'equipment_group_id': equipment_group_id,
+            'model_id': model_id,
+            'asset_number_id': asset_number_id,
+            'location_id': location_id,
+            'subassembly_id': subassembly_id,
+            'component_assembly_id': component_assembly_id,
+            'assembly_view_id': assembly_view_id,
+            'site_location_id': site_location_id,
+            'image_id': image_id,
+            'title': title,
+            'description': description,
+            'file_path': file_path,
+            'exact_match': exact_match,
+            'limit': limit
+        }
+        # Filter out None values for cleaner logging
+        logged_params = {k: v for k, v in search_params.items() if v is not None}
+        debug_id(f"Starting ImagePositionAssociation.get_images_by_position with parameters: {logged_params}", rid)
+
+        try:
+            # Use the timed operation context manager with request ID
+            with log_timed_operation("ImagePositionAssociation.get_images_by_position", rid):
+                from models import Image, Position
+
+                # Start with a query that joins Image and ImagePositionAssociation
+                query = session.query(Image).join(cls, Image.id == cls.image_id).join(Position,
+                                                                                      Position.id == cls.position_id)
+
+                # Apply position filters
+                if position_id is not None:
+                    query = query.filter(Position.id == position_id)
+
+                if area_id is not None:
+                    query = query.filter(Position.area_id == area_id)
+
+                if equipment_group_id is not None:
+                    query = query.filter(Position.equipment_group_id == equipment_group_id)
+
+                if model_id is not None:
+                    query = query.filter(Position.model_id == model_id)
+
+                if asset_number_id is not None:
+                    query = query.filter(Position.asset_number_id == asset_number_id)
+
+                if location_id is not None:
+                    query = query.filter(Position.location_id == location_id)
+
+                if subassembly_id is not None:
+                    query = query.filter(Position.subassembly_id == subassembly_id)
+
+                if component_assembly_id is not None:
+                    query = query.filter(Position.component_assembly_id == component_assembly_id)
+
+                if assembly_view_id is not None:
+                    query = query.filter(Position.assembly_view_id == assembly_view_id)
+
+                if site_location_id is not None:
+                    query = query.filter(Position.site_location_id == site_location_id)
+
+                # Apply image filters
+                if image_id is not None:
+                    query = query.filter(Image.id == image_id)
+
+                if title is not None:
+                    if exact_match:
+                        query = query.filter(Image.title == title)
+                    else:
+                        query = query.filter(Image.title.ilike(f"%{title}%"))
+
+                if description is not None:
+                    if exact_match:
+                        query = query.filter(Image.description == description)
+                    else:
+                        query = query.filter(Image.description.ilike(f"%{description}%"))
+
+                if file_path is not None:
+                    if exact_match:
+                        query = query.filter(Image.file_path == file_path)
+                    else:
+                        query = query.filter(Image.file_path.ilike(f"%{file_path}%"))
+
+                # Make results distinct to avoid duplicates
+                query = query.distinct()
+
+                # Apply limit
+                query = query.limit(limit)
+
+                # Execute query and log results
+                results = query.all()
+                debug_id(f"ImagePositionAssociation.get_images_by_position completed, found {len(results)} images", rid)
+                return results
+
+        except Exception as e:
+            error_id(f"Error in ImagePositionAssociation.get_images_by_position: {str(e)}", rid, exc_info=True)
+            return []
+        finally:
+            # Close the session if we created it
+            if not session_provided:
+                session.close()
+                debug_id(f"Closed database session for ImagePositionAssociation.get_images_by_position", rid)
+
 class DrawingPositionAssociation(Base):
     __tablename__ = 'drawing_position'
     id = Column(Integer, primary_key=True)
@@ -2701,6 +6482,545 @@ class DrawingPositionAssociation(Base):
     
     drawing = relationship("Drawing", back_populates="drawing_position")
     position = relationship("Position", back_populates="drawing_position")
+
+    @classmethod
+    @with_request_id
+    def associate_drawing_position(cls,
+                                   drawing_id: int,
+                                   position_id: int,
+                                   request_id: Optional[str] = None,
+                                   session: Optional[Session] = None) -> Optional['DrawingPositionAssociation']:
+        """
+        Associate a drawing with a position.
+
+        Args:
+            drawing_id: ID of the drawing to associate
+            position_id: ID of the position to associate
+            request_id: Optional request ID for tracking this operation in logs
+            session: Optional SQLAlchemy session. If None, a new session will be created
+
+        Returns:
+            The created DrawingPositionAssociation object if successful, None otherwise
+        """
+        # Get or use the provided request_id
+        rid = request_id or get_request_id()
+
+        # Get a database session if one wasn't provided
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+            debug_id(f"Created new database session for DrawingPositionAssociation.associate_drawing_position", rid)
+
+        # Log the operation with request ID
+        debug_id(
+            f"Starting DrawingPositionAssociation.associate_drawing_position with parameters: drawing_id={drawing_id}, position_id={position_id}",
+            rid)
+
+        try:
+            # Use the timed operation context manager with request ID
+            with log_timed_operation("DrawingPositionAssociation.associate_drawing_position", rid):
+                from models import Drawing, Position
+
+                # Check if drawing exists
+                drawing = session.query(Drawing).filter(Drawing.id == drawing_id).first()
+                if not drawing:
+                    error_id(
+                        f"Error in DrawingPositionAssociation.associate_drawing_position: Drawing with ID {drawing_id} not found",
+                        rid)
+                    return None
+
+                # Check if position exists
+                position = session.query(Position).filter(Position.id == position_id).first()
+                if not position:
+                    error_id(
+                        f"Error in DrawingPositionAssociation.associate_drawing_position: Position with ID {position_id} not found",
+                        rid)
+                    return None
+
+                # Check if association already exists
+                existing = session.query(cls).filter(
+                    cls.drawing_id == drawing_id,
+                    cls.position_id == position_id
+                ).first()
+
+                if existing:
+                    debug_id(f"Association between drawing {drawing_id} and position {position_id} already exists", rid)
+                    return existing
+
+                # Create new association
+                association = cls(drawing_id=drawing_id, position_id=position_id)
+                session.add(association)
+
+                # Commit if we created the session
+                if not session_provided:
+                    session.commit()
+                    debug_id(f"Committed new association between drawing {drawing_id} and position {position_id}", rid)
+
+                return association
+
+        except Exception as e:
+            error_id(f"Error in DrawingPositionAssociation.associate_drawing_position: {str(e)}", rid, exc_info=True)
+            if not session_provided:
+                session.rollback()
+                debug_id(f"Rolled back transaction in DrawingPositionAssociation.associate_drawing_position", rid)
+            return None
+        finally:
+            # Close the session if we created it
+            if not session_provided:
+                session.close()
+                debug_id(f"Closed database session for DrawingPositionAssociation.associate_drawing_position", rid)
+
+    @classmethod
+    @with_request_id
+    def dissociate_drawing_position(cls,
+                                    drawing_id: int,
+                                    position_id: int,
+                                    request_id: Optional[str] = None,
+                                    session: Optional[Session] = None) -> bool:
+        """
+        Remove an association between a drawing and a position.
+
+        Args:
+            drawing_id: ID of the drawing to dissociate
+            position_id: ID of the position to dissociate
+            request_id: Optional request ID for tracking this operation in logs
+            session: Optional SQLAlchemy session. If None, a new session will be created
+
+        Returns:
+            True if the association was removed, False otherwise
+        """
+        # Get or use the provided request_id
+        rid = request_id or get_request_id()
+
+        # Get a database session if one wasn't provided
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+            debug_id(f"Created new database session for DrawingPositionAssociation.dissociate_drawing_position", rid)
+
+        # Log the operation with request ID
+        debug_id(
+            f"Starting DrawingPositionAssociation.dissociate_drawing_position with parameters: drawing_id={drawing_id}, position_id={position_id}",
+            rid)
+
+        try:
+            # Use the timed operation context manager with request ID
+            with log_timed_operation("DrawingPositionAssociation.dissociate_drawing_position", rid):
+                # Find the association
+                association = session.query(cls).filter(
+                    cls.drawing_id == drawing_id,
+                    cls.position_id == position_id
+                ).first()
+
+                if not association:
+                    debug_id(f"No association found between drawing {drawing_id} and position {position_id}", rid)
+                    return False
+
+                # Delete the association
+                session.delete(association)
+
+                # Commit if we created the session
+                if not session_provided:
+                    session.commit()
+                    debug_id(f"Removed association between drawing {drawing_id} and position {position_id}", rid)
+
+                return True
+
+        except Exception as e:
+            error_id(f"Error in DrawingPositionAssociation.dissociate_drawing_position: {str(e)}", rid, exc_info=True)
+            if not session_provided:
+                session.rollback()
+                debug_id(f"Rolled back transaction in DrawingPositionAssociation.dissociate_drawing_position", rid)
+            return False
+        finally:
+            # Close the session if we created it
+            if not session_provided:
+                session.close()
+                debug_id(f"Closed database session for DrawingPositionAssociation.dissociate_drawing_position", rid)
+
+    @classmethod
+    @with_request_id
+    def get_positions_by_drawing(cls,
+                                 drawing_id: Optional[int] = None,
+                                 drw_equipment_name: Optional[str] = None,
+                                 drw_number: Optional[str] = None,
+                                 drw_name: Optional[str] = None,
+                                 drw_revision: Optional[str] = None,
+                                 drw_spare_part_number: Optional[str] = None,
+                                 file_path: Optional[str] = None,
+                                 position_id: Optional[int] = None,
+                                 area_id: Optional[int] = None,
+                                 equipment_group_id: Optional[int] = None,
+                                 model_id: Optional[int] = None,
+                                 asset_number_id: Optional[int] = None,
+                                 location_id: Optional[int] = None,
+                                 subassembly_id: Optional[int] = None,
+                                 component_assembly_id: Optional[int] = None,
+                                 assembly_view_id: Optional[int] = None,
+                                 site_location_id: Optional[int] = None,
+                                 exact_match: bool = False,
+                                 limit: int = 100,
+                                 request_id: Optional[str] = None,
+                                 session: Optional[Session] = None) -> List['Position']:
+        """
+        Get positions associated with drawings based on flexible search criteria.
+
+        Args:
+            drawing_id: Optional drawing ID to filter by
+            drw_equipment_name: Optional equipment name to filter by
+            drw_number: Optional drawing number to filter by
+            drw_name: Optional drawing name to filter by
+            drw_revision: Optional revision to filter by
+            drw_spare_part_number: Optional spare part number to filter by
+            file_path: Optional file path to filter by
+            position_id: Optional position ID to filter by
+            area_id: Optional area ID to filter by
+            equipment_group_id: Optional equipment group ID to filter by
+            model_id: Optional model ID to filter by
+            asset_number_id: Optional asset number ID to filter by
+            location_id: Optional location ID to filter by
+            subassembly_id: Optional subassembly ID to filter by
+            component_assembly_id: Optional component assembly ID to filter by
+            assembly_view_id: Optional assembly view ID to filter by
+            site_location_id: Optional site location ID to filter by
+            exact_match: If True, performs exact matching instead of partial matching for string fields
+            limit: Maximum number of results to return (default 100)
+            request_id: Optional request ID for tracking this operation in logs
+            session: Optional SQLAlchemy session. If None, a new session will be created
+
+        Returns:
+            List of Position objects matching the search criteria
+        """
+        # Get or use the provided request_id
+        rid = request_id or get_request_id()
+
+        # Get a database session if one wasn't provided
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+            debug_id(f"Created new database session for DrawingPositionAssociation.get_positions_by_drawing", rid)
+
+        # Log the search operation with request ID
+        search_params = {
+            'drawing_id': drawing_id,
+            'drw_equipment_name': drw_equipment_name,
+            'drw_number': drw_number,
+            'drw_name': drw_name,
+            'drw_revision': drw_revision,
+            'drw_spare_part_number': drw_spare_part_number,
+            'file_path': file_path,
+            'position_id': position_id,
+            'area_id': area_id,
+            'equipment_group_id': equipment_group_id,
+            'model_id': model_id,
+            'asset_number_id': asset_number_id,
+            'location_id': location_id,
+            'subassembly_id': subassembly_id,
+            'component_assembly_id': component_assembly_id,
+            'assembly_view_id': assembly_view_id,
+            'site_location_id': site_location_id,
+            'exact_match': exact_match,
+            'limit': limit
+        }
+        # Filter out None values for cleaner logging
+        logged_params = {k: v for k, v in search_params.items() if v is not None}
+        debug_id(f"Starting DrawingPositionAssociation.get_positions_by_drawing with parameters: {logged_params}", rid)
+
+        try:
+            # Use the timed operation context manager with request ID
+            with log_timed_operation("DrawingPositionAssociation.get_positions_by_drawing", rid):
+                from models import Drawing, Position
+
+                # Start with a query that joins Position and DrawingPositionAssociation
+                query = session.query(Position).join(cls, Position.id == cls.position_id).join(Drawing,
+                                                                                               Drawing.id == cls.drawing_id)
+
+                # Apply drawing filters
+                if drawing_id is not None:
+                    query = query.filter(Drawing.id == drawing_id)
+
+                if drw_equipment_name is not None:
+                    if exact_match:
+                        query = query.filter(Drawing.drw_equipment_name == drw_equipment_name)
+                    else:
+                        query = query.filter(Drawing.drw_equipment_name.ilike(f"%{drw_equipment_name}%"))
+
+                if drw_number is not None:
+                    if exact_match:
+                        query = query.filter(Drawing.drw_number == drw_number)
+                    else:
+                        query = query.filter(Drawing.drw_number.ilike(f"%{drw_number}%"))
+
+                if drw_name is not None:
+                    if exact_match:
+                        query = query.filter(Drawing.drw_name == drw_name)
+                    else:
+                        query = query.filter(Drawing.drw_name.ilike(f"%{drw_name}%"))
+
+                if drw_revision is not None:
+                    if exact_match:
+                        query = query.filter(Drawing.drw_revision == drw_revision)
+                    else:
+                        query = query.filter(Drawing.drw_revision.ilike(f"%{drw_revision}%"))
+
+                if drw_spare_part_number is not None:
+                    if exact_match:
+                        query = query.filter(Drawing.drw_spare_part_number == drw_spare_part_number)
+                    else:
+                        query = query.filter(Drawing.drw_spare_part_number.ilike(f"%{drw_spare_part_number}%"))
+
+                if file_path is not None:
+                    if exact_match:
+                        query = query.filter(Drawing.file_path == file_path)
+                    else:
+                        query = query.filter(Drawing.file_path.ilike(f"%{file_path}%"))
+
+                # Apply position filters
+                if position_id is not None:
+                    query = query.filter(Position.id == position_id)
+
+                if area_id is not None:
+                    query = query.filter(Position.area_id == area_id)
+
+                if equipment_group_id is not None:
+                    query = query.filter(Position.equipment_group_id == equipment_group_id)
+
+                if model_id is not None:
+                    query = query.filter(Position.model_id == model_id)
+
+                if asset_number_id is not None:
+                    query = query.filter(Position.asset_number_id == asset_number_id)
+
+                if location_id is not None:
+                    query = query.filter(Position.location_id == location_id)
+
+                if subassembly_id is not None:
+                    query = query.filter(Position.subassembly_id == subassembly_id)
+
+                if component_assembly_id is not None:
+                    query = query.filter(Position.component_assembly_id == component_assembly_id)
+
+                if assembly_view_id is not None:
+                    query = query.filter(Position.assembly_view_id == assembly_view_id)
+
+                if site_location_id is not None:
+                    query = query.filter(Position.site_location_id == site_location_id)
+
+                # Make results distinct to avoid duplicates
+                query = query.distinct()
+
+                # Apply limit
+                query = query.limit(limit)
+
+                # Execute query and log results
+                results = query.all()
+                debug_id(
+                    f"DrawingPositionAssociation.get_positions_by_drawing completed, found {len(results)} positions",
+                    rid)
+                return results
+
+        except Exception as e:
+            error_id(f"Error in DrawingPositionAssociation.get_positions_by_drawing: {str(e)}", rid, exc_info=True)
+            return []
+        finally:
+            # Close the session if we created it
+            if not session_provided:
+                session.close()
+                debug_id(f"Closed database session for DrawingPositionAssociation.get_positions_by_drawing", rid)
+
+    @classmethod
+    @with_request_id
+    def get_drawings_by_position(cls,
+                                 position_id: Optional[int] = None,
+                                 area_id: Optional[int] = None,
+                                 equipment_group_id: Optional[int] = None,
+                                 model_id: Optional[int] = None,
+                                 asset_number_id: Optional[int] = None,
+                                 location_id: Optional[int] = None,
+                                 subassembly_id: Optional[int] = None,
+                                 component_assembly_id: Optional[int] = None,
+                                 assembly_view_id: Optional[int] = None,
+                                 site_location_id: Optional[int] = None,
+                                 drawing_id: Optional[int] = None,
+                                 drw_equipment_name: Optional[str] = None,
+                                 drw_number: Optional[str] = None,
+                                 drw_name: Optional[str] = None,
+                                 drw_revision: Optional[str] = None,
+                                 drw_spare_part_number: Optional[str] = None,
+                                 file_path: Optional[str] = None,
+                                 exact_match: bool = False,
+                                 limit: int = 100,
+                                 request_id: Optional[str] = None,
+                                 session: Optional[Session] = None) -> List['Drawing']:
+        """
+        Get drawings associated with positions based on flexible search criteria.
+
+        Args:
+            position_id: Optional position ID to filter by
+            area_id: Optional area ID to filter by
+            equipment_group_id: Optional equipment group ID to filter by
+            model_id: Optional model ID to filter by
+            asset_number_id: Optional asset number ID to filter by
+            location_id: Optional location ID to filter by
+            subassembly_id: Optional subassembly ID to filter by
+            component_assembly_id: Optional component assembly ID to filter by
+            assembly_view_id: Optional assembly view ID to filter by
+            site_location_id: Optional site location ID to filter by
+            drawing_id: Optional drawing ID to filter by
+            drw_equipment_name: Optional equipment name to filter by
+            drw_number: Optional drawing number to filter by
+            drw_name: Optional drawing name to filter by
+            drw_revision: Optional revision to filter by
+            drw_spare_part_number: Optional spare part number to filter by
+            file_path: Optional file path to filter by
+            exact_match: If True, performs exact matching instead of partial matching for string fields
+            limit: Maximum number of results to return (default 100)
+            request_id: Optional request ID for tracking this operation in logs
+            session: Optional SQLAlchemy session. If None, a new session will be created
+
+        Returns:
+            List of Drawing objects matching the search criteria
+        """
+        # Get or use the provided request_id
+        rid = request_id or get_request_id()
+
+        # Get a database session if one wasn't provided
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+            debug_id(f"Created new database session for DrawingPositionAssociation.get_drawings_by_position", rid)
+
+        # Log the search operation with request ID
+        search_params = {
+            'position_id': position_id,
+            'area_id': area_id,
+            'equipment_group_id': equipment_group_id,
+            'model_id': model_id,
+            'asset_number_id': asset_number_id,
+            'location_id': location_id,
+            'subassembly_id': subassembly_id,
+            'component_assembly_id': component_assembly_id,
+            'assembly_view_id': assembly_view_id,
+            'site_location_id': site_location_id,
+            'drawing_id': drawing_id,
+            'drw_equipment_name': drw_equipment_name,
+            'drw_number': drw_number,
+            'drw_name': drw_name,
+            'drw_revision': drw_revision,
+            'drw_spare_part_number': drw_spare_part_number,
+            'file_path': file_path,
+            'exact_match': exact_match,
+            'limit': limit
+        }
+        # Filter out None values for cleaner logging
+        logged_params = {k: v for k, v in search_params.items() if v is not None}
+        debug_id(f"Starting DrawingPositionAssociation.get_drawings_by_position with parameters: {logged_params}", rid)
+
+        try:
+            # Use the timed operation context manager with request ID
+            with log_timed_operation("DrawingPositionAssociation.get_drawings_by_position", rid):
+                from models import Drawing, Position
+
+                # Start with a query that joins Drawing and DrawingPositionAssociation
+                query = session.query(Drawing).join(cls, Drawing.id == cls.drawing_id).join(Position,
+                                                                                            Position.id == cls.position_id)
+
+                # Apply position filters
+                if position_id is not None:
+                    query = query.filter(Position.id == position_id)
+
+                if area_id is not None:
+                    query = query.filter(Position.area_id == area_id)
+
+                if equipment_group_id is not None:
+                    query = query.filter(Position.equipment_group_id == equipment_group_id)
+
+                if model_id is not None:
+                    query = query.filter(Position.model_id == model_id)
+
+                if asset_number_id is not None:
+                    query = query.filter(Position.asset_number_id == asset_number_id)
+
+                if location_id is not None:
+                    query = query.filter(Position.location_id == location_id)
+
+                if subassembly_id is not None:
+                    query = query.filter(Position.subassembly_id == subassembly_id)
+
+                if component_assembly_id is not None:
+                    query = query.filter(Position.component_assembly_id == component_assembly_id)
+
+                if assembly_view_id is not None:
+                    query = query.filter(Position.assembly_view_id == assembly_view_id)
+
+                if site_location_id is not None:
+                    query = query.filter(Position.site_location_id == site_location_id)
+
+                # Apply drawing filters
+                if drawing_id is not None:
+                    query = query.filter(Drawing.id == drawing_id)
+
+                if drw_equipment_name is not None:
+                    if exact_match:
+                        query = query.filter(Drawing.drw_equipment_name == drw_equipment_name)
+                    else:
+                        query = query.filter(Drawing.drw_equipment_name.ilike(f"%{drw_equipment_name}%"))
+
+                if drw_number is not None:
+                    if exact_match:
+                        query = query.filter(Drawing.drw_number == drw_number)
+                    else:
+                        query = query.filter(Drawing.drw_number.ilike(f"%{drw_number}%"))
+
+                if drw_name is not None:
+                    if exact_match:
+                        query = query.filter(Drawing.drw_name == drw_name)
+                    else:
+                        query = query.filter(Drawing.drw_name.ilike(f"%{drw_name}%"))
+
+                if drw_revision is not None:
+                    if exact_match:
+                        query = query.filter(Drawing.drw_revision == drw_revision)
+                    else:
+                        query = query.filter(Drawing.drw_revision.ilike(f"%{drw_revision}%"))
+
+                if drw_spare_part_number is not None:
+                    if exact_match:
+                        query = query.filter(Drawing.drw_spare_part_number == drw_spare_part_number)
+                    else:
+                        query = query.filter(Drawing.drw_spare_part_number.ilike(f"%{drw_spare_part_number}%"))
+
+                if file_path is not None:
+                    if exact_match:
+                        query = query.filter(Drawing.file_path == file_path)
+                    else:
+                        query = query.filter(Drawing.file_path.ilike(f"%{file_path}%"))
+
+                # Make results distinct to avoid duplicates
+                query = query.distinct()
+
+                # Apply limit
+                query = query.limit(limit)
+
+                # Execute query and log results
+                results = query.all()
+                debug_id(
+                    f"DrawingPositionAssociation.get_drawings_by_position completed, found {len(results)} drawings",
+                    rid)
+                return results
+
+        except Exception as e:
+            error_id(f"Error in DrawingPositionAssociation.get_drawings_by_position: {str(e)}", rid, exc_info=True)
+            return []
+        finally:
+            # Close the session if we created it
+            if not session_provided:
+                session.close()
+                debug_id(f"Closed database session for DrawingPositionAssociation.get_drawings_by_position", rid)
 
 class CompletedDocumentPositionAssociation(Base):
     __tablename__ = 'completed_document_position_association'
@@ -2741,6 +7061,7 @@ class KeywordAction(Base):
     query = scoped_session(session).query_property()
 
     @classmethod
+    @with_request_id
     def find_best_match(cls, user_input, session):
         try:
             # Retrieve all keywords from the database
@@ -3094,6 +7415,7 @@ class KivyUser(User):
         return False
 
     @classmethod
+    @with_request_id
     def ensure_kivy_user(cls, session, user_or_id):
         """
         Ensures a KivyUser record exists for a given User or user ID.
@@ -3225,6 +7547,7 @@ class ToolImageAssociation(Base):
     image = relationship('Image', back_populates='tool_image_association')
 
     @classmethod
+    @with_request_id
     def associate_with_tool(cls, session, image_id, tool_id, description=None):
         """Associate an existing image with a tool in the database.
 
@@ -3274,6 +7597,7 @@ class ToolImageAssociation(Base):
             return new_association
 
     @classmethod
+    @with_request_id
     def add_and_associate_with_tool(cls, session, title, file_path, tool_id, description="",
                                     association_description=None):
         """Add an image to the database and associate it with a tool in one operation.
