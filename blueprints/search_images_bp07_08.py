@@ -87,7 +87,7 @@ def search_images():
         flash("No search criteria provided", "error")
         logger.info("No search criteria provided. Redirecting to upload_search_database.html.")
         session.close()
-        return render_template('upload_search_database.html')
+        return render_template('upload_search_database/upload_search_database.html')
 
     # Paginate the results
     images = query.offset(offset).limit(per_page).all()
@@ -102,7 +102,7 @@ def search_images():
     if not images:
         flash("No images found matching the criteria", "error")
         logger.info("No images found. Redirecting to upload_search_database.html.")
-        return render_template('upload_search_database.html')
+        return render_template('upload_search_database/upload_search_database.html')
 
     logger.info(f"Returning {len(images)} images for display on page {page}.")
     return render_template('image_results.html', images=images, description=description, title=title, page=page, total_pages=total_pages)

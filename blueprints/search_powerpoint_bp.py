@@ -100,4 +100,4 @@ def search_powerpoint():
     
     # If no search criteria provided or no matching results found, render the search form or a default page
     print("Debug: No search criteria provided or no matching results found. Rendering search form.")
-    return render_template('upload_search_database.html')
+    return render_template('upload_search_database/upload_search_database.html')
