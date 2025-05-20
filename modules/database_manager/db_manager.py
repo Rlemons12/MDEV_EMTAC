@@ -2,6 +2,10 @@ from modules.configuration.config_env import DatabaseConfig
 from modules.configuration.log_config import debug_id, info_id, error_id, get_request_id,logger
 from modules.emtacdb.emtacdb_fts import Part, Image, PartsPositionImageAssociation, Drawing, DrawingPartAssociation
 from sqlalchemy import and_
+import pandas as pd
+import sqlite3
+import json
+from datetime import datetime
 
 
 class DatabaseManager:
@@ -250,3 +254,242 @@ class DuplicateManager(DatabaseManager):
         """
         # Implementation for merging entities
         pass
+
+
+import pandas as pd
+import json
+from datetime import datetime
+import os
+import sys
+
+# Import logging and database configurations
+from modules.configuration.log_config import (
+    logger, debug_id, info_id, warning_id, error_id,
+    set_request_id, get_request_id, log_timed_operation,
+    with_request_id
+)
+from modules.configuration.config_env import DatabaseConfig
+
+
+class EnhancedExcelToSQLiteMapper:
+    def __init__(self, excel_path, db_config=None):
+        """
+        Initialize the mapper with an Excel file path and database configuration.
+
+        Args:
+            excel_path: Path to the Excel file
+            db_config: DatabaseConfig instance. If None, a new one will be created.
+        """
+        # Generate a request ID for tracking operations
+        self.request_id = set_request_id()
+        info_id("Initializing EnhancedExcelToSQLiteMapper", self.request_id)
+
+        self.excel_path = excel_path
+
+        # Use the provided db_config or create a new one
+        self.db_config = db_config if db_config else DatabaseConfig()
+
+        debug_id(f"Mapper initialized with Excel file: {excel_path}", self.request_id)
+
+    def infer_sqlite_type(self, pandas_dtype):
+        """Infer SQLite type from pandas dtype."""
+        if pd.api.types.is_integer_dtype(pandas_dtype):
+            return 'INTEGER'
+        elif pd.api.types.is_float_dtype(pandas_dtype):
+            return 'REAL'
+        elif pd.api.types.is_bool_dtype(pandas_dtype):
+            return 'INTEGER'
+        elif pd.api.types.is_datetime64_any_dtype(pandas_dtype):
+            return 'TEXT'
+        else:
+            return 'TEXT'
+
+    @with_request_id
+    def prompt_for_mapping(self, df):
+        """
+        Prompt user for column mapping and type overrides.
+        Decorated with request ID tracking.
+        """
+        mapping = {}
+        type_overrides = {}
+
+        info_id("Excel columns found:", self.request_id)
+        for i, col in enumerate(df.columns):
+            dtype = self.infer_sqlite_type(df[col].dtype)
+            debug_id(f"  {i + 1}. '{col}' (suggested SQLite type: {dtype})", self.request_id)
+
+        info_id("For each Excel column, specify the SQLite column name to map to (leave blank to skip):",
+                self.request_id)
+        for col in df.columns:
+            dtype = self.infer_sqlite_type(df[col].dtype)
+            mapped_col = input(f"Map Excel column '{col}' to SQLite column (or blank to skip): ").strip()
+            if mapped_col:
+                type_choice = input(
+                    f" - Data type for '{mapped_col}'? [INTEGER/REAL/TEXT, default: {dtype}]: ").strip().upper()
+                type_overrides[mapped_col] = type_choice if type_choice in ['INTEGER', 'REAL', 'TEXT'] else dtype
+                mapping[col] = mapped_col
+                debug_id(f"Mapped '{col}' to '{mapped_col}' with type {type_overrides[mapped_col]}", self.request_id)
+
+        return mapping, type_overrides
+
+    def create_mapping_table(self, session):
+        """Create the mapping table if it doesn't exist using SQLAlchemy session."""
+        with log_timed_operation("create_mapping_table", self.request_id):
+            try:
+                session.execute("""
+                CREATE TABLE IF NOT EXISTS excel_sqlite_mapping (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    mapping_name TEXT,
+                    excel_file TEXT,
+                    excel_sheet TEXT,
+                    sqlite_table TEXT,
+                    column_mapping TEXT,
+                    column_types TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+                """)
+                session.commit()
+                debug_id("Mapping table created or already exists", self.request_id)
+            except Exception as e:
+                session.rollback()
+                error_id(f"Error creating mapping table: {str(e)}", self.request_id)
+                raise
+
+    def store_mapping(self, session, mapping_name, excel_file, excel_sheet, sqlite_table, mapping, type_overrides):
+        """Store the mapping information using SQLAlchemy session."""
+        with log_timed_operation("store_mapping", self.request_id):
+            try:
+                sql = """
+                INSERT INTO excel_sqlite_mapping (mapping_name, excel_file, excel_sheet, sqlite_table, column_mapping, column_types, created_at)
+                VALUES (:name, :file, :sheet, :table, :mapping, :types, :created_at)
+                """
+                session.execute(sql, {
+                    'name': mapping_name,
+                    'file': excel_file,
+                    'sheet': excel_sheet,
+                    'table': sqlite_table,
+                    'mapping': json.dumps(mapping),
+                    'types': json.dumps(type_overrides),
+                    'created_at': datetime.now().isoformat()
+                })
+                session.commit()
+                info_id(f"Mapping information stored for '{mapping_name}'", self.request_id)
+            except Exception as e:
+                session.rollback()
+                error_id(f"Error storing mapping information: {str(e)}", self.request_id)
+                raise
+
+    def create_table(self, session, table_name, mapping, type_overrides):
+        """Create the target table using SQLAlchemy session."""
+        with log_timed_operation(f"create_table_{table_name}", self.request_id):
+            try:
+                columns = []
+                for excel_col, sqlite_col in mapping.items():
+                    col_type = type_overrides[sqlite_col]
+                    columns.append(f'"{sqlite_col}" {col_type}')
+
+                col_defs = ", ".join(columns)
+                sql = f'CREATE TABLE IF NOT EXISTS "{table_name}" ({col_defs});'
+
+                session.execute(sql)
+                session.commit()
+                info_id(f"Created table '{table_name}' with columns: {columns}", self.request_id)
+            except Exception as e:
+                session.rollback()
+                error_id(f"Error creating table '{table_name}': {str(e)}", self.request_id)
+                raise
+
+    def insert_data(self, session, table_name, df, mapping):
+        """Insert data into the target table using SQLAlchemy session."""
+        with log_timed_operation(f"insert_data_{table_name}", self.request_id):
+            try:
+                mapped_cols = [col for col in mapping.keys()]
+                sqlite_cols = [mapping[col] for col in mapped_cols]
+
+                insert_cols = ', '.join(f'"{col}"' for col in sqlite_cols)
+                placeholders = ', '.join(['?'] * len(sqlite_cols))
+                insert_sql = f'INSERT INTO "{table_name}" ({insert_cols}) VALUES ({placeholders})'
+
+                values = df[mapped_cols].values.tolist()
+
+                # Converting to raw SQL execution for batch insertion
+                connection = session.connection().connection
+                cursor = connection.cursor()
+
+                # Using executemany for more efficient insertion
+                cursor.executemany(insert_sql, values)
+                connection.commit()
+
+                info_id(f"Inserted {len(values)} rows into '{table_name}'.", self.request_id)
+            except Exception as e:
+                session.rollback()
+                error_id(f"Error inserting data into '{table_name}': {str(e)}", self.request_id)
+                raise
+
+    @with_request_id
+    def run(self, sheet_name=None):
+        """Main execution method with request ID tracking."""
+        try:
+            # Read Excel file
+            with log_timed_operation("read_excel", self.request_id):
+                if sheet_name:
+                    info_id(f"Reading Excel sheet: {sheet_name}", self.request_id)
+                    df = pd.read_excel(self.excel_path, sheet_name=sheet_name)
+                else:
+                    xls = pd.ExcelFile(self.excel_path)
+                    info_id(f"Sheets found: {xls.sheet_names}", self.request_id)
+                    sheet_name = input("Enter sheet name to import: ").strip()
+                    df = pd.read_excel(self.excel_path, sheet_name=sheet_name)
+                    info_id(f"Read {len(df)} rows from sheet '{sheet_name}'", self.request_id)
+
+            # Table name
+            default_table = sheet_name.replace(' ', '_')
+            table_name = input(f"SQLite table name? (default: {default_table}): ").strip() or default_table
+            info_id(f"Using table name: {table_name}", self.request_id)
+
+            # Mapping name
+            mapping_name = input("Name this mapping (for future use): ").strip() or f"{sheet_name}_to_{table_name}"
+            info_id(f"Using mapping name: {mapping_name}", self.request_id)
+
+            # Column mapping
+            mapping, type_overrides = self.prompt_for_mapping(df)
+
+            if not mapping:
+                warning_id("No columns mapped! Exiting.", self.request_id)
+                return
+
+            # Get a session from the main database
+            info_id("Establishing database connection", self.request_id)
+            session = self.db_config.get_main_session()
+
+            try:
+                with log_timed_operation("database_operations", self.request_id):
+                    # Create mapping table if needed
+                    self.create_mapping_table(session)
+
+                    # Store mapping information
+                    self.store_mapping(session, mapping_name, self.excel_path, sheet_name, table_name, mapping,
+                                       type_overrides)
+
+                    # Create data table
+                    self.create_table(session, table_name, mapping, type_overrides)
+
+                    # Insert data
+                    self.insert_data(session, table_name, df, mapping)
+
+                info_id(f"All operations completed successfully for mapping '{mapping_name}'", self.request_id)
+            finally:
+                # Ensure session is properly closed
+                debug_id("Closing database session", self.request_id)
+                session.close()
+
+        except Exception as e:
+            error_id(f"Error in Excel to SQLite mapping process: {str(e)}", self.request_id)
+            raise
+
+        info_id(f"Done! Mapping info and data stored for '{mapping_name}'.", self.request_id)
+
+
+
+
+
