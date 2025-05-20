@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // Welcome step
         steps.push({
             element: document.querySelector('.container'),
-            intro: "<div class='intro-left-text'>Welcome to the PST Troubleshooting System! This tour will guide you through each part of the  " +
+            intro: "<div class='intro-left-text'>Welcome to the PST Troubleshooting System! This tour will guide you through each part of the " +
                 " interface, starting with the Problem tab.</div>",
             position: 'auto'
         });
@@ -201,6 +201,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
             }
 
+            // Get the New Problem Form element reference early
+            const newProblemForm = document.getElementById('newProblemForm');
+
             // New Problem Section Header - NOW AFTER search results
             const newProblemHeader = document.getElementById('headingNewProblem');
             if (newProblemHeader) {
@@ -214,25 +217,42 @@ document.addEventListener('DOMContentLoaded', function () {
                         if (searchResults) {
                             searchResults.style.display = 'none';
                         }
+
+                        // Make sure the New Problem accordion is expanded
+                        const collapseNew = bootstrap.Collapse.getInstance(document.getElementById('collapseNewProblem')) ||
+                                          new bootstrap.Collapse(document.getElementById('collapseNewProblem'), {toggle: false});
+
+                        // Show the accordion
+                        collapseNew.show();
+
+                        // Add a small delay to ensure accordion is fully expanded before scrolling
+                        setTimeout(() => {
+                            // Scroll to make sure the form is visible
+                            if (newProblemForm) {
+                                newProblemForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            }
+                        }, 400); // Adjust timing to match Bootstrap's collapse animation duration
                     }
                 });
             }
 
-            // New Problem Form
-            const newProblemForm = document.getElementById('newProblemForm');
+            // New Problem Form Step
             if (newProblemForm) {
                 steps.push({
                     element: newProblemForm,
                     intro: "Use this form to create a new problem when one doesn't already exist.",
                     position: 'left',
                     onShow: function() {
-                        // Expand the new problem accordion when reaching this step
+                        // Double-check that the accordion is still open
                         const collapseNew = bootstrap.Collapse.getInstance(document.getElementById('collapseNewProblem')) ||
-                                           new bootstrap.Collapse(document.getElementById('collapseNewProblem'), {toggle: false});
+                                          new bootstrap.Collapse(document.getElementById('collapseNewProblem'), {toggle: false});
 
                         if (!document.getElementById('collapseNewProblem').classList.contains('show')) {
                             collapseNew.show();
                         }
+
+                        // Ensure the form is scrolled into view
+                        newProblemForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     }
                 });
             }
@@ -402,7 +422,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         // Enhanced Task Edit portion for the tour.js file
-
         // ===== EDIT TASK TAB =====
         const editTaskTab = document.getElementById('edit-task-tab');
         if (editTaskTab) {
@@ -467,8 +486,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 });
             }
-
-
 
             const addPositionBtn = document.getElementById('addPositionBtn');
             if (addPositionBtn) {
