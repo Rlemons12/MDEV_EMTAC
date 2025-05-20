@@ -5,7 +5,10 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
 from modules.configuration.config import DATABASE_URL
 from modules.emtacdb.emtacdb_fts import Drawing
-
+from modules.configuration.log_config import get_request_id
+from flask import Blueprint, request, jsonify
+from typing import List, Optional
+from sqlalchemy.orm import Session
 search_drawing_by_number_bp = Blueprint('search_drawing_by_number_bp', __name__)
 
 # Create SQLAlchemy engine
@@ -26,3 +29,6 @@ def search_drawing_by_number():
         return jsonify({'error': str(e)}), 500
     finally:
         session.close()
+
+
+
