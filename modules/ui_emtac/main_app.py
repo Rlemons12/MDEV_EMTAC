@@ -109,8 +109,6 @@ class MainScreen(MDScreen):
         )
         layout.add_widget(welcome_label)
 
-
-
     def get_welcome_message(self):
         """Generate a personalized welcome message"""
         # Determine time of day for greeting
