@@ -137,7 +137,7 @@ def create_app():
         session.permanent = False
         total_pages = 1
         page = 1
-        return render_template('upload_search_database.html', total_pages=total_pages, page=page)
+        return render_template('upload_search_database/upload_search_database.html', total_pages=total_pages, page=page)
 
     @app.route('/success')
     def upload_success():
