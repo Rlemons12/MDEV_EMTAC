@@ -39,10 +39,9 @@
 
 {% block content %}
     <!-- User level-restricted forms -->
-
     <!-- Upload forms - only visible to LEVEL_III and ADMIN -->
     {% if session['user_level'] == 'LEVEL_III' or session['user_level'] == 'ADMIN' %}
-        {% include 'upload_image_form_partial.html' %}
+        {% include 'upload_search_database/upload_search_database_partial/upload_image_form_partial.html' %}
 
     <div id="upload-document" class="form-container">
         <h2>Upload Document</h2>
@@ -109,6 +108,12 @@
 
     <!-- Search forms - available to all users LEVEL_I and above -->
     {% if session['user_level'] == 'LEVEL_I' or session['user_level'] == 'LEVEL_II' or session['user_level'] == 'LEVEL_III' or session['user_level'] == 'ADMIN' %}
+    <!-- ADD DRAWING SEARCH FORM HERE -->
+    <div id="search-drawings" class="form-container">
+        <h2>Search Drawings</h2>
+        {% include 'upload_search_database/upload_search_database_partial/search_drawing_form_partial.html' %}
+    </div>
+
     <div id="search-powerpoints" class="form-container">
         <h2>Search PowerPoints</h2>
         <form id="search-powerpoints-form">
@@ -195,6 +200,7 @@
             <ul id="documents-list"></ul>
             <ul id="image-results" class="image-results-container"></ul>
             <ul id="image-compare-results" class="image-compare-results-container"></ul>
+            <div id="drawing-results" class="drawing-results-container"></div>
         </div>
 {% endblock %}
 
@@ -203,20 +209,16 @@
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
 
-    <!-- region TODO: Refactor JS into new folder static/js/upload_search_database -->
     <!-- Custom JavaScript files -->
-    <script src="{{ url_for('static', filename='js/batch_upload.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/upload_image.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/image_upload.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/upload_powerpoint.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/document_search.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/image_search.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/powerpoint_search.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/image_compare.js') }}"></script>
-    <!-- endregion -->
-
-
-
+    <script src="{{ url_for('static', filename='js/upload_search_database/batch_upload.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/upload_search_database/upload_image.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/upload_search_database/image_upload.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/upload_search_database/upload_powerpoint.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/upload_search_database/document_search.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/upload_search_database/image_search.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/upload_search_database/powerpoint_search.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/upload_search_database/image_compare.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/upload_search_database/search_drawing.js') }}"></script>
     <script>
         function showForm(formId) {
             console.log('Showing form:', formId);
@@ -264,6 +266,7 @@
             document.getElementById('documents-list').innerHTML = ''; // Clear document results
             document.getElementById('image-results').innerHTML = ''; // Clear image search results
             document.getElementById('image-compare-results').innerHTML = ''; // Clear previous comparison results
+            document.getElementById('drawing-results').innerHTML = ''; // Clear drawing search results
         }
 
         // Initially hide all forms and results
@@ -346,52 +349,108 @@
             showResults();
         }
 
-        // Handle compare image form submission
-        document.getElementById('upload-compare-form').addEventListener('submit', function(event) {
+        // Handle drawing search form submission
+        document.getElementById('drawing-search-form').addEventListener('submit', function(event) {
             event.preventDefault();
-            console.log('Submitting image compare form.');
-            const formData = new FormData(this);
-            fetch('/upload_and_compare', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                clearPreviousResults(); // Clear previous results before showing new ones
-                if (data.error) {
-                    document.getElementById('documents-list').innerHTML = `<p>${data.error}</p>`;
+            console.log('Submitting drawing search form.');
+            var formData = new FormData(this);
+            var params = new URLSearchParams(formData);
+            fetch('/drawings/search?' + params.toString())
+                .then(response => response.json())
+                .then(data => {
+                    clearPreviousResults(); // Clear previous results before showing new ones
+                    if (data.error) {
+                        console.log('Error from server:', data.error);
+                        showResults();
+                        document.getElementById('documents-list').innerHTML = `<p>${data.error}</p>`;
+                    } else {
+                        console.log('Rendering drawing results.');
+                        renderDrawingResults(data);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('documents-list').innerHTML = `<p>Error occurred: ${error}</p>`;
                     showResults();
-                } else {
-                    renderComparisonResults(data.image_similarity_search);
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                document.getElementById('documents-list').innerHTML = `<p>Error occurred: ${error}</p>`;
-                showResults();
-            });
+                });
         });
 
-        function renderComparisonResults(results) {
-            clearPreviousResults(); // Ensure previous results are cleared before rendering new ones
-            let imagesList = '';
-            results.forEach(image => {
-                console.log('Rendering result for image:', image);
-                imagesList += `<div class="image-details">
-                                <a href="/uploads/${image.file_path}" target="_blank">
-                                    <img class="thumbnail" src="/uploads/${image.file_path}" alt="${image.title}">
-                                </a>
-                                <div class="description">
-                                    <h2>${image.title}</h2>
-                                    <p>${image.description}</p>
-                                    <p>Similarity: ${image.similarity.toFixed(2)}</p>
-                                </div>
-                                <div style="clear: both;"></div>
-                              </div>`;
-            });
-            console.log('Comparison results prepared.');
-            document.getElementById('image-compare-results').innerHTML = imagesList;
+        function renderDrawingResults(data) {
+            var resultsList = '<h3>Found ' + data.count + ' drawing(s)</h3>';
+
+            if (data.count > 0) {
+                resultsList += '<div class="drawing-results">';
+                data.results.forEach(drawing => {
+                    resultsList += `
+                        <div class="drawing-result">
+                            <h4>${drawing.drw_name || 'Unnamed Drawing'} (${drawing.drw_number || 'No Number'})</h4>
+                            <div class="drawing-details">
+                                <p><strong>ID:</strong> ${drawing.id}</p>
+                                <p><strong>Equipment:</strong> ${drawing.drw_equipment_name || 'N/A'}</p>
+                                <p><strong>Revision:</strong> ${drawing.drw_revision || 'N/A'}</p>
+                                <p><strong>Spare Part #:</strong> ${drawing.drw_spare_part_number || 'N/A'}</p>
+                            </div>`;
+
+                    // Display part images if they exist
+                    if (drawing.part_images && drawing.part_images.length > 0) {
+                        resultsList += `<div class="part-images">
+                            <h5>Associated Part Images (${drawing.part_images.length})</h5>
+                            <div class="image-gallery">`;
+
+                        drawing.part_images.forEach(image => {
+                            resultsList += `
+                                <div class="image-item">
+                                    <a href="${image.image_url}" target="_blank">
+                                        <img src="${image.image_url}" alt="${image.image_title}" style="max-width: 150px; max-height: 150px;">
+                                    </a>
+                                    <div class="image-caption">
+                                        <p>${image.image_title}</p>
+                                        <p>Part: ${image.part_name || image.part_number || 'ID: ' + image.part_id}</p>
+                                    </div>
+                                </div>`;
+                        });
+
+                        resultsList += `</div></div>`; // Close image-gallery and part-images divs
+                    }
+
+                    resultsList += `</div>`; // Close drawing-result div
+                });
+
+                resultsList += '</div>'; // Close drawing-results div
+            }
+
+            document.getElementById('drawing-results').innerHTML = resultsList;
             showResults();
         }
-    </script>
+
+        document.getElementById('search-powerpoints-form').addEventListener('submit', function(event) {
+            event.preventDefault();
+            console.log('Submitting search powerpoints form.');
+            var formData = new FormData(this);
+            var params = new URLSearchParams(formData);
+            fetch('/search_powerpoints?' + params.toString())
+                .then(response => response.json())
+                .then(data => {
+                    clearPreviousResults();
+                    if (data.error) {
+                        console.log('Error from server:', data.error);
+                        showResults();
+                        document.getElementById('documents-list').innerHTML = `<p>${data.error}</p>`;
+                    } else {
+                        console.log('Rendering powerpoint results.');
+                        renderPowerpointResults(data);
+                    }
+                });
+        });
+
+        function renderPowerpointResults(data) {
+            var powerpointsList = '';
+            data.powerpoints.forEach(powerpoint => {
+                powerpointsList += `<li><a href="/powerpoints/view/${powerpoint.id}" target="_blank">${powerpoint.title}</a></li>`;
+            });
+            document.getElementById('documents-list').innerHTML = powerpointsList;
+            showResults();
+        }
+</script>
+
 {% endblock %}
