@@ -309,6 +309,7 @@ class ProblemSolutionContent(MDBoxLayout):
             equipment_group = get_detail(position.equipment_group)
             model = get_detail(position.model)
             asset_number = get_detail(position.asset_number)
+            location = get_detail(position.location)  # Added location
             subassembly = get_detail(position.subassembly)
             component_assembly = get_detail(position.component_assembly)
             assembly_view = get_detail(position.assembly_view)
@@ -320,6 +321,7 @@ class ProblemSolutionContent(MDBoxLayout):
                 f"Equipment Group: {equipment_group}\n\n"
                 f"Model: {model}\n\n"
                 f"Asset Number: {asset_number}\n\n"
+                f"Location: {location}\n\n"  # Added location to output
                 f"Subassembly: {subassembly}\n\n"
                 f"Component Assembly: {component_assembly}\n\n"
                 f"Assembly View: {assembly_view}\n\n"
