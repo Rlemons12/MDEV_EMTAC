@@ -127,23 +127,19 @@
                 <div>
                     <label for="ai_model">Select AI Model:</label>
                     <select id="ai_model" name="ai_model">
-                        <option value="NoAIModel" {% if current_ai_model == 'NoAIModel' %}selected{% endif %}>No AI Model</option>
-                        <option value="OpenAIModel" {% if current_ai_model == 'OpenAIModel' %}selected{% endif %}>OpenAI Model</option>
-                        <option value="Llama3Model" {% if current_ai_model == 'Llama3Model' %}selected{% endif %}>Llama3 Model</option>
+                        <option value="">Loading models...</option>
                     </select>
                 </div>
                 <div>
                     <label for="embedding_model">Select Embedding Model:</label>
                     <select id="embedding_model" name="embedding_model">
-                        <option value="NoEmbeddingModel" {% if current_embedding_model == 'NoEmbeddingModel' %}selected{% endif %}>No Embedding Model</option>
-                        <option value="OpenAIEmbeddingModel" {% if current_embedding_model == 'OpenAIEmbeddingModel' %}selected{% endif %}>OpenAI Embedding Model</option>
+                        <option value="">Loading models...</option>
                     </select>
                 </div>
                 <div>
                     <label for="image_model">Select Image Model:</label>
                     <select id="image_model" name="image_model">
-                        <option value="no_model" {% if current_image_model == 'no_model' %}selected{% endif %}>No Image Model</option>
-                        <option value="CLIPModelHandler" {% if current_image_model == 'CLIPModelHandler' %}selected{% endif %}>CLIP Model</option>
+                        <option value="">Loading models...</option>
                     </select>
                 </div>
                 <button type="submit">Set Models</button>
@@ -227,5 +223,53 @@
 
     <!-- Additional scripts specific to admin dashboard if needed -->
     <script src="{{ url_for('static', filename='js/base_sidebar.js') }}"></script>
+    <script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Fetch available models from the API
+    fetch('/get_available_models')
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                // Populate AI models dropdown
+                populateDropdown('ai_model', data.models.ai, data.current.ai);
+
+                // Populate embedding models dropdown
+                populateDropdown('embedding_model', data.models.embedding, data.current.embedding);
+
+                // Populate image models dropdown
+                populateDropdown('image_model', data.models.image, data.current.image);
+            } else {
+                console.error('Error loading models:', data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching models:', error);
+        });
+
+    // Function to populate a dropdown with models
+    function populateDropdown(selectId, models, currentModel) {
+        const select = document.getElementById(selectId);
+
+        // Clear existing options
+        select.innerHTML = '';
+
+        // Add new options based on available models
+        models.forEach(model => {
+            const option = document.createElement('option');
+            option.value = model.name;
+            option.textContent = model.display_name;
+            option.selected = (model.name === currentModel);
+
+            // If model is disabled, mark it as such
+            if (!model.enabled) {
+                option.disabled = true;
+                option.textContent += ' (Disabled)';
+            }
+
+            select.appendChild(option);
+        });
+    }
+});
+</script>
 </body>
 </html>
