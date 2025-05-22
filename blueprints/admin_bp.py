@@ -1,11 +1,11 @@
 from datetime import datetime, timedelta
 from modules.configuration.log_config import logger
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session
-from modules.emtacdb.emtacdb_fts import (User, UserComments, UserLevel, AIModelConfig, ImageModelConfig,
-                                         load_config_from_db, load_image_model_config_from_db, UserLogin)
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify
+from modules.emtacdb.emtacdb_fts import (User, UserComments, UserLevel, UserLogin)
 from sqlalchemy.orm import subqueryload
 from modules.configuration import config
 from modules.configuration.config_env import DatabaseConfig
+from plugins.ai_modules import ModelsConfig
 
 admin_bp = Blueprint('admin_bp', __name__)
 
@@ -66,9 +66,10 @@ def admin_dashboard():
             logger.debug(f"Is Active: {login.is_active}")
             logger.debug("---")
 
-        # Fetch current model configurations
-        current_ai_model, current_embedding_model = load_config_from_db()
-        current_image_model = load_image_model_config_from_db()
+        # Fetch current model configurations using ModelsConfig
+        current_ai_model = ModelsConfig.get_config_value('ai', 'CURRENT_MODEL', 'NoAIModel')
+        current_embedding_model = ModelsConfig.get_config_value('embedding', 'CURRENT_MODEL', 'NoEmbeddingModel')
+        current_image_model = ModelsConfig.get_config_value('image', 'CURRENT_MODEL', 'NoImageModel')
 
         logger.info("Fetched %d users, %d comments, and %d active logins.",
                     len(users), len(comments), len(active_logins))
@@ -159,45 +160,55 @@ def set_models():
         logger.debug("New model configurations: AI Model: %s, Embedding Model: %s, Image Model: %s",
                      ai_model, embedding_model, image_model)
 
-        # Save the new configuration to the database
-        db_config = DatabaseConfig()
-        session_db = db_config.get_main_session()
+        # Use the new ModelsConfig class to update model configurations
+        ModelsConfig.set_current_ai_model(ai_model)
+        ModelsConfig.set_current_embedding_model(embedding_model)
+        ModelsConfig.set_current_image_model(image_model)
 
-        ai_model_config = session_db.query(AIModelConfig).filter_by(key='CURRENT_AI_MODEL').first()
-        embedding_model_config = session_db.query(AIModelConfig).filter_by(key='CURRENT_EMBEDDING_MODEL').first()
-        image_model_config = session_db.query(ImageModelConfig).filter_by(key='CURRENT_IMAGE_MODEL').first()
-
-        if ai_model_config:
-            ai_model_config.value = ai_model
-        else:
-            ai_model_config = AIModelConfig(key='CURRENT_AI_MODEL', value=ai_model)
-            session_db.add(ai_model_config)
-
-        if embedding_model_config:
-            embedding_model_config.value = embedding_model
-        else:
-            embedding_model_config = AIModelConfig(key='CURRENT_EMBEDDING_MODEL', value=embedding_model)
-            session_db.add(embedding_model_config)
-
-        if image_model_config:
-            image_model_config.value = image_model
-        else:
-            image_model_config = ImageModelConfig(key='CURRENT_IMAGE_MODEL', value=image_model)
-            session_db.add(image_model_config)
-
-        session_db.commit()
         logger.info("Model configurations updated successfully.")
         flash('Models updated successfully.', 'success')
 
     except Exception as e:
-        if session_db:
-            session_db.rollback()
         logger.error("Error updating models: %s", e)
         flash(f'Error updating models: {e}', 'error')
 
-    finally:
-        if session_db:
-            session_db.close()
-            logger.debug("Database session closed.")
-
     return redirect(url_for('admin_bp.admin_dashboard'))
+
+
+@admin_bp.route('/get_available_models', methods=['GET'])
+def get_available_models():
+    """Fetch all available models for the admin dashboard"""
+    logger.debug("Fetching available models for admin dashboard")
+
+    try:
+        # Get available models for each type
+        ai_models = ModelsConfig.get_available_models('ai')
+        embedding_models = ModelsConfig.get_available_models('embedding')
+        image_models = ModelsConfig.get_available_models('image')
+
+        # Get current selections
+        current_ai = ModelsConfig.get_config_value('ai', 'CURRENT_MODEL', 'NoAIModel')
+        current_embedding = ModelsConfig.get_config_value('embedding', 'CURRENT_MODEL', 'NoEmbeddingModel')
+        current_image = ModelsConfig.get_config_value('image', 'CURRENT_MODEL', 'NoImageModel')
+
+        # Return as JSON response
+        return jsonify({
+            'status': 'success',
+            'models': {
+                'ai': ai_models,
+                'embedding': embedding_models,
+                'image': image_models
+            },
+            'current': {
+                'ai': current_ai,
+                'embedding': current_embedding,
+                'image': current_image
+            }
+        })
+
+    except Exception as e:
+        logger.error(f"Error fetching available models: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
