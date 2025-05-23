@@ -128,15 +128,14 @@ def add_document():
                         new_rev = "R0"
                         info_id("No existing document found. Starting with revision R0.", request_id)
 
-                    # Create and add CompleteDocument
-                    complete_document = CompleteDocument(
+                    # Create CompleteDocument using add_to_db method
+                    complete_document = CompleteDocument.add_to_db(
+                        session=session,
                         title=title,
                         file_path=os.path.relpath(file_path, DATABASE_DIR),
                         content=None,  # Text will be added later
                         rev=new_rev
                     )
-                    session.add(complete_document)
-                    session.commit()
                     complete_document_id = complete_document.id
                     info_id(f"Created CompleteDocument with ID: {complete_document_id}", request_id)
 
@@ -277,9 +276,17 @@ def add_document_to_db_multithread(title, file_path, position_id, revision, rema
                 if file_path.endswith(".pdf"):
                     with log_timed_operation(f"Extracting images from PDF: {file_path}", request_id):
                         info_id(f"[Thread {thread_id}] Extracting images from PDF...", request_id)
-                        extract_images_from_pdf(file_path, complete_document_id,
-                                                completed_document_position_association_id, position_id)
-                        info_id(f"[Thread {thread_id}] Images extracted from PDF.", request_id)
+                        success = CompleteDocument.extract_images_from_pdf(
+                            pdf_path=file_path,
+                            complete_document_id=complete_document_id,
+                            completed_document_position_association_id=completed_document_position_association_id,
+                            position_id=position_id,
+                            request_id=request_id
+                        )
+                        if not success:
+                            error_id(f"[Thread {thread_id}] Failed to extract images from PDF.", request_id)
+                        else:
+                            info_id(f"[Thread {thread_id}] Images extracted from PDF successfully.", request_id)
 
             else:
                 error_id(f"[Thread {thread_id}] No text extracted from the document.", request_id)
@@ -359,7 +366,7 @@ def calculate_optimal_workers(memory_threshold=0.5, max_workers=None, request_id
 
     return result
 
-# region Todo: remove from routes once its established that it dost have any knockdown effects
+# region Todo: remove from routes once its established that it dost have any knockdown effects. Create CompleteDocument Method
 '''def extract_images_from_pdf(file_path, complete_document_id, completed_document_position_association_id, position_id=None):
     """
     Extracts images from a PDF file, uploads them, and creates associations in the database.
