@@ -15,9 +15,7 @@ from utilities.custom_jinja_filters import register_jinja_filters
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # Import models, functions, and utilities from your application modules
-from modules.emtacdb.emtacdb_fts import (
-    UserLevel, load_config_from_db
-)
+from modules.emtacdb.emtacdb_fts import (UserLevel)
 from modules.emtacdb.utlity.main_database.database import serve_image
 from blueprints import register_blueprints
 from modules.emtacdb.utlity.revision_database.event_listeners import register_event_listeners
@@ -78,6 +76,12 @@ def create_app():
     db_config = DatabaseConfig()
     app.config['db_config'] = db_config
 
+    # Initialize models configuration
+    from plugins.ai_modules import ModelsConfig
+    ModelsConfig.initialize_models_config_table()
+    logger.info("Models configuration initialized during app startup")
+    print("Models configuration initialized during app startup")
+
     # Register blueprints and event listeners
     register_blueprints(app)
     register_event_listeners()
@@ -126,7 +130,11 @@ def create_app():
         user_level = session.get('user_level', UserLevel.STANDARD.value)
         if not user_id:
             return redirect(url_for('login_bp.login'))
-        current_ai_model, current_embedding_model = load_config_from_db()
+
+        # Update this line to use ModelsConfig
+        from plugins.ai_modules import ModelsConfig
+        current_ai_model, current_embedding_model = ModelsConfig.load_config_from_db()
+
         return render_template('index.html',
                                current_ai_model=current_ai_model,
                                current_embedding_model=current_embedding_model,
