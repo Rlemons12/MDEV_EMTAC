@@ -3,6 +3,7 @@ import os
 import threading
 import time
 from functools import wraps
+from contextlib import contextmanager
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
@@ -13,7 +14,7 @@ from modules.configuration.log_config import logger
 CONNECTION_LIMITING_ENABLED = False
 
 # Global maximum concurrent connections - can also be set via environment variable
-MAX_CONCURRENT_CONNECTIONS = int(os.environ.get('MAX_DB_CONNECTIONS', '12'))  # Reduced to 4 for better stability
+MAX_CONCURRENT_CONNECTIONS = int(os.environ.get('MAX_DB_CONNECTIONS', '4'))  # Reduced to 4 for better stability
 
 # Global timeout for acquiring a database connection (in seconds)
 CONNECTION_TIMEOUT = int(os.environ.get('DB_CONNECTION_TIMEOUT', '60'))
@@ -122,12 +123,14 @@ class DatabaseConfig:
         self.main_engine = create_engine(self.main_database_url)
         self.MainBase = declarative_base()
         self.MainSession = scoped_session(sessionmaker(bind=self.main_engine))
+        self.MainSessionMaker = sessionmaker(bind=self.main_engine)
 
         # Revision control database configuration
         self.revision_control_db_path = REVISION_CONTROL_DB_PATH
         self.revision_control_engine = create_engine(f'sqlite:///{self.revision_control_db_path}')
         self.RevisionControlBase = declarative_base()
         self.RevisionControlSession = scoped_session(sessionmaker(bind=self.revision_control_engine))
+        self.RevisionControlSessionMaker = sessionmaker(bind=self.revision_control_engine)
 
         # Apply PRAGMA settings
         self._apply_sqlite_pragmas(self.main_engine)
@@ -153,6 +156,67 @@ class DatabaseConfig:
         use a semaphore to limit concurrent connections.
         """
         return self.RevisionControlSession()
+
+    @contextmanager
+    def main_session(self):
+        """
+        Context manager for main database sessions.
+        Usage:
+            with db_config.main_session() as session:
+                # use session here
+                session.query(...)
+        """
+        if CONNECTION_LIMITING_ENABLED:
+            session = self.get_main_session()  # This will handle connection limiting
+        else:
+            session = self.MainSessionMaker()
+
+        try:
+            yield session
+            session.commit()
+        except Exception as e:
+            session.rollback()
+            logger.error(f"Database session error: {e}")
+            raise
+        finally:
+            session.close()
+
+    @contextmanager
+    def revision_control_session(self):
+        """
+        Context manager for revision control database sessions.
+        Usage:
+            with db_config.revision_control_session() as session:
+                # use session here
+                session.query(...)
+        """
+        if CONNECTION_LIMITING_ENABLED:
+            session = self.get_revision_control_session()  # This will handle connection limiting
+        else:
+            session = self.RevisionControlSessionMaker()
+
+        try:
+            yield session
+            session.commit()
+        except Exception as e:
+            session.rollback()
+            logger.error(f"Database session error: {e}")
+            raise
+        finally:
+            session.close()
+
+    # Alternative method names for clarity
+    @contextmanager
+    def get_main_session_context(self):
+        """Alias for main_session() context manager."""
+        with self.main_session() as session:
+            yield session
+
+    @contextmanager
+    def get_revision_control_session_context(self):
+        """Alias for revision_control_session() context manager."""
+        with self.revision_control_session() as session:
+            yield session
 
     def get_main_base(self):
         return self.MainBase
@@ -184,11 +248,11 @@ class DatabaseConfig:
     def _apply_sqlite_pragmas(self, engine):
         def set_sqlite_pragmas(dbapi_connection, connection_record):
             cursor = dbapi_connection.cursor()
-            cursor.execute('PRAGMA synchronous = OFF;')
-            cursor.execute('PRAGMA journal_mode = MEMORY;')
+            cursor.execute('PRAGMA journal_mode = WAL;')
+            cursor.execute('PRAGMA synchronous = NORMAL;')
             cursor.execute('PRAGMA temp_store = MEMORY;')
             cursor.execute('PRAGMA cache_size = -64000;')
-            cursor.execute('PRAGMA busy_timeout = 30000;')  # Wait up to 30 seconds on locks
+            cursor.execute('PRAGMA busy_timeout = 5000;')  # Reduced to 5 seconds
             cursor.close()
 
         event.listen(engine, 'connect', set_sqlite_pragmas)
@@ -198,53 +262,11 @@ class DatabaseConfig:
         Create the FTS5 virtual table for documents if it doesn't already exist.
         This lets you run full-text queries against (title, content).
         """
-        session = self.get_main_session()
-        try:
+        with self.main_session() as session:
             session.execute(
                 text(
                     "CREATE VIRTUAL TABLE IF NOT EXISTS documents_fts "
                     "USING FTS5(title, content)"
                 )
             )
-            session.commit()
-        finally:
-            session.close()
-
-    def load_config_from_db(self):
-        """
-        Load AI model configuration from the database.
-
-        Returns:
-            Tuple of (current_ai_model, current_embedding_model)
-        """
-        session = self.get_main_session()
-        try:
-            from modules.emtacdb.emtacdb_fts import AIModelConfig
-
-            ai_model_config = session.query(AIModelConfig).filter_by(key="CURRENT_AI_MODEL").first()
-            embedding_model_config = session.query(AIModelConfig).filter_by(key="CURRENT_EMBEDDING_MODEL").first()
-
-            current_ai_model = ai_model_config.value if ai_model_config else "NoAIModel"
-            current_embedding_model = embedding_model_config.value if embedding_model_config else "NoEmbeddingModel"
-
-            return current_ai_model, current_embedding_model
-        finally:
-            session.close()
-
-    def load_image_model_config_from_db(self):
-        """
-        Load image model configuration from the database.
-
-        Returns:
-            String representing the current image model
-        """
-        session = self.get_main_session()
-        try:
-            from modules.emtacdb.emtacdb_fts import ImageModelConfig
-
-            image_model_config = session.query(ImageModelConfig).filter_by(key="CURRENT_IMAGE_MODEL").first()
-            current_image_model = image_model_config.value if image_model_config else "no_model"
-
-            return current_image_model
-        finally:
-            session.close()
+            # session.commit() is called automatically by the context manager
