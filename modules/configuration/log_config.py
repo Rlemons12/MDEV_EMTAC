@@ -11,7 +11,6 @@ import time
 import threading
 from flask import request, g, has_request_context
 import functools
-
 # Determine the root directory based on whether the code is frozen (e.g., PyInstaller .exe)
 if getattr(sys, 'frozen', False):  # Running as an executable
     BASE_DIR = os.path.dirname(sys.executable)
