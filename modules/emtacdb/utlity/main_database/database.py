@@ -22,11 +22,12 @@ from sqlalchemy import or_, func, and_, text
 from sqlalchemy.exc import SQLAlchemyError
 from modules.configuration.config import KEYWORDS_FILE_PATH, DATABASE_PATH_IMAGES_FOLDER, BASE_DIR, DATABASE_DOC, \
     CURRENT_EMBEDDING_MODEL, TEMPORARY_UPLOAD_FILES,DATABASE_DIR
+from modules.configuration.log_config import with_request_id
 from modules.emtacdb.emtac_revision_control_db import CompleteDocumentSnapshot, AreaSnapshot, EquipmentGroupSnapshot, \
     ModelSnapshot, AssetNumberSnapshot, LocationSnapshot
 from modules.emtacdb.emtacdb_fts import Area, EquipmentGroup, Model, AssetNumber, Location, Subassembly,ComponentAssembly, \
     SiteLocation, Position, KeywordAction, nlp, session, PowerPoint, Image, AssemblyView,  \
-    load_image_model_config_from_db, ImageEmbedding, ImagePositionAssociation, ImageCompletedDocumentAssociation, \
+    ImageEmbedding, ImagePositionAssociation, ImageCompletedDocumentAssociation, \
     CompleteDocument, CompletedDocumentPositionAssociation, Document, VersionInfo, \
     DocumentEmbedding, ChatSession, PartsPositionImageAssociation
 from plugins import generate_embedding, store_embedding
@@ -34,6 +35,7 @@ from plugins.image_modules.image_models import get_image_model_handler
 from modules.emtacdb.utlity.revision_database.snapshot_utils import create_snapshot
 from modules.configuration.config_env import DatabaseConfig
 from modules.configuration.config import ENABLE_REVISION_CONTROL
+from plugins.ai_modules import ModelsConfig
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -432,7 +434,7 @@ def get_total_images_count(description=''):
     return total_count
 
 
-def add_image_to_db(title: str,file_path: str,position_id: int = None,
+def add_image_to_db(title: str, file_path: str, position_id: int = None,
                     completed_document_position_association_id: int = None,
                     complete_document_id: int = None, description: str = "") -> int:
     new_image_id = None  # Initialize the new_image_id outside the session scope
@@ -449,15 +451,16 @@ def add_image_to_db(title: str,file_path: str,position_id: int = None,
             logger.debug(f"Complete Document ID: {complete_document_id}")
             logger.debug(f"Description: {description}")
 
-            # Step 1: Retrieve the current image embedding model configuration
-            current_image_model = load_image_model_config_from_db()
+            # Step 1: Retrieve the current image model configuration - UPDATED
+            current_image_model = ModelsConfig.load_image_model_config_from_db()
             logger.info(f"Current image model configuration from DB: {current_image_model}")
 
-            # Step 2: Dynamically set the model handler based on the configuration
-            model_handler = get_image_model_handler(current_image_model)
-            logger.info(f"Using model handler: {model_handler.__class__.__name__}")
+            # Step 2: Use ModelsConfig to load the model directly - UPDATED
+            model_handler = ModelsConfig.load_image_model()
+            logger.info(f"Using model handler: {type(model_handler).__name__}")
 
             logger.info(f'Processing image: {title}')
+
 
             # Step 3: Check if an image with the same title and description already exists
             logger.info("Checking if an image with the same title and description already exists")
@@ -1159,47 +1162,145 @@ def search_documents_db(session: db_config.get_main_session(), title='', area=''
         logger.error(f"An error occurred while searching documents: {e}")
         return {"error": str(e)}
 
-def find_most_relevant_document(question, session: db_config.get_main_session()):
+
+def find_most_relevant_document(question, session=None):
+    """
+    Find the most relevant document for a given question using vector similarity.
+
+    Optimized for performance with:
+    1. Batched processing
+    2. Query-side filtering
+    3. In-memory similarity calculation
+    4. Simple LRU caching
+    """
     if CURRENT_EMBEDDING_MODEL == "NoEmbeddingModel":
         logger.info("Embeddings are disabled. Returning None for document search.")
         return None
 
+    # Create a session if not provided
+    session_created = False
+    if session is None:
+        session = db_config.get_main_session()
+        session_created = True
+
     try:
+        # Check cache first
+        cache_key = f"{question}:{CURRENT_EMBEDDING_MODEL}"
+        if hasattr(find_most_relevant_document, 'cache') and cache_key in find_most_relevant_document.cache:
+            logger.info("Using cached document result")
+            cached_doc_id = find_most_relevant_document.cache[cache_key]
+            if cached_doc_id is None:
+                return None
+            return session.query(Document).get(cached_doc_id)
+
         # Generate embedding for the question
         question_embedding = generate_embedding(question, CURRENT_EMBEDDING_MODEL)
         if not question_embedding:
             logger.info("No embeddings generated. Returning None.")
+            _cache_result(cache_key, None)
             return None
 
-        # Fetch documents with the current embedding model
-        documents = session.query(Document).join(DocumentEmbedding).filter(DocumentEmbedding.model_name == CURRENT_EMBEDDING_MODEL).all()
+        # Convert to numpy array for faster calculations
+        import numpy as np
+        question_embedding_np = np.array(question_embedding)
 
+        # Process in batches to reduce memory usage
+        BATCH_SIZE = 100
         most_relevant_document = None
         highest_similarity = -1
-
-        for doc in documents:
-            for embedding_record in doc.embeddings:
-                if embedding_record.model_name == CURRENT_EMBEDDING_MODEL:
-                    doc_embedding = json.loads(embedding_record.model_embedding.decode('utf-8'))
-                    similarity = cosine_similarity(question_embedding, doc_embedding)
-
-                    logger.debug(f"Similarity for document {doc.id} with model {CURRENT_EMBEDDING_MODEL}: {similarity}")
-
-                    if similarity > highest_similarity:
-                        highest_similarity = similarity
-                        most_relevant_document = doc
-                        logger.debug(f"Most relevant document content: {most_relevant_document.content}")
-
         threshold = 0.01
+
+        # Get total count for progress logging
+        total_docs = session.query(Document).join(DocumentEmbedding).filter(
+            DocumentEmbedding.model_name == CURRENT_EMBEDDING_MODEL
+        ).count()
+
+        logger.info(f"Searching through {total_docs} documents")
+
+        # Process in batches
+        for offset in range(0, total_docs, BATCH_SIZE):
+            # Get a batch of document IDs with the current embedding model
+            doc_batch = session.query(Document.id).join(DocumentEmbedding).filter(
+                DocumentEmbedding.model_name == CURRENT_EMBEDDING_MODEL
+            ).offset(offset).limit(BATCH_SIZE).all()
+
+            doc_ids = [d[0] for d in doc_batch]
+
+            if not doc_ids:
+                continue
+
+            # Get embeddings for this batch
+            embeddings_batch = session.query(DocumentEmbedding).filter(
+                DocumentEmbedding.document_id.in_(doc_ids),
+                DocumentEmbedding.model_name == CURRENT_EMBEDDING_MODEL
+            ).all()
+
+            # Calculate similarities
+            for embedding_record in embeddings_batch:
+                try:
+                    # Extract binary embedding and convert to list
+                    if isinstance(embedding_record.model_embedding, bytes):
+                        doc_embedding = np.frombuffer(embedding_record.model_embedding, dtype=np.float32)
+                    else:
+                        # If stored as JSON string
+                        doc_embedding = np.array(json.loads(embedding_record.model_embedding.decode('utf-8')))
+
+                    # Normalize vectors for cosine similarity
+                    question_norm = np.linalg.norm(question_embedding_np)
+                    doc_norm = np.linalg.norm(doc_embedding)
+
+                    if question_norm > 0 and doc_norm > 0:
+                        # Calculate cosine similarity
+                        similarity = np.dot(question_embedding_np, doc_embedding) / (question_norm * doc_norm)
+
+                        if similarity > highest_similarity:
+                            highest_similarity = similarity
+                            doc_id = embedding_record.document_id
+                            most_relevant_document_id = doc_id
+                            logger.debug(f"New highest similarity: {similarity} for document ID {doc_id}")
+                except Exception as e:
+                    logger.warning(f"Error processing embedding for document {embedding_record.document_id}: {e}")
+
+            logger.debug(f"Processed {offset + len(doc_ids)} of {total_docs} documents")
+
+        # Return the most relevant document if above threshold
         if highest_similarity >= threshold:
-            logger.info(f"Found most relevant document with ID {most_relevant_document.id} and similarity {highest_similarity}")
+            # Fetch the full document only if we found a good match
+            most_relevant_document = session.query(Document).get(most_relevant_document_id)
+            logger.info(
+                f"Found most relevant document with ID {most_relevant_document_id} and similarity {highest_similarity}")
+            _cache_result(cache_key, most_relevant_document_id)
             return most_relevant_document
         else:
             logger.info("No relevant document found with sufficient similarity")
+            _cache_result(cache_key, None)
             return None
+
     except Exception as e:
         logger.error(f"An error occurred while finding the most relevant document: {e}")
         return None
+    finally:
+        if session_created and session:
+            session.close()
+
+
+# Initialize cache
+find_most_relevant_document.cache = {}
+find_most_relevant_document.cache_size = 100  # Adjust based on memory constraints
+
+
+def _cache_result(key, doc_id):
+    """Helper to cache document search results with LRU behavior"""
+    cache = find_most_relevant_document.cache
+
+    # Implement simple LRU: remove oldest entry if cache is full
+    if len(cache) >= find_most_relevant_document.cache_size:
+        # Remove oldest item (first key)
+        oldest_key = next(iter(cache))
+        del cache[oldest_key]
+
+    # Add new result
+    cache[key] = doc_id
 
 
 def create_session(user_id, session_data, session):
@@ -1808,7 +1909,7 @@ def add_parts_position_image_association(part_id, position_id, image_id):
     finally:
         session.close()
 
-
+@with_request_id
 def extract_images_from_pdf(file_path, complete_document_id, completed_document_position_association_id, position_id=None):
     """
     Extracts images from a PDF file, uploads them, and creates associations in the database.
