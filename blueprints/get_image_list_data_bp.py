@@ -39,7 +39,7 @@ def get_list_data():
         # Fetch site locations (independent of hierarchy)
         debug_id("Fetching site locations")
         site_locations = session.query(SiteLocation).all()
-        site_locations_list = [{'id': sl.id, 'name': sl.name} for sl in site_locations]
+        site_locations_list = [{'id': sl.id, 'name': sl.title} for sl in site_locations]
         data['site_locations'] = site_locations_list
 
         # Fetch areas (top level)
