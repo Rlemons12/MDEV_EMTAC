@@ -43,12 +43,5 @@
       <jdbc-url>jdbc:sqlite:$PROJECT_DIR$/Prototypes/RCM_reading/assignments.db</jdbc-url>
       <working-dir>$ProjectFileDir$</working-dir>
     </data-source>
-    <data-source source="LOCAL" name="pgsql_emtac@localhost" uuid="434d88c5-26e5-4237-bfd9-fc51bacc0c2d">
-      <driver-ref>postgresql</driver-ref>
-      <synchronize>true</synchronize>
-      <jdbc-driver>org.postgresql.Driver</jdbc-driver>
-      <jdbc-url>jdbc:postgresql://localhost:5432/emtac</jdbc-url>
-      <working-dir>$ProjectFileDir$</working-dir>
-    </data-source>
   </component>
 </project>
