@@ -8,15 +8,15 @@ from datetime import datetime
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from flask import Blueprint, request, jsonify, redirect, url_for, render_template
 from werkzeug.utils import secure_filename
-from modules.emtacdb.emtacdb_fts import (Session, load_config_from_db,ImagePositionAssociation)
+from modules.emtacdb.emtacdb_fts import (Session,ImagePositionAssociation)
 from modules.emtacdb.utlity.main_database.database import (create_position, add_image_to_db,
                                                            create_image_position_association)
 import logging
-from plugins.ai_modules import load_ai_model
+from plugins.ai_modules import  load_ai_model
 from modules.emtacdb.utlity.revision_database.auditlog import commit_audit_logs
 from modules.configuration.config_env import DatabaseConfig
 from modules.configuration.config import DATABASE_DIR, DATABASE_URL,DATABASE_PATH_IMAGES_FOLDER
-
+from plugins.ai_modules import ModelsConfig
 db_config = DatabaseConfig()
 
 # Configure logging to write to a file with timestamps
@@ -39,6 +39,8 @@ logger.addHandler(stream_handler)
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+current_ai_model = ModelsConfig.load_config_from_db()
 
 # Constants
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
@@ -142,7 +144,7 @@ def upload_image():
                 logger.info(f"Saved file to {file_path}")
 
                 # Load the current AI model setting (if needed)
-                current_ai_model, _ = load_config_from_db()
+                current_ai_model = ModelsConfig.load_config_from_db()
                 ai_model = load_ai_model(current_ai_model)
                 logger.info(f"Using AI model: {current_ai_model}")
 
@@ -239,7 +241,7 @@ def add_image():
             if not description:
                 # Load AI model and generate description
                 logger.info("No description provided, generating using AI model")
-                current_ai_model, _ = load_config_from_db()
+                current_ai_model = ModelsConfig.load_config_from_db()
                 ai_model = load_ai_model(current_ai_model)
                 description = ai_model.generate_description(file_path)
                 logger.info(f"Generated description: {description}")
