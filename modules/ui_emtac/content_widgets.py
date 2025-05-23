@@ -25,6 +25,8 @@ from kivymd.uix.label import MDLabel
 from kivymd.uix.list import IconLeftWidget, OneLineListItem, TwoLineListItem, ThreeLineListItem
 from kivymd.uix.snackbar import MDSnackbar
 from kivymd.uix.tab import MDTabs
+from kivymd.uix.card import MDCard
+# Note: MDSeparator removed - not available in all KivyMD versions
 
 # App-specific imports
 from modules.configuration.config import DATABASE_PATH_IMAGES_FOLDER
@@ -699,135 +701,151 @@ class PartsContent(MDBoxLayout):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.orientation = 'vertical'
+        self.size_hint = (1, 1)  # Fill available space - SAME AS DOCUMENTS
 
         # Reference to app
         self.app = MDApp.get_running_app()
 
-        # Create Tabbed Panel
+        # Create a TabbedPanel for parts - EXACT SAME AS DOCUMENTS
         self.tabs = TabbedPanel(
             do_default_tab=False,
             tab_pos='top_mid',
-            size_hint_y=None,
-            height=dp(450)  # Adjust as needed
+            size_hint=(1, 1)  # This is the key difference!
         )
+        self.tabs.tab_width = dp(150)  # Same as Documents
 
-        # Tabs
-        self.tabs.tab_width = dp(200)
+        # Create TabbedPanelItems
         self.task_tab = TabbedPanelItem(text="Task Parts")
         self.position_tab = TabbedPanelItem(text="Position Parts")
 
-        # Content layout for each tab
-        self.task_parts_container = self._create_tab_content("Task Parts")
-        self.position_parts_container = self._create_tab_content("Position Parts")
-
-        self.task_tab.add_widget(self.task_parts_container)
-        self.position_tab.add_widget(self.position_parts_container)
+        # Build scrollable containers for each tab
+        self._build_task_tab()
+        self._build_position_tab()
 
         self.tabs.add_widget(self.task_tab)
         self.tabs.add_widget(self.position_tab)
         self.tabs.default_tab = self.task_tab
 
-        # Add tabs to main layout
         self.add_widget(self.tabs)
 
-    def _create_tab_content(self, tab_name):
+    def _build_task_tab(self):
         scroll = ScrollView(do_scroll_x=False)
-        container = MDBoxLayout(orientation='vertical', size_hint_y=None, spacing=dp(5), padding=dp(10))
+        container = MDBoxLayout(
+            orientation='vertical',
+            size_hint_y=None,
+            padding=dp(10),
+            spacing=dp(5)
+        )
         container.bind(minimum_height=container.setter('height'))
-
-        # Save references
-        if tab_name == "Task Parts":
-            self.task_parts_list = container
-        else:
-            self.position_parts_list = container
-
         scroll.add_widget(container)
-        return scroll
+        self.task_parts_list = container
+        self.task_tab.add_widget(scroll)
+
+    def _build_position_tab(self):
+        scroll = ScrollView(do_scroll_x=False)
+        container = MDBoxLayout(
+            orientation='vertical',
+            size_hint_y=None,
+            padding=dp(10),
+            spacing=dp(5)
+        )
+        container.bind(minimum_height=container.setter('height'))
+        scroll.add_widget(container)
+        self.position_parts_list = container
+        self.position_tab.add_widget(scroll)
 
     def update_for_task(self, task_id):
+        """Update the Task Parts tab based on the selected task."""
         self.task_parts_list.clear_widgets()
+
         if not task_id:
-            self.task_parts_list.add_widget(OneLineListItem(text="No task selected"))
+            self.task_parts_list.add_widget(
+                OneLineListItem(text="No task selected")
+            )
             return
 
         try:
             parts = self.app.data_service.get_parts_by_task(task_id)
+
             if not parts:
-                self.task_parts_list.add_widget(OneLineListItem(text="No parts linked to this task"))
+                self.task_parts_list.add_widget(
+                    OneLineListItem(text="No parts linked to this task")
+                )
                 return
 
             for part in parts:
-                self._add_part_widget(part, self.task_parts_list)
+                # Use TwoLineListItem like Documents does
+                item = TwoLineListItem(
+                    text=part.part_number,
+                    secondary_text=f"{part.name or 'No name'} - Type: {part.type or 'N/A'}"
+                )
+                item.part = part
+                item.bind(on_release=lambda x, p=part: self.on_part_selected(p))
+                self.task_parts_list.add_widget(item)
 
         except Exception as e:
-            logger.error(f"Error loading task parts: {e}")
-            self.task_parts_list.add_widget(OneLineListItem(text=f"Error: {e}"))
+            logger.error(f"Error updating task parts: {e}")
+            self.task_parts_list.add_widget(
+                OneLineListItem(text=f"Error: {str(e)}")
+            )
 
     def update_for_position(self, position_id):
+        """Update the position parts list based on a given position_id."""
         self.position_parts_list.clear_widgets()
+
         if not position_id:
-            self.position_parts_list.add_widget(OneLineListItem(text="No position selected"))
+            self.position_parts_list.add_widget(
+                OneLineListItem(text="No position selected")
+            )
             return
 
         try:
             parts = self.app.data_service.get_parts_by_position(position_id)
+
             if not parts:
-                self.position_parts_list.add_widget(OneLineListItem(text="No parts linked to this position"))
+                self.position_parts_list.add_widget(
+                    OneLineListItem(text="No parts linked to this position")
+                )
                 return
 
             for part in parts:
-                self._add_part_widget(part, self.position_parts_list)
+                item = TwoLineListItem(
+                    text=part.part_number,
+                    secondary_text=f"{part.name or 'No name'} - Type: {part.type or 'N/A'}"
+                )
+                item.part = part
+                item.bind(on_release=lambda x, p=part: self.on_part_selected(p))
+                self.position_parts_list.add_widget(item)
 
         except Exception as e:
             logger.error(f"Error loading position parts: {e}")
-            self.position_parts_list.add_widget(OneLineListItem(text=f"Error: {e}"))
-
-    def _add_part_widget(self, part, container):
-        part_box = MDBoxLayout(
-            orientation="horizontal",
-            size_hint_y=None,
-            height=dp(120),
-            padding=dp(5),
-            spacing=dp(10)
-        )
-
-        part_info = ThreeLineListItem(
-            text=part.part_number,
-            secondary_text=part.name,
-            tertiary_text=f"Type: {part.type or 'N/A'}"
-        )
-        part_info.part = part  # Optional: store part on widget if needed for future
-
-        # ✅ Pass the part directly on click
-        part_info.bind(on_release=partial(self.on_part_selected, part))
-
-        part_box.add_widget(part_info)
-
-        if part.image_path and os.path.exists(part.image_path):
-            img_preview = AsyncImage(
-                source=part.image_path,
-                size_hint=(None, 1),
-                width=dp(100),
-                allow_stretch=True
+            self.position_parts_list.add_widget(
+                OneLineListItem(text=f"Error: {e}")
             )
-            part_box.add_widget(img_preview)
 
-        container.add_widget(part_box)
+    def on_part_selected(self, part):
+        """Handle part selection"""
+        try:
+            logger.debug(f"Opening popup for part: {part.part_number}")
 
-    def on_part_selected(self, part, *args):
+            # Use the PartDetailsPopup from pop_widgets
+            content = PartDetailsPopup(part)
 
-        logger.debug(
-            f"Opening popup for part: {part.part_number}, image_path: {getattr(part, 'image_path', None)}")
+            popup = Popup(
+                title=f"Part Details: {part.part_number}",
+                content=content,
+                size_hint=(0.8, 0.8),
+                auto_dismiss=True
+            )
+            popup.open()
 
-        content = PartDetailsPopup(part)
-
-        popup = Popup(
-            title=f"Details for {part.part_number}",
-            content=content,
-            size_hint=(0.8, 0.8),
-            auto_dismiss=True
-        )
-        popup.open()
+        except Exception as e:
+            logger.error(f"Error selecting part: {e}")
+            # Show error in snackbar
+            snackbar = MDSnackbar(
+                text=f"Error opening part details: {str(e)}"
+            )
+            snackbar.open()
 
 class DocumentsContent(MDBoxLayout):
     """Content for Documents panel with two tabs:
