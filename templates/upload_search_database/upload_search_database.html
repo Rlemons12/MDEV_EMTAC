@@ -38,6 +38,9 @@
 {% endblock %}
 
 {% block content %}
+
+
+
     <!-- User level-restricted forms -->
     <!-- Upload forms - only visible to LEVEL_III and ADMIN -->
     {% if session['user_level'] == 'LEVEL_III' or session['user_level'] == 'ADMIN' %}
