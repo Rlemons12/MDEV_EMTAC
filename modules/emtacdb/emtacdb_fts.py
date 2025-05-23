@@ -2377,6 +2377,92 @@ class Image(Base):
 
         return SessionMonitor(session, operation_name, request_id)
 
+    @classmethod
+    @with_request_id
+    def _serve_file_internal(cls, session, image_id, request_id):
+        """
+        Internal method that does the actual file serving work.
+
+        Returns:
+            tuple: (success: bool, response: Flask response or error message, status_code: int)
+        """
+
+        try:
+            # Set SQLite busy timeout for better concurrency
+            session.execute(text("PRAGMA busy_timeout = 30000"))
+
+            # Query for the image
+            image = session.query(cls).filter_by(id=image_id).first()
+
+            if not image:
+                error_id(f"Image not found with ID: {image_id}", request_id)
+                return False, "Image not found", 404
+
+            debug_id(f"Image found: {image.title}, File path: {image.file_path}", request_id)
+
+            # Construct the full file path
+            if os.path.isabs(image.file_path):
+                file_path = image.file_path
+            else:
+                file_path = os.path.join(DATABASE_DIR, image.file_path)
+
+            # Check if file exists
+            if not os.path.exists(file_path):
+                error_id(f"File not found: {file_path}", request_id)
+                return False, "Image file not found", 404
+
+            # Determine MIME type from file extension
+            mimetype, _ = mimetypes.guess_type(file_path)
+            if not mimetype or not mimetype.startswith('image/'):
+                # Default to jpeg if we can't determine or it's not an image type
+                mimetype = 'image/jpeg'
+
+            info_id(f"Serving file: {file_path} with mimetype: {mimetype}", request_id)
+
+            # Return the Flask response
+            flask_response = send_file(file_path, mimetype=mimetype)
+            return True, flask_response, 200
+
+        except Exception as e:
+            error_id(f"An error occurred while serving the image: {e}", request_id, exc_info=True)
+            return False, "Internal Server Error", 500
+
+    @classmethod
+    @with_request_id
+    def serve_file(cls, image_id, session=None, request_id=None):
+        """
+        Serve an image file by image ID. Returns Flask response objects or error information.
+
+        Args:
+            image_id (int): The ID of the image to serve
+            session: Database session (optional, will create if not provided)
+            request_id: Request ID for logging (optional, will generate if not provided)
+
+        Returns:
+            tuple: (success: bool, response: Flask response or error info, status_code: int)
+        """
+        from flask import send_file
+        from modules.configuration.config import DATABASE_DIR
+        from modules.configuration.log_config import info_id, error_id, debug_id
+
+        # Get or generate request_id
+        rid = request_id or get_request_id()
+
+        info_id(f"Attempting to serve image with ID: {image_id}", rid)
+
+        # Enhanced session management - check if we need to create our own session
+        session_provided = session is not None
+        if not session_provided:
+            db_config = DatabaseConfig()
+            with cls.monitor_processing_session(
+                    db_config.get_main_session(),
+                    "serve_image_file",
+                    rid
+            ) as session:
+                return cls._serve_file_internal(session, image_id, rid)
+        else:
+            return cls._serve_file_internal(session, image_id, rid)
+
 class ImageEmbedding(Base):
     __tablename__ = 'image_embedding'
 
@@ -7385,6 +7471,7 @@ class PartsPositionImageAssociation(Base):
             error_id(f"Error during _get_positions_by_hierarchy with filters {filters}: {e}", request_id=request_id,
                      exc_info=True)
             raise
+
 
 class ImagePositionAssociation(Base):
     __tablename__ = 'image_position_association'

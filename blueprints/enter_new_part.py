@@ -3,7 +3,7 @@ from werkzeug.utils import secure_filename
 import os
 from sqlalchemy import and_
 from modules.configuration.config_env import DatabaseConfig
-from modules.configuration.config import UPLOAD_FOLDER, ALLOWED_EXTENSIONS, BASE_DIR
+from modules.configuration.config import UPLOAD_FOLDER, ALLOWED_EXTENSIONS, BASE_DIR,DATABASE_DIR
 from modules.configuration.log_config import logger
 from modules.emtacdb.emtacdb_fts import Part, Model, Image, Position, PartsPositionImageAssociation
 from modules.emtacdb.utlity.main_database.database import add_image_to_db, add_parts_position_image_association
@@ -210,25 +210,15 @@ def enter_part():
 # Add route to serve part images
 @enter_new_part_bp.route('/part_image/<int:image_id>')
 def serve_part_image(image_id):
-    logger.info(f"Attempting to serve image with ID: {image_id}")
-    session = db_config.get_main_session()
+    """
+    Flask route that serves image files using the Image class method.
+    """
+    # Call the class method
+    success, response, status_code = Image.serve_file(image_id)
 
-    try:
-        image = session.query(Image).filter_by(id=image_id).first()
-        if image:
-            logger.debug(f"Image found: {image.title}, File path: {image.file_path}")
-            file_path = os.path.join(BASE_DIR, image.file_path)
-            if os.path.exists(file_path):
-                logger.info(f"Serving file: {file_path}")
-                return send_file(file_path, mimetype='image/jpeg')
-            else:
-                logger.error(f"File not found: {file_path}")
-                return "Image file not found", 404
-        else:
-            logger.error(f"Image not found with ID: {image_id}")
-            return "Image not found", 404
-    except Exception as e:
-        logger.error(f"An error occurred while serving the image: {e}")
-        return "Internal Server Error", 500
-    finally:
-        session.close()
+    if success:
+        # Return the Flask response object directly
+        return response
+    else:
+        # Return error message with appropriate status code
+        return response, status_code
