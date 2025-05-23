@@ -4,10 +4,10 @@ from flask import Blueprint, jsonify, request, render_template
 from PIL import Image as PILImage, ImageFile
 from modules.configuration.config import DATABASE_PATH_IMAGES_FOLDER, DATABASE_URL
 from plugins.image_modules import CLIPModelHandler, NoImageModel
-from modules.emtacdb.emtacdb_fts import load_image_model_config_from_db
+
 from sqlalchemy import (create_engine)
 from sqlalchemy.orm import declarative_base, scoped_session, sessionmaker
-
+from plugins.ai_modules import ModelsConfig
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 # Create SQLAlchemy engine
@@ -18,11 +18,8 @@ session = Session()
 
 folder_image_embedding_bp = Blueprint('folder_image_embedding_bp', __name__)
 
-# Load the current image model configuration from the database
-CURRENT_IMAGE_MODEL = load_image_model_config_from_db()
-
-# Choose the appropriate handler
-image_handler = CLIPModelHandler() if CURRENT_IMAGE_MODEL != "no_model" else NoImageModel()
+# Instantiate the appropriate handler using the function from image_modules.py
+image_handler = ModelsConfig.load_image_model()
 
 def process_and_store_images(folder):
     session = Session()
