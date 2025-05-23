@@ -10,7 +10,7 @@ import torch
 import os
 # Import config variables from config.py
 from modules.configuration.config import DATABASE_URL, ALLOWED_EXTENSIONS
-from modules.emtacdb.emtacdb_fts import Image, ImageEmbedding  # Import here to avoid circular import
+
 from modules.configuration.config import BASE_DIR  # Import BASE_DIR
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -33,7 +33,6 @@ def get_image_model_handler(model_name):
         logger.error(f"{model_name} not found in {__name__}")
         return NoImageModel()
 
-
 # Define the BaseImageModelHandler interface
 class BaseImageModelHandler(ABC):
     @abstractmethod
@@ -53,7 +52,7 @@ class BaseImageModelHandler(ABC):
         pass
 
     def store_image_metadata(self, session, title, description, file_path, embedding, model_name):
-
+        from modules.emtacdb.emtacdb_fts import Image, ImageEmbedding
         # Ensure file_path is relative
         if os.path.isabs(file_path):
             relative_file_path = os.path.relpath(file_path, BASE_DIR)
