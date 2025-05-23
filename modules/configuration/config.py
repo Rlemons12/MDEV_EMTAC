@@ -60,6 +60,7 @@ HUGGINGFACE_API_KEY="..."
 #Visual Code api = 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
 # api git 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
 
+ANTHROPIC_API_KEY = "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"
 # NLP model setup
 nlp_model_name = "mrm8488/t5-base-finetuned-question-generation-ap"
 auth_token = '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' #huggingface_token
