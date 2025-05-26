@@ -1,173 +1,372 @@
-from sqlalchemy import create_engine
-from sqlalchemy.orm import declarative_base, scoped_session, sessionmaker
-from modules.emtacdb.emtacdb_fts import User, KivyUser, UserLevel  # Import KivyUser as well
-from modules.configuration.config import DATABASE_URL, ADMIN_CREATION_PASSWORD
+import time
+from datetime import datetime
+
+# Import the new PostgreSQL framework components
+from modules.emtacdb.emtacdb_fts import User, KivyUser, UserLevel
+from modules.configuration.config import ADMIN_CREATION_PASSWORD
+from modules.configuration.config_env import DatabaseConfig
+from modules.configuration.log_config import (
+    debug_id, info_id, warning_id, error_id,
+    set_request_id, get_request_id, log_timed_operation
+)
 from modules.initial_setup.initializer_logger import (
     initializer_logger, close_initializer_logger,
     compress_logs_except_most_recent, LOG_DIRECTORY
 )
-from datetime import datetime
 
 # Ensure ADMIN_CREATION_PASSWORD is treated as a string
 ADMIN_CREATION_PASSWORD = str(ADMIN_CREATION_PASSWORD)
 
 
-def configure_engine_and_session():
-    """
-    Configure the SQLAlchemy engine and session.
-    """
-    initializer_logger.info(f"Creating SQLAlchemy engine with DATABASE_URL: {DATABASE_URL}")
-    engine = create_engine(DATABASE_URL)
-    Base = declarative_base()
-    Session = scoped_session(sessionmaker(bind=engine))
-    return Session
+class PostgreSQLAdminCreator:
+    """PostgreSQL-enhanced admin user creator with comprehensive validation and user experience."""
 
+    def __init__(self):
+        self.request_id = set_request_id()
+        self.db_config = DatabaseConfig()
+        info_id("Initialized PostgreSQL Admin Creator", self.request_id)
 
-def create_initial_admin(admin_password, session):
-    """
-    Function to create the initial admin user.
-    """
-    initializer_logger.debug("Starting create_initial_admin function.")
+        # Statistics tracking
+        self.stats = {
+            'users_created': 0,
+            'users_already_exist': 0,
+            'errors_encountered': 0,
+            'processing_time': 0
+        }
 
-    # Check if admin creation password is set
-    if not ADMIN_CREATION_PASSWORD:
-        initializer_logger.error("Admin creation password not set. Exiting.")
-        return False
+    def validate_admin_password(self, entered_password):
+        """Validate the admin creation password with enhanced checking."""
+        info_id("Validating admin creation password", self.request_id)
 
-    # Validate the entered password
-    admin_password = str(admin_password).strip()  # Ensure it's a string and trimmed
-    initializer_logger.debug(
-        f"Entered admin password: '{admin_password}' (type: {type(admin_password)}, length: {len(admin_password)})")
+        if not ADMIN_CREATION_PASSWORD:
+            error_id("Admin creation password not configured in settings", self.request_id)
+            print("❌ Admin creation password is not configured")
+            print("💡 Please check your configuration settings")
+            return False
 
-    if admin_password != ADMIN_CREATION_PASSWORD:
-        initializer_logger.error("Incorrect password. Exiting.")
-        return False
+        # Clean and validate the entered password
+        entered_password = str(entered_password).strip()
+        expected_password = str(ADMIN_CREATION_PASSWORD).strip()
 
-    try:
-        # Check if an admin user already exists
-        existing_admin = session.query(User).filter_by(user_level=UserLevel.ADMIN).first()
-        if existing_admin:
-            initializer_logger.info("Admin user already exists. Exiting.")
+        debug_id(f"Password validation - Length: {len(entered_password)}, Expected length: {len(expected_password)}",
+                 self.request_id)
+
+        if entered_password != expected_password:
+            error_id("Incorrect admin creation password provided", self.request_id)
+            print("❌ Incorrect password")
+            return False
+
+        info_id("Admin creation password validated successfully", self.request_id)
+        return True
+
+    def check_existing_users(self, session):
+        """Check for existing admin users and provide user feedback."""
+        try:
+            info_id("Checking for existing admin users", self.request_id)
+            print("🔍 Checking for existing admin users...")
+
+            # Check for regular admin users
+            existing_admin = session.query(User).filter_by(user_level=UserLevel.ADMIN).first()
+            existing_kivy_admin = session.query(KivyUser).filter_by(user_level=UserLevel.ADMIN).first()
+
+            # Count total users
+            total_users = session.query(User).count()
+            total_kivy_users = session.query(KivyUser).count()
+
+            results = {
+                'regular_admin_exists': existing_admin is not None,
+                'kivy_admin_exists': existing_kivy_admin is not None,
+                'total_users': total_users,
+                'total_kivy_users': total_kivy_users,
+                'existing_admin': existing_admin,
+                'existing_kivy_admin': existing_kivy_admin
+            }
+
+            if existing_admin or existing_kivy_admin:
+                print(f"\n⚠️  EXISTING ADMIN USERS FOUND")
+                print(f"=" * 35)
+
+                if existing_admin:
+                    print(
+                        f"👤 Regular Admin: {existing_admin.employee_id} ({existing_admin.first_name} {existing_admin.last_name})")
+
+                if existing_kivy_admin:
+                    print(
+                        f"📱 Kivy Admin: {existing_kivy_admin.employee_id} ({existing_kivy_admin.first_name} {existing_kivy_admin.last_name})")
+
+                print(f"📊 Total Users: {total_users}")
+                if total_kivy_users > 0:
+                    print(f"📱 Total Kivy Users: {total_kivy_users}")
+                print()
+
+                info_id(f"Found existing admins - Regular: {bool(existing_admin)}, Kivy: {bool(existing_kivy_admin)}",
+                        self.request_id)
+            else:
+                print(f"   📋 No existing admin users found")
+                if total_users > 0 or total_kivy_users > 0:
+                    print(f"   📊 Current users: {total_users} regular, {total_kivy_users} kivy users")
+                info_id("No existing admin users found", self.request_id)
+
+            return results
+
+        except Exception as e:
+            error_id(f"Error checking existing users: {str(e)}", self.request_id)
+            print(f"⚠️  Error checking existing users: {str(e)}")
+            return None
+
+    def create_regular_admin(self, session, user_check_results):
+        """Create regular admin user with enhanced validation."""
+        try:
+            if user_check_results and user_check_results['regular_admin_exists']:
+                existing_admin = user_check_results['existing_admin']
+                info_id(f"Regular admin already exists: {existing_admin.employee_id}", self.request_id)
+                print(f"✅ Regular admin user already exists: {existing_admin.employee_id}")
+                self.stats['users_already_exist'] += 1
+                return True
+
+            info_id("Creating regular admin user", self.request_id)
+            print("👤 Creating regular admin user...")
+
+            with log_timed_operation("create_regular_admin", self.request_id):
+                # Create the admin user
+                admin_user = User(
+                    employee_id='admin',
+                    first_name='Admin',
+                    last_name='User',
+                    current_shift='Day',
+                    primary_area='Administration',
+                    age=30,
+                    education_level='Masters',
+                    start_date=datetime.utcnow(),
+                    user_level=UserLevel.ADMIN
+                )
+
+                # Set password with validation
+                admin_user.set_password('admin123')
+                debug_id("Password set for regular admin user", self.request_id)
+
+                # Add to session
+                session.add(admin_user)
+                session.flush()  # Get the ID without committing
+
+                info_id(f"Created regular admin user with ID: {admin_user.id}", self.request_id)
+                print(f"   ✅ Created regular admin: {admin_user.employee_id}")
+                print(f"   🔑 Default password: admin123")
+                print(f"   💡 Please change the password after first login")
+
+                self.stats['users_created'] += 1
+                return True
+
+        except Exception as e:
+            error_id(f"Error creating regular admin user: {str(e)}", self.request_id, exc_info=True)
+            print(f"   ❌ Error creating regular admin: {str(e)}")
+            self.stats['errors_encountered'] += 1
+            return False
+
+    def create_kivy_admin(self, session, user_check_results):
+        """Create Kivy admin user with enhanced validation."""
+        try:
+            if user_check_results and user_check_results['kivy_admin_exists']:
+                existing_kivy_admin = user_check_results['existing_kivy_admin']
+                info_id(f"Kivy admin already exists: {existing_kivy_admin.employee_id}", self.request_id)
+                print(f"✅ Kivy admin user already exists: {existing_kivy_admin.employee_id}")
+                self.stats['users_already_exist'] += 1
+                return True
+
+            info_id("Creating Kivy admin user", self.request_id)
+            print("📱 Creating Kivy admin user...")
+
+            with log_timed_operation("create_kivy_admin", self.request_id):
+                # Create the Kivy admin user
+                kivy_admin = KivyUser(
+                    employee_id='kivyadmin',
+                    first_name='Kivy',
+                    last_name='Admin',
+                    current_shift='Day',
+                    primary_area='Administration',
+                    age=30,
+                    education_level='Masters',
+                    start_date=datetime.utcnow(),
+                    user_level=UserLevel.ADMIN
+                )
+
+                # Set password with validation
+                kivy_admin.set_password('admin123')
+                debug_id("Password set for Kivy admin user", self.request_id)
+
+                # Add to session
+                session.add(kivy_admin)
+                session.flush()  # Get the ID without committing
+
+                info_id(f"Created Kivy admin user with ID: {kivy_admin.id}", self.request_id)
+                print(f"   ✅ Created Kivy admin: {kivy_admin.employee_id}")
+                print(f"   🔑 Default password: admin123")
+                print(f"   💡 Please change the password after first login")
+
+                self.stats['users_created'] += 1
+                return True
+
+        except Exception as e:
+            error_id(f"Error creating Kivy admin user: {str(e)}", self.request_id, exc_info=True)
+            print(f"   ❌ Error creating Kivy admin: {str(e)}")
+            self.stats['errors_encountered'] += 1
+            return False
+
+    def display_final_summary(self):
+        """Display comprehensive admin creation summary."""
+        print(f"\n🎉 ADMIN CREATION COMPLETE!")
+        print(f"=" * 35)
+        print(f"📊 Final Summary:")
+        print(f"   👥 Users created: {self.stats['users_created']}")
+        print(f"   ✅ Users already existed: {self.stats['users_already_exist']}")
+
+        if self.stats['errors_encountered'] > 0:
+            print(f"   ❌ Errors encountered: {self.stats['errors_encountered']}")
+
+        if self.stats['processing_time'] > 0:
+            print(f"   ⏱️  Processing time: {self.stats['processing_time']:.2f}s")
+
+        print(f"=" * 35)
+
+        if self.stats['users_created'] > 0:
+            print(f"🔑 IMPORTANT SECURITY NOTES:")
+            print(f"   • Default password is 'admin123'")
+            print(f"   • Change passwords immediately after first login")
+            print(f"   • Use strong, unique passwords for production")
+            print(f"   • Consider enabling two-factor authentication")
+
+        info_id(f"Admin creation summary: {self.stats}", self.request_id)
+
+    def create_admin_users(self, admin_password):
+        """Main method to create admin users with comprehensive handling."""
+        try:
+            print(f"\n👤 Initial Admin User Creation")
+            print(f"=" * 35)
+
+            start_time = time.time()
+
+            # Validate password
+            if not self.validate_admin_password(admin_password):
+                return False
+
+            # Get database session using new framework
+            with self.db_config.main_session() as session:
+                # Check existing users
+                user_check_results = self.check_existing_users(session)
+                if user_check_results is None:
+                    return False
+
+                # Determine what needs to be created
+                needs_regular_admin = not user_check_results['regular_admin_exists']
+                needs_kivy_admin = not user_check_results['kivy_admin_exists']
+
+                if not needs_regular_admin and not needs_kivy_admin:
+                    print(f"📋 All admin users already exist")
+                    info_id("All admin users already exist, nothing to create", self.request_id)
+                    self.stats['users_already_exist'] = 2
+                else:
+                    print(f"🚀 Creating missing admin users...")
+
+                    # Create regular admin if needed
+                    if needs_regular_admin:
+                        self.create_regular_admin(session, user_check_results)
+
+                    # Create Kivy admin if needed
+                    if needs_kivy_admin:
+                        self.create_kivy_admin(session, user_check_results)
+
+                    # Commit all changes
+                    try:
+                        session.commit()
+                        info_id("All admin user changes committed successfully", self.request_id)
+                        print(f"   💾 All changes saved successfully")
+                    except Exception as e:
+                        session.rollback()
+                        error_id(f"Error committing admin user changes: {str(e)}", self.request_id)
+                        print(f"   ❌ Error saving changes: {str(e)}")
+                        return False
+
+            # Update final statistics
+            self.stats['processing_time'] = time.time() - start_time
+
+            # Display summary
+            self.display_final_summary()
+
+            info_id("Admin user creation completed successfully", self.request_id)
             return True
 
-        # Create the admin user
-        initializer_logger.info("Creating initial admin user.")
-        admin_user = User(
-            employee_id='admin',
-            first_name='Admin',
-            last_name='User',
-            current_shift='Day',
-            primary_area='Administration',
-            age=30,
-            education_level='Masters',
-            start_date=None,
-            user_level=UserLevel.ADMIN
-        )
-
-        # Hash and set the password
-        admin_user.set_password('admin123')  # Set a secure password
-        initializer_logger.debug("Password set for admin user.")
-
-        session.add(admin_user)
-        session.commit()
-
-        initializer_logger.info("Initial admin user created successfully.")
-        return True
-    except Exception as e:
-        initializer_logger.error(f"An error occurred: {e}")
-        session.rollback()
-        return False
-    finally:
-        initializer_logger.debug("Closing the session.")
-        session.close()
+        except Exception as e:
+            error_id(f"Admin user creation failed: {str(e)}", self.request_id, exc_info=True)
+            print(f"\n❌ Admin creation failed: {str(e)}")
+            return False
 
 
-def create_kivy_admin(admin_password, session):
-    """
-    Function to create an admin user as a KivyUser subclass.
-    """
-    initializer_logger.debug("Starting create_kivy_admin function.")
+def prompt_for_admin_password():
+    """Enhanced password prompting with validation."""
+    print(f"\n🔐 Admin Creation Authentication")
+    print(f"=" * 35)
+    print(f"Enter the admin creation password to proceed.")
+    print(f"💡 This is configured in your application settings.")
+    print()
 
-    # Check if admin creation password is set
-    if not ADMIN_CREATION_PASSWORD:
-        initializer_logger.error("Admin creation password not set. Exiting.")
-        return False
+    max_attempts = 3
+    for attempt in range(1, max_attempts + 1):
+        admin_password = input(f"🔑 Admin creation password (attempt {attempt}/{max_attempts}): ").strip()
 
-    # Validate the entered password
-    admin_password = str(admin_password).strip()
-    initializer_logger.debug(
-        f"Entered admin password: '{admin_password}' (type: {type(admin_password)}, length: {len(admin_password)})")
+        if admin_password:
+            return admin_password
+        else:
+            print(f"⚠️  Please enter a password")
+            if attempt < max_attempts:
+                print(f"💡 {max_attempts - attempt} attempts remaining")
 
-    if admin_password != ADMIN_CREATION_PASSWORD:
-        initializer_logger.error("Incorrect password. Exiting.")
-        return False
-
-    try:
-        # Check if a KivyUser admin already exists
-        existing_kivy_admin = session.query(KivyUser).filter_by(user_level=UserLevel.ADMIN).first()
-        if existing_kivy_admin:
-            initializer_logger.info(f"KivyUser admin already exists: {existing_kivy_admin.employee_id}. Exiting.")
-            return True
-
-        # Create the KivyUser admin
-        initializer_logger.info("Creating initial KivyUser admin.")
-        kivy_admin = KivyUser(
-            employee_id='kivyadmin',
-            first_name='Kivy',
-            last_name='Admin',
-            current_shift='Day',
-            primary_area='Administration',
-            age=30,
-            education_level='Masters',
-            start_date=datetime.utcnow(),
-            user_level=UserLevel.ADMIN
-        )
-
-        # Hash and set the password
-        kivy_admin.set_password('admin123')
-        initializer_logger.debug("Password set for KivyUser admin.")
-
-        session.add(kivy_admin)
-        session.commit()
-
-        initializer_logger.info("Initial KivyUser admin created successfully.")
-        return True
-    except Exception as e:
-        initializer_logger.error(f"An error occurred creating KivyUser: {e}")
-        session.rollback()
-        return False
+    print(f"❌ Maximum attempts exceeded")
+    return None
 
 
 def main():
     """
-    Main function to handle the admin creation process.
+    Main function to handle the admin creation process using PostgreSQL framework.
     """
-    # Configure the engine and session
-    session = configure_engine_and_session()
+    print("\n🎯 Starting Initial Admin User Creation")
+    print("=" * 45)
 
-    # Prompt the user for the admin password
-    admin_password = input("Enter the admin creation password: ").strip()
-    initializer_logger.info(f"Admin password received from input: {admin_password}")
+    creator = None
+    try:
+        # Initialize the PostgreSQL admin creator
+        creator = PostgreSQLAdminCreator()
 
-    # Create the initial admin user
-    success = create_initial_admin(admin_password, session)
+        # Prompt for admin password
+        admin_password = prompt_for_admin_password()
+        if not admin_password:
+            print("❌ Admin creation cancelled - no valid password provided")
+            return
 
-    if success:
-        initializer_logger.info("Regular admin creation process completed successfully.")
-    else:
-        initializer_logger.info("Regular admin creation process failed or was not necessary.")
+        # Create admin users
+        success = creator.create_admin_users(admin_password)
 
-    # Create the KivyUser admin
-    kivy_success = create_kivy_admin(admin_password, session)
+        if success:
+            print("\n✅ Initial Admin Creation Completed Successfully!")
+            print("=" * 45)
+        else:
+            print("\n⚠️  Initial Admin Creation Completed with Issues")
+            print("=" * 45)
 
-    if kivy_success:
-        initializer_logger.info("KivyUser admin creation process completed successfully.")
-    else:
-        initializer_logger.info("KivyUser admin creation process failed or was not necessary.")
-
-    # Perform cleanup tasks
-    close_initializer_logger()
-    compress_logs_except_most_recent(LOG_DIRECTORY)
+    except KeyboardInterrupt:
+        print("\n🛑 Admin creation interrupted by user")
+        if creator:
+            error_id("Admin creation interrupted by user", creator.request_id)
+    except Exception as e:
+        print(f"\n❌ Admin creation failed: {str(e)}")
+        if creator:
+            error_id(f"Admin creation failed: {str(e)}", creator.request_id, exc_info=True)
+    finally:
+        # Cleanup and logging
+        try:
+            close_initializer_logger()
+            compress_logs_except_most_recent(LOG_DIRECTORY)
+        except:
+            pass
 
 
 if __name__ == '__main__':
