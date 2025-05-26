@@ -2,6 +2,7 @@
 
 import os
 import sys
+from dotenv import load_dotenv
 
 # Determine the root directory based on whether the code is frozen (e.g., PyInstaller .exe)
 if getattr(sys, 'frozen', False):  # Check if running as an executable
@@ -12,10 +13,12 @@ else:
 # Add the current directory to the Python module search path for flexibility
 sys.path.append(BASE_DIR)
 
+#os.getenv
 # Get the current directory path
 
 #Important pathways
-
+load_dotenv()
+DATABASE_URL = "postgresql://postgres:emtac123@localhost:5432/emtac"
 ENABLE_REVISION_CONTROL = False   # or True once you wire it up
 TEMPLATE_FOLDER_PATH = os.path.join(BASE_DIR, 'templates')
 LOAD_FOLDER = os.path.join(BASE_DIR, 'load_process')
@@ -38,7 +41,6 @@ ALLOWED_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif'}  # Allowed image file extensi
 TEMPORARY_FILES = os.path.join(DATABASE_DIR, 'temp_files')
 PPT2PDF_PPT_FILES_PROCESS = os.path.join(DATABASE_DIR, 'PPT_FILES')
 PPT2PDF_PDF_FILES_PROCESS = os.path.join(DATABASE_DIR, 'PDF_FILES')
-DATABASE_URL = f'sqlite:///{os.path.join(BASE_DIR, "Database", "emtac_db.db")}'
 DATABASE_DOC = os.path.join(DATABASE_DIR, 'DB_DOC')
 TEMPORARY_UPLOAD_FILES = os.path.join(DATABASE_DIR, 'temp_upload_files')
 DB_LOADSHEET = os.path.join(DATABASE_DIR, "DB_LOADSHEETS")
@@ -54,18 +56,22 @@ ADMIN_CREATION_PASSWORD= "12345"
 
 CURRENT_AI_MODEL="OpenAIModel"
 CURRENT_EMBEDDING_MODEL="OpenAIEmbeddingModel"
-# API key for OpenAI
-OPENAI_API_KEY = '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' #was API_KEY
-HUGGINGFACE_API_KEY="..."
-#Visual Code api = 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
-# api git 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
 
-ANTHROPIC_API_KEY = "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"
+
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+HUGGINGFACE_API_KEY="..."
+Visual_Code_api = os.getenv('Visual Code api')
+
+
+ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY')
 # NLP model setup
-nlp_model_name = "mrm8488/t5-base-finetuned-question-generation-ap"
-auth_token = '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' #huggingface_token
+nlp_model_name = os.getenv('nlp_model_name')
+auth_token = os.getenv('auth_token')
+
+
 
 #List of directories to check and create
+
 directories_to_check = [
     TEMPLATE_FOLDER_PATH,
     DATABASE_DIR,

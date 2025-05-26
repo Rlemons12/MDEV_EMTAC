@@ -14,7 +14,7 @@ from modules.configuration.log_config import logger
 CONNECTION_LIMITING_ENABLED = False
 
 # Global maximum concurrent connections - can also be set via environment variable
-MAX_CONCURRENT_CONNECTIONS = int(os.environ.get('MAX_DB_CONNECTIONS', '4'))  # Reduced to 4 for better stability
+MAX_CONCURRENT_CONNECTIONS = int(os.environ.get('MAX_DB_CONNECTIONS', '10'))  # Increased for PostgreSQL
 
 # Global timeout for acquiring a database connection (in seconds)
 CONNECTION_TIMEOUT = int(os.environ.get('DB_CONNECTION_TIMEOUT', '60'))
@@ -27,6 +27,11 @@ _revision_db_semaphore = threading.Semaphore(MAX_CONCURRENT_CONNECTIONS)
 _active_main_connections = 0
 _active_revision_connections = 0
 _connection_lock = threading.Lock()
+
+
+def _is_postgresql_url(database_url):
+    """Check if the database URL is for PostgreSQL."""
+    return database_url.startswith('postgresql://') or database_url.startswith('postgres://')
 
 
 def with_connection_limiting(func):
@@ -120,24 +125,53 @@ class DatabaseConfig:
     def __init__(self):
         # Main database configuration
         self.main_database_url = DATABASE_URL
-        self.main_engine = create_engine(self.main_database_url)
+        self.is_postgresql = _is_postgresql_url(DATABASE_URL)
+
+        # Create engine with appropriate settings for the database type
+        if self.is_postgresql:
+            # PostgreSQL-specific engine configuration
+            self.main_engine = create_engine(
+                self.main_database_url,
+                pool_size=10,  # Connection pool size
+                max_overflow=20,  # Additional connections when pool is full
+                pool_pre_ping=True,  # Validate connections before use
+                pool_recycle=3600,  # Recycle connections after 1 hour
+                echo=False,  # Set to True for SQL query logging
+                connect_args={
+                    "application_name": "emtac_app",
+                    "options": "-c timezone=utc"
+                }
+            )
+        else:
+            # SQLite engine configuration (fallback)
+            self.main_engine = create_engine(self.main_database_url)
+
         self.MainBase = declarative_base()
         self.MainSession = scoped_session(sessionmaker(bind=self.main_engine))
         self.MainSessionMaker = sessionmaker(bind=self.main_engine)
 
-        # Revision control database configuration
+        # Revision control database configuration (always SQLite)
         self.revision_control_db_path = REVISION_CONTROL_DB_PATH
         self.revision_control_engine = create_engine(f'sqlite:///{self.revision_control_db_path}')
         self.RevisionControlBase = declarative_base()
         self.RevisionControlSession = scoped_session(sessionmaker(bind=self.revision_control_engine))
         self.RevisionControlSessionMaker = sessionmaker(bind=self.revision_control_engine)
 
-        # Apply PRAGMA settings
-        self._apply_sqlite_pragmas(self.main_engine)
+        # Apply database-specific settings
+        if self.is_postgresql:
+            self._apply_postgresql_settings(self.main_engine)
+        else:
+            # Only apply SQLite pragmas to SQLite databases
+            self._apply_sqlite_pragmas(self.main_engine)
+
+        # Always apply SQLite pragmas to revision control (it's always SQLite)
         self._apply_sqlite_pragmas(self.revision_control_engine)
 
+        db_type = "PostgreSQL" if self.is_postgresql else "SQLite"
         logger.info(
-            f"DatabaseConfig initialized with connection limiting: {CONNECTION_LIMITING_ENABLED}, max connections: {MAX_CONCURRENT_CONNECTIONS}")
+            f"DatabaseConfig initialized with {db_type}, "
+            f"connection limiting: {CONNECTION_LIMITING_ENABLED}, "
+            f"max connections: {MAX_CONCURRENT_CONNECTIONS}")
 
     @with_connection_limiting
     def get_main_session(self):
@@ -232,12 +266,18 @@ class DatabaseConfig:
         """Return the scoped_session registry for the revision control database."""
         return self.RevisionControlSession
 
+    def get_engine(self):
+        """Return the main database engine. Added for compatibility with setup scripts."""
+        return self.main_engine
+
     def get_connection_stats(self):
         """
         Return statistics about database connections.
         Useful for monitoring and debugging connection issues.
         """
         return {
+            'database_type': 'PostgreSQL' if self.is_postgresql else 'SQLite',
+            'database_url': self.main_database_url,
             'connection_limiting_enabled': CONNECTION_LIMITING_ENABLED,
             'max_concurrent_connections': MAX_CONCURRENT_CONNECTIONS,
             'active_main_connections': _active_main_connections,
@@ -246,27 +286,144 @@ class DatabaseConfig:
         }
 
     def _apply_sqlite_pragmas(self, engine):
+        """Apply SQLite-specific PRAGMA settings."""
+
         def set_sqlite_pragmas(dbapi_connection, connection_record):
             cursor = dbapi_connection.cursor()
             cursor.execute('PRAGMA journal_mode = WAL;')
             cursor.execute('PRAGMA synchronous = NORMAL;')
             cursor.execute('PRAGMA temp_store = MEMORY;')
             cursor.execute('PRAGMA cache_size = -64000;')
-            cursor.execute('PRAGMA busy_timeout = 5000;')  # Reduced to 5 seconds
+            cursor.execute('PRAGMA busy_timeout = 5000;')  # 5 seconds timeout
             cursor.close()
 
         event.listen(engine, 'connect', set_sqlite_pragmas)
 
+    def _apply_postgresql_settings(self, engine):
+        """Apply PostgreSQL-specific connection settings."""
+
+        def set_postgresql_settings(dbapi_connection, connection_record):
+            with dbapi_connection.cursor() as cursor:
+                # Set timezone to UTC
+                cursor.execute("SET timezone = 'UTC'")
+                # Set statement timeout (30 seconds)
+                cursor.execute("SET statement_timeout = '30s'")
+                # Set idle timeout (to clean up idle connections)
+                cursor.execute("SET idle_in_transaction_session_timeout = '60s'")
+
+        event.listen(engine, 'connect', set_postgresql_settings)
+
     def create_documents_fts(self):
         """
-        Create the FTS5 virtual table for documents if it doesn't already exist.
-        This lets you run full-text queries against (title, content).
+        Create full-text search capabilities.
+        Uses different approaches for PostgreSQL vs SQLite.
         """
-        with self.main_session() as session:
-            session.execute(
-                text(
-                    "CREATE VIRTUAL TABLE IF NOT EXISTS documents_fts "
-                    "USING FTS5(title, content)"
+        if self.is_postgresql:
+            # Use PostgreSQL's built-in full-text search
+            self._create_postgresql_fts()
+        else:
+            # Use SQLite FTS5 (original functionality)
+            self._create_sqlite_fts()
+
+    def _create_postgresql_fts(self):
+        """Create PostgreSQL full-text search setup."""
+        try:
+            with self.main_session() as session:
+                logger.info("Setting up PostgreSQL full-text search...")
+
+                # Add tsvector columns to tables that need full-text search
+                fts_tables = [
+                    ('part', ['part_number', 'description']),
+                    ('image', ['title', 'filename']),
+                    ('drawing', ['drw_number', 'drw_spare_part_number'])
+                ]
+
+                for table_name, text_columns in fts_tables:
+                    try:
+                        # Add search vector column if it doesn't exist
+                        session.execute(text(f"""
+                            ALTER TABLE {table_name} 
+                            ADD COLUMN IF NOT EXISTS search_vector tsvector
+                        """))
+
+                        # Create GIN index for full-text search
+                        session.execute(text(f"""
+                            CREATE INDEX IF NOT EXISTS idx_{table_name}_fts 
+                            ON {table_name} USING gin(search_vector)
+                        """))
+
+                        # Create a function to update the search vector (optional)
+                        # This could be used with triggers to auto-update search vectors
+                        columns_concat = " || ' ' || ".join([f"COALESCE({col}, '')" for col in text_columns])
+                        session.execute(text(f"""
+                            CREATE OR REPLACE FUNCTION update_{table_name}_search_vector() 
+                            RETURNS trigger AS $$
+                            BEGIN
+                                NEW.search_vector := to_tsvector('english', {columns_concat});
+                                RETURN NEW;
+                            END;
+                            $$ LANGUAGE plpgsql;
+                        """))
+
+                        logger.info(f"PostgreSQL FTS setup completed for table: {table_name}")
+
+                    except Exception as e:
+                        logger.warning(f"Could not setup FTS for table {table_name}: {e}")
+
+                logger.info("PostgreSQL full-text search setup completed")
+
+        except Exception as e:
+            logger.error(f"Error setting up PostgreSQL full-text search: {e}")
+
+    def _create_sqlite_fts(self):
+        """Create SQLite FTS5 virtual table (original functionality)."""
+        try:
+            with self.main_session() as session:
+                session.execute(
+                    text(
+                        "CREATE VIRTUAL TABLE IF NOT EXISTS documents_fts "
+                        "USING FTS5(title, content)"
+                    )
                 )
-            )
-            # session.commit() is called automatically by the context manager
+                logger.info("SQLite FTS5 table created")
+        except Exception as e:
+            logger.error(f"Error creating SQLite FTS table: {e}")
+
+    def test_connection(self):
+        """Test the database connection and return basic info."""
+        try:
+            with self.main_session() as session:
+                if self.is_postgresql:
+                    result = session.execute(text("SELECT version()")).fetchone()
+                    version_info = result[0] if result else "Unknown"
+
+                    # Get current user
+                    result = session.execute(text("SELECT current_user")).fetchone()
+                    current_user = result[0] if result else "Unknown"
+
+                    return {
+                        'status': 'success',
+                        'database_type': 'PostgreSQL',
+                        'version': version_info,
+                        'current_user': current_user,
+                        'url': self.main_database_url
+                    }
+                else:
+                    # SQLite
+                    result = session.execute(text("SELECT sqlite_version()")).fetchone()
+                    version_info = result[0] if result else "Unknown"
+
+                    return {
+                        'status': 'success',
+                        'database_type': 'SQLite',
+                        'version': version_info,
+                        'url': self.main_database_url
+                    }
+
+        except Exception as e:
+            return {
+                'status': 'error',
+                'error': str(e),
+                'database_type': 'PostgreSQL' if self.is_postgresql else 'SQLite',
+                'url': self.main_database_url
+            }
