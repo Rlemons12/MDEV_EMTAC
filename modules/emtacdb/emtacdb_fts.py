@@ -47,6 +47,7 @@ from functools import wraps  # Required if you need to recreate with_request_id
 from modules.emtacdb.utlity.system_manager import SystemResourceManager
 from plugins import generate_embedding, store_embedding
 from plugins.ai_modules import ModelsConfig
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Configure mappers (must be called after all ORM classes are defined)
 configure_mappers()
@@ -61,16 +62,14 @@ openai.api_key = OPENAI_API_KEY
 CHUNK_SIZE = 8000
 MODEL_NAME = "text-embedding-ada-002"
 
-# Check if the database file exists in the specified directory and create it if not
-if not os.path.exists(DATABASE_PATH):
-    open(DATABASE_PATH, 'w').close()
 
-# Database setup
+# Update your engine configuration
 engine = create_engine(
-    DATABASE_URL, 
-    pool_size=10, 
-    max_overflow=20, 
-    connect_args={"check_same_thread": False}
+    DATABASE_URL,
+    pool_size=10,
+    max_overflow=20,
+    pool_pre_ping=True,  # Good for PostgreSQL
+    # Remove SQLite-specific connect_args
 )
 
 Session = scoped_session(sessionmaker(bind=engine))
@@ -2377,92 +2376,6 @@ class Image(Base):
 
         return SessionMonitor(session, operation_name, request_id)
 
-    @classmethod
-    @with_request_id
-    def _serve_file_internal(cls, session, image_id, request_id):
-        """
-        Internal method that does the actual file serving work.
-
-        Returns:
-            tuple: (success: bool, response: Flask response or error message, status_code: int)
-        """
-
-        try:
-            # Set SQLite busy timeout for better concurrency
-            session.execute(text("PRAGMA busy_timeout = 30000"))
-
-            # Query for the image
-            image = session.query(cls).filter_by(id=image_id).first()
-
-            if not image:
-                error_id(f"Image not found with ID: {image_id}", request_id)
-                return False, "Image not found", 404
-
-            debug_id(f"Image found: {image.title}, File path: {image.file_path}", request_id)
-
-            # Construct the full file path
-            if os.path.isabs(image.file_path):
-                file_path = image.file_path
-            else:
-                file_path = os.path.join(DATABASE_DIR, image.file_path)
-
-            # Check if file exists
-            if not os.path.exists(file_path):
-                error_id(f"File not found: {file_path}", request_id)
-                return False, "Image file not found", 404
-
-            # Determine MIME type from file extension
-            mimetype, _ = mimetypes.guess_type(file_path)
-            if not mimetype or not mimetype.startswith('image/'):
-                # Default to jpeg if we can't determine or it's not an image type
-                mimetype = 'image/jpeg'
-
-            info_id(f"Serving file: {file_path} with mimetype: {mimetype}", request_id)
-
-            # Return the Flask response
-            flask_response = send_file(file_path, mimetype=mimetype)
-            return True, flask_response, 200
-
-        except Exception as e:
-            error_id(f"An error occurred while serving the image: {e}", request_id, exc_info=True)
-            return False, "Internal Server Error", 500
-
-    @classmethod
-    @with_request_id
-    def serve_file(cls, image_id, session=None, request_id=None):
-        """
-        Serve an image file by image ID. Returns Flask response objects or error information.
-
-        Args:
-            image_id (int): The ID of the image to serve
-            session: Database session (optional, will create if not provided)
-            request_id: Request ID for logging (optional, will generate if not provided)
-
-        Returns:
-            tuple: (success: bool, response: Flask response or error info, status_code: int)
-        """
-        from flask import send_file
-        from modules.configuration.config import DATABASE_DIR
-        from modules.configuration.log_config import info_id, error_id, debug_id
-
-        # Get or generate request_id
-        rid = request_id or get_request_id()
-
-        info_id(f"Attempting to serve image with ID: {image_id}", rid)
-
-        # Enhanced session management - check if we need to create our own session
-        session_provided = session is not None
-        if not session_provided:
-            db_config = DatabaseConfig()
-            with cls.monitor_processing_session(
-                    db_config.get_main_session(),
-                    "serve_image_file",
-                    rid
-            ) as session:
-                return cls._serve_file_internal(session, image_id, rid)
-        else:
-            return cls._serve_file_internal(session, image_id, rid)
-
 class ImageEmbedding(Base):
     __tablename__ = 'image_embedding'
 
@@ -2857,6 +2770,7 @@ class Drawing(Base):
             if not session_provided:
                 session.close()
 
+
 class Document(Base):
     __tablename__ = 'document'
 
@@ -2882,104 +2796,134 @@ class DocumentEmbedding(Base):
 
     document = relationship("Document", back_populates="embeddings")
 
+
 class CompleteDocument(Base):
+    """
+    Modern document model with robust database handling.
+    Fixed PostgreSQL UPSERT and Unicode logging issues.
+    """
+
     __tablename__ = 'complete_document'
 
+    # Core fields
     id = Column(Integer, primary_key=True)
-    title = Column(String)
+    title = Column(String, nullable=False)
     file_path = Column(String)
     content = Column(Text)
     rev = Column(String, nullable=False, default="R0")
 
-    # Existing relationships
+    # Relationships
     document = relationship("Document", back_populates="complete_document")
-    completed_document_position_association = relationship("CompletedDocumentPositionAssociation",
-                                                           back_populates="complete_document")
+    completed_document_position_association = relationship(
+        "CompletedDocumentPositionAssociation",
+        back_populates="complete_document"
+    )
     powerpoint = relationship("PowerPoint", back_populates="complete_document")
-    image_completed_document_association = relationship("ImageCompletedDocumentAssociation",
-                                                        back_populates="complete_document")
-    complete_document_problem = relationship("CompleteDocumentProblemAssociation", back_populates="complete_document")
-    complete_document_task = relationship("CompleteDocumentTaskAssociation", back_populates="complete_document")
-
-    @classmethod
-    def add_to_db(cls, session, title=None, file_path=None, content=None, rev=None):
-        """
-        Add a new CompleteDocument to the database.
-
-        Args:
-            session: SQLAlchemy session object
-            title (str, optional): Document title
-            file_path (str, optional): Path to the document file
-            content (str, optional): Document content
-            rev (str, optional): Document revision (defaults to "R0")
-
-        Returns:
-            CompleteDocument: The created and committed document instance
-
-        Raises:
-            Exception: If database operation fails
-        """
-        try:
-            # Create new instance
-            new_document = cls(
-                title=title,
-                file_path=file_path,
-                content=content,
-                rev=rev or "R0"
-            )
-
-            # Add to session
-            session.add(new_document)
-
-            # Commit to database
-            session.commit()
-
-            # Refresh to get the assigned ID
-            session.refresh(new_document)
-
-            return new_document
-
-        except Exception as e:
-            # Rollback on error
-            session.rollback()
-            raise e
-
-    def save_to_db(self, session):
-        """
-        Save the current instance to the database.
-        Useful for updating existing records or saving new ones.
-
-        Args:
-            session: SQLAlchemy session object
-
-        Returns:
-            CompleteDocument: The saved document instance
-        """
-        try:
-            session.add(self)
-            session.commit()
-            session.refresh(self)
-            return self
-        except Exception as e:
-            session.rollback()
-            raise e
+    image_completed_document_association = relationship(
+        "ImageCompletedDocumentAssociation",
+        back_populates="complete_document"
+    )
+    complete_document_problem = relationship(
+        "CompleteDocumentProblemAssociation",
+        back_populates="complete_document"
+    )
+    complete_document_task = relationship(
+        "CompleteDocumentTaskAssociation",
+        back_populates="complete_document"
+    )
 
     def __repr__(self):
         return f"<CompleteDocument(id={self.id}, title='{self.title}', rev='{self.rev}')>"
 
+    # =====================================================
+    # SIMPLE MODEL REFERENCES (SAME MODULE)
+    # =====================================================
+
+    @classmethod
+    def _get_position_class(cls):
+        """Get Position class from same module."""
+        return globals().get('Position')
+
+    @classmethod
+    def _get_site_location_class(cls):
+        """Get SiteLocation class from same module."""
+        return globals().get('SiteLocation')
+
+    @classmethod
+    def _get_association_class(cls):
+        """Get CompletedDocumentPositionAssociation class from same module."""
+        return globals().get('CompletedDocumentPositionAssociation')
+
+    @classmethod
+    def _get_document_class(cls):
+        """Get Document class from same module."""
+        return globals().get('Document')
+
+    # =====================================================
+    # PUBLIC API - 3 MAIN METHODS
+    # =====================================================
+
+    @classmethod
+    @with_request_id
+    def process_upload(cls, files, metadata, request_id=None):
+        """
+        Main upload processing method.
+        Auto-detects database type and uses optimal strategy.
+        """
+        valid_files = [f for f in files if f.filename.strip()]
+        if not valid_files:
+            warning_id("No valid files provided", request_id)
+            return False
+
+        db_config = DatabaseConfig()
+        info_id(f"Processing {len(valid_files)} files using {db_config.main_database_url.split('://')[0]}", request_id)
+
+        try:
+            position_id = cls._create_position(metadata, request_id)
+
+            if db_config.is_postgresql:
+                return cls._process_concurrent(valid_files, metadata, position_id, request_id)
+            else:
+                return cls._process_sequential(valid_files, metadata, position_id, request_id)
+
+        except Exception as e:
+            error_id(f"Upload failed: {e}", request_id)
+            return False
+
+    @classmethod
+    @with_request_id
+    def search_documents(cls, query, limit=50, request_id=None):
+        """Search documents using database-appropriate method."""
+        if not query or not query.strip():
+            return []
+
+        db_config = DatabaseConfig()
+
+        with db_config.main_session() as session:
+            if db_config.is_postgresql:
+                return cls._search_postgresql(session, query, limit, request_id)
+            else:
+                return cls._search_sqlite(session, query, limit, request_id)
+
+    @classmethod
+    @with_request_id
+    def find_similar(cls, document_id, threshold=0.3, limit=10, request_id=None):
+        """Find documents similar to the given document."""
+        db_config = DatabaseConfig()
+
+        with db_config.main_session() as session:
+            source = session.query(cls).filter_by(id=document_id).first()
+            if not source:
+                return []
+
+            if db_config.is_postgresql:
+                return cls._similar_postgresql(session, source, threshold, limit, request_id)
+            else:
+                return cls._similar_sqlite(session, source, threshold, limit, request_id)
+
     @classmethod
     def dynamic_search(cls, session, **filters):
-        """
-        Dynamically search CompleteDocument records based on provided filter arguments.
-        This method supports direct attributes and relationships.
-
-        Example usage:
-        CompleteDocument.dynamic_search(session, title="Report", rev="R1", document_title="Specs")
-
-        :param session: SQLAlchemy database session
-        :param filters: Dictionary containing column names or relationship attributes as keys
-        :return: SQLAlchemy query results
-        """
+        """Dynamic search with relationship support - kept for compatibility."""
         query = session.query(cls)
         filter_conditions = []
 
@@ -2992,1192 +2936,681 @@ class CompleteDocument(Base):
             'complete_document_task': cls.complete_document_task,
         }
 
-        # Iterate over filters and build conditions dynamically
         for key, value in filters.items():
             if '__' in key:
                 relation_name, related_attr = key.split('__', 1)
                 relation = relationships.get(relation_name)
-
-                if relation is not None:
-                    query = query.options(joinedload(relation))
+                if relation:
                     related_class = relation.property.mapper.class_
                     condition = getattr(related_class, related_attr).ilike(f"%{value}%")
                     filter_conditions.append(condition)
             else:
                 attr = getattr(cls, key, None)
-                if attr is not None:
+                if attr:
                     condition = attr.ilike(f"%{value}%")
                     filter_conditions.append(condition)
 
-        # Combine all filter conditions with AND
         if filter_conditions:
             query = query.filter(and_(*filter_conditions))
 
         return query.all()
 
+    # =====================================================
+    # PROCESSING STRATEGIES
+    # =====================================================
+
     @classmethod
     @with_request_id
-    def search_by_text(cls, query, session=None, similarity_threshold=80, with_links=True,
-                       base_url='http://127.0.0.1:5000'):
-        """
-        Search for documents using fuzzy text matching against document titles.
+    def _process_concurrent(cls, files, metadata, position_id, request_id):
+        """PostgreSQL concurrent processing."""
+        max_workers = min(len(files), 4)
+        info_id(f"PostgreSQL: {max_workers} concurrent workers", request_id)
 
-        Args:
-            query (str): The search query text
-            session: SQLAlchemy session (will create one if None)
-            similarity_threshold (int): Minimum similarity score (0-100) for fuzzy matching
-            with_links (bool): Whether to generate HTML links in the results
-            base_url (str): Base URL for document links (only used if with_links=True)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(cls._process_file, f, metadata, position_id, request_id): f
+                for f in files
+            }
 
-        Returns:
-            If with_links=True: String containing HTML links to matching documents
-            If with_links=False: List of matching CompleteDocument objects
-        """
-        logger.debug(f"Starting CompleteDocument.search_by_text with query: {query}")
+            success_count = 0
+            for future in as_completed(futures):
+                file = futures[future]
+                try:
+                    if future.result():
+                        success_count += 1
+                        debug_id(f"SUCCESS: {file.filename}", request_id)  # Fixed unicode issue
+                    else:
+                        warning_id(f"FAILED: {file.filename}", request_id)  # Fixed unicode issue
+                except Exception as e:
+                    error_id(f"Error processing {file.filename}: {e}", request_id)
 
-        # Create a session if one wasn't provided
-        session_provided = session is not None
-        if not session_provided:
-            from modules.configuration.config_env import DatabaseConfig
-            db_config = DatabaseConfig()
-            session = db_config.get_main_session()
-            logger.debug("Created new database session for search_by_text")
+        # Optimize PostgreSQL after bulk operations
+        if success_count > 0:
+            cls._optimize_postgresql(request_id)
 
-        try:
-            # Search for document titles in the FTS table
-            title_search_query = text("SELECT title FROM documents_fts")
-            all_titles_results = session.execute(title_search_query)
-            all_titles = [row.title for row in all_titles_results]
-            logger.debug(f"Retrieved {len(all_titles)} document titles from FTS table")
+        info_id(f"PostgreSQL processing complete: {success_count}/{len(files)} successful", request_id)
+        return success_count == len(files)
 
-            # Find matches using fuzzy matching
-            matches = []
-            for title in all_titles:
-                similarity_ratio = fuzz.partial_ratio(query.lower(), title.lower())
-                if similarity_ratio >= similarity_threshold:
-                    matches.append((title, similarity_ratio))
+    @classmethod
+    @with_request_id
+    def _process_sequential(cls, files, metadata, position_id, request_id):
+        """SQLite sequential processing."""
+        info_id(f"SQLite: sequential processing of {len(files)} files", request_id)
 
-            # Sort matches by similarity score (highest first)
-            matches.sort(key=lambda x: x[1], reverse=True)
-            logger.debug(f"Found {len(matches)} matches with similarity >= {similarity_threshold}")
-
-            # Fetch the documents for the matched titles
-            documents = []
-            for match in matches:
-                title = match[0]
-                document = session.query(cls).filter_by(title=title).first()
-                if document:
-                    # If we need links, add them to the document objects
-                    if with_links:
-                        try:
-                            from flask import current_app
-                            with current_app.test_request_context():
-                                relative_url = url_for('search_documents_fts_bp.view_document', document_id=document.id)
-                                document.link = base_url + relative_url
-                        except Exception as link_err:
-                            logger.warning(f"Error generating link for document {document.id}: {link_err}")
-                            document.link = f"{base_url}/search_documents_fts_bp/view_document/{document.id}"
-                    documents.append(document)
-
-            logger.info(f"Retrieved {len(documents)} documents matching the query")
-
-            # Return appropriate format based on with_links parameter
-            if with_links:
-                # Generate HTML links
-                html_links = []
-                for document in documents:
-                    doc_link = getattr(document, 'link',
-                                       f"{base_url}/search_documents_fts_bp/view_document/{document.id}")
-                    html_link = f"<a href='{doc_link}'>{document.title}</a>"
-                    html_links.append(html_link)
-
-                # Join into a single string and return
-                if html_links:
-                    search_results = '\n'.join(html_links)
-                    return search_results
+        success_count = 0
+        for i, file in enumerate(files, 1):
+            try:
+                if cls._process_file(file, metadata, position_id, request_id):
+                    success_count += 1
+                    debug_id(f"SUCCESS {i}/{len(files)}: {file.filename}", request_id)  # Fixed unicode issue
                 else:
-                    return "No documents found"
-            else:
-                # Return the document objects
-                return documents
+                    warning_id(f"FAILED {i}/{len(files)}: {file.filename}", request_id)  # Fixed unicode issue
+            except Exception as e:
+                error_id(f"Error processing {file.filename}: {e}", request_id)
 
-        except Exception as e:
-            logger.error(f"Error in search_by_text: {e}", exc_info=True)
-            return "An error occurred during the search." if with_links else []
-        finally:
-            # Close the session if we created it
-            if not session_provided and session:
-                session.close()
-                logger.debug("Closed database session for search_by_text")
-
-    # ==================== ENHANCED DOCUMENT PROCESSING METHODS ====================
-
-    # Add this method to your CompleteDocument class
+        info_id(f"SQLite processing complete: {success_count}/{len(files)} successful", request_id)
+        return success_count == len(files)
 
     @classmethod
     @with_request_id
-    def create_from_upload_without_health_checks(cls, files, metadata, request_id=None):
-        """
-        Enhanced create_from_upload WITHOUT health checks - uses all the enhanced processing
-        but skips the problematic health check system.
-        """
-        db_config = DatabaseConfig()
-        info_id(f"Processing {len(files)} files (health checks bypassed)", request_id)
-
+    def _process_file(cls, file, metadata, position_id, request_id):
+        """Process single file - core logic."""
         try:
-
-            site_location = None
-            with cls.monitor_processing_session(
-                    db_config.get_main_session(),
-                    "create_position_and_site_location",
-                    request_id
-            ) as session:
-                site_location_title = metadata.get("site_location")
-                if site_location_title:
-                    site_location = session.query(SiteLocation).filter_by(title=site_location_title).first()
-                    if not site_location:
-                        site_location = SiteLocation(title=site_location_title, room_number="Unknown")
-                        session.add(site_location)
-                        cls.commit_with_retry(session, retries=3, delay=1, request_id=request_id)
-                    info_id(f"Processed site location: {site_location_title}", request_id)
-
-                position_id = Position.add_to_db(
-                    session=session,
-                    area_id=int(metadata.get("area")) if metadata.get("area") and metadata.get(
-                        "area").isdigit() else None,
-                    equipment_group_id=int(metadata.get("equipment_group")) if metadata.get(
-                        "equipment_group") and metadata.get("equipment_group").isdigit() else None,
-                    model_id=int(metadata.get("model")) if metadata.get("model") and metadata.get(
-                        "model").isdigit() else None,
-                    asset_number_id=int(metadata.get("asset_number")) if metadata.get("asset_number") and metadata.get(
-                        "asset_number").isdigit() else None,
-                    location_id=int(metadata.get("location")) if metadata.get("location") and metadata.get(
-                        "location").isdigit() else None,
-                    site_location_id=site_location.id if site_location else None
-                )
-                info_id(f"Using position ID {position_id}", request_id)
-
-            # Use conservative worker calculation for SQLite
-            file_processing_workers = 1  # SQLite works best with single writer
-            info_id(f"Using {file_processing_workers} workers for SQLite compatibility", request_id)
-
-            # Process files with enhanced management (but no health checks)
-            success = cls._process_files_without_health_monitoring(
-                files,
-                metadata.get("title"),
-                position_id,
-                file_processing_workers,
-                request_id
-            )
-            return success
-
-        except Exception as e:
-            error_id(f"Error processing files: {e}", request_id)
-            return False
-
-    @classmethod
-    @with_request_id
-    def _process_files_without_health_monitoring(cls, files, default_title, position_id, max_workers, request_id):
-        """
-        Process files with enhanced management but WITHOUT health monitoring.
-        This is basically _process_files_with_enhanced_management but without the SystemResourceManager calls.
-        """
-        total_file_size = 0
-        valid_files = []
-
-        # Pre-process and validate files
-        for file in files:
-            if file.filename == "":
-                warning_id("Skipped empty file", request_id)
-                continue
-
-            valid_files.append(file)
-            try:
-                file.seek(0, os.SEEK_END)
-                size = file.tell()
-                file.seek(0)
-                total_file_size += size
-            except (AttributeError, IOError):
-                pass
-
-        num_files = len(valid_files)
-        if num_files == 0:
-            warning_id("No valid files to process", request_id)
-            return False
-
-        info_id(f"Processing {num_files} files totaling {total_file_size / (1024 * 1024):.2f} MB", request_id)
-
-        try:
-            # Use sequential processing for SQLite to avoid locks
-            success_count = 0
-
-            for i, file in enumerate(valid_files):
-                # Simple progress logging (no health checks)
-                if i > 0 and i % 3 == 0:
-                    info_id(f"Progress: {i}/{num_files} files processed", request_id)
-
-                # Process single file using existing enhanced method
-                try:
-                    file_success = cls._process_single_file_with_retry(
-                        file, default_title, position_id, request_id
-                    )
-                    if file_success:
-                        success_count += 1
-                        info_id(f"Successfully processed file {i + 1}/{num_files}: {file.filename}", request_id)
-                    else:
-                        error_id(f"Failed to process file {i + 1}/{num_files}: {file.filename}", request_id)
-
-                except Exception as e:
-                    error_id(f"Error processing file {file.filename}: {e}", request_id)
-
-            info_id(f"Processing complete: {success_count}/{num_files} files successful", request_id)
-            return success_count == num_files
-
-        except Exception as e:
-            error_id(f"Critical error in file processing: {e}", request_id)
-            return False
-
-    @classmethod
-    @with_request_id
-    def process_documents_with_full_monitoring(cls, files, metadata, request_id=None):
-        """
-        Complete document processing pipeline with full resource monitoring and error handling.
-        This is the main entry point for document processing.
-        """
-
-
-        info_id("Starting enhanced document processing pipeline", request_id)
-
-        # Step 1: Check if system is ready for processing
-        system_status = cls.get_system_status_for_processing(request_id)
-
-        if system_status['processing_strategy'] == 'abort':
-            error_id("System health critical - aborting document processing", request_id)
-            return False
-
-        # Step 2: Start system monitoring
-        resource_monitor = SystemResourceManager.monitor_system_resources(
-            interval=30, history_size=20, request_id=request_id
-        )
-
-        try:
-            # Step 3: Process documents with the enhanced pipeline
-            success = cls.create_from_upload(files, metadata, request_id)
-
-            # Step 4: Get final system stats
-            final_stats = resource_monitor() if callable(resource_monitor) else None
-            if final_stats:
-                info_id(f"Processing completed - Final system stats: CPU {final_stats['latest']['cpu']['percent']}%, "
-                        f"Memory {final_stats['latest']['memory']['percent']}%", request_id)
-
-            return success
-
-        except Exception as e:
-            error_id(f"Enhanced document processing failed: {e}", request_id)
-            return False
-
-        finally:
-            # Step 5: Stop monitoring
-            if hasattr(resource_monitor, 'stop'):
-                resource_monitor.stop()
-
-    @classmethod
-    @with_request_id
-    def create_from_upload(cls, files, metadata, request_id=None):
-        """Enhanced create_from_upload with better resource management."""
-
-
-        db_config = DatabaseConfig()
-        info_id(f"Processing {len(files)} files", request_id)
-
-        # Perform health check before starting
-        health = SystemResourceManager.health_check(request_id)
-        if health['status'] == 'critical':
-            error_id("System health critical - aborting file processing", request_id)
-            return False
-
-        try:
-            position = Position.add_to_db(
-                area_id=int(metadata.get("area")) if metadata.get("area") and metadata.get("area").isdigit() else None,
-                equipment_group_id=int(metadata.get("equipment_group")) if metadata.get(
-                    "equipment_group") and metadata.get("equipment_group").isdigit() else None,
-                model_id=int(metadata.get("model")) if metadata.get("model") and metadata.get(
-                    "model").isdigit() else None,
-                asset_number_id=int(metadata.get("asset_number")) if metadata.get("asset_number") and metadata.get(
-                    "asset_number").isdigit() else None,
-                location_id=int(metadata.get("location")) if metadata.get("location") and metadata.get(
-                    "location").isdigit() else None
-            )
-
-            position_id = position.id
-            info_id(f"Using position ID {position_id}", request_id)
-
-            # Use SystemResourceManager for optimal worker calculation
-            max_workers = SystemResourceManager.calculate_optimal_workers(
-                memory_threshold=0.6,  # More conservative for SQLite
-                request_id=request_id
-            )
-
-            # Adjust workers based on system health and database type
-            if health['status'] == 'degraded':
-                max_workers = max(1, max_workers // 2)
-                warning_id("System health degraded - reducing workers", request_id)
-
-            # For SQLite, limit to 1 writer to avoid lock issues
-            file_processing_workers = 1  # SQLite works best with single writer
-            info_id(f"Using {file_processing_workers} workers for SQLite compatibility", request_id)
-
-            # Process files with improved resource management
-            success = cls._process_files_with_enhanced_management(
-                files,
-                metadata.get("title"),
-                position_id,
-                file_processing_workers,
-                request_id
-            )
-            return success
-
-        except Exception as e:
-            error_id(f"Error processing files: {e}", request_id)
-            return False
-
-    @classmethod
-    @with_request_id
-    def _process_files_with_enhanced_management(cls, files, default_title, position_id, max_workers, request_id):
-        """Enhanced file processing with better resource management and error recovery."""
-
-
-        total_file_size = 0
-        valid_files = []
-
-        # Pre-process and validate files
-        for file in files:
-            if file.filename == "":
-                warning_id("Skipped empty file", request_id)
-                continue
-
-            valid_files.append(file)
-            try:
-                file.seek(0, os.SEEK_END)
-                size = file.tell()
-                file.seek(0)
-                total_file_size += size
-            except (AttributeError, IOError):
-                pass
-
-        num_files = len(valid_files)
-        if num_files == 0:
-            warning_id("No valid files to process", request_id)
-            return False
-
-        info_id(f"Processing {num_files} files totaling {total_file_size / (1024 * 1024):.2f} MB", request_id)
-
-        # Monitor system resources during processing
-        resource_monitor = SystemResourceManager.monitor_system_resources(
-            interval=30,
-            history_size=10,
-            request_id=request_id
-        )
-
-        try:
-            # Use sequential processing for SQLite to avoid locks
-            success_count = 0
-
-            for i, file in enumerate(valid_files):
-                # Check system health before each file
-                if i > 0 and i % 3 == 0:  # Check every 3 files
-                    health = SystemResourceManager.health_check(request_id)
-                    if health['status'] == 'critical':
-                        error_id(f"System health critical - stopping at file {i + 1}/{num_files}", request_id)
-                        break
-
-                # Process single file
-                try:
-                    file_success = cls._process_single_file_with_retry(
-                        file, default_title, position_id, request_id
-                    )
-                    if file_success:
-                        success_count += 1
-                        info_id(f"Successfully processed file {i + 1}/{num_files}: {file.filename}", request_id)
-                    else:
-                        error_id(f"Failed to process file {i + 1}/{num_files}: {file.filename}", request_id)
-
-                except Exception as e:
-                    error_id(f"Error processing file {file.filename}: {e}", request_id)
-
-            info_id(f"Processing complete: {success_count}/{num_files} files successful", request_id)
-
-            # Stop resource monitoring
-            if hasattr(resource_monitor, 'stop'):
-                resource_monitor.stop()
-
-            return success_count == num_files
-
-        except Exception as e:
-            error_id(f"Critical error in file processing: {e}", request_id)
-            if hasattr(resource_monitor, 'stop'):
-                resource_monitor.stop()
-            return False
-
-    @classmethod
-    @with_request_id
-    def _process_single_file_with_retry(cls, file, default_title, position_id, request_id, max_retries=3):
-        """Process a single file with retry logic and resource monitoring."""
-
-        # Determine title
-        title = default_title
-        if not title:
+            # Save file securely
             filename = secure_filename(file.filename)
-            file_name_without_extension = os.path.splitext(filename)[0]
-            title = file_name_without_extension.replace('_', ' ')
-
-        # Save the file
-        filename = secure_filename(file.filename)
-        file_path = os.path.join(DATABASE_DOC, filename)
-        file.save(file_path)
-        info_id(f"Saved file: {file_path}", request_id)
-
-        # Special handling for DOCX files
-        if file_path.endswith(".docx"):
-            info_id(f"Processing DOCX file: {file_path}", request_id)
-            return cls.add_docx_to_db(title, file_path, position_id)
-
-        # Retry logic for other file types
-        for attempt in range(max_retries):
-            try:
-                # Prepare document entry
-                document_info = cls._prepare_document_entry(title, file_path, position_id, request_id)
-
-                # Process the document with enhanced error handling
-                result = cls._process_document_with_enhanced_error_handling(
-                    title,
-                    file_path,
-                    position_id,
-                    document_info['new_rev'],
-                    document_info['complete_document_id'],
-                    document_info['cdpa_id'],
-                    request_id
-                )
-
-                if result[1]:  # Success
-                    return True
-                else:
-                    warning_id(f"Document processing failed on attempt {attempt + 1}", request_id)
-
-            except Exception as e:
-                warning_id(f"Attempt {attempt + 1} failed: {e}", request_id)
-                if attempt < max_retries - 1:
-                    delay = 2 ** attempt  # Exponential backoff
-                    info_id(f"Retrying in {delay} seconds...", request_id)
-                    time.sleep(delay)
-                else:
-                    error_id(f"Failed to process file after {max_retries} attempts: {file_path}", request_id)
-                    return False
-
-        return False
-
-    @classmethod
-    @with_request_id
-    def _process_document_with_enhanced_error_handling(cls, title, file_path, position_id, revision,
-                                                       complete_document_id, completed_document_position_association_id,
-                                                       request_id=None):
-        """Enhanced document processing with better error handling and resource management."""
-
-
-
-        thread_id = threading.get_ident()
-        db_config = DatabaseConfig()
-
-        if request_id is None:
-            request_id = set_request_id()
-
-        info_id(f"[Thread {thread_id}] Processing: {file_path} (revision {revision})", request_id)
-
-        # Check file size and system resources
-        try:
-            file_size = os.path.getsize(file_path)
-            is_large_file = file_size > 10 * 1024 * 1024  # 10MB
-
-            if is_large_file:
-                health = SystemResourceManager.health_check(request_id)
-                if health['status'] != 'healthy':
-                    warning_id(
-                        f"Processing large file ({file_size / (1024 * 1024):.2f} MB) with {health['status']} system",
-                        request_id)
-        except Exception as e:
-            warning_id(f"Could not determine file size: {e}", request_id)
-
-        # Handle position_id object vs integer
-        if hasattr(position_id, 'id'):
-            position_id_value = position_id.id
-        else:
-            position_id_value = position_id
-
-        max_session_retries = 3
-        session_retry_delay = 1
-
-        for session_attempt in range(max_session_retries):
-            try:
-                with db_config.get_main_session() as session:
-                    # Set SQLite busy timeout
-                    session.execute(text("PRAGMA busy_timeout = 30000"))
-
-                    info_id(f"[Thread {thread_id}] Session started (attempt {session_attempt + 1})", request_id)
-
-                    # Extract text based on file type
-                    extracted_text = cls._extract_text_with_error_handling(file_path, request_id)
-                    if not extracted_text:
-                        error_id(f"[Thread {thread_id}] No text extracted", request_id)
-                        return None, False
-
-                    # Update or create document
-                    complete_document_id = cls._create_or_update_document(
-                        session, title, file_path, extracted_text, revision, request_id
-                    )
-
-                    # Create position association
-                    cls._create_position_association(
-                        session, complete_document_id, position_id_value, request_id
-                    )
-
-                    # Add to FTS table
-                    cls._add_to_fts_table(session, title, extracted_text, request_id)
-
-                    # Extract images if PDF
-                    if file_path.endswith(".pdf"):
-                        cls.extract_images_from_pdf(
-                            file_path, complete_document_id,
-                            completed_document_position_association_id, position_id_value, request_id
-                        )
-
-                    # Process chunks in batches for better performance
-                    cls._process_document_chunks_batched(
-                        session, extracted_text, title, file_path, complete_document_id, revision, request_id
-                    )
-
-                    info_id(f"[Thread {thread_id}] Successfully processed: {file_path}", request_id)
-                    return complete_document_id, True
-
-            except Exception as e:
-                if "database is locked" in str(e).lower() and session_attempt < max_session_retries - 1:
-                    warning_id(f"Database locked, retrying session (attempt {session_attempt + 1})", request_id)
-                    time.sleep(session_retry_delay)
-                    session_retry_delay *= 2
-                    continue
-                else:
-                    error_id(f"[Thread {thread_id}] Session error: {e}", request_id)
-                    return None, False
-
-        error_id(f"[Thread {thread_id}] Failed after {max_session_retries} session attempts", request_id)
-        return None, False
-
-    @classmethod
-    @with_request_id
-    def _extract_text_with_error_handling(cls, file_path, request_id):
-        """Extract text with comprehensive error handling."""
-        try:
-            if file_path.endswith(".pdf"):
-                with log_timed_operation(f"Extracting text from PDF: {file_path}", request_id):
-                    return cls.extract_text_from_pdf(file_path, request_id)
-            elif file_path.endswith(".txt"):
-                with log_timed_operation(f"Extracting text from TXT: {file_path}", request_id):
-                    return cls.extract_text_from_txt(file_path, request_id)
-            else:
-                error_id(f"Unsupported file format: {file_path}", request_id)
-                return None
-        except Exception as e:
-            error_id(f"Text extraction failed for {file_path}: {e}", request_id)
-            return None
-
-    @classmethod
-    @with_request_id
-    def _create_or_update_document(cls, session, title, file_path, extracted_text, revision, request_id):
-        """Create or update document with retry logic."""
-        existing_document = session.query(cls).filter_by(title=title, rev=revision).first()
-
-        if existing_document:
-            info_id(f"Updating existing document ID {existing_document.id}", request_id)
-            existing_document.content = extracted_text
-            cls.commit_with_retry(session, retries=5, delay=1, request_id=request_id)
-            return existing_document.id
-        else:
-            complete_document = cls(
-                title=title,
-                file_path=os.path.relpath(file_path, DATABASE_DIR),
-                content=extracted_text,
-                rev=revision
-            )
-            session.add(complete_document)
-            cls.commit_with_retry(session, retries=5, delay=1, request_id=request_id)
-            info_id(f"Created new document ID {complete_document.id}", request_id)
-            return complete_document.id
-
-    @classmethod
-    @with_request_id
-    def _create_position_association(cls, session, complete_document_id, position_id_value, request_id):
-        """Create position association with error handling."""
-        association = session.query(CompletedDocumentPositionAssociation).filter_by(
-            complete_document_id=complete_document_id, position_id=position_id_value).first()
-
-        if not association:
-            association = CompletedDocumentPositionAssociation(
-                complete_document_id=complete_document_id,
-                position_id=position_id_value
-            )
-            session.add(association)
-            cls.commit_with_retry(session, retries=5, delay=1, request_id=request_id)
-            info_id(f"Created position association for document {complete_document_id}", request_id)
-
-    @classmethod
-    @with_request_id
-    def _add_to_fts_table(cls, session, title, extracted_text, request_id):
-        """Add document to FTS table with error handling."""
-        with log_timed_operation("Adding to FTS table", request_id):
-            insert_query_fts = "INSERT INTO documents_fts (title, content) VALUES (:title, :content)"
-            session.execute(text(insert_query_fts), {"title": title, "content": extracted_text})
-            cls.commit_with_retry(session, retries=5, delay=1, request_id=request_id)
-            info_id("Added to FTS table", request_id)
-
-    @classmethod
-    @with_request_id
-    def _process_document_chunks_batched(cls, session, extracted_text, title, file_path,
-                                         complete_document_id, revision, request_id, batch_size=10):
-        """Process document chunks in batches for better performance."""
-        with log_timed_operation("Processing document chunks", request_id):
-            text_chunks = cls.split_text_into_chunks(extracted_text, max_words=300, pad_token="", request_id=request_id)
-
-            # Process chunks in batches
-            for batch_start in range(0, len(text_chunks), batch_size):
-                batch_end = min(batch_start + batch_size, len(text_chunks))
-                batch_chunks = text_chunks[batch_start:batch_end]
-
-                # Add batch of documents
-                for i, chunk in enumerate(batch_chunks, start=batch_start):
-                    padded_chunk = ' '.join(
-                        cls.split_text_into_chunks(chunk, pad_token="", max_words=150, request_id=request_id))
-                    document = Document(
-                        name=f"{title} - Chunk {i + 1}",
-                        file_path=os.path.relpath(file_path, DATABASE_DIR),
-                        content=padded_chunk,
-                        complete_document_id=complete_document_id,
-                        rev=revision
-                    )
-                    session.add(document)
-
-                # Commit batch
-                cls.commit_with_retry(session, retries=5, delay=1, request_id=request_id)
-                info_id(f"Added chunks {batch_start + 1}-{batch_end}", request_id)
-
-                # Generate embeddings for batch (if enabled)
-                cls._generate_embeddings_for_batch(
-                    session, batch_chunks, batch_start, title, complete_document_id, request_id
-                )
-
-    @classmethod
-    @with_request_id
-    def _generate_embeddings_for_batch(cls, session, chunks, start_index, title, complete_document_id, request_id):
-        """Generate embeddings for a batch of chunks."""
-        if CURRENT_EMBEDDING_MODEL == "NoEmbeddingModel":
-            info_id("Skipping embeddings - no model selected", request_id)
-            return
-
-        for i, chunk in enumerate(chunks, start=start_index):
-            try:
-                padded_chunk = ' '.join(
-                    cls.split_text_into_chunks(chunk, pad_token="", max_words=150, request_id=request_id))
-
-                document = session.query(Document).filter_by(
-                    name=f"{title} - Chunk {i + 1}",
-                    complete_document_id=complete_document_id
-                ).first()
-
-                if document:
-                    embeddings = generate_embedding(padded_chunk, CURRENT_EMBEDDING_MODEL)
-                    if embeddings:
-                        store_embedding(document.id, embeddings, CURRENT_EMBEDDING_MODEL)
-                        debug_id(f"Generated embedding for chunk {i + 1}", request_id)
-                    else:
-                        warning_id(f"Failed to generate embedding for chunk {i + 1}", request_id)
-            except Exception as e:
-                warning_id(f"Error generating embedding for chunk {i + 1}: {e}", request_id)
-
-    # ==================== ENHANCED UTILITY METHODS ====================
-
-    @classmethod
-    @with_request_id
-    def commit_with_retry(cls, session, retries=3, delay=0.5, request_id=None):
-        """Enhanced commit with retry logic and proper session state management."""
-
-        for attempt in range(retries):
-            try:
-                session.commit()
-                if attempt > 0:
-                    debug_id(f"Commit succeeded on attempt {attempt + 1}", request_id)
-                return True
-
-            except Exception as e:
-                error_msg = str(e).lower()
-
-                # Handle SQLAlchemy PendingRollbackError specifically
-                if "pending rollback" in error_msg:
-                    warning_id(f"Session rolled back, clearing state for retry {attempt + 1}/{retries}", request_id)
-                    try:
-                        session.rollback()  # Clear the rolled-back state
-                    except:
-                        pass  # Session might already be rolled back
-
-                    if attempt < retries - 1:
-                        time.sleep(delay)
-                        delay = min(delay * 1.2, 2)
-                    else:
-                        error_id(f"Session rollback error after {retries} retries", request_id)
-                        raise RuntimeError(f"Session in invalid state after {retries} retries")
-
-                elif "database is locked" in error_msg or "locked" in error_msg:
-                    warning_id(f"Database locked, retry {attempt + 1}/{retries} in {delay}s", request_id)
-
-                    # Clear session state after database lock
-                    try:
-                        session.rollback()
-                    except:
-                        pass  # Session might already be rolled back
-
-                    if attempt < retries - 1:
-                        time.sleep(delay)
-                        delay = min(delay * 1.2, 2)
-                    else:
-                        error_id(f"Database locked after {retries} retries", request_id)
-                        raise RuntimeError(f"Database is locked after {retries} retries")
-                else:
-                    error_id(f"Non-lock database error on attempt {attempt + 1}: {e}", request_id)
-                    try:
-                        session.rollback()
-                    except:
-                        pass
-                    raise
-
-        return False
-
-    @classmethod
-    @with_request_id
-    def get_system_status_for_processing(cls, request_id=None):
-        """Get system status and recommendations for document processing."""
-
-        # Get health check
-        health = SystemResourceManager.health_check(request_id)
-
-        # Get optimal workers
-        optimal_workers = SystemResourceManager.calculate_optimal_workers(
-            memory_threshold=0.6, request_id=request_id
-        )
-
-        # Get database connection stats
-        db_config = DatabaseConfig()
-        db_stats = db_config.get_connection_stats()
-
-        # Determine processing strategy
-        if health['status'] == 'critical':
-            strategy = 'abort'
-            workers = 0
-        elif health['status'] == 'degraded':
-            strategy = 'reduced'
-            workers = max(1, optimal_workers // 2)
-        else:
-            strategy = 'normal'
-            workers = 1  # Still limit to 1 for SQLite
-
-        status = {
-            'health': health,
-            'recommended_workers': workers,
-            'processing_strategy': strategy,
-            'database_stats': db_stats,
-            'optimal_workers_calculation': optimal_workers
-        }
-
-        info_id(f"System status: {health['status']}, strategy: {strategy}, workers: {workers}", request_id)
-        return status
-
-    # Replace this method in your CompleteDocument class
-
-    @classmethod
-    @with_request_id
-    def monitor_processing_session(cls, session, operation_name="database_operation", request_id=None):
-        """Context manager to monitor a database session during processing - WITHOUT SystemResourceManager."""
-        import time
-
-        class SessionMonitor:
-            def __init__(self, session, operation_name, request_id):
-                self.session = session
-                self.operation_name = operation_name
-                self.request_id = request_id
-                self.start_time = None
-
-            def __enter__(self):
-                self.start_time = time.time()
-                info_id(f"Starting monitored operation: {self.operation_name}", self.request_id)
-
-                # Set SQLite busy timeout
-                try:
-                    self.session.execute(text("PRAGMA busy_timeout = 30000"))
-                except:
-                    pass  # May not always work, but don't fail for this
-
-                return self.session
-
-            def __exit__(self, exc_type, exc_val, exc_tb):
-                elapsed = time.time() - self.start_time
-
-                if exc_type is None:
-                    info_id(f"Completed monitored operation: {self.operation_name} in {elapsed:.2f}s", self.request_id)
-                else:
-                    error_id(f"Failed monitored operation: {self.operation_name} after {elapsed:.2f}s: {exc_val}",
-                             self.request_id)
-
-                    # Simple database lock logging without health checks
-                    if "database is locked" in str(exc_val).lower():
-                        warning_id(f"Database lock during {self.operation_name}", self.request_id)
-
-        return SessionMonitor(session, operation_name, request_id)
-
-    # ==================== EXISTING METHODS (UPDATED) ====================
-
-    @classmethod
-    @with_request_id
-    def _prepare_document_entry(cls, title, file_path, position_id, request_id):
-        """Create initial database entries with context managers."""
-        db_config = DatabaseConfig()
-
-        # Step 1: Check for existing document
-        with db_config.main_session() as session:
-            existing_document = (
-                session.query(cls)
-                .filter_by(title=title)
-                .order_by(cls.rev.desc())
-                .first()
-            )
-
-            new_rev = f"R{int(existing_document.rev[1:]) + 1}" if existing_document else "R0"
-
-        # Step 2: Create CompleteDocument
-        with db_config.main_session() as session:
-            complete_document = cls(
-                title=title,
-                file_path=os.path.relpath(file_path, DATABASE_DIR),
-                content=None,
-                rev=new_rev
-            )
-            session.add(complete_document)
-            # Automatic commit happens here
-            complete_document_id = complete_document.id
-
-        # Step 3: Create association
-        with db_config.main_session() as session:
-            association = CompletedDocumentPositionAssociation(
-                complete_document_id=complete_document_id,
-                position_id=position_id
-            )
-            session.add(association)
-            # Automatic commit happens here
-            association_id = association.id
-
-        return {
-            'new_rev': new_rev,
-            'complete_document_id': complete_document_id,
-            'cdpa_id': association_id
-        }
-
-    @classmethod
-    @with_request_id
-    def split_text_into_chunks(cls, text, max_words=300, pad_token="", request_id=None):
-        """
-        Split text into chunks of a maximum number of words.
-        """
-        info_id("Starting split_text_into_chunks", request_id)
-        debug_id(f"Text length: {len(text)}", request_id)
-        debug_id(f"Max words per chunk: {max_words}", request_id)
-
-        chunks = []
-        words = re.findall(r'\S+\s*', text)
-        debug_id(f"Total words found: {len(words)}", request_id)
-
-        current_chunk = []
-
-        for word in words:
-            if word.strip() != pad_token:
-                current_chunk.append(word)
-
-            if len(current_chunk) >= max_words or word.strip() == "":
-                # Pad the current chunk to the specified max_words
-                while len(current_chunk) < max_words:
-                    current_chunk.append(pad_token)
-
-                # Add the current chunk to the list of chunks
-                chunks.append(" ".join(current_chunk))
-                debug_id(f"Added chunk of {len(current_chunk)} words", request_id)
-
-                # Reset the current chunk
-                current_chunk = []
-
-        # If there is any remaining content, pad and add it as the last chunk
-        if current_chunk:
-            while len(current_chunk) < max_words:
-                current_chunk.append(pad_token)
-            chunks.append(" ".join(current_chunk))
-            debug_id(f"Added last chunk of {len(current_chunk)} words", request_id)
-
-        info_id(f"Total chunks created: {len(chunks)}", request_id)
-        return chunks
-
-    # ==================== TEXT EXTRACTION METHODS ====================
-
-    @classmethod
-    @with_request_id
-    def extract_text_from_txt(cls, txt_path, request_id=None):
-        """Extract text from a TXT file."""
-        info_id("Starting extract_text_from_txt", request_id)
-        debug_id(f"TXT file path: {txt_path}", request_id)
-
-        try:
-            with open(txt_path, 'r', encoding='utf-8') as txt_file:
-                text = txt_file.read()
-                debug_id(f"Extracted text length: {len(text)} characters", request_id)
-            info_id("Successfully extracted text from TXT file", request_id)
-            return text
-        except Exception as e:
-            error_id(f"An error occurred while extracting text from TXT file: {e}", request_id)
-            return None
-
-    @classmethod
-    @with_request_id
-    def extract_text_from_pdf(cls, pdf_path, request_id=None):
-        """Extract text from a PDF file using PyMuPDF (fitz)."""
-        import fitz  # PyMuPDF
-
-        info_id(f"Starting extract_text_from_pdf for {pdf_path}", request_id)
-
-        try:
-            # Open the PDF file
-            with fitz.open(pdf_path) as pdf_document:
-                # Get the number of pages
-                num_pages = pdf_document.page_count
-                debug_id(f"PDF has {num_pages} pages", request_id)
-
-                # Extract text from each page
-                extracted_text = ""
-                for page_num in range(num_pages):
-                    page = pdf_document.load_page(page_num)
-                    page_text = page.get_text()
-                    extracted_text += page_text + "\n"
-
-                debug_id(f"Extracted {len(extracted_text)} characters of text", request_id)
-
-            info_id("PDF text extraction completed successfully", request_id)
-            return extracted_text
-
-        except Exception as e:
-            error_id(f"Failed to extract text from PDF: {e}", request_id)
-            return None
-
-    @classmethod
-    @with_request_id
-    def extract_text_from_file(cls, file_path, request_id=None):
-        """Extract text from a file based on its type."""
-        file_type = cls.determine_file_type(file_path, request_id)
-
-        if file_type == 'pdf':
-            return cls.extract_text_from_pdf(file_path, request_id)
-        elif file_type == 'txt':
-            return cls.extract_text_from_txt(file_path, request_id)
-        elif file_type == 'docx':
-            error_id(f"Text extraction from DOCX not directly supported in this method", request_id)
-            return None
-        elif file_type in ('excel', 'csv'):
-            error_id(f"Text extraction from {file_type.upper()} not directly supported in this method", request_id)
-            return None
-        else:
-            error_id(f"Unsupported file type for text extraction: {file_type}", request_id)
-            return None
-
-    @classmethod
-    @with_request_id
-    def determine_file_type(cls, file_path, request_id=None):
-        """Determine the type of document based on file extension."""
-        file_extension = os.path.splitext(file_path)[1].lower()
-
-        if file_extension == '.pdf':
-            file_type = 'pdf'
-        elif file_extension == '.txt':
-            file_type = 'txt'
-        elif file_extension == '.docx':
-            file_type = 'docx'
-        elif file_extension in ('.xlsx', '.xls'):
-            file_type = 'excel'
-        elif file_extension == '.csv':
-            file_type = 'csv'
-        else:
-            file_type = 'unknown'
-
-        info_id(f"Determined file type: {file_type} for {file_path}", request_id)
-        return file_type
-
-    @classmethod
-    @with_request_id
-    def excel_to_csv(cls, excel_file_path, csv_file_path, request_id=None):
-        """Convert an Excel file to CSV format."""
-        info_id(f"Converting Excel file to CSV: {excel_file_path} -> {csv_file_path}", request_id)
-
-        try:
-            # Read Excel file
-            df = pd.read_excel(excel_file_path)
-            # Save as CSV
-            df.to_csv(csv_file_path, index=False)
-            info_id(f"Successfully converted Excel to CSV with {len(df)} rows", request_id)
-            return True
-        except Exception as e:
-            error_id(f"Failed to convert Excel to CSV: {e}", request_id)
-            return False
-
-    # ==================== IMAGE EXTRACTION ====================
-
-    @classmethod
-    @with_request_id
-    def extract_images_from_pdf(cls,
-                                pdf_path,
-                                complete_document_id,
-                                completed_document_position_association_id,
-                                position_id,
-                                request_id=None):
-        """Extract images from a PDF file and save them to the database."""
-        import os, uuid, time
-        import fitz
-
-
-        info_id(f"Starting extract_images_from_pdf for {pdf_path}", request_id)
-        try:
-            pdf_basename = os.path.basename(pdf_path)
-            extracted_images_count = 0
-
-            # Open the PDF document
-            with fitz.open(pdf_path) as pdf_document:
-                db_config = DatabaseConfig()
-                # Open a monitored session for database operations
-                with cls.monitor_processing_session(
-                        db_config.get_main_session(),
-                        f"extract_images_{pdf_basename}",
-                        request_id
-                ) as session:
-                    # Process each page in the PDF
-                    for page_idx, page in enumerate(pdf_document):
-                        image_list = page.get_images(full=True)
-                        for img_idx, img_info in enumerate(image_list, start=1):
-                            try:
-                                xref = img_info[0]
-                                base_image = pdf_document.extract_image(xref)
-
-                                # Skip very small images
-                                if len(base_image.get("image", b"")) < 5000:
-                                    continue
-
-                                # Determine extension and temp file path
-                                ext = base_image.get("ext", "jpg")
-                                temp_filename = f"temp_{uuid.uuid4().hex}.{ext}"
-                                temp_filepath = os.path.join(
-                                    TEMPORARY_UPLOAD_FILES, temp_filename
-                                )
-                                # Write the temp image file
-                                with open(temp_filepath, "wb") as img_file:
-                                    img_file.write(base_image["image"])
-
-                                # Build metadata
-                                image_title = f"{pdf_basename}_page{page_idx + 1}_img{img_idx}"
-                                image_description = (
-                                    f"Image extracted from {pdf_basename}, page {page_idx + 1}"
-                                )
-
-                                # Store via the centralized add_to_db, passing through request_id
-                                new_image = Image.add_to_db(
-                                    session=session,
-                                    title=image_title,
-                                    file_path=temp_filepath,
-                                    description=image_description,
-                                    position_id=position_id,
-                                    complete_document_id=complete_document_id,
-                                    request_id=request_id
-                                )
-
-                                # Clean up temp file
-                                os.remove(temp_filepath)
-                                extracted_images_count += 1
-
-                                # Throttle to avoid spikes
-                                time.sleep(REQUEST_DELAY)
-
-                            except Exception as img_err:
-                                warning_id(
-                                    f"Error processing image {img_idx} on page {page_idx + 1}: {img_err}",
-                                    request_id
-                                )
-                                continue
-
-            info_id(f"Successfully extracted {extracted_images_count} images from PDF", request_id)
-            return True
-
-        except Exception as e:
-            error_id(f"Failed to extract images from PDF: {e}", request_id)
-            return False
-
-
-    @classmethod
-    @with_request_id
-    def add_docx_to_db(cls, title, docx_path, position_id, request_id=None):
-        """
-        Add a DOCX document to the database by converting it to PDF first.
-
-        Args:
-            title (str): Title of the document
-            docx_path (str): Path to the DOCX file
-            position_id (int): ID of the position to associate with
-            request_id (str, optional): Unique identifier for the request
-
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        try:
-            info_id(f"Starting to process DOCX document: {title} located at {docx_path}", request_id)
-
-            # Initialize COM for Word automation
-            pythoncom.CoInitialize()
-            debug_id("COM initialization successful", request_id)
-
-            # Convert Word document to PDF
-            pdf_output_path = docx_path[:-5] + ".pdf"  # Change the extension to .pdf
-            info_id(f"Converting DOCX to PDF. Output path: {pdf_output_path}", request_id)
-            convert(docx_path, pdf_output_path)
-            info_id(f"Successfully converted DOCX to PDF: {pdf_output_path}", request_id)
-
-            # Now call the document processing method with the generated PDF
-            info_id(f"Processing PDF document: {pdf_output_path}", request_id)
-            complete_document_id, success = cls._process_document_with_enhanced_error_handling(
-                title, pdf_output_path, position_id, "R0", None, None, request_id
-            )
-
-            if success:
-                info_id(f"Successfully added DOCX document: {title} as PDF with ID: {complete_document_id}", request_id)
-                return True
-            else:
-                error_id(f"Failed to add DOCX document: {title} as PDF", request_id)
+            upload_dir = os.path.join(os.getcwd(), 'uploads')
+            os.makedirs(upload_dir, exist_ok=True)
+            file_path = os.path.join(upload_dir, filename)
+            file.save(file_path)
+
+            # Generate clean title
+            title = metadata.get('title') or cls._clean_filename(filename)
+
+            # Extract content
+            content = cls._extract_content(file_path, request_id)
+            if not content:
+                warning_id(f"No content extracted from {filename}", request_id)
                 return False
 
+            # Save to database
+            return cls._save_document(title, file_path, content, position_id, request_id)
+
         except Exception as e:
-            error_id(f"An error occurred in add_docx_to_db for document '{title}': {e}", request_id, exc_info=True)
+            error_id(f"File processing failed for {file.filename}: {e}", request_id)
             return False
-        finally:
-            # Clean up COM
+
+    # =====================================================
+    # DATABASE OPERATIONS
+    # =====================================================
+
+    @classmethod
+    @with_request_id
+    def _save_document(cls, title, file_path, content, position_id, request_id):
+        """Save document to database with associations."""
+        db_config = DatabaseConfig()
+
+        with db_config.main_session() as session:
             try:
-                pythoncom.CoUninitialize()
-                debug_id("COM cleanup completed", request_id)
-            except:
-                pass  # Ignore cleanup errors
+                # Set database-specific optimizations
+                if db_config.is_postgresql:
+                    session.execute(text("SET work_mem = '256MB'"))
+                else:
+                    session.execute(text("PRAGMA busy_timeout = 30000"))
+
+                # Upsert document
+                document_id = cls._upsert_document(session, title, file_path, content)
+
+                # Create associations
+                cls._create_associations(session, document_id, position_id)
+
+                # Add to search index
+                cls._add_to_search(session, title, content)
+
+                # Create chunks
+                cls._create_chunks(session, document_id, title, content)
+
+                session.commit()
+                debug_id(f"Saved document: {title}", request_id)
+                return True
+
+            except Exception as e:
+                session.rollback()
+                error_id(f"Database save failed for {title}: {e}", request_id)
+                return False
+
+    @classmethod
+    def _upsert_document(cls, session, title, file_path, content):
+        """Create or update document using database-appropriate method."""
+        db_config = DatabaseConfig()
+
+        if db_config.is_postgresql:
+            # PostgreSQL - Use INSERT with error handling instead of UPSERT
+            # This avoids the unique constraint requirement
+            try:
+                # First try to find existing document
+                existing = session.query(cls).filter_by(title=title).first()
+
+                if existing:
+                    # Update existing document
+                    if existing.content != content:
+                        existing.content = content
+                        existing.file_path = os.path.relpath(file_path, os.getcwd())
+                        rev_num = int(existing.rev[1:]) + 1 if existing.rev.startswith('R') else 1
+                        existing.rev = f"R{rev_num}"
+                    session.flush()
+                    return existing.id
+                else:
+                    # Create new document
+                    doc = cls(
+                        title=title,
+                        file_path=os.path.relpath(file_path, os.getcwd()),
+                        content=content,
+                        rev="R0"
+                    )
+                    session.add(doc)
+                    session.flush()
+                    return doc.id
+
+            except Exception as e:
+                # Fallback to simple insert
+                debug_id(f"PostgreSQL upsert fallback for {title}: {e}")
+                doc = cls(
+                    title=f"{title}_{uuid.uuid4().hex[:8]}",  # Make unique
+                    file_path=os.path.relpath(file_path, os.getcwd()),
+                    content=content,
+                    rev="R0"
+                )
+                session.add(doc)
+                session.flush()
+                return doc.id
+        else:
+            # SQLite approach (unchanged)
+            existing = session.query(cls).filter_by(title=title).first()
+            if existing:
+                if existing.content != content:
+                    existing.content = content
+                    existing.file_path = os.path.relpath(file_path, os.getcwd())
+                    rev_num = int(existing.rev[1:]) + 1 if existing.rev.startswith('R') else 1
+                    existing.rev = f"R{rev_num}"
+                return existing.id
+            else:
+                doc = cls(
+                    title=title,
+                    file_path=os.path.relpath(file_path, os.getcwd()),
+                    content=content,
+                    rev="R0"
+                )
+                session.add(doc)
+                session.flush()
+                return doc.id
+
+    @classmethod
+    def _create_associations(cls, session, document_id, position_id):
+        """Create document-position associations."""
+        AssociationClass = cls._get_association_class()
+
+        if AssociationClass is None:
+            debug_id("Association class not available, skipping", None)
+            return
+
+        # Check if association already exists
+        existing = session.query(AssociationClass).filter_by(
+            complete_document_id=document_id,
+            position_id=position_id
+        ).first()
+
+        if not existing:
+            assoc = AssociationClass(
+                complete_document_id=document_id,
+                position_id=position_id
+            )
+            session.add(assoc)
+
+    @classmethod
+    def _add_to_search(cls, session, title, content):
+        """Add document to search index with proper transaction handling."""
+        db_config = DatabaseConfig()
+
+        try:
+            if db_config.is_postgresql:
+                # Use a savepoint for PostgreSQL FTS to avoid transaction abort
+                savepoint = session.begin_nested()  # Creates a savepoint
+                try:
+                    sql = text("""
+                        INSERT INTO documents_fts (title, content, search_vector)
+                        VALUES (:title, :content, to_tsvector('english', :title || ' ' || :content))
+                        ON CONFLICT (title) DO UPDATE SET
+                            content = EXCLUDED.content,
+                            search_vector = EXCLUDED.search_vector
+                    """)
+                    session.execute(sql, {'title': title, 'content': content})
+                    savepoint.commit()  # Commit the savepoint
+                    debug_id("Added to PostgreSQL FTS")
+                except Exception as fts_error:
+                    savepoint.rollback()  # Rollback only the savepoint, not main transaction
+                    debug_id(f"PostgreSQL FTS skipped: {fts_error}")
+            else:
+                # SQLite FTS5
+                sql = text("""
+                    INSERT OR REPLACE INTO documents_fts (title, content) 
+                    VALUES (:title, :content)
+                """)
+                session.execute(sql, {'title': title, 'content': content})
+                debug_id("Added to SQLite FTS")
+        except Exception as e:
+            # If even the savepoint approach fails, just skip FTS entirely
+            debug_id(f"Search indexing completely skipped: {e}")
+
+    @classmethod
+    def _create_chunks(cls, session, document_id, title, content):
+        """Create document chunks for analysis with proper error handling."""
+        DocumentClass = cls._get_document_class()
+
+        if DocumentClass is None:
+            debug_id("Document class not available, skipping chunk creation")
+            return
+
+        try:
+            chunks = cls._split_text(content, 300)  # 300 words per chunk
+
+            chunk_count = 0
+            for i, chunk in enumerate(chunks):
+                if chunk.strip():  # Only create non-empty chunks
+                    try:
+                        doc_chunk = DocumentClass(
+                            name=f"{title} - Chunk {i + 1}",
+                            content=chunk.strip(),
+                            complete_document_id=document_id,
+                            rev="R0"
+                        )
+                        session.add(doc_chunk)
+                        chunk_count += 1
+                    except Exception as chunk_error:
+                        debug_id(f"Skipped chunk {i + 1}: {chunk_error}")
+                        continue
+
+            if chunk_count > 0:
+                debug_id(f"Created {chunk_count} document chunks")
+            else:
+                debug_id("No chunks created")
+
+        except Exception as e:
+            debug_id(f"Chunk creation skipped: {e}")
+
+    # =====================================================
+    # SEARCH IMPLEMENTATIONS
+    # =====================================================
+
+    @classmethod
+    def _search_postgresql(cls, session, query, limit, request_id):
+        """PostgreSQL full-text search with ranking and highlighting."""
+        try:
+            sql = text("""
+                SELECT cd.id, cd.title, cd.file_path,
+                       ts_rank(fts.search_vector, plainto_tsquery('english', :query)) as rank,
+                       ts_headline('english', cd.content, plainto_tsquery('english', :query), 
+                                  'MaxWords=50, MinWords=10') as highlight
+                FROM complete_document cd
+                JOIN documents_fts fts ON cd.title = fts.title
+                WHERE fts.search_vector @@ plainto_tsquery('english', :query)
+                ORDER BY rank DESC
+                LIMIT :limit
+            """)
+
+            result = session.execute(sql, {'query': query, 'limit': limit})
+
+            results = []
+            for row in result:
+                results.append({
+                    'id': row[0],
+                    'title': row[1],
+                    'file_path': row[2],
+                    'relevance': float(row[3]),
+                    'highlight': row[4]
+                })
+
+            info_id(f"PostgreSQL search found {len(results)} results", request_id)
+            return results
+
+        except Exception as e:
+            error_id(f"PostgreSQL search failed: {e}", request_id)
+            return []
+
+    @classmethod
+    def _search_sqlite(cls, session, query, limit, request_id):
+        """SQLite FTS search."""
+        try:
+            sql = text("""
+                SELECT cd.id, cd.title, cd.file_path
+                FROM complete_document cd
+                JOIN documents_fts fts ON cd.title = fts.title
+                WHERE documents_fts MATCH :query
+                ORDER BY rank
+                LIMIT :limit
+            """)
+
+            result = session.execute(sql, {'query': query, 'limit': limit})
+
+            results = []
+            for row in result:
+                results.append({
+                    'id': row[0],
+                    'title': row[1],
+                    'file_path': row[2],
+                    'relevance': 1.0,  # SQLite doesn't provide easy ranking
+                    'highlight': ''  # No highlighting for SQLite
+                })
+
+            info_id(f"SQLite search found {len(results)} results", request_id)
+            return results
+
+        except Exception as e:
+            error_id(f"SQLite search failed: {e}", request_id)
+            return []
+
+    @classmethod
+    def _similar_postgresql(cls, session, source, threshold, limit, request_id):
+        """PostgreSQL similarity search using pg_trgm extension."""
+        try:
+            sql = text("""
+                SELECT id, title, similarity(title, :source_title) as sim
+                FROM complete_document 
+                WHERE id != :source_id 
+                  AND similarity(title, :source_title) >= :threshold
+                ORDER BY sim DESC
+                LIMIT :limit
+            """)
+
+            result = session.execute(sql, {
+                'source_title': source.title,
+                'source_id': source.id,
+                'threshold': threshold,
+                'limit': limit
+            })
+
+            return [
+                {'id': row[0], 'title': row[1], 'similarity': float(row[2])}
+                for row in result
+            ]
+
+        except Exception as e:
+            error_id(f"PostgreSQL similarity search failed: {e}", request_id)
+            return []
+
+    @classmethod
+    def _similar_sqlite(cls, session, source, threshold, limit, request_id):
+        """SQLite similarity search using word overlap."""
+        try:
+            docs = session.query(cls).filter(cls.id != source.id).all()
+
+            similar = []
+            source_words = set(source.title.lower().split())
+
+            for doc in docs:
+                doc_words = set(doc.title.lower().split())
+                if source_words and doc_words:
+                    # Jaccard similarity
+                    jaccard = len(source_words & doc_words) / len(source_words | doc_words)
+                    if jaccard >= threshold:
+                        similar.append({
+                            'id': doc.id,
+                            'title': doc.title,
+                            'similarity': jaccard
+                        })
+
+            # Sort by similarity and limit results
+            similar.sort(key=lambda x: x['similarity'], reverse=True)
+            return similar[:limit]
+
+        except Exception as e:
+            error_id(f"SQLite similarity search failed: {e}", request_id)
+            return []
+
+    # =====================================================
+    # UTILITY METHODS
+    # =====================================================
+
+    @classmethod
+    def create_fts_table(cls):
+        """
+        Create the FTS table for search functionality.
+        Call this once to enable search features.
+        """
+        db_config = DatabaseConfig()
+
+        with db_config.main_session() as session:
+            try:
+                if db_config.is_postgresql:
+                    # Create PostgreSQL FTS table
+                    sql = text("""
+                        CREATE TABLE IF NOT EXISTS documents_fts (
+                            id SERIAL PRIMARY KEY,
+                            title TEXT NOT NULL,
+                            content TEXT,
+                            search_vector TSVECTOR,
+                            created_at TIMESTAMP DEFAULT NOW(),
+                            updated_at TIMESTAMP DEFAULT NOW(),
+                            UNIQUE(title)
+                        );
+
+                        CREATE INDEX IF NOT EXISTS idx_documents_fts_search_vector 
+                        ON documents_fts USING gin(search_vector);
+
+                        CREATE INDEX IF NOT EXISTS idx_documents_fts_title 
+                        ON documents_fts(title);
+                    """)
+                else:
+                    # Create SQLite FTS table
+                    sql = text("""
+                        CREATE VIRTUAL TABLE IF NOT EXISTS documents_fts 
+                        USING fts5(title, content);
+                    """)
+
+                session.execute(sql)
+                session.commit()
+
+                print(f"✅ FTS table created successfully for {db_config.main_database_url.split('://')[0]}")
+                return True
+
+            except Exception as e:
+                print(f"❌ Failed to create FTS table: {e}")
+                return False
+
+    @classmethod
+    @with_request_id
+    def _create_position(cls, metadata, request_id):
+        """Create position record from metadata."""
+        PositionClass = cls._get_position_class()
+        SiteLocationClass = cls._get_site_location_class()
+
+        if PositionClass is None:
+            error_id("Position class not available", request_id)
+            return cls._create_position_fallback(metadata, request_id)
+
+        db_config = DatabaseConfig()
+
+        with db_config.main_session() as session:
+            # Create site location if provided
+            site_location_id = None
+            if metadata.get('site_location') and SiteLocationClass:
+                site_loc = SiteLocationClass(
+                    title=metadata['site_location'],
+                    room_number=metadata.get('room_number', 'Unknown')
+                )
+                session.add(site_loc)
+                session.flush()
+                site_location_id = site_loc.id
+
+            # Create position
+            position = PositionClass(
+                area_id=cls._safe_int(metadata.get('area')),
+                equipment_group_id=cls._safe_int(metadata.get('equipment_group')),
+                model_id=cls._safe_int(metadata.get('model')),
+                asset_number_id=cls._safe_int(metadata.get('asset_number')),
+                location_id=cls._safe_int(metadata.get('location')),
+                site_location_id=site_location_id
+            )
+
+            session.add(position)
+            session.commit()
+
+            info_id(f"Created position {position.id}", request_id)
+            return position.id
+
+    @classmethod
+    @with_request_id
+    def _create_position_fallback(cls, metadata, request_id):
+        """Fallback position creation when model classes aren't available."""
+        db_config = DatabaseConfig()
+
+        with db_config.main_session() as session:
+            try:
+                # Try to create position using raw SQL
+                if db_config.is_postgresql:
+                    sql = text("""
+                        INSERT INTO position (area_id, equipment_group_id, model_id, asset_number_id, location_id)
+                        VALUES (:area_id, :equipment_group_id, :model_id, :asset_number_id, :location_id)
+                        RETURNING id
+                    """)
+                else:
+                    sql = text("""
+                        INSERT INTO position (area_id, equipment_group_id, model_id, asset_number_id, location_id)
+                        VALUES (:area_id, :equipment_group_id, :model_id, :asset_number_id, :location_id)
+                    """)
+
+                result = session.execute(sql, {
+                    'area_id': cls._safe_int(metadata.get('area')),
+                    'equipment_group_id': cls._safe_int(metadata.get('equipment_group')),
+                    'model_id': cls._safe_int(metadata.get('model')),
+                    'asset_number_id': cls._safe_int(metadata.get('asset_number')),
+                    'location_id': cls._safe_int(metadata.get('location'))
+                })
+
+                if db_config.is_postgresql:
+                    position_id = result.fetchone()[0]
+                else:
+                    position_id = result.lastrowid
+
+                session.commit()
+                info_id(f"Created position {position_id} using fallback method", request_id)
+                return position_id
+
+            except Exception as e:
+                error_id(f"Fallback position creation failed: {e}", request_id)
+                # Return a default position ID (you may need to adjust this)
+                return 1
+
+    @classmethod
+    @with_request_id
+    def _extract_content(cls, file_path, request_id):
+        """Extract text content from file based on extension."""
+        ext = os.path.splitext(file_path)[1].lower()
+
+        try:
+            if ext == '.pdf':
+                return cls._extract_pdf_text(file_path, request_id)
+            elif ext == '.txt':
+                return cls._extract_txt_text(file_path, request_id)
+            elif ext == '.docx':
+                # DOCX processing could be added here
+                warning_id(f"DOCX processing not implemented: {file_path}", request_id)
+                return None
+            else:
+                warning_id(f"Unsupported file type: {ext}", request_id)
+                return None
+
+        except Exception as e:
+            error_id(f"Content extraction failed for {file_path}: {e}", request_id)
+            return None
+
+    @classmethod
+    @with_request_id
+    def _extract_pdf_text(cls, pdf_path, request_id):
+        """Extract text from PDF using PyMuPDF."""
+        try:
+            import fitz  # PyMuPDF
+
+            text = ""
+            with fitz.open(pdf_path) as doc:
+                for page in doc:
+                    text += page.get_text() + "\n"
+
+            debug_id(f"Extracted {len(text)} characters from PDF", request_id)
+            return text.strip()
+
+        except ImportError:
+            error_id("PyMuPDF (fitz) not available for PDF processing", request_id)
+            return None
+        except Exception as e:
+            error_id(f"PDF text extraction failed: {e}", request_id)
+            return None
+
+    @classmethod
+    @with_request_id
+    def _extract_txt_text(cls, txt_path, request_id):
+        """Extract text from plain text file."""
+        try:
+            with open(txt_path, 'r', encoding='utf-8') as f:
+                text = f.read()
+
+            debug_id(f"Extracted {len(text)} characters from TXT", request_id)
+            return text.strip()
+
+        except Exception as e:
+            error_id(f"TXT extraction failed: {e}", request_id)
+            return None
+
+    @classmethod
+    @with_request_id
+    def _optimize_postgresql(cls, request_id):
+        """Run PostgreSQL optimizations after bulk operations."""
+        db_config = DatabaseConfig()
+
+        with db_config.main_session() as session:
+            try:
+                session.execute(text("ANALYZE complete_document"))
+                session.execute(text("ANALYZE documents_fts"))
+                session.execute(text("ANALYZE document"))
+                session.commit()
+                debug_id("PostgreSQL tables analyzed", request_id)
+            except Exception as e:
+                debug_id(f"PostgreSQL optimization skipped: {e}", request_id)
+
+    @staticmethod
+    def _clean_filename(filename):
+        """Generate clean title from filename."""
+        if not filename:
+            return "Untitled Document"
+
+        # Remove extension and clean up
+        title = os.path.splitext(filename)[0]
+        title = re.sub(r'[_\-]+', ' ', title)
+        title = ' '.join(word.capitalize() for word in title.split() if word)
+
+        return title or "Untitled Document"
+
+    @staticmethod
+    def _safe_int(value):
+        """Convert to int safely or return None."""
+        if value and str(value).strip().isdigit():
+            return int(value)
+        return None
+
+    @staticmethod
+    def _split_text(text, max_words):
+        """Split text into chunks of specified word count."""
+        if not text:
+            return []
+
+        words = text.split()
+        chunks = []
+
+        for i in range(0, len(words), max_words):
+            chunk = ' '.join(words[i:i + max_words])
+            if chunk.strip():
+                chunks.append(chunk)
+
+        return chunks
 
 class Problem(Base):
     __tablename__ = 'problem'
@@ -7471,7 +6904,6 @@ class PartsPositionImageAssociation(Base):
             error_id(f"Error during _get_positions_by_hierarchy with filters {filters}: {e}", request_id=request_id,
                      exc_info=True)
             raise
-
 
 class ImagePositionAssociation(Base):
     __tablename__ = 'image_position_association'
@@ -11170,16 +10602,8 @@ class KeywordSearch:
                 "message": f"Error loading keywords from Excel: {str(e)}"
             }
 
-# Create the 'documents_fts' table for full-text search
-with Session() as session:
-    sql_statement = text("CREATE VIRTUAL TABLE IF NOT EXISTS documents_fts USING FTS5(title, content)")
-    session.execute(sql_statement)
-    session.commit()
 
-# Bind the engine to the Base class
-Base.metadata.bind = engine
-
-# Then call create_all()
+# Modern approach - no binding needed!
 Base.metadata.create_all(engine, checkfirst=True)
 
 
