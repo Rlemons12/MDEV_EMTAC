@@ -2,16 +2,19 @@ import os
 import sys
 import pandas as pd
 import numpy as np
-from sqlalchemy import create_engine, func, inspect
-from sqlalchemy.orm import sessionmaker, scoped_session
+from sqlalchemy import func, inspect, text
 from datetime import datetime
-from sqlalchemy.ext.declarative import declarative_base
 
+# Import the new PostgreSQL framework components
 from modules.configuration.config import (
     BASE_DIR,
-    DATABASE_URL,
     DB_LOADSHEET,
     REVISION_CONTROL_DB_PATH
+)
+from modules.configuration.config_env import DatabaseConfig
+from modules.configuration.log_config import (
+    debug_id, info_id, warning_id, error_id,
+    set_request_id, get_request_id, log_timed_operation
 )
 from modules.emtacdb.emtacdb_fts import (
     Area,
@@ -40,474 +43,621 @@ from modules.initial_setup.initializer_logger import (
     close_initializer_logger
 )
 
-# Define the base for the revision control database models
-RevisionControlBase = declarative_base()
 
+class PostgreSQLEquipmentRelationshipsLoader:
+    """PostgreSQL-enhanced equipment relationships loader with comprehensive data management."""
 
-def setup_logging():
-    """
-    Ensure the directory for the log file exists and perform any additional logging setup if necessary.
-    """
-    log_directory = os.path.join(BASE_DIR, "logs")
-    if not os.path.exists(log_directory):
-        os.makedirs(log_directory)
-    # Additional logging configurations can be added here if needed
-    initializer_logger.info("Logging setup complete.")
+    def __init__(self):
+        self.request_id = set_request_id()
+        self.db_config = DatabaseConfig()
+        info_id("Initialized PostgreSQL Equipment Relationships Loader", self.request_id)
 
+        # Statistics tracking
+        self.stats = {
+            'areas_processed': 0,
+            'equipment_groups_processed': 0,
+            'models_processed': 0,
+            'asset_numbers_processed': 0,
+            'locations_processed': 0,
+            'site_locations_processed': 0,
+            'duplicates_removed': 0,
+            'snapshots_created': 0,
+            'errors_encountered': 0
+        }
 
-def create_main_database_engine():
-    """
-    Create and return the SQLAlchemy engine and session for the main database.
-    """
-    try:
-        engine = create_engine(DATABASE_URL, echo=True)  # Enable SQL logging
-        Session = scoped_session(sessionmaker(bind=engine))
-        initializer_logger.info(f"Main database engine created with URL: {DATABASE_URL}")
-        return engine, Session
-    except Exception as e:
-        initializer_logger.error(f"Failed to create main database engine: {e}")
-        raise
+        # Table processing order (important for foreign key relationships)
+        self.table_order = [
+            ('Area', Area, ['name', 'description']),
+            ('EquipmentGroup', EquipmentGroup, ['name', 'area_id']),
+            ('Model', Model, ['name', 'description', 'equipment_group_id']),
+            ('AssetNumber', AssetNumber, ['number', 'description', 'model_id']),
+            ('Location', Location, ['name', 'model_id']),
+            ('SiteLocation', SiteLocation, ['id', 'title', 'room_number', 'site_area'])
+        ]
 
+    def validate_excel_file(self, file_path):
+        """Validate the Excel file structure and required sheets."""
+        info_id(f"Validating Excel file: {file_path}", self.request_id)
 
-def create_revision_control_engine():
-    """
-    Create and return the SQLAlchemy engine and session for the revision control database.
-    """
-    try:
-        revision_engine = create_engine(f'sqlite:///{REVISION_CONTROL_DB_PATH}', echo=True)  # Enable SQL logging
-        RevisionControlSessionLocal = scoped_session(sessionmaker(bind=revision_engine))
-        initializer_logger.info(
-            f"Revision control database engine created with URL: sqlite:///{REVISION_CONTROL_DB_PATH}")
-        return revision_engine, RevisionControlSessionLocal
-    except Exception as e:
-        initializer_logger.error(f"Failed to create revision control database engine: {e}")
-        raise
-
-
-def create_tables(engine, base, db_type="Main"):
-    """
-    Create tables in the specified database.
-    """
-    try:
-        base.metadata.create_all(engine)
-        initializer_logger.info(f"{db_type} database tables created (if not exist).")
-    except Exception as e:
-        initializer_logger.error(f"Failed to create {db_type} database tables: {e}")
-        raise
-
-
-def inspect_database(engine, db_type="Main"):
-    """
-    Inspect the specified database and log the table names.
-    """
-    try:
-        inspector = inspect(engine)
-        table_names = inspector.get_table_names()
-        initializer_logger.info(f"Tables in the {db_type} database: {table_names}")
-        if db_type == "Revision Control" and 'version_info' not in table_names:
-            initializer_logger.error("version_info table does not exist in the revision control database.")
-    except Exception as e:
-        initializer_logger.error(f"Failed to inspect {db_type} database: {e}")
-        raise
-
-
-def clean_dataframe(df, required_columns):
-    """
-    Clean a DataFrame by removing empty columns and ensuring required columns exist.
-    """
-    # Remove completely empty columns
-    df = df.dropna(axis=1, how='all')
-
-    # Remove columns that are just empty strings
-    for col in df.columns:
-        if df[col].astype(str).str.strip().eq('').all():
-            df = df.drop(columns=[col])
-
-    # Check if all required columns exist
-    missing_columns = [col for col in required_columns if col not in df.columns]
-    if missing_columns:
-        raise ValueError(f"Missing required columns: {missing_columns}")
-
-    # Replace NaN values with None for database compatibility
-    df = df.replace({np.nan: None})
-
-    return df[required_columns]  # Return only required columns in the correct order
-
-
-def delete_duplicates(session, model, attribute):
-    """
-    Delete duplicate records in a given model based on a specified attribute.
-    Keeps the first occurrence and deletes the rest.
-    """
-    try:
-        # Find duplicate records based on the specified attribute
-        duplicates = session.query(getattr(model, attribute), func.count()).group_by(getattr(model, attribute)).having(
-            func.count() > 1)
-
-        # Iterate over duplicate records and keep one instance while deleting the rest
-        for attr_value, count in duplicates:
-            records = session.query(model).filter(getattr(model, attribute) == attr_value).all()
-            for record in records[1:]:  # Keep the first instance, delete the rest
-                session.delete(record)
-        initializer_logger.info(f"Deleted duplicates for model {model.__name__} based on attribute '{attribute}'.")
-    except Exception as e:
-        initializer_logger.error(f"Failed to delete duplicates for model {model.__name__}: {e}")
-
-
-def backup_database_relationships(session):
-    """
-    Create a backup of the database by exporting tables to an Excel file.
-    """
-    try:
-        # Define the directory to store backup Excel files
-        backup_directory = os.path.join(BASE_DIR, "Database", "DB_LOADSHEETS_BACKUP")
-
-        # Create the backup directory if it doesn't exist
-        if not os.path.exists(backup_directory):
-            os.makedirs(backup_directory)
-
-        # Get the current date and time for the timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-        # Create the Excel file name with the timestamp
-        excel_file_name = f"equipment_relationships_table_data_database_backup_{timestamp}.xlsx"
-        excel_file_path = os.path.join(backup_directory, excel_file_name)
-
-        # Extract data from each table and create DataFrames
-        area_data = [(area.name, area.description) for area in session.query(Area).all()]
-        equipment_group_data = [(group.name, group.area_id) for group in session.query(EquipmentGroup).all()]
-        model_data = [(model.name, model.description, model.equipment_group_id) for model in session.query(Model).all()]
-        asset_number_data = [(asset.number, asset.model_id, asset.description) for asset in
-                             session.query(AssetNumber).all()]
-        location_data = [(location.name, location.model_id) for location in session.query(Location).all()]
-        site_location_data = [(site.id, site.title, site.room_number, site.site_area) for site in
-                              session.query(SiteLocation).all()]
-
-        # Create DataFrames from the extracted data
-        df_area = pd.DataFrame(area_data, columns=['name', 'description'])
-        df_equipment_group = pd.DataFrame(equipment_group_data, columns=['name', 'area_id'])
-        df_model = pd.DataFrame(model_data, columns=['name', 'description', 'equipment_group_id'])
-        df_asset_number = pd.DataFrame(asset_number_data, columns=['number', 'model_id', 'description'])
-        df_location = pd.DataFrame(location_data, columns=['name', 'model_id'])
-        df_site_location = pd.DataFrame(site_location_data, columns=['id', 'title', 'room_number', 'site_area'])
-
-        # Write DataFrames to the Excel file
-        with pd.ExcelWriter(excel_file_path) as writer:
-            df_area.to_excel(writer, sheet_name='Area', index=False)
-            df_equipment_group.to_excel(writer, sheet_name='EquipmentGroup', index=False)
-            df_model.to_excel(writer, sheet_name='Model', index=False)
-            df_asset_number.to_excel(writer, sheet_name='AssetNumber', index=False)
-            df_location.to_excel(writer, sheet_name='Location', index=False)
-            df_site_location.to_excel(writer, sheet_name='SiteLocation', index=False)
-
-        initializer_logger.info(f"Database backup created successfully: {excel_file_name}")
-    except Exception as e:
-        initializer_logger.error(f"Error creating database backup: {e}")
-
-
-def upload_data_from_excel(file_path, engine, Session):
-    """
-    Load data from an Excel file and insert/update it into the main database.
-    Also handles versioning and snapshot creation in the revision control database.
-    """
-    # Load Excel file into pandas DataFrame
-    try:
-        initializer_logger.info("Loading 'Area' DataFrame...")
-        df_area_raw = pd.read_excel(file_path, sheet_name='Area')
-        df_area = clean_dataframe(df_area_raw, ['name', 'description'])
-        initializer_logger.info(f"Number of rows in 'Area' DataFrame: {len(df_area)}")
-        initializer_logger.info(f"Column names in cleaned 'Area' DataFrame: {list(df_area.columns)}")
-
-        initializer_logger.info("Loading 'EquipmentGroup' DataFrame...")
-        df_equipment_group_raw = pd.read_excel(file_path, sheet_name='EquipmentGroup')
-        df_equipment_group = clean_dataframe(df_equipment_group_raw, ['name', 'area_id'])
-        initializer_logger.info(f"Number of rows in 'EquipmentGroup' DataFrame: {len(df_equipment_group)}")
-        initializer_logger.info(
-            f"Column names in cleaned 'EquipmentGroup' DataFrame: {list(df_equipment_group.columns)}")
-
-        initializer_logger.info("Loading 'Model' DataFrame...")
-        df_model_raw = pd.read_excel(file_path, sheet_name='Model')
-        df_model = clean_dataframe(df_model_raw, ['name', 'description', 'equipment_group_id'])
-        initializer_logger.info(f"Number of rows in 'Model' DataFrame: {len(df_model)}")
-        initializer_logger.info(f"Column names in cleaned 'Model' DataFrame: {list(df_model.columns)}")
-
-        initializer_logger.info("Loading 'AssetNumber' DataFrame...")
-        df_asset_number_raw = pd.read_excel(file_path, sheet_name='AssetNumber')
-        # Only use the required columns for AssetNumber, ignoring equipment_group_id
-        df_asset_number = clean_dataframe(df_asset_number_raw, ['number', 'description', 'model_id'])
-        initializer_logger.info(f"Number of rows in 'AssetNumber' DataFrame: {len(df_asset_number)}")
-        initializer_logger.info(f"Column names in cleaned 'AssetNumber' DataFrame: {list(df_asset_number.columns)}")
-
-        initializer_logger.info("Loading 'Location' DataFrame...")
-        df_location_raw = pd.read_excel(file_path, sheet_name='Location')
-        df_location = clean_dataframe(df_location_raw, ['name', 'model_id'])
-        initializer_logger.info(f"Number of rows in 'Location' DataFrame: {len(df_location)}")
-        initializer_logger.info(f"Column names in cleaned 'Location' DataFrame: {list(df_location.columns)}")
-
-        initializer_logger.info("Loading 'SiteLocation' DataFrame...")
-        df_site_location_raw = pd.read_excel(file_path, sheet_name='SiteLocation')
-        df_site_location = clean_dataframe(df_site_location_raw, ['id', 'title', 'room_number', 'site_area'])
-        initializer_logger.info(f"Number of rows in 'SiteLocation' DataFrame: {len(df_site_location)}")
-        initializer_logger.info(f"Column names in cleaned 'SiteLocation' DataFrame: {list(df_site_location.columns)}")
-
-        # Create session
-        session = Session()
+        if not os.path.exists(file_path):
+            error_id(f"Excel file not found: {file_path}", self.request_id)
+            return False, "File does not exist"
 
         try:
-            # Backup the database before making any changes
-            backup_database_relationships(session)
+            # Check if all required sheets exist
+            required_sheets = ['Area', 'EquipmentGroup', 'Model', 'AssetNumber', 'Location', 'SiteLocation']
+            excel_file = pd.ExcelFile(file_path)
 
-            # Insert or update data into 'Area' table
-            initializer_logger.info("Processing 'Area' data...")
-            for _, row in df_area.iterrows():
-                area_name = str(row['name']).strip() if pd.notna(row['name']) else ''
-                if not area_name:
-                    continue
-                area = session.query(Area).filter_by(name=area_name).first()
-                if area:
-                    area.description = row['description'] if pd.notna(row['description']) else None
-                else:
-                    area = Area(name=area_name,
-                                description=row['description'] if pd.notna(row['description']) else None)
-                    session.add(area)
+            missing_sheets = [sheet for sheet in required_sheets if sheet not in excel_file.sheet_names]
+            if missing_sheets:
+                error_id(f"Missing required sheets: {missing_sheets}", self.request_id)
+                return False, f"Missing required sheets: {missing_sheets}"
 
-            # Insert or update data into 'EquipmentGroup' table
-            initializer_logger.info("Processing 'EquipmentGroup' data...")
-            for _, row in df_equipment_group.iterrows():
-                area_id = row.get('area_id', None)
-                if pd.notna(area_id):
-                    area_id = int(area_id)
-                else:
-                    area_id = None
-                equipment_group_name = str(row['name']).strip() if pd.notna(row['name']) else ''
-                if not equipment_group_name:
-                    continue
-                equipment_group = session.query(EquipmentGroup).filter_by(name=equipment_group_name).first()
-                if equipment_group:
-                    equipment_group.area_id = area_id
-                else:
-                    equipment_group = EquipmentGroup(name=equipment_group_name, area_id=area_id)
-                    session.add(equipment_group)
+            # Validate each sheet has data
+            for sheet_name in required_sheets:
+                df = pd.read_excel(file_path, sheet_name=sheet_name)
+                if df.empty:
+                    warning_id(f"Sheet '{sheet_name}' is empty", self.request_id)
 
-            # Insert or update data into 'Model' table
-            initializer_logger.info("Processing 'Model' data...")
-            for _, row in df_model.iterrows():
-                equipment_group_id = row.get('equipment_group_id', None)
-                if pd.notna(equipment_group_id):
-                    equipment_group_id = int(equipment_group_id)
-                else:
-                    equipment_group_id = None
-                model_name = str(row['name']).strip() if pd.notna(row['name']) else ''
-                if not model_name:
-                    continue
-                model = session.query(Model).filter_by(name=model_name).first()
-                if model:
-                    model.description = row['description'] if pd.notna(row['description']) else None
-                    model.equipment_group_id = equipment_group_id
-                else:
-                    equipment_group = None
-                    if equipment_group_id:
-                        equipment_group = session.query(EquipmentGroup).filter_by(id=equipment_group_id).first()
-                    model = Model(name=model_name,
-                                  description=row['description'] if pd.notna(row['description']) else None,
-                                  equipment_group=equipment_group)
-                    session.add(model)
-
-            # Insert or update data into 'AssetNumber' table (ignoring equipment_group_id column)
-            initializer_logger.info("Processing 'AssetNumber' data...")
-            for _, row in df_asset_number.iterrows():
-                model_id = row.get('model_id', None)
-                if pd.notna(model_id):
-                    model_id = int(model_id)
-                else:
-                    model_id = None
-                asset_number_name = str(row['number']).strip() if pd.notna(row['number']) else ''
-                if not asset_number_name:
-                    continue
-                asset_number = session.query(AssetNumber).filter_by(number=asset_number_name).first()
-                if asset_number:
-                    asset_number.model_id = model_id
-                    asset_number.description = row['description'] if pd.notna(row['description']) else None
-                else:
-                    asset_number = AssetNumber(number=asset_number_name, model_id=model_id,
-                                               description=row['description'] if pd.notna(row['description']) else None)
-                    session.add(asset_number)
-
-            # Insert or update data into 'Location' table
-            initializer_logger.info("Processing 'Location' data...")
-            for index, row in df_location.iterrows():
-                if index % 10 == 0:  # Log progress every 10 rows
-                    initializer_logger.info(f"Processing location row: {index + 1}")
-                model_id = row.get('model_id', None)
-                if pd.notna(model_id):
-                    model_id = int(model_id)
-                else:
-                    model_id = None
-                location_name = str(row['name']).strip() if pd.notna(row['name']) else ''
-                if not location_name:
-                    continue
-                location = session.query(Location).filter_by(name=location_name).first()
-                if location:
-                    location.model_id = model_id
-                else:
-                    location = Location(name=location_name, model_id=model_id)
-                    session.add(location)
-
-            # Insert or update data into 'SiteLocation' table
-            initializer_logger.info("Processing 'SiteLocation' data...")
-            for index, row in df_site_location.iterrows():
-                if index % 100 == 0:  # Log progress every 100 rows
-                    initializer_logger.info(f"Processing site location row: {index + 1}")
-
-                site_location_id = row.get('id', None)
-                if pd.notna(site_location_id):
-                    site_location_id = int(site_location_id)
-                else:
-                    site_location_id = None
-
-                title = str(row['title']).strip() if pd.notna(row['title']) else ''
-                room_number = str(row['room_number']).strip() if pd.notna(row['room_number']) else ''
-                site_area = str(row['site_area']).strip() if pd.notna(row['site_area']) else ''
-
-                if not title:
-                    continue
-
-                # Check if site location already exists by ID first, then by title
-                site_location = None
-                if site_location_id:
-                    site_location = session.query(SiteLocation).filter_by(id=site_location_id).first()
-
-                if not site_location:
-                    site_location = session.query(SiteLocation).filter_by(title=title).first()
-
-                if site_location:
-                    # Update existing site location
-                    site_location.title = title
-                    site_location.room_number = room_number
-                    site_location.site_area = site_area
-                else:
-                    # Create new site location
-                    site_location = SiteLocation(
-                        id=site_location_id,  # This will be None if not provided, allowing auto-increment
-                        title=title,
-                        room_number=room_number,
-                        site_area=site_area
-                    )
-                    session.add(site_location)
-
-            # Delete duplicates
-            initializer_logger.info("Removing duplicates...")
-            delete_duplicates(session, Area, 'name')
-            delete_duplicates(session, EquipmentGroup, 'name')
-            delete_duplicates(session, Model, 'name')
-            delete_duplicates(session, AssetNumber, 'number')
-            delete_duplicates(session, Location, 'name')
-            delete_duplicates(session, SiteLocation, 'title')
-
-            # Commit the session
-            session.commit()
-            initializer_logger.info("Data uploaded successfully!")
-
-            # Add version info and create snapshots
-            try:
-                rev_session = RevisionControlSession()
-                new_version = VersionInfo(version_number=1, description="Initial version with updated column structure")
-                rev_session.add(new_version)
-                rev_session.commit()
-
-                # Create snapshots for all entities
-                initializer_logger.info("Creating snapshots...")
-                for area in session.query(Area).all():
-                    create_snapshot(area, rev_session, AreaSnapshot)
-                for equipment_group in session.query(EquipmentGroup).all():
-                    create_snapshot(equipment_group, rev_session, EquipmentGroupSnapshot)
-                for model in session.query(Model).all():
-                    create_snapshot(model, rev_session, ModelSnapshot)
-                for asset_number in session.query(AssetNumber).all():
-                    create_snapshot(asset_number, rev_session, AssetNumberSnapshot)
-                for location in session.query(Location).all():
-                    create_snapshot(location, rev_session, LocationSnapshot)
-
-                # Create SiteLocation snapshots if SiteLocationSnapshot class exists
-                try:
-                    from modules.emtacdb.emtac_revision_control_db import SiteLocationSnapshot
-                    for site_location in session.query(SiteLocation).all():
-                        create_snapshot(site_location, rev_session, SiteLocationSnapshot)
-                    initializer_logger.info("SiteLocation snapshots created successfully!")
-                except ImportError:
-                    initializer_logger.warning("SiteLocationSnapshot class not found - skipping SiteLocation snapshots")
-                except Exception as e:
-                    initializer_logger.error(f"Error creating SiteLocation snapshots: {e}")
-
-                rev_session.commit()
-                initializer_logger.info("Snapshots created successfully!")
-            except Exception as e:
-                initializer_logger.error(f"An error occurred while adding version info and creating snapshots: {e}")
-                rev_session.rollback()
-            finally:
-                rev_session.close()
-
-            # Querying the version_info table
-            try:
-                revision_session = RevisionControlSession()
-                initializer_logger.info("Querying 'version_info' table in revision control database.")
-                version_info = revision_session.query(VersionInfo).order_by(VersionInfo.id.desc()).first()
-                if version_info:
-                    initializer_logger.info(f"Latest version_info: {version_info.version_number}")
-                else:
-                    initializer_logger.warning("No version_info found.")
-            except Exception as e:
-                initializer_logger.error(f"Error querying 'version_info' table: {e}")
-            finally:
-                revision_session.close()
+            info_id("Excel file validation successful", self.request_id)
+            return True, "Valid"
 
         except Exception as e:
-            initializer_logger.error(f"An error occurred during data upload: {e}")
-            session.rollback()
-        finally:
-            session.close()
+            error_id(f"Error validating Excel file: {str(e)}", self.request_id)
+            return False, f"Error reading file: {str(e)}"
 
-    except Exception as e:
-        initializer_logger.error(f"An unexpected error occurred: {e}")
-        raise
+    def clean_dataframe(self, df, required_columns, sheet_name):
+        """Clean and validate DataFrame with enhanced error handling."""
+        info_id(f"Cleaning DataFrame for sheet: {sheet_name}", self.request_id)
+
+        try:
+            original_rows = len(df)
+
+            # Remove completely empty columns
+            df = df.dropna(axis=1, how='all')
+
+            # Remove columns that are just empty strings
+            for col in df.columns:
+                if df[col].astype(str).str.strip().eq('').all():
+                    df = df.drop(columns=[col])
+
+            # Check if all required columns exist
+            missing_columns = [col for col in required_columns if col not in df.columns]
+            if missing_columns:
+                error_id(f"Missing required columns in {sheet_name}: {missing_columns}", self.request_id)
+                raise ValueError(f"Missing required columns in {sheet_name}: {missing_columns}")
+
+            # Replace NaN values with None for database compatibility
+            df = df.replace({np.nan: None})
+
+            # Return only required columns in the correct order
+            cleaned_df = df[required_columns].copy()
+
+            # Remove rows where critical fields are empty
+            critical_fields = ['name'] if 'name' in required_columns else [
+                'number'] if 'number' in required_columns else ['title'] if 'title' in required_columns else []
+
+            for field in critical_fields:
+                initial_count = len(cleaned_df)
+                cleaned_df = cleaned_df[cleaned_df[field].notna() & (cleaned_df[field].astype(str).str.strip() != '')]
+                removed_count = initial_count - len(cleaned_df)
+                if removed_count > 0:
+                    warning_id(f"Removed {removed_count} rows with empty {field} in {sheet_name}", self.request_id)
+
+            final_rows = len(cleaned_df)
+            info_id(f"Cleaned {sheet_name}: {original_rows} -> {final_rows} rows", self.request_id)
+
+            return cleaned_df
+
+        except Exception as e:
+            error_id(f"Error cleaning DataFrame for {sheet_name}: {str(e)}", self.request_id)
+            raise
+
+    def check_existing_data(self, session):
+        """Check for existing data in tables to prevent duplicates."""
+        try:
+            info_id("Checking existing data in database", self.request_id)
+
+            existing_data = {}
+            total_records = 0
+
+            for sheet_name, model_class, _ in self.table_order:
+                count = session.query(model_class).count()
+                existing_data[sheet_name] = count
+                total_records += count
+
+            if total_records > 0:
+                print(f"\n⚠️  EXISTING EQUIPMENT DATA DETECTED")
+                print(f"=" * 45)
+                for sheet_name, count in existing_data.items():
+                    if count > 0:
+                        print(f"📊 {sheet_name}: {count} records")
+                print(f"📊 Total Records: {total_records}")
+                print(f"🔄 Loading new data may create duplicates!")
+                print(f"💡 The system will handle duplicates automatically")
+                print()
+
+                proceed = input("⚠️  Continue with equipment relationships import? (y/n): ").strip().lower()
+                if proceed not in ['y', 'yes']:
+                    info_id("User chose to skip import due to existing data", self.request_id)
+                    return False
+
+            return True
+
+        except Exception as e:
+            error_id(f"Error checking existing data: {str(e)}", self.request_id)
+            raise
+
+    def create_database_backup(self, session):
+        """Create a comprehensive database backup before making changes."""
+        try:
+            info_id("Creating database backup", self.request_id)
+            print("💾 Creating database backup...")
+
+            with log_timed_operation("create_database_backup", self.request_id):
+                # Define backup directory
+                backup_directory = os.path.join(BASE_DIR, "Database", "DB_LOADSHEETS_BACKUP")
+                os.makedirs(backup_directory, exist_ok=True)
+
+                # Create timestamped backup file
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                excel_file_name = f"equipment_relationships_backup_{timestamp}.xlsx"
+                excel_file_path = os.path.join(backup_directory, excel_file_name)
+
+                # Extract data from each table
+                backup_data = {}
+
+                for sheet_name, model_class, columns in self.table_order:
+                    try:
+                        if sheet_name == 'Area':
+                            data = [(area.name, area.description) for area in session.query(Area).all()]
+                        elif sheet_name == 'EquipmentGroup':
+                            data = [(group.name, group.area_id) for group in session.query(EquipmentGroup).all()]
+                        elif sheet_name == 'Model':
+                            data = [(model.name, model.description, model.equipment_group_id) for model in
+                                    session.query(Model).all()]
+                        elif sheet_name == 'AssetNumber':
+                            data = [(asset.number, asset.model_id, asset.description) for asset in
+                                    session.query(AssetNumber).all()]
+                        elif sheet_name == 'Location':
+                            data = [(location.name, location.model_id) for location in session.query(Location).all()]
+                        elif sheet_name == 'SiteLocation':
+                            data = [(site.id, site.title, site.room_number, site.site_area) for site in
+                                    session.query(SiteLocation).all()]
+
+                        backup_data[sheet_name] = pd.DataFrame(data, columns=columns)
+
+                    except Exception as e:
+                        warning_id(f"Error backing up {sheet_name}: {str(e)}", self.request_id)
+                        backup_data[sheet_name] = pd.DataFrame()
+
+                # Write to Excel file
+                with pd.ExcelWriter(excel_file_path, engine='openpyxl') as writer:
+                    for sheet_name, df in backup_data.items():
+                        df.to_excel(writer, sheet_name=sheet_name, index=False)
+
+                info_id(f"Database backup created: {excel_file_name}", self.request_id)
+                print(f"   ✅ Backup saved: {excel_file_name}")
+
+        except Exception as e:
+            error_id(f"Error creating database backup: {str(e)}", self.request_id)
+            # Don't raise - backup failure shouldn't stop the import
+            print(f"   ⚠️  Backup failed: {str(e)}")
+
+    def delete_duplicates_enhanced(self, session, model, attribute, sheet_name):
+        """Enhanced duplicate removal with detailed logging."""
+        try:
+            info_id(f"Removing duplicates from {sheet_name} based on '{attribute}'", self.request_id)
+
+            # Find duplicates using PostgreSQL-optimized query
+            if self.db_config.is_postgresql:
+                # Use PostgreSQL-specific features for better performance
+                duplicates = session.query(
+                    getattr(model, attribute),
+                    func.count().label('count')
+                ).group_by(
+                    getattr(model, attribute)
+                ).having(
+                    func.count() > 1
+                ).all()
+            else:
+                # Fallback for SQLite
+                duplicates = session.query(
+                    getattr(model, attribute),
+                    func.count()
+                ).group_by(
+                    getattr(model, attribute)
+                ).having(
+                    func.count() > 1
+                ).all()
+
+            duplicates_removed = 0
+
+            for duplicate_data in duplicates:
+                attr_value = duplicate_data[0]
+                count = duplicate_data[1] if len(duplicate_data) > 1 else duplicate_data.count
+
+                # Get all records with this attribute value
+                records = session.query(model).filter(
+                    getattr(model, attribute) == attr_value
+                ).all()
+
+                # Keep the first record, delete the rest
+                for record in records[1:]:
+                    session.delete(record)
+                    duplicates_removed += 1
+
+            if duplicates_removed > 0:
+                info_id(f"Removed {duplicates_removed} duplicates from {sheet_name}", self.request_id)
+                self.stats['duplicates_removed'] += duplicates_removed
+
+        except Exception as e:
+            error_id(f"Error removing duplicates from {sheet_name}: {str(e)}", self.request_id)
+            raise
+
+    def process_single_table(self, session, df, model_class, sheet_name):
+        """Process a single table with enhanced error handling and progress tracking."""
+        info_id(f"Processing {sheet_name} table", self.request_id)
+        print(f"   📊 Processing {sheet_name}...")
+
+        try:
+            processed_count = 0
+
+            for index, row in df.iterrows():
+                try:
+                    if sheet_name == 'Area':
+                        area_name = str(row['name']).strip() if pd.notna(row['name']) else ''
+                        if not area_name:
+                            continue
+
+                        area = session.query(Area).filter_by(name=area_name).first()
+                        if area:
+                            area.description = row['description'] if pd.notna(row['description']) else None
+                        else:
+                            area = Area(
+                                name=area_name,
+                                description=row['description'] if pd.notna(row['description']) else None
+                            )
+                            session.add(area)
+                        processed_count += 1
+
+                    elif sheet_name == 'EquipmentGroup':
+                        equipment_group_name = str(row['name']).strip() if pd.notna(row['name']) else ''
+                        if not equipment_group_name:
+                            continue
+
+                        area_id = int(row['area_id']) if pd.notna(row['area_id']) else None
+
+                        equipment_group = session.query(EquipmentGroup).filter_by(name=equipment_group_name).first()
+                        if equipment_group:
+                            equipment_group.area_id = area_id
+                        else:
+                            equipment_group = EquipmentGroup(name=equipment_group_name, area_id=area_id)
+                            session.add(equipment_group)
+                        processed_count += 1
+
+                    elif sheet_name == 'Model':
+                        model_name = str(row['name']).strip() if pd.notna(row['name']) else ''
+                        if not model_name:
+                            continue
+
+                        equipment_group_id = int(row['equipment_group_id']) if pd.notna(
+                            row['equipment_group_id']) else None
+
+                        model = session.query(Model).filter_by(name=model_name).first()
+                        if model:
+                            model.description = row['description'] if pd.notna(row['description']) else None
+                            model.equipment_group_id = equipment_group_id
+                        else:
+                            equipment_group = None
+                            if equipment_group_id:
+                                equipment_group = session.query(EquipmentGroup).filter_by(id=equipment_group_id).first()
+
+                            model = Model(
+                                name=model_name,
+                                description=row['description'] if pd.notna(row['description']) else None,
+                                equipment_group=equipment_group
+                            )
+                            session.add(model)
+                        processed_count += 1
+
+                    elif sheet_name == 'AssetNumber':
+                        asset_number_name = str(row['number']).strip() if pd.notna(row['number']) else ''
+                        if not asset_number_name:
+                            continue
+
+                        model_id = int(row['model_id']) if pd.notna(row['model_id']) else None
+
+                        asset_number = session.query(AssetNumber).filter_by(number=asset_number_name).first()
+                        if asset_number:
+                            asset_number.model_id = model_id
+                            asset_number.description = row['description'] if pd.notna(row['description']) else None
+                        else:
+                            asset_number = AssetNumber(
+                                number=asset_number_name,
+                                model_id=model_id,
+                                description=row['description'] if pd.notna(row['description']) else None
+                            )
+                            session.add(asset_number)
+                        processed_count += 1
+
+                    elif sheet_name == 'Location':
+                        location_name = str(row['name']).strip() if pd.notna(row['name']) else ''
+                        if not location_name:
+                            continue
+
+                        model_id = int(row['model_id']) if pd.notna(row['model_id']) else None
+
+                        location = session.query(Location).filter_by(name=location_name).first()
+                        if location:
+                            location.model_id = model_id
+                        else:
+                            location = Location(name=location_name, model_id=model_id)
+                            session.add(location)
+                        processed_count += 1
+
+                    elif sheet_name == 'SiteLocation':
+                        title = str(row['title']).strip() if pd.notna(row['title']) else ''
+                        if not title:
+                            continue
+
+                        site_location_id = int(row['id']) if pd.notna(row['id']) else None
+                        room_number = str(row['room_number']).strip() if pd.notna(row['room_number']) else ''
+                        site_area = str(row['site_area']).strip() if pd.notna(row['site_area']) else ''
+
+                        # Check by ID first, then by title
+                        site_location = None
+                        if site_location_id:
+                            site_location = session.query(SiteLocation).filter_by(id=site_location_id).first()
+
+                        if not site_location:
+                            site_location = session.query(SiteLocation).filter_by(title=title).first()
+
+                        if site_location:
+                            site_location.title = title
+                            site_location.room_number = room_number
+                            site_location.site_area = site_area
+                        else:
+                            site_location = SiteLocation(
+                                id=site_location_id,
+                                title=title,
+                                room_number=room_number,
+                                site_area=site_area
+                            )
+                            session.add(site_location)
+                        processed_count += 1
+
+                    # Progress reporting
+                    if processed_count % 100 == 0:
+                        debug_id(f"Processed {processed_count} {sheet_name} records", self.request_id)
+
+                except Exception as e:
+                    error_id(f"Error processing {sheet_name} row {index}: {str(e)}", self.request_id)
+                    self.stats['errors_encountered'] += 1
+                    continue
+
+            # Update statistics
+            stat_key = f"{sheet_name.lower()}s_processed"
+            if stat_key.replace('s_processed', '_processed') in self.stats:
+                stat_key = stat_key.replace('s_processed', '_processed')
+            if stat_key in self.stats:
+                self.stats[stat_key] = processed_count
+
+            info_id(f"Processed {processed_count} {sheet_name} records", self.request_id)
+            print(f"      ✅ Processed {processed_count} records")
+
+        except Exception as e:
+            error_id(f"Error processing {sheet_name} table: {str(e)}", self.request_id)
+            raise
+
+    def create_revision_snapshots(self, main_session):
+        """Create revision control snapshots with enhanced error handling."""
+        try:
+            info_id("Creating revision control snapshots", self.request_id)
+            print("📸 Creating revision snapshots...")
+
+            with log_timed_operation("create_revision_snapshots", self.request_id):
+                rev_session = RevisionControlSession()
+
+                try:
+                    # Create version info
+                    new_version = VersionInfo(
+                        version_number=1,
+                        description="Equipment relationships data import with PostgreSQL enhancements"
+                    )
+                    rev_session.add(new_version)
+                    rev_session.commit()
+
+                    snapshots_created = 0
+
+                    # Create snapshots for each entity type
+                    snapshot_mapping = [
+                        (Area, AreaSnapshot, "areas"),
+                        (EquipmentGroup, EquipmentGroupSnapshot, "equipment groups"),
+                        (Model, ModelSnapshot, "models"),
+                        (AssetNumber, AssetNumberSnapshot, "asset numbers"),
+                        (Location, LocationSnapshot, "locations")
+                    ]
+
+                    for entity_class, snapshot_class, entity_name in snapshot_mapping:
+                        try:
+                            entities = main_session.query(entity_class).all()
+                            for entity in entities:
+                                create_snapshot(entity, rev_session, snapshot_class)
+                                snapshots_created += 1
+
+                            info_id(f"Created {len(entities)} {entity_name} snapshots", self.request_id)
+
+                        except Exception as e:
+                            warning_id(f"Error creating {entity_name} snapshots: {str(e)}", self.request_id)
+
+                    # Handle SiteLocation snapshots separately (may not exist)
+                    try:
+                        from modules.emtacdb.emtac_revision_control_db import SiteLocationSnapshot
+                        site_locations = main_session.query(SiteLocation).all()
+                        for site_location in site_locations:
+                            create_snapshot(site_location, rev_session, SiteLocationSnapshot)
+                            snapshots_created += 1
+
+                        info_id(f"Created {len(site_locations)} site location snapshots", self.request_id)
+
+                    except ImportError:
+                        warning_id("SiteLocationSnapshot class not found - skipping site location snapshots",
+                                   self.request_id)
+                    except Exception as e:
+                        warning_id(f"Error creating site location snapshots: {str(e)}", self.request_id)
+
+                    rev_session.commit()
+                    self.stats['snapshots_created'] = snapshots_created
+
+                    info_id(f"Created {snapshots_created} total snapshots", self.request_id)
+                    print(f"   ✅ Created {snapshots_created} snapshots")
+
+                except Exception as e:
+                    rev_session.rollback()
+                    error_id(f"Error in revision snapshot creation: {str(e)}", self.request_id)
+                    raise
+                finally:
+                    rev_session.close()
+
+        except Exception as e:
+            error_id(f"Error creating revision snapshots: {str(e)}", self.request_id)
+            # Don't raise - snapshot failure shouldn't stop the import
+            print(f"   ⚠️  Snapshot creation failed: {str(e)}")
+
+    def display_processing_summary(self):
+        """Display comprehensive processing summary."""
+        print(f"\n📊 Processing Summary")
+        print(f"=" * 40)
+
+        for key, value in self.stats.items():
+            if value > 0:
+                formatted_key = key.replace('_', ' ').title()
+                print(f"{formatted_key}: {value}")
+
+        if self.stats['errors_encountered'] > 0:
+            print(f"⚠️  Errors Encountered: {self.stats['errors_encountered']}")
+
+        info_id(f"Processing summary: {self.stats}", self.request_id)
+
+    def load_equipment_relationships(self, file_path=None):
+        """Main method to load equipment relationships data."""
+        try:
+            print(f"\n🎯 Equipment Relationships Data Import")
+            print(f"=" * 45)
+
+            # Determine file path
+            if not file_path:
+                file_path = os.path.join(DB_LOADSHEET, "load_equipment_relationships_table_data.xlsx")
+
+            # Validate Excel file
+            is_valid, message = self.validate_excel_file(file_path)
+            if not is_valid:
+                raise ValueError(f"Invalid Excel file: {message}")
+
+            print(f"📂 Loading from: {os.path.basename(file_path)}")
+
+            # Get database session
+            with self.db_config.main_session() as session:
+                # Check existing data
+                if not self.check_existing_data(session):
+                    return False
+
+                # Create backup
+                self.create_database_backup(session)
+
+                # Process each table in correct order
+                print(f"🔄 Processing tables in dependency order...")
+
+                for sheet_name, model_class, required_columns in self.table_order:
+                    try:
+                        # Load and clean data
+                        with log_timed_operation(f"load_{sheet_name}_sheet", self.request_id):
+                            df_raw = pd.read_excel(file_path, sheet_name=sheet_name)
+                            df_cleaned = self.clean_dataframe(df_raw, required_columns, sheet_name)
+
+                        # Process table data
+                        self.process_single_table(session, df_cleaned, model_class, sheet_name)
+
+                    except Exception as e:
+                        error_id(f"Error processing {sheet_name}: {str(e)}", self.request_id)
+                        self.stats['errors_encountered'] += 1
+                        print(f"   ❌ Error processing {sheet_name}: {str(e)}")
+                        continue
+
+                # Remove duplicates
+                print(f"🧹 Removing duplicates...")
+                duplicate_mappings = [
+                    (Area, 'name', 'Area'),
+                    (EquipmentGroup, 'name', 'EquipmentGroup'),
+                    (Model, 'name', 'Model'),
+                    (AssetNumber, 'number', 'AssetNumber'),
+                    (Location, 'name', 'Location'),
+                    (SiteLocation, 'title', 'SiteLocation')
+                ]
+
+                for model_class, attribute, sheet_name in duplicate_mappings:
+                    self.delete_duplicates_enhanced(session, model_class, attribute, sheet_name)
+
+                # Commit all changes
+                session.commit()
+                info_id("All database changes committed successfully", self.request_id)
+                print(f"   💾 All changes committed to database")
+
+                # Create revision snapshots
+                self.create_revision_snapshots(session)
+
+            # Display summary
+            self.display_processing_summary()
+
+            print(f"\n✅ Equipment Relationships Import Completed Successfully!")
+            info_id("Equipment relationships import completed successfully", self.request_id)
+
+            return True
+
+        except Exception as e:
+            error_id(f"Equipment relationships import failed: {str(e)}", self.request_id, exc_info=True)
+            print(f"\n❌ Import failed: {str(e)}")
+            return False
 
 
 def main():
     """
-    Main entry point for the script.
+    Main function to load equipment relationships data.
+    Uses the new PostgreSQL framework with enhanced error handling and features.
     """
+    print("\n🎯 Starting Equipment Relationships Data Import")
+    print("=" * 55)
+
+    loader = None
     try:
-        setup_logging()
+        # Initialize the PostgreSQL loader
+        loader = PostgreSQLEquipmentRelationshipsLoader()
 
-        # Create engines and sessions
-        main_engine, MainSession = create_main_database_engine()
-        revision_engine, RevisionControlSessionLocal = create_revision_control_engine()
+        # Load the equipment relationships data
+        success = loader.load_equipment_relationships()
 
-        # Create tables
-        create_tables(main_engine, Base, db_type="Main")
-        create_tables(revision_engine, RevisionControlBase, db_type="Revision Control")
+        if success:
+            print("\n✅ Equipment Relationships Import Completed Successfully!")
+            print("=" * 55)
+        else:
+            print("\n⚠️  Equipment Relationships Import Completed with Issues")
+            print("=" * 55)
 
-        # Inspect databases
-        inspect_database(main_engine, db_type="Main")
-        inspect_database(revision_engine, db_type="Revision Control")
-
-        # Define the Excel file path
-        excel_file_path = os.path.join(DB_LOADSHEET, "load_equipment_relationships_table_data.xlsx")
-
-        # Check if Excel file exists
-        if not os.path.exists(excel_file_path):
-            initializer_logger.error(f"Excel file not found: {excel_file_path}")
-            raise FileNotFoundError(f"Excel file not found: {excel_file_path}")
-
-        # Upload data from Excel
-        upload_data_from_excel(excel_file_path, main_engine, MainSession)
-
+    except KeyboardInterrupt:
+        print("\n🛑 Import interrupted by user")
+        if loader:
+            error_id("Import interrupted by user", loader.request_id)
     except Exception as e:
-        initializer_logger.error(f"An error occurred in the main execution flow: {e}")
+        print(f"\n❌ Import failed: {str(e)}")
+        if loader:
+            error_id(f"Import failed: {str(e)}", loader.request_id, exc_info=True)
     finally:
-        # Close the logger
-        close_initializer_logger()
-        initializer_logger.info("Program execution completed successfully.")
+        # Close logger
+        try:
+            close_initializer_logger()
+        except:
+            pass
 
 
 if __name__ == "__main__":
