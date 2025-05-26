@@ -47,6 +47,6 @@ __pycache__/
 .idea/*
 !.idea/codeStyles/
 !.idea/runConfigurations/
-
+.env
 app.log
 create_bill_of_material.log
