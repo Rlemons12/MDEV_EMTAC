@@ -2,123 +2,468 @@ import os
 import sys
 import time
 import random
+import shutil
+import pandas as pd
+import numpy as np
 from PIL import Image as PILImage, ImageFile
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import numpy as np
 from datetime import datetime, timedelta
-import threading
+from sqlalchemy import func, text
+from collections import defaultdict
 
+# Import the new PostgreSQL framework components
 from modules.configuration.log_config import (
     logger, with_request_id, get_request_id, set_request_id,
     info_id, debug_id, warning_id, error_id, log_timed_operation
 )
-from modules.configuration.config import DATABASE_PATH_IMAGES_FOLDER, ALLOWED_EXTENSIONS
+from modules.configuration.config import DATABASE_PATH_IMAGES_FOLDER, ALLOWED_EXTENSIONS, DATABASE_DIR
 from modules.initial_setup.initializer_logger import (
     LOG_DIRECTORY, initializer_logger, close_initializer_logger
 )
 from modules.configuration.config_env import DatabaseConfig
-from modules.emtacdb.emtacdb_fts import Image
+from modules.emtacdb.emtacdb_fts import Image, ImageEmbedding
 from plugins.ai_modules.ai_models import ModelsConfig
 
 # Make sure truncated images won't crash PIL
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
-# Initialize Logging
-logger = initializer_logger
-logger.info(f"Using logs directory: {LOG_DIRECTORY}")
 
-# Database Setup - Enable connection limiting and set lower max connections
-os.environ['DB_CONNECTION_LIMITING'] = 'True'
-os.environ['MAX_DB_CONNECTIONS'] = '4'  # Reduce from default 8 to 4
-os.environ['DB_CONNECTION_TIMEOUT'] = '60'  # Set a longer timeout of 60 seconds
+class OptimizedImageFolderProcessor:
+    """High-performance image folder processor using vectorized operations and bulk database inserts."""
 
-# Initialize database configuration
-db_config = DatabaseConfig()
+    def __init__(self):
+        self.request_id = set_request_id()
+        self.db_config = DatabaseConfig()
+        info_id("Initialized Optimized Image Folder Processor", self.request_id)
 
+        # Statistics tracking
+        self.stats = {
+            'total_files_found': 0,
+            'files_processed': 0,
+            'files_skipped': 0,
+            'files_errored': 0,
+            'duplicates_found': 0,
+            'new_images_added': 0,
+            'processing_time': 0,
+            'average_time_per_file': 0
+        }
 
-class ProgressTracker:
-    """
-    A thread-safe progress tracker for image processing with time estimation.
-    """
+        # Initialize model configuration
+        self._initialize_models()
 
-    def __init__(self, total_files, request_id=None):
-        self.total_files = total_files
-        self.processed_files = 0
-        self.successful_files = 0
-        self.skipped_files = 0
-        self.error_files = 0
-        self.start_time = time.time()
-        self.request_id = request_id or get_request_id()
-        self.lock = threading.Lock()
-        self.processing_times = []
-        self.last_update_time = time.time()
-        self.update_interval = 2.0  # Update every 2 seconds minimum
+    def _initialize_models(self):
+        """Initialize AI models configuration."""
+        try:
+            from plugins.ai_modules.ai_models import initialize_models_config
+            if initialize_models_config():
+                info_id("AI models configuration initialized successfully", self.request_id)
+            else:
+                warning_id("AI models configuration initialization had issues", self.request_id)
+        except Exception as e:
+            error_id(f"Failed to initialize AI models configuration: {str(e)}", self.request_id)
 
-    def update(self, processing_time, status="processed"):
-        """Update progress with thread safety."""
-        with self.lock:
-            self.processed_files += 1
-            self.processing_times.append(processing_time)
+    def check_existing_images(self, session):
+        """Check for existing images in database using optimized query."""
+        try:
+            info_id("Checking existing images in database", self.request_id)
 
-            if status == "processed":
-                self.successful_files += 1
-            elif status == "skipped":
-                self.skipped_files += 1
-            elif status == "error":
-                self.error_files += 1
+            # Use optimized count query
+            if self.db_config.is_postgresql:
+                # PostgreSQL optimized count
+                result = session.execute(text("SELECT COUNT(*) FROM image")).scalar()
+                image_count = result if result else 0
+            else:
+                # SQLite fallback
+                image_count = session.query(Image).count()
 
-            # Only show progress updates every few seconds to avoid spam
-            current_time = time.time()
-            if current_time - self.last_update_time >= self.update_interval or self.processed_files == self.total_files:
-                self._show_progress()
-                self.last_update_time = current_time
+            if image_count > 0:
+                print(f"\n⚠️  EXISTING IMAGES DETECTED")
+                print(f"=" * 40)
+                print(f"📊 Current images in database: {image_count:,}")
+                print(f"🔄 New images will be checked for duplicates")
+                print(f"💡 Duplicate images will be skipped automatically")
+                print()
 
-    def _show_progress(self):
-        """Display current progress with time estimates."""
-        if self.processed_files == 0:
+                proceed = input("⚠️  Continue with image import? (y/n): ").strip().lower()
+                if proceed not in ['y', 'yes']:
+                    info_id("User chose to skip image import due to existing data", self.request_id)
+                    return False
+
+            return True
+
+        except Exception as e:
+            error_id(f"Error checking existing images: {str(e)}", self.request_id)
+            raise
+
+    def scan_for_images_vectorized(self, folder_path, recursive=True):
+        """Optimized image scanning using vectorized operations."""
+        info_id(f"Scanning for images in: {folder_path} (recursive={recursive})", self.request_id)
+        print(f"📂 Scanning for images...")
+
+        try:
+            with log_timed_operation("scan_for_images", self.request_id):
+                # Get all files at once
+                all_files = []
+
+                if recursive:
+                    # Use os.walk for recursive scanning
+                    for root, dirs, files in os.walk(folder_path):
+                        for filename in files:
+                            full_path = os.path.join(root, filename)
+                            all_files.append((root, filename, full_path))
+                else:
+                    # Non-recursive scanning
+                    if os.path.exists(folder_path):
+                        for filename in os.listdir(folder_path):
+                            full_path = os.path.join(folder_path, filename)
+                            if os.path.isfile(full_path):
+                                all_files.append((folder_path, filename, full_path))
+
+                # Convert to DataFrame for vectorized filtering
+                if all_files:
+                    df = pd.DataFrame(all_files, columns=['root', 'filename', 'full_path'])
+
+                    # Vectorized extension filtering
+                    extensions = [ext.lower() for ext in ALLOWED_EXTENSIONS]
+                    df['extension'] = df['filename'].str.lower().str.extract(r'\.([^.]+)$')[0]
+
+                    # Filter for valid image files
+                    valid_mask = df['extension'].isin(extensions) & df['full_path'].apply(os.path.isfile)
+                    image_files_df = df[valid_mask]
+
+                    # Convert back to list format
+                    image_files = image_files_df[['root', 'filename', 'full_path']].values.tolist()
+                else:
+                    image_files = []
+
+                info_id(f"Found {len(image_files)} image files", self.request_id)
+                print(f"   ✅ Found {len(image_files):,} image files")
+
+                return image_files
+
+        except Exception as e:
+            error_id(f"Error scanning for images: {str(e)}", self.request_id)
+            raise
+
+    def get_existing_image_titles_fast(self, session):
+        """Get all existing image titles using optimized bulk query."""
+        try:
+            with log_timed_operation("get_existing_titles", self.request_id):
+                if self.db_config.is_postgresql:
+                    # Use pandas for fast bulk retrieval
+                    query = text("SELECT title FROM image WHERE title IS NOT NULL")
+                    existing_df = pd.read_sql(query, session.bind)
+                    existing_set = set(existing_df['title'].tolist()) if not existing_df.empty else set()
+                else:
+                    # SQLite fallback
+                    existing_titles = session.query(Image.title).filter(Image.title.isnot(None)).all()
+                    existing_set = {title[0] for title in existing_titles}
+
+                info_id(f"Retrieved {len(existing_set)} existing image titles", self.request_id)
+                return existing_set
+
+        except Exception as e:
+            error_id(f"Error getting existing titles: {str(e)}", self.request_id)
+            return set()
+
+    def prepare_image_data_vectorized(self, image_files, existing_titles):
+        """Prepare image data using vectorized operations - MUCH faster!"""
+        info_id("Preparing image data using vectorized operations", self.request_id)
+        print("⚙️  Processing image data...")
+
+        try:
+            with log_timed_operation("prepare_image_data", self.request_id):
+                if not image_files:
+                    return [], []
+
+                # Convert to DataFrame for vectorized processing
+                df = pd.DataFrame(image_files, columns=['root', 'filename', 'full_path'])
+
+                # Extract titles (base names without extensions)
+                df['title'] = df['filename'].apply(lambda x: os.path.splitext(x)[0])
+
+                # Clean titles using vectorized operations
+                df['clean_title'] = df['title'].str.replace(r'[^\w\s-]', '', regex=True).str.strip()
+
+                # Filter out duplicates using vectorized operations
+                initial_count = len(df)
+
+                # Remove internal duplicates (keep last)
+                df_dedupe = df.drop_duplicates(subset=['clean_title'], keep='last')
+                internal_dupes = initial_count - len(df_dedupe)
+
+                # Filter out existing titles
+                if existing_titles:
+                    new_images_mask = ~df_dedupe['clean_title'].isin(existing_titles)
+                    df_new = df_dedupe[new_images_mask]
+                    db_dupes = len(df_dedupe) - len(df_new)
+                else:
+                    df_new = df_dedupe
+                    db_dupes = 0
+
+                # Prepare data for bulk insert
+                new_image_data = []
+                failed_copies = []
+
+                if not df_new.empty:
+                    print(f"   📊 Processing {len(df_new):,} new images...")
+
+                    # Create destination directory
+                    dest_dir = os.path.join(DATABASE_DIR, "DB_IMAGES")
+                    os.makedirs(dest_dir, exist_ok=True)
+
+                    # Process files in batches for copying
+                    batch_size = 100
+                    for i in range(0, len(df_new), batch_size):
+                        batch = df_new.iloc[i:i + batch_size]
+
+                        for _, row in batch.iterrows():
+                            try:
+                                # Prepare destination path
+                                _, ext = os.path.splitext(row['filename'])
+                                dest_name = f"{row['clean_title']}{ext}"
+                                dest_rel = os.path.join("DB_IMAGES", dest_name)
+                                dest_abs = os.path.join(DATABASE_DIR, dest_rel)
+
+                                # Copy file
+                                shutil.copy2(row['full_path'], dest_abs)
+
+                                # Prepare data for bulk insert
+                                new_image_data.append({
+                                    'title': row['clean_title'],
+                                    'description': 'Auto-imported image',
+                                    'file_path': dest_rel
+                                })
+
+                            except Exception as e:
+                                error_id(f"Failed to copy {row['filename']}: {str(e)}", self.request_id)
+                                failed_copies.append((row['filename'], str(e)))
+
+                        # Progress update
+                        if i + batch_size < len(df_new):
+                            print(f"      📁 Copied {i + batch_size:,}/{len(df_new):,} files...")
+
+                # Update statistics
+                self.stats['duplicates_found'] = internal_dupes + db_dupes
+                self.stats['new_images_added'] = len(new_image_data)
+
+                info_id(f"Prepared {len(new_image_data)} new images for database insertion", self.request_id)
+                print(f"   ✅ Prepared {len(new_image_data):,} new images")
+                print(f"      📋 Internal duplicates: {internal_dupes:,}")
+                print(f"      📋 Database duplicates: {db_dupes:,}")
+                if failed_copies:
+                    print(f"      ❌ Copy failures: {len(failed_copies):,}")
+
+                return new_image_data, failed_copies
+
+        except Exception as e:
+            error_id(f"Error preparing image data: {str(e)}", self.request_id)
+            raise
+
+    def bulk_insert_images_optimized(self, session, new_image_data):
+        """Perform optimized bulk insertion of images."""
+        if not new_image_data:
+            info_id("No new images to insert", self.request_id)
+            print("   📋 No new images to insert")
+            return []
+
+        try:
+            info_id(f"Bulk inserting {len(new_image_data)} images", self.request_id)
+            print(f"💾 Inserting {len(new_image_data):,} new images...")
+
+            with log_timed_operation("bulk_insert_images", self.request_id):
+                # Use optimized bulk insert
+                session.bulk_insert_mappings(Image, new_image_data)
+                session.commit()
+
+                # Get IDs of newly inserted images for embedding processing
+                titles = [img['title'] for img in new_image_data]
+
+                if self.db_config.is_postgresql:
+                    # PostgreSQL optimized ID retrieval
+                    query = text("""
+                        SELECT id, title, file_path 
+                        FROM image 
+                        WHERE title = ANY(:titles)
+                        ORDER BY id DESC
+                    """)
+                    ids_df = pd.read_sql(query, session.bind, params={'titles': titles})
+                    new_image_ids = ids_df[['id', 'title', 'file_path']].to_dict('records')
+                else:
+                    # SQLite fallback
+                    newly_inserted = session.query(Image.id, Image.title, Image.file_path).filter(
+                        Image.title.in_(titles)
+                    ).all()
+                    new_image_ids = [{'id': img.id, 'title': img.title, 'file_path': img.file_path}
+                                     for img in newly_inserted]
+
+                info_id(f"Successfully inserted {len(new_image_data)} images", self.request_id)
+                print(f"   ✅ Successfully inserted {len(new_image_data):,} images")
+
+                return new_image_ids
+
+        except Exception as e:
+            session.rollback()
+            error_id(f"Error in bulk insert: {str(e)}", self.request_id)
+            raise
+
+    def bulk_generate_embeddings_optimized(self, session, new_image_ids):
+        """Generate embeddings in optimized batches."""
+        if not new_image_ids:
             return
 
-        # Calculate progress percentage
-        progress_pct = (self.processed_files / self.total_files) * 100
+        try:
+            info_id("Starting optimized embedding generation", self.request_id)
+            print("🤖 Generating image embeddings...")
 
-        # Calculate elapsed time
-        elapsed_time = time.time() - self.start_time
+            # Load the model once
+            model_handler = ModelsConfig.load_image_model()
+            model_name = type(model_handler).__name__
 
-        # Calculate average processing time
-        avg_time = sum(self.processing_times) / len(self.processing_times) if self.processing_times else 0
+            # Skip embedding generation for NoImageModel
+            if model_name == 'NoImageModel':
+                info_id("Skipping embedding generation for NoImageModel", self.request_id)
+                print("   ⏩ Skipping embeddings (NoImageModel selected)")
+                return
 
-        # Calculate ETA
-        remaining_files = self.total_files - self.processed_files
-        eta_seconds = remaining_files * avg_time if avg_time > 0 else 0
-        eta_str = self._format_time(eta_seconds)
+            with log_timed_operation("bulk_generate_embeddings", self.request_id):
+                embeddings_data = []
+                processed_count = 0
 
-        # Calculate processing speed
-        files_per_second = self.processed_files / elapsed_time if elapsed_time > 0 else 0
+                # Process in batches to manage memory
+                batch_size = 50
+                for i in range(0, len(new_image_ids), batch_size):
+                    batch = new_image_ids[i:i + batch_size]
 
-        # Create progress bar
-        bar_width = 30
-        filled_width = int((progress_pct / 100) * bar_width)
-        bar = "█" * filled_width + "░" * (bar_width - filled_width)
+                    for img_data in batch:
+                        try:
+                            # Construct absolute path
+                            if os.path.isabs(img_data['file_path']):
+                                abs_path = img_data['file_path']
+                            else:
+                                abs_path = os.path.join(DATABASE_DIR, img_data['file_path'])
 
-        # Format the progress message
-        progress_msg = (
-            f"Progress: [{bar}] {progress_pct:.1f}% "
-            f"({self.processed_files:,}/{self.total_files:,}) | "
-            f"Speed: {files_per_second:.1f} files/sec | "
-            f"ETA: {eta_str} | "
-            f"Success: {self.successful_files} | "
-            f"Skipped: {self.skipped_files} | "
-            f"Errors: {self.error_files}"
-        )
+                            # Generate embedding
+                            image = PILImage.open(abs_path).convert("RGB")
 
-        print(f"\r{progress_msg}", end="", flush=True)
+                            if model_handler.is_valid_image(image):
+                                embedding = model_handler.get_image_embedding(image)
 
-        # Also log to file periodically
-        if self.processed_files % 100 == 0 or self.processed_files == self.total_files:
-            info_id(progress_msg, self.request_id)
+                                if embedding is not None:
+                                    embeddings_data.append({
+                                        'image_id': img_data['id'],
+                                        'model_name': model_name,
+                                        'model_embedding': embedding.tobytes()
+                                    })
+
+                            processed_count += 1
+
+                            # Progress update
+                            if processed_count % 25 == 0:
+                                print(f"      🤖 Generated {processed_count:,}/{len(new_image_ids):,} embeddings...")
+
+                        except Exception as e:
+                            error_id(f"Error generating embedding for {img_data['title']}: {str(e)}", self.request_id)
+                            continue
+
+                # Bulk insert embeddings
+                if embeddings_data:
+                    session.bulk_insert_mappings(ImageEmbedding, embeddings_data)
+                    session.commit()
+
+                    info_id(f"Generated {len(embeddings_data)} embeddings", self.request_id)
+                    print(f"   ✅ Generated {len(embeddings_data):,} embeddings")
+                else:
+                    print("   📋 No embeddings generated")
+
+        except Exception as e:
+            error_id(f"Error generating embeddings: {str(e)}", self.request_id)
+            print(f"   ⚠️  Embedding generation error: {str(e)}")
+
+    def process_folder_optimized(self, folder_path, recursive=True):
+        """Main optimized method to process an image folder."""
+        try:
+            print(f"\n🚀 OPTIMIZED Image Folder Processing")
+            print(f"=" * 45)
+            print(f"📁 Source: {folder_path}")
+            print(f"🔄 Recursive: {'Yes' if recursive else 'No'}")
+
+            # Validate folder
+            if not os.path.exists(folder_path):
+                raise ValueError(f"Folder does not exist: {folder_path}")
+
+            if not os.path.isdir(folder_path):
+                raise ValueError(f"Path is not a directory: {folder_path}")
+
+            start_time = time.time()
+
+            # Get database session
+            with self.db_config.main_session() as session:
+                # Check existing images
+                if not self.check_existing_images(session):
+                    return False
+
+                # Scan for images using optimized method
+                image_files = self.scan_for_images_vectorized(folder_path, recursive)
+
+                if not image_files:
+                    print("📋 No image files found to process")
+                    return True
+
+                self.stats['total_files_found'] = len(image_files)
+
+                # Get existing titles in one optimized query
+                existing_titles = self.get_existing_image_titles_fast(session)
+
+                # Prepare image data using vectorized operations
+                new_image_data, failed_copies = self.prepare_image_data_vectorized(image_files, existing_titles)
+
+                # Bulk insert images
+                new_image_ids = self.bulk_insert_images_optimized(session, new_image_data)
+
+                # Generate embeddings in batches
+                self.bulk_generate_embeddings_optimized(session, new_image_ids)
+
+            # Update final statistics
+            self.stats['processing_time'] = time.time() - start_time
+            self.stats['files_processed'] = len(new_image_data)
+            self.stats['files_errored'] = len(failed_copies)
+            self.stats['average_time_per_file'] = (
+                self.stats['processing_time'] / self.stats['total_files_found']
+                if self.stats['total_files_found'] > 0 else 0
+            )
+
+            # Display optimized summary
+            self.display_optimized_summary()
+
+            return True
+
+        except Exception as e:
+            error_id(f"Error in optimized folder processing: {str(e)}", self.request_id, exc_info=True)
+            print(f"❌ Error processing folder: {str(e)}")
+            return False
+
+    def display_optimized_summary(self):
+        """Display comprehensive processing summary."""
+        print(f"\n🎉 OPTIMIZED IMAGE PROCESSING COMPLETE!")
+        print(f"=" * 55)
+        print(f"📊 Final Summary:")
+        print(f"   📁 Total files found: {self.stats['total_files_found']:,}")
+        print(f"   ✅ Successfully processed: {self.stats['new_images_added']:,}")
+        print(f"   📋 Duplicates skipped: {self.stats['duplicates_found']:,}")
+        print(f"   ❌ Files with errors: {self.stats['files_errored']:,}")
+        print(f"   ⏱️  Total processing time: {self._format_time(self.stats['processing_time'])}")
+
+        if self.stats['processing_time'] > 0:
+            rate = self.stats['total_files_found'] / self.stats['processing_time']
+            print(f"   🚀 Processing rate: {rate:.1f} files/sec")
+
+        print(f"=" * 55)
+
+        info_id(f"Optimized image processing summary: {self.stats}", self.request_id)
 
     def _format_time(self, seconds):
-        """Format seconds into a readable time string."""
+        """Format seconds into readable time string."""
         if seconds < 60:
             return f"{int(seconds)}s"
         elif seconds < 3600:
@@ -128,506 +473,140 @@ class ProgressTracker:
             minutes = int((seconds % 3600) // 60)
             return f"{hours}h {minutes}m"
 
-    def get_summary(self):
-        """Get final processing summary."""
-        elapsed_time = time.time() - self.start_time
-        avg_time = sum(self.processing_times) / len(self.processing_times) if self.processing_times else 0
-
-        return {
-            'total_files': self.total_files,
-            'processed_files': self.processed_files,
-            'successful_files': self.successful_files,
-            'skipped_files': self.skipped_files,
-            'error_files': self.error_files,
-            'elapsed_time': elapsed_time,
-            'average_time_per_file': avg_time,
-            'files_per_second': self.processed_files / elapsed_time if elapsed_time > 0 else 0
-        }
-
-
-@with_request_id
-def estimate_processing_time(image_files, sample_size=20, request_id=None):
-    """
-    Process a small sample of images to estimate total processing time.
-    """
-    rid = request_id or get_request_id()
-
-    if len(image_files) == 0:
-        return 0, 0
-
-    # Take a random sample for estimation
-    sample_size = min(sample_size, len(image_files))
-    sample_files = random.sample(image_files, sample_size)
-
-    info_id(f"Processing {sample_size} sample files to estimate total time...", rid)
-
-    sample_times = []
-    sample_tracker = ProgressTracker(sample_size, rid)
-
-    print(f"\nEstimating processing time with {sample_size} sample files...")
-
-    # Process sample files
-    for i, (root, filename, full_path) in enumerate(sample_files):
-        start_time = time.time()
-
+    def setup_ai_model(self):
+        """Setup AI model configuration."""
         try:
-            # Use a temporary request ID for sample processing
-            sample_rid = f"{rid}-sample-{i}"
-            result_message, process_time = process_single_image(root, filename, sample_rid)
-            sample_times.append(process_time)
+            info_id("Setting up AI model configuration", self.request_id)
 
-            status = "processed" if "Processed:" in result_message else "skipped"
-            sample_tracker.update(process_time, status)
+            print(f"\n🤖 AI Model Selection")
+            print(f"=" * 30)
+            print(f"Select an image processing model:")
+            print(f"1. 🎯 CLIPModelHandler (Full AI processing)")
+            print(f"2. ⚡ NoImageModel (Skip embedding generation - MUCH faster)")
+            print(f"3. 🔧 Custom (Enter model name manually)")
 
-        except Exception as e:
-            error_time = time.time() - start_time
-            sample_times.append(error_time)
-            sample_tracker.update(error_time, "error")
-            warning_id(f"Sample processing error for {filename}: {e}", rid)
+            while True:
+                choice = input(f"📝 Select option (1-3): ").strip()
 
-    print()  # New line after progress bar
-
-    # Calculate statistics
-    if sample_times:
-        avg_time = sum(sample_times) / len(sample_times)
-        total_estimated_time = avg_time * len(image_files)
-
-        # Add some buffer for overhead (10%)
-        total_estimated_time *= 1.1
-
-        summary = sample_tracker.get_summary()
-
-        info_id(f"Sample processing complete. Average time per file: {avg_time:.2f}s", rid)
-        info_id(f"Estimated total time: {sample_tracker._format_time(total_estimated_time)}", rid)
-        info_id(
-            f"Sample stats - Success: {summary['successful_files']}, Skipped: {summary['skipped_files']}, Errors: {summary['error_files']}",
-            rid)
-
-        return avg_time, total_estimated_time
-    else:
-        warning_id("No valid processing times from sample", rid)
-        return 0, 0
-
-
-@with_request_id
-def show_processing_estimate(total_files, avg_time_per_file, request_id=None):
-    """
-    Display a formatted processing time estimate.
-    """
-    rid = request_id or get_request_id()
-
-    total_time = avg_time_per_file * total_files
-
-    # Format time estimates
-    def format_time_range(seconds):
-        # Add some variance for realistic estimates
-        min_time = seconds * 0.8
-        max_time = seconds * 1.3
-
-        min_str = ProgressTracker(0)._format_time(min_time)
-        max_str = ProgressTracker(0)._format_time(max_time)
-
-        return min_str, max_str
-
-    min_time, max_time = format_time_range(total_time)
-
-    print(f"\n{'=' * 60}")
-    print(f"📊 PROCESSING TIME ESTIMATE")
-    print(f"{'=' * 60}")
-    print(f"Total files to process: {total_files:,}")
-    print(f"Average time per file: {avg_time_per_file:.2f} seconds")
-    print(f"Estimated total time: {min_time} - {max_time}")
-    print(f"{'=' * 60}")
-
-    # Show time breakdown
-    current_time = datetime.now()
-    estimated_completion = current_time + timedelta(seconds=total_time)
-    print(f"Started at: {current_time.strftime('%H:%M:%S')}")
-    print(f"Estimated completion: {estimated_completion.strftime('%H:%M:%S')}")
-    print(f"{'=' * 60}\n")
-
-    info_id(
-        f"Processing estimate: {total_files:,} files, {min_time}-{max_time}, completion ~{estimated_completion.strftime('%H:%M:%S')}",
-        rid)
-
-
-@with_request_id
-def prompt_model_selection(request_id=None):
-    """
-    Prompt the user to select the image model to use.
-    """
-    rid = request_id or get_request_id()
-    info_id("Prompting user for model selection", rid)
-
-    print("Select an image model to use:")
-    print("1. CLIPModelHandler")
-    print("2. NoImageModel (Skip embedding generation)")
-    print("3. Custom (Enter the name of another model)")
-
-    while True:
-        choice = input("> ").strip()
-        if choice == "1":
-            debug_id("User selected CLIPModelHandler", rid)
-            return "CLIPModelHandler"
-        elif choice == "2":
-            debug_id("User selected NoImageModel", rid)
-            return "NoImageModel"
-        else:
-            print("Invalid choice. Please select 1, 2, or 3.")
-
-
-@with_request_id
-def set_models(request_id=None):
-    """
-    Allow the admin to set the image model using the modern ModelsConfig system.
-    """
-    rid = request_id or get_request_id()
-    info_id("Setting models based on user input", rid)
-
-    selected_model = prompt_model_selection(request_id=rid)
-
-    # Use ModelsConfig to set the current image model
-    success = ModelsConfig.set_current_image_model(selected_model)
-
-    if success:
-        info_id(f"Successfully set current image model to: {selected_model}", rid)
-    else:
-        error_id(f"Failed to set current image model to: {selected_model}", rid)
-        warning_id("Falling back to NoImageModel", rid)
-        ModelsConfig.set_current_image_model("NoImageModel")
-
-    # Verify the setting
-    current_model = ModelsConfig.get_current_image_model_name()
-    info_id(f"Current image model confirmed as: {current_model}", rid)
-
-
-@with_request_id
-def process_single_image(folder_path: str, filename: str, request_id=None):
-    """
-    Process a single image using the enhanced Image class methods with modern error handling.
-    Returns consistent status messages for progress tracking.
-    """
-    rid = request_id or get_request_id()
-    start_time_image = time.time()
-    max_retries = 3
-    retry_count = 0
-
-    debug_id(f"Starting to process image: {filename}", rid)
-
-    while retry_count < max_retries:
-        # Use the context manager for better session management
-        try:
-            with db_config.main_session() as session:
-                source_file_path = os.path.join(folder_path, filename)
-
-                # Load the current image model using ModelsConfig
-                model_handler = ModelsConfig.load_image_model()
-                debug_id(f"Loaded image model: {type(model_handler).__name__}", rid)
-
-                if model_handler.allowed_file(filename):
-                    # Extract the base name without the extension
-                    file_base, ext = os.path.splitext(filename)
-
-                    debug_id(f"Processing image: {filename}", rid)
-
-                    # Use the enhanced Image.add_to_db method with request_id
-                    new_image = Image.add_to_db(
-                        session=session,
-                        title=file_base,
-                        file_path=source_file_path,
-                        description="Auto-generated description",
-                        clean_title=True,  # Enable title cleaning
-                        request_id=rid
-                    )
-
-                    debug_id(f"Successfully processed and stored '{filename}' with ID: {new_image.id}", rid)
-                    result_message = f"Processed: {new_image.title}"
+                if choice == "1":
+                    selected_model = "CLIPModelHandler"
+                    break
+                elif choice == "2":
+                    selected_model = "NoImageModel"
+                    break
+                elif choice == "3":
+                    model_name = input("🔧 Enter custom model name: ").strip()
+                    if model_name:
+                        selected_model = model_name
+                        break
+                    else:
+                        print("❌ Please enter a valid model name")
                 else:
-                    debug_id(f"Skipping non-image file: '{filename}'", rid)
-                    result_message = f"Skipped: {filename}"
+                    print("❌ Invalid choice. Please select 1, 2, or 3.")
 
-                # Successfully processed, break retry loop
-                break
+            # Set the model
+            success = ModelsConfig.set_current_image_model(selected_model)
 
-        except Exception as e:
-            # Check if it's a database lock error
-            error_msg = str(e).lower()
-            if "database is locked" in error_msg or "locked" in error_msg:
-                retry_count += 1
-                backoff_time = random.uniform(0.5, 2.0) * retry_count  # Exponential backoff with jitter
-                warning_id(
-                    f"Database locked while processing '{filename}'. Retry {retry_count}/{max_retries} after {backoff_time:.2f}s",
-                    rid
-                )
-
-                # Wait before retrying
-                time.sleep(backoff_time)
-
-                # If it's not the last retry, continue to next iteration
-                if retry_count < max_retries:
-                    continue
-
-            # For non-lock errors or final retry failure
-            error_id(f"Failed to process '{filename}': {e}", rid, exc_info=True)
-            result_message = f"Error: {filename}"
-            break
-
-    processing_time = time.time() - start_time_image
-    debug_id(f"Completed processing {filename} in {processing_time:.2f}s", rid)
-    return (result_message, processing_time)
-
-
-@with_request_id
-def process_and_store_images(folder_path: str, recursive=True, request_id=None):
-    """
-    Scans the given folder_path for images and processes them concurrently using multithreading.
-    Enhanced with modern session management, progress tracking, and time estimation.
-
-    Args:
-        folder_path: Path to the folder to process
-        recursive: If True, process all subfolders recursively
-        request_id: Optional request ID for tracking
-    """
-    rid = request_id or get_request_id()
-
-    with log_timed_operation(f"Processing folder: {folder_path} (recursive={recursive})", rid):
-        info_id(f"Starting processing for folder: {folder_path} (recursive={recursive})", rid)
-
-        # Ensure the destination folder exists (for database images)
-        os.makedirs(DATABASE_PATH_IMAGES_FOLDER, exist_ok=True)
-
-        # Collect all image files (with their full paths)
-        info_id("Scanning for image files...", rid)
-        image_files = []
-
-        if recursive:
-            # Walk through all subdirectories
-            for root, dirs, files in os.walk(folder_path):
-                for filename in files:
-                    full_path = os.path.join(root, filename)
-                    # Quick check if it might be an image file using ALLOWED_EXTENSIONS
-                    if '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS:
-                        image_files.append((root, filename, full_path))
-        else:
-            # Only process immediate folder contents
-            for filename in os.listdir(folder_path):
-                full_path = os.path.join(folder_path, filename)
-                if os.path.isfile(full_path) and '.' in filename and filename.rsplit('.', 1)[
-                    1].lower() in ALLOWED_EXTENSIONS:
-                    image_files.append((folder_path, filename, full_path))
-
-        num_files = len(image_files)
-        info_id(f"Found {num_files} potential image files in '{folder_path}' (recursive={recursive})", rid)
-
-        if num_files == 0:
-            print("No image files found to process.")
-            return
-
-        # Ask user about time estimation
-        do_estimation = input("Do you want a processing time estimate? (y/n, default: y): ").strip().lower()
-
-        avg_time_per_file = 0
-        if do_estimation != 'n':
-            # Get time estimate by processing a small sample
-            sample_size = min(20, max(5, num_files // 100))  # Sample 1% but at least 5, max 20
-            avg_time_per_file, total_estimated_time = estimate_processing_time(image_files, sample_size, rid)
-
-            if avg_time_per_file > 0:
-                show_processing_estimate(num_files, avg_time_per_file, rid)
-
-                # Ask if they still want to proceed after seeing estimate
-                continue_choice = input("Do you want to continue with full processing? (y/n): ").strip().lower()
-                if continue_choice != 'y':
-                    info_id("User chose not to proceed after seeing estimate", rid)
-                    return
-        else:
-            # User declined estimation, ask if they want to proceed
-            recursive_str = "and all subfolders " if recursive else ""
-            proceed = input(
-                f"Proceed to process {num_files} image files in folder '{folder_path}' {recursive_str}? (y/n): "
-            ).strip().lower()
-
-            if proceed != "y":
-                info_id("User chose not to proceed without estimation", rid)
-                return
-
-        # Initialize progress tracker
-        progress_tracker = ProgressTracker(num_files, rid)
-
-        # More conservative worker settings - don't let CPU count dictate this
-        # since SQLite is the bottleneck, not CPU
-        max_workers = min(num_files, os.cpu_count() or 1, 8)  # No more than 8 workers
-        info_id(f"Using {max_workers} worker threads for processing", rid)
-
-        # Log connection stats for monitoring
-        stats = db_config.get_connection_stats()
-        info_id(f"Database connection stats: {stats}", rid)
-
-        # Use smaller batches to reduce concurrent database load
-        batch_size = max(1, min(20, num_files // 20))  # Smaller batches
-
-        # Shuffle the image files to distribute large/small images more evenly
-        random.shuffle(image_files)
-
-        # Start main processing
-        print(f"\n🚀 Starting to process {num_files:,} image files...")
-        print("Progress will be shown below:\n")
-
-        processing_start_time = time.time()
-
-        for batch_start in range(0, num_files, batch_size):
-            batch_end = min(batch_start + batch_size, num_files)
-            batch_files = image_files[batch_start:batch_end]
-            batch_num = batch_start // batch_size + 1
-            total_batches = (num_files + batch_size - 1) // batch_size
-
-            # Use a new ThreadPoolExecutor for each batch to ensure clean resources
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                # Submit all tasks for this batch with unique request IDs
-                futures = {}
-                for root, filename, full_path in batch_files:
-                    # Create a unique request ID for each file processing
-                    file_request_id = f"{rid}-{filename[:8]}"
-                    future = executor.submit(process_single_image, root, filename, file_request_id)
-                    futures[future] = (filename, root)
-
-                # Process completed futures
-                for future in as_completed(futures):
-                    filename, root = futures[future]
-                    try:
-                        result_message, process_time = future.result()
-
-                        # Determine status for progress tracking
-                        if result_message.startswith("Processed:"):
-                            status = "processed"
-                        elif result_message.startswith("Skipped:"):
-                            status = "skipped"
-                        else:
-                            status = "error"
-
-                        # Update progress tracker
-                        progress_tracker.update(process_time, status)
-
-                    except Exception as e:
-                        error_id(f"Error processing file '{filename}': {e}", rid, exc_info=True)
-                        progress_tracker.update(0, "error")
-
-            # Wait a short time between batches to let any lingering transactions complete
-            time.sleep(0.5)
-
-            # Log connection stats after each batch for monitoring (but not to console)
-            stats = db_config.get_connection_stats()
-            debug_id(f"Database connection stats after batch {batch_num}: {stats}", rid)
-
-        # Final progress update and summary
-        print("\n" + "=" * 80)
-
-        # Get final summary
-        summary = progress_tracker.get_summary()
-        processing_time = time.time() - processing_start_time
-
-        print(f"🎉 PROCESSING COMPLETE!")
-        print(f"📊 Final Summary:")
-        print(f"   Total files: {summary['total_files']:,}")
-        print(f"   Successfully processed: {summary['successful_files']:,}")
-        print(f"   Skipped files: {summary['skipped_files']:,}")
-        print(f"   Error files: {summary['error_files']:,}")
-        print(f"   Total time: {progress_tracker._format_time(processing_time)}")
-        print(f"   Average time per file: {summary['average_time_per_file']:.2f}s")
-        print(f"   Processing speed: {summary['files_per_second']:.1f} files/sec")
-
-        if avg_time_per_file > 0:
-            accuracy = abs(summary['average_time_per_file'] - avg_time_per_file) / avg_time_per_file * 100
-            print(f"   Estimate accuracy: {100 - accuracy:.1f}% (predicted {avg_time_per_file:.2f}s/file)")
-
-        print("=" * 80)
-
-        # Log final summary
-        info_id(
-            f"Processing complete - {summary['successful_files']:,} processed, {summary['skipped_files']:,} skipped, {summary['error_files']:,} errors in {progress_tracker._format_time(processing_time)}",
-            rid)
-
-
-@with_request_id
-def main(request_id=None):
-    """
-    Main function for image processing setup with enhanced error handling and logging.
-    """
-    rid = request_id or set_request_id()
-
-    with log_timed_operation("EMTACDB Image Setup", rid):
-        info_id("=== Starting EMTACDB Image Setup ===", rid)
-
-        # Log database configuration
-        stats = db_config.get_connection_stats()
-        info_id(f"DatabaseConfig settings: {stats}", rid)
-
-        # Ensure ModelsConfig table is initialized
-        try:
-            from plugins.ai_modules.ai_models import initialize_models_config
-            if initialize_models_config():
-                info_id("Models configuration initialized successfully", rid)
+            if success:
+                info_id(f"Successfully set image model to: {selected_model}", self.request_id)
+                print(f"✅ Image model set to: {selected_model}")
             else:
-                warning_id("Models configuration initialization had issues", rid)
+                error_id(f"Failed to set image model to: {selected_model}", self.request_id)
+                warning_id("Falling back to NoImageModel", self.request_id)
+                ModelsConfig.set_current_image_model("NoImageModel")
+                print(f"⚠️  Fell back to NoImageModel")
+
         except Exception as e:
-            error_id(f"Failed to initialize models configuration: {e}", rid)
+            error_id(f"Error setting up AI model: {str(e)}", self.request_id)
+            raise
 
-        # Set up models using the modern system
-        set_models(request_id=rid)
 
-        # Verify the selected model
-        current_model = ModelsConfig.get_current_image_model_name()
-        debug_id(f"Confirmed current image model: {current_model}", rid)
+def main():
+    """
+    Main function for optimized image processing.
+    """
+    print("\n🚀 Starting OPTIMIZED Image Folder Processing")
+    print("=" * 55)
 
-        # Handle folder input
+    processor = None
+    try:
+        # Initialize optimized processor
+        processor = OptimizedImageFolderProcessor()
+
+        # Setup AI model
+        processor.setup_ai_model()
+
+        # Get folder paths
+        folders = []
         if len(sys.argv) > 1:
             folders = sys.argv[1:]
-            debug_id(f"Received CLI arguments for folders: {folders}", rid)
+            info_id(f"Using command line folders: {folders}", processor.request_id)
         else:
-            folders = []
-            info_id("Enter folder paths containing images. Blank line finishes input", rid)
+            print(f"\n📁 Folder Selection")
+            print(f"Enter folder paths containing images (blank line to finish):")
+
             while True:
-                folder_path = input("> ").strip().strip('"').strip("'")
+                folder_path = input("📂 Folder path: ").strip().strip('"').strip("'")
                 if not folder_path:
-                    debug_id("No more folders entered by the user", rid)
                     break
+
                 if not os.path.isdir(folder_path):
-                    warning_id(f"Invalid directory: {folder_path}", rid)
-                else:
-                    folders.append(folder_path)
-                    debug_id(f"Added folder to processing list: {folder_path}", rid)
+                    print(f"⚠️  Invalid directory: {folder_path}")
+                    continue
+
+                folders.append(folder_path)
+                print(f"✅ Added: {folder_path}")
 
         if not folders:
-            error_id("No valid folders provided. Exiting setup", rid)
+            print("❌ No valid folders provided")
             return
 
-        # Ask user about recursive processing
-        recursive_choice = input("Process subfolders recursively? (y/n, default: y): ").strip().lower()
-        recursive = recursive_choice != 'n'  # Default to True unless explicitly 'n'
-        info_id(f"Recursive processing: {'enabled' if recursive else 'disabled'}", rid)
+        # Processing options
+        recursive = input("🔄 Process subfolders recursively? (y/n, default: y): ").strip().lower() != 'n'
 
-        # Process each folder
-        for folder in folders:
-            info_id(f"\n--- Processing folder: {folder} ---", rid)
+        # Process each folder with optimized method
+        success_count = 0
+        total_start_time = time.time()
+
+        for i, folder in enumerate(folders, 1):
+            print(f"\n🔄 Processing folder {i}/{len(folders)}: {os.path.basename(folder)}")
+
             try:
-                process_and_store_images(folder, recursive=recursive, request_id=rid)
+                if processor.process_folder_optimized(folder, recursive=recursive):
+                    success_count += 1
+                    print(f"✅ Folder {i} completed successfully")
+                else:
+                    print(f"⚠️  Folder {i} completed with issues")
             except Exception as e:
-                error_id(f"Error processing folder {folder}: {e}", rid, exc_info=True)
+                print(f"❌ Error processing folder {i}: {str(e)}")
+                error_id(f"Error processing folder {folder}: {str(e)}", processor.request_id)
 
-        info_id("=== EMTACDB Image Setup Complete! ===", rid)
+        # Final summary
+        total_time = time.time() - total_start_time
+        print(f"\n🎉 ALL FOLDERS PROCESSED!")
+        print(f"=" * 40)
+        print(f"✅ Successful: {success_count}/{len(folders)}")
+        print(f"⏱️  Total time: {processor._format_time(total_time)}")
+        if success_count < len(folders):
+            print(f"⚠️  Issues: {len(folders) - success_count}/{len(folders)}")
+
+        info_id("Optimized image folder processing completed", processor.request_id)
+
+    except KeyboardInterrupt:
+        print("\n🛑 Processing interrupted by user")
+        if processor:
+            error_id("Processing interrupted by user", processor.request_id)
+    except Exception as e:
+        print(f"\n❌ Processing failed: {str(e)}")
+        if processor:
+            error_id(f"Processing failed: {str(e)}", processor.request_id, exc_info=True)
+    finally:
+        # Cleanup
+        try:
+            close_initializer_logger()
+        except:
+            pass
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    finally:
-        # Ensure all sessions are closed
-        try:
-            db_config.get_main_session_registry().remove()
-        except Exception as e:
-            logger.error(f"Error closing session registry: {e}")
-
-        try:
-            close_initializer_logger()
-        except Exception as e:
-            logger.error(f"Error closing initializer logger: {e}")
+    main()
