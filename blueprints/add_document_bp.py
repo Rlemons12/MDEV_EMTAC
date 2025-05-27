@@ -1,19 +1,8 @@
 # blueprints/add_document_bp.py
 import psutil
 from flask import Blueprint, request, jsonify, redirect, url_for
-from plugins.ai_modules import generate_embedding
-from modules.emtacdb.emtacdb_fts import (SiteLocation, CompleteDocument, Document, CompletedDocumentPositionAssociation)
-from modules.emtacdb.utlity.main_database.database import (create_position, split_text_into_chunks,
-                                                           extract_images_from_pdf,
-                                                           extract_text_from_pdf,extract_text_from_txt, add_docx_to_db,
-                                                           store_embedding)
-from modules.configuration.config import DATABASE_DOC, DATABASE_DIR,CURRENT_EMBEDDING_MODEL
-import os
-from werkzeug.utils import secure_filename
 from sqlalchemy import text
-from concurrent.futures import ThreadPoolExecutor
-import threading
-from modules.emtacdb.emtac_revision_control_db import (VersionInfo, RevisionControlSession)
+from modules.emtacdb.emtacdb_fts import CompleteDocument, Document
 from modules.emtacdb.utlity.revision_database.auditlog import commit_audit_logs, add_audit_log_entry
 from modules.configuration.config_env import DatabaseConfig
 import traceback
@@ -23,26 +12,31 @@ from modules.configuration.log_config import (
     with_request_id, log_timed_operation
 )
 
-
-# region Fixme: this is part of the def extract_images_from_pdf and is slated to be removed.
-POST_URL = os.getenv('IMAGE_POST_URL', 'http://localhost:5000/image/add_image')
-REQUEST_DELAY = float(os.getenv('REQUEST_DELAY', '1.0'))  # in seconds
-# endregion
-
 db_config = DatabaseConfig()
 
 # Create a blueprint for the add_document route
 add_document_bp = Blueprint("add_document_bp", __name__)
 
 
-# Define the route for adding documents
+# Initialize FTS table - this should be called once when setting up the application
+def initialize_fts_table():
+    """Initialize the FTS table when the app starts."""
+    try:
+        success = Document.create_fts_table()
+        if success:
+            info_id("FTS table initialized successfully")
+        else:
+            warning_id("FTS table initialization failed")
+    except Exception as e:
+        error_id(f"Error initializing FTS table: {e}")
+
 
 @add_document_bp.route("/add_document", methods=["POST"])
 @with_request_id
 def add_document():
     """
-    Simplified document upload route using the new clean CompleteDocument class.
-    Dramatically reduced complexity while maintaining all functionality.
+    Enhanced document upload route using PostgreSQL-optimized CompleteDocument class.
+    Handles file uploads with concurrent processing and proper error handling.
     """
     request_id = get_request_id()
     info_id("Received a request to add documents", request_id)
@@ -59,7 +53,7 @@ def add_document():
 
     info_id(f"Processing {len(files)} files: {[f.filename for f in files]}", request_id)
 
-    # Collect metadata from the request
+    # Collect and validate metadata
     metadata = {
         'title': request.form.get("title", "").strip(),
         'area': request.form.get("area", "").strip(),
@@ -77,363 +71,195 @@ def add_document():
     info_id(f"Metadata: {metadata}", request_id)
 
     try:
-        # Process upload using the new clean method
+        # Ensure FTS table exists before processing
+        _ensure_fts_table_exists(request_id)
+
+        # Process upload using the PostgreSQL-optimized method
         with log_timed_operation("Document processing", request_id):
             success = CompleteDocument.process_upload(files, metadata, request_id)
 
         if success:
             info_id("Successfully processed all files", request_id)
-
-            # Add audit log entry for successful processing
-            try:
-                add_audit_log_entry(
-                    table_name="complete_document",
-                    operation="CREATE",
-                    record_id=None,  # Multiple documents created
-                    new_data={
-                        "files_processed": len(files),
-                        "filenames": [f.filename for f in files],
-                        "metadata": metadata
-                    },
-                    commit_to_db=False
-                )
-                commit_audit_logs()
-            except Exception as audit_e:
-                # Don't fail the whole operation if audit logging fails
-                warning_id(f"Audit logging failed: {audit_e}", request_id)
-
+            _log_successful_processing(files, metadata, request_id)
             return redirect(request.referrer or url_for("index"))
         else:
             error_id("Document processing failed", request_id)
-
-            # Add audit log entry for failed processing
-            try:
-                add_audit_log_entry(
-                    table_name="complete_document",
-                    operation="ERROR",
-                    record_id=None,
-                    new_data={
-                        "error": "Document processing failed",
-                        "files_attempted": [f.filename for f in files]
-                    },
-                    commit_to_db=False
-                )
-                commit_audit_logs()
-            except Exception:
-                pass  # Ignore audit logging errors
-
+            _log_failed_processing(files, "Document processing failed", request_id)
             return jsonify({"message": "Document processing failed"}), 500
 
     except Exception as e:
         error_id(f"Error processing files: {e}", request_id)
         error_id(traceback.format_exc(), request_id)
-
-        # Add audit log entry for exception
-        try:
-            add_audit_log_entry(
-                table_name="complete_document",
-                operation="ERROR",
-                record_id=None,
-                new_data={
-                    "error": str(e),
-                    "files_attempted": [f.filename for f in files]
-                },
-                commit_to_db=False
-            )
-            commit_audit_logs()
-        except Exception:
-            pass  # Ignore audit logging errors
-
+        _log_failed_processing(files, str(e), request_id)
         return jsonify({"message": f"Error processing files: {str(e)}"}), 500
 
+def _ensure_fts_table_exists(request_id):
+    """Ensure the FTS table exists before processing documents."""
+    try:
+        # Check if FTS table exists
+        with db_config.get_main_session() as session:
+            result = session.execute(text("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_name = 'documents_fts'
+                )
+            """)).fetchone()
 
-def add_document_to_db_multithread(title, file_path, position_id, revision, remaining_workers,
-                                   complete_document_id, completed_document_position_association_id, request_id=None):
-    thread_id = threading.get_ident()
+            if not result[0]:  # Table doesn't exist
+                info_id("FTS table missing, creating it now", request_id)
+                success = Document.create_fts_table()
+                if success:
+                    info_id("FTS table created successfully", request_id)
+                else:
+                    warning_id("FTS table creation failed", request_id)
+    except Exception as e:
+        warning_id(f"Error checking/creating FTS table: {e}", request_id)
 
-    # If no request_id is provided, generate a new one for this thread
-    if request_id is None:
-        request_id = set_request_id()
+def _log_successful_processing(files, metadata, request_id):
+    """Log successful processing to audit trail."""
+    try:
+        add_audit_log_entry(
+            table_name="complete_document",
+            operation="CREATE",
+            record_id=None,  # Multiple documents created
+            new_data={
+                "files_processed": len(files),
+                "filenames": [f.filename for f in files],
+                "metadata": metadata,
+                "processing_method": "concurrent_postgresql"
+            },
+            commit_to_db=False
+        )
+        commit_audit_logs()
+    except Exception as audit_e:
+        # Don't fail the whole operation if audit logging fails
+        warning_id(f"Audit logging failed: {audit_e}", request_id)
 
-    info_id(f"[Thread {thread_id}] Started processing file: {file_path} with revision: {revision}", request_id)
+def _log_failed_processing(files, error_message, request_id):
+    """Log failed processing to audit trail."""
+    try:
+        add_audit_log_entry(
+            table_name="complete_document",
+            operation="ERROR",
+            record_id=None,
+            new_data={
+                "error": error_message,
+                "files_attempted": [f.filename for f in files],
+                "processing_method": "concurrent_postgresql"
+            },
+            commit_to_db=False
+        )
+        commit_audit_logs()
+    except Exception:
+        pass  # Ignore audit logging errors
+
+@add_document_bp.route("/initialize_fts", methods=["POST"])
+@with_request_id
+def initialize_fts():
+    """
+    Administrative endpoint to manually initialize or recreate the FTS table.
+    Useful for maintenance and troubleshooting.
+    """
+    request_id = get_request_id()
+    info_id("Manual FTS table initialization requested", request_id)
 
     try:
-        extracted_text = None
+        success = Document.create_fts_table()
+        if success:
+            info_id("FTS table initialized successfully via admin endpoint", request_id)
+            return jsonify({"message": "FTS table initialized successfully"}), 200
+        else:
+            error_id("FTS table initialization failed via admin endpoint", request_id)
+            return jsonify({"message": "FTS table initialization failed"}), 500
+    except Exception as e:
+        error_id(f"Error in manual FTS initialization: {e}", request_id)
+        return jsonify({"message": f"Error initializing FTS table: {str(e)}"}), 500
 
-        # Correctly obtain a new session using get_main_session()
+
+@add_document_bp.route("/health", methods=["GET"])
+@with_request_id
+def health_check():
+    """
+    Health check endpoint for the document processing system.
+    Checks database connectivity and FTS table status.
+    """
+    request_id = get_request_id()
+    health_status = {
+        "status": "healthy",
+        "database": "unknown",
+        "fts_table": "unknown",
+        "timestamp": None
+    }
+
+    try:
+        # Check database connectivity
         with db_config.get_main_session() as session:
-            info_id(f"[Thread {thread_id}] Session started for file: {file_path}", request_id)
+            session.execute(text("SELECT 1")).fetchone()
+            health_status["database"] = "connected"
 
-            # Extract text from the document
-            if file_path.endswith(".pdf"):
-                with log_timed_operation(f"Extracting text from PDF: {file_path}", request_id):
-                    info_id(f"[Thread {thread_id}] Extracting text from PDF...", request_id)
-                    extracted_text = extract_text_from_pdf(file_path)
-                    info_id(f"[Thread {thread_id}] Text extracted from PDF.", request_id)
-            elif file_path.endswith(".txt"):
-                with log_timed_operation(f"Extracting text from TXT: {file_path}", request_id):
-                    info_id(f"[Thread {thread_id}] Extracting text from TXT...", request_id)
-                    extracted_text = extract_text_from_txt(file_path)
-                    info_id(f"[Thread {thread_id}] Text extracted from TXT.", request_id)
-            else:
-                error_id(f"[Thread {thread_id}] Unsupported file format: {file_path}", request_id)
-                return None, False
+            # Check FTS table
+            result = session.execute(text("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_name = 'documents_fts'
+                )
+            """)).fetchone()
 
-            # Proceed only if text was successfully extracted
-            if extracted_text:
-                # Check for an existing CompleteDocument with the same title and revision
-                existing_document = session.query(CompleteDocument).filter_by(title=title, rev=revision).first()
+            health_status["fts_table"] = "exists" if result[0] else "missing"
 
-                if existing_document:
-                    info_id(
-                        f"[Thread {thread_id}] Found existing document: ID {existing_document.id} with title '{title}' and revision '{revision}'",
-                        request_id)
-                    # Update the existing document with the extracted content
-                    existing_document.content = extracted_text
-                    session.commit()
-                    complete_document_id = existing_document.id
-                    info_id(
-                        f"[Thread {thread_id}] Updated existing document with content for ID: {complete_document_id}",
-                        request_id)
-                else:
-                    # Create a new CompleteDocument with the extracted content
-                    complete_document = CompleteDocument(
-                        title=title,
-                        file_path=os.path.relpath(file_path, DATABASE_DIR),
-                        content=extracted_text,
-                        rev=revision  # Use the passed revision number
-                    )
-                    session.add(complete_document)
-                    session.commit()
-                    complete_document_id = complete_document.id
-                    info_id(
-                        f"[Thread {thread_id}] Added new complete document: {title}, ID: {complete_document_id}, Rev: {revision}",
-                        request_id)
+        from datetime import datetime
+        health_status["timestamp"] = datetime.now().isoformat()
 
-                # Create or update the CompletedDocumentPositionAssociation
-                completed_document_position_association = session.query(CompletedDocumentPositionAssociation).filter_by(
-                    complete_document_id=complete_document_id, position_id=position_id).first()
-
-                if not completed_document_position_association:
-                    completed_document_position_association = CompletedDocumentPositionAssociation(
-                        complete_document_id=complete_document_id,
-                        position_id=position_id
-                    )
-                    session.add(completed_document_position_association)
-                    session.commit()
-                    completed_document_position_association_id = completed_document_position_association.id
-                    info_id(
-                        f"[Thread {thread_id}] Added CompletedDocumentPositionAssociation for complete document ID: {complete_document_id}, position ID: {position_id}",
-                        request_id)
-
-                # Add the document to the FTS table
-                with log_timed_operation("Adding document to FTS table", request_id):
-                    insert_query_fts = "INSERT INTO documents_fts (title, content) VALUES (:title, :content)"
-                    session.execute(text(insert_query_fts), {"title": title, "content": extracted_text})
-                    session.commit()
-                    info_id(f"[Thread {thread_id}] Added document to the FTS table.", request_id)
-
-                # Now that the IDs are created, extract images
-                if file_path.endswith(".pdf"):
-                    with log_timed_operation(f"Extracting images from PDF: {file_path}", request_id):
-                        info_id(f"[Thread {thread_id}] Extracting images from PDF...", request_id)
-                        success = CompleteDocument.extract_images_from_pdf(
-                            pdf_path=file_path,
-                            complete_document_id=complete_document_id,
-                            completed_document_position_association_id=completed_document_position_association_id,
-                            position_id=position_id,
-                            request_id=request_id
-                        )
-                        if not success:
-                            error_id(f"[Thread {thread_id}] Failed to extract images from PDF.", request_id)
-                        else:
-                            info_id(f"[Thread {thread_id}] Images extracted from PDF successfully.", request_id)
-
-            else:
-                error_id(f"[Thread {thread_id}] No text extracted from the document.", request_id)
-                return None, False
-
-            # Process document chunks and generate embeddings
-            with log_timed_operation("Processing document chunks and embeddings", request_id):
-                text_chunks = split_text_into_chunks(extracted_text)
-                for i, chunk in enumerate(text_chunks):
-                    padded_chunk = ' '.join(split_text_into_chunks(chunk, pad_token="", max_words=150))
-                    document = Document(
-                        name=f"{title} - Chunk {i + 1}",
-                        file_path=os.path.relpath(file_path, DATABASE_DIR),
-                        content=padded_chunk,
-                        complete_document_id=complete_document_id,
-                        rev=revision  # Same revision number for document chunk
-                    )
-                    session.add(document)
-                    session.commit()
-                    info_id(f"[Thread {thread_id}] Added chunk {i + 1} of document: {title}, Rev: {document.rev}",
-                            request_id)
-
-                    if CURRENT_EMBEDDING_MODEL != "NoEmbeddingModel":
-                        embeddings = generate_embedding(padded_chunk, CURRENT_EMBEDDING_MODEL)
-                        if embeddings is None:
-                            warning_id(
-                                f"[Thread {thread_id}] Failed to generate embedding for chunk {i + 1} of document: {title}",
-                                request_id)
-                        else:
-                            store_embedding(document.id, embeddings, CURRENT_EMBEDDING_MODEL)
-                            info_id(
-                                f"[Thread {thread_id}] Generated and stored embedding for chunk {i + 1} of document: {title}",
-                                request_id)
-                    else:
-                        info_id(
-                            f"[Thread {thread_id}] No embedding generated for chunk {i + 1} of document: {title} because no model is selected.",
-                            request_id)
-
-            # Querying the version_info table in the revision control database
-            try:
-                with db_config.get_revision_control_session() as revision_session:
-                    info_id(f"[Thread {thread_id}] Querying version_info table in revision control database.",
-                            request_id)
-                    version_info = revision_session.query(VersionInfo).order_by(VersionInfo.id.desc()).first()
-                    if version_info:
-                        info_id(f"[Thread {thread_id}] Latest version_info: {version_info.version_number}", request_id)
-                    else:
-                        warning_id(f"[Thread {thread_id}] No version_info found.", request_id)
-            except Exception as e:
-                error_id(f"[Thread {thread_id}] Error querying version_info table: {e}", request_id)
-
-            info_id(f"[Thread {thread_id}] Successfully processed file: {file_path}", request_id)
-            return complete_document_id, True
+        debug_id(f"Health check completed: {health_status}", request_id)
+        return jsonify(health_status), 200
 
     except Exception as e:
-        error_id(f"[Thread {thread_id}] An error occurred in add_document_to_db_multithread: {e}", request_id)
-        error_id(f"[Thread {thread_id}] Attempted Processed file: {file_path}", request_id)
-        return None, False
+        error_id(f"Health check failed: {e}", request_id)
+        health_status["status"] = "unhealthy"
+        health_status["error"] = str(e)
+        return jsonify(health_status), 503
 
 
 def calculate_optimal_workers(memory_threshold=0.5, max_workers=None, request_id=None):
-    """Calculate optimal number of workers based on available memory."""
+    """
+    Calculate optimal number of workers based on available memory.
+    This function is kept for compatibility but the CompleteDocument class
+    now handles worker optimization automatically.
+    """
     available_memory = psutil.virtual_memory().available
-    memory_per_thread = 100 * 1024 * 1024  # Example: assume each thread uses 100MB
+    memory_per_thread = 100 * 1024 * 1024  # 100MB per thread estimate
     max_memory_workers = available_memory // memory_per_thread
 
     if max_workers is None:
-        max_workers = os.cpu_count()
+        max_workers = psutil.cpu_count()
 
     # Limit workers based on memory and CPU availability
     optimal_workers = min(max_memory_workers, max_workers)
 
-    # Apply a memory threshold to avoid using all available memory
+    # Apply memory threshold to avoid using all available memory
     result = max(1, int(optimal_workers * memory_threshold))
 
-    info_id(f"Calculated optimal workers: {result} (available memory: {available_memory / (1024 * 1024):.2f} MB, "
-            f"max workers: {max_workers}, memory threshold: {memory_threshold})", request_id)
+    if request_id:
+        info_id(
+            f"Calculated optimal workers: {result} "
+            f"(available memory: {available_memory / (1024 * 1024):.2f} MB, "
+            f"max workers: {max_workers}, memory threshold: {memory_threshold})",
+            request_id
+        )
 
     return result
 
 
-# region Todo: remove from routes once its established that it dost have any knockdown effects. Create CompleteDocument Method
-'''def extract_images_from_pdf(file_path, complete_document_id, completed_document_position_association_id, position_id=None):
+# ==========================================
+# DEPRECATED FUNCTIONS (Kept for compatibility)
+# These functions are no longer used but kept to avoid breaking imports
+# TODO: Remove after confirming no external dependencies
+# ==========================================
+
+def add_document_to_db_multithread(*args, **kwargs):
     """
-    Extracts images from a PDF file, uploads them, and creates associations in the database.
-
-    Args:
-        file_path (str): Path to the PDF file.
-        complete_document_id (int): ID of the completed document.
-        completed_document_position_association_id (int): ID of the completed document position association.
-        position_id (int, optional): ID of the position. Defaults to None.
-
-    Returns:
-        list: List of paths to the extracted images.
+    DEPRECATED: This function has been replaced by CompleteDocument.process_upload()
+    Kept for backward compatibility. Consider updating calling code.
     """
-    try:
-        # Obtain a session using the getter method
-        with db_config.get_main_session() as session:
-            logger.info("Starting image extraction from PDF.")
-            logger.info(f"file_path: {file_path}")
-            logger.info(f"complete_document_id: {complete_document_id}")
-            logger.info(f"completed_document_position_association_id: {completed_document_position_association_id}")
-            logger.info(f"position_id: {position_id}")
-            logger.info(f"Session info: {session}")
-
-            if not os.path.exists(TEMPORARY_UPLOAD_FILES):
-                os.makedirs(TEMPORARY_UPLOAD_FILES)
-                logger.debug(f"Created temporary upload directory at {TEMPORARY_UPLOAD_FILES}")
-
-            doc = fitz.open(file_path)
-            total_pages = len(doc)
-            logger.info(f"Opened PDF file. Total pages: {total_pages}")
-
-            extracted_images = []
-            file_name = os.path.splitext(os.path.basename(file_path))[0].replace("_", " ")
-
-            for page_num in range(total_pages):
-                page = doc[page_num]
-                img_list = page.get_images(full=True)
-                logger.info(f"Processing page {page_num + 1}/{total_pages} with {len(img_list)} images.")
-
-                for img_index, img in enumerate(img_list):
-                    xref = img[0]
-                    base_image = doc.extract_image(xref)
-                    image_bytes = base_image["image"]
-                    image_ext = base_image.get("ext", "jpg")  # Default to jpg if extension not found
-                    temp_path = os.path.join(
-                        TEMPORARY_UPLOAD_FILES,
-                        f"{file_name}_page{page_num + 1}_image{img_index + 1}.{image_ext}"
-                    )
-
-                    with open(temp_path, 'wb') as temp_file:
-                        temp_file.write(image_bytes)
-                    logger.debug(f"Saved image to {temp_path}")
-
-                    try:
-                        with open(temp_path, 'rb') as img_file:
-                            response = requests.post(
-                                POST_URL,
-                                files={'image': img_file},
-                                data={
-                                    'complete_document_id': complete_document_id,
-                                    'completed_document_position_association_id': completed_document_position_association_id,
-                                    'position_id': position_id
-                                }
-                            )
-
-                        if response.status_code == 200:
-                            logger.info(f"Successfully processed image {img_index + 1} on page {page_num + 1}.")
-                            try:
-                                response_data = response.json()
-                                image_id = response_data.get('image_id')
-                                if image_id:
-                                    association = create_image_completed_document_association(
-                                        image_id=image_id,
-                                        complete_document_id=complete_document_id,
-                                        session=session
-                                    )
-                                    logger.info(f"Created ImageCompletedDocumentAssociation with ID: {association.id}")
-                                else:
-                                    logger.error(f"'image_id' not found in response for image {img_index + 1} on page {page_num + 1}.")
-                            except json.JSONDecodeError:
-                                logger.error(f"Invalid JSON response for image {img_index + 1} on page {page_num + 1}: {response.text}")
-                        else:
-                            logger.error(f"Failed to process image {img_index + 1} on page {page_num + 1}: {response.text} (Status Code: {response.status_code})")
-                    except requests.RequestException as req_err:
-                        logger.error(f"HTTP request failed for image {img_index + 1} on page {page_num + 1}: {req_err}")
-                    except Exception as e:
-                        logger.error(f"Unexpected error processing image {img_index + 1} on page {page_num + 1}: {e}")
-
-                    extracted_images.append(temp_path)
-
-                    # Introduce a delay to prevent overwhelming the server
-                    time.sleep(REQUEST_DELAY)
-
-            logger.info(f"Image extraction completed. Total images extracted: {len(extracted_images)}")
-            return extracted_images
-
-    except Exception as e:
-        logger.error(f"An error occurred in extract_images_from_pdf: {e}")
-        try:
-            session.rollback()
-            logger.debug("Database session rolled back due to error.")
-        except Exception as rollback_e:
-            logger.error(f"Failed to rollback the session: {rollback_e}")
-        return []
-
-'''
-# endregion
+    warning_id("add_document_to_db_multithread is deprecated, use CompleteDocument.process_upload()")
+    return None, False
