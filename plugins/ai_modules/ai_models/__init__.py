@@ -4,9 +4,11 @@ from .ai_models import (
     load_embedding_model,
     generate_embedding,
     store_embedding,
+    store_embedding_enhanced,  # Added this function
+    generate_and_store_embedding,  # Added this function
     OpenAIModel,
     Llama3Model,
-    AnthropicModel,  # Added this line
+    AnthropicModel,
     OpenAIEmbeddingModel,
     NoAIModel,
     NoEmbeddingModel,
@@ -15,12 +17,14 @@ from .ai_models import (
 
 __all__ = [
     'store_embedding',
+    'store_embedding_enhanced',  # Added this function
+    'generate_and_store_embedding',  # Added this function
     'load_ai_model',
     'load_embedding_model',
     'generate_embedding',
     'OpenAIModel',
     'Llama3Model',
-    'AnthropicModel',  # Added this line
+    'AnthropicModel',
     'OpenAIEmbeddingModel',
     'NoAIModel',
     'NoEmbeddingModel',
