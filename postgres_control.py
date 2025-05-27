@@ -5,7 +5,7 @@ import time
 from datetime import datetime
 
 #cd "C:\Users\10169062\Desktop\AU_IndusMaintdb\Database\postgreSQL\pgsql\bin"
-#pg_ctl.exe -D "C:\Users\10169062\PostgreSQL\data" start
+#.\pg_ctl.exe -D "C:\Users\10169062\PostgreSQL\data" start
 
 
 
