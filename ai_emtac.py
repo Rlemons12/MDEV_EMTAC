@@ -24,6 +24,7 @@ from utilities.auth_utils import requires_roles
 from modules.configuration.config_env import DatabaseConfig
 from modules.configuration.log_config import initial_log_cleanup, logger
 
+
 # Initialize database engines
 engine = create_engine(DATABASE_URL)
 revision_control_engine = create_engine(f'sqlite:///{REVISION_CONTROL_DB_PATH}')
