@@ -1,213 +1,258 @@
-from flask import Blueprint, jsonify, request, send_file, flash
-from sqlalchemy.orm import sessionmaker, scoped_session, joinedload
-from sqlalchemy import create_engine
-import os
-from modules.configuration.config import DATABASE_URL, DATABASE_DIR
-from modules.emtacdb.emtacdb_fts import Image, Position, \
-    ImagePositionAssociation
+from flask import Blueprint, jsonify, request, flash
+from modules.emtacdb.emtacdb_fts import Image
 from modules.configuration.log_config import logger
 from modules.configuration.config_env import DatabaseConfig
-
 
 db_config = DatabaseConfig()
 
 search_images_bp = Blueprint('search_images_bp', __name__)
 
-# Function to serve an image from the database based on its ID
-def serve_image(session, image_id):
-    logger.info(f"Attempting to serve image with ID: {image_id}")
-    try:
-        image = session.query(Image).filter_by(id=image_id).first()
-        if image:
-            logger.debug(f"Image found: {image.title}, File path: {image.file_path}")
-            file_path = os.path.join(DATABASE_DIR, image.file_path)
-            if os.path.exists(file_path):
-                logger.info(f"Serving file: {file_path}")
-                return send_file(file_path, mimetype='image/jpeg', as_attachment=False)
-            else:
-                logger.error(f"File not found: {file_path}")
-                return "Image file not found", 404
-        else:
-            logger.error(f"Image not found with ID: {image_id}")
-            return "Image not found", 404
-    except Exception as e:
-        logger.error(f"An error occurred while serving the image: {e}")
-        return "Internal Server Error", 500
 
 @search_images_bp.route('/serve_image/<int:image_id>')
 def serve_image_route(image_id):
+    """
+    Route to serve an image file by ID using the Image.serve_file class method.
+    """
     logger.debug(f"Request to serve image with ID: {image_id}")
-    with db_config.get_main_session() as session:
-        try:
-            return serve_image(session, image_id)
-        except Exception as e:
-            logger.error(f"Error serving image {image_id}: {e}")
-            flash(f"Error serving image {image_id}", "error")
-            return "Image not found", 404
 
-# Define the search_images route within the blueprint
+    try:
+        # Use the Image.serve_file class method
+        success, response, status_code = Image.serve_file(image_id)
+
+        if success:
+            return response
+        else:
+            logger.error(f"Failed to serve image {image_id}: {response}")
+            flash(f"Error serving image {image_id}", "error")
+            return response, status_code
+
+    except Exception as e:
+        logger.error(f"Error serving image {image_id}: {e}")
+        flash(f"Error serving image {image_id}", "error")
+        return "Internal Server Error", 500
+
+
 @search_images_bp.route('/', methods=['GET'])
 def search_images():
+    """
+    Route to search for images using the Image.search_images class method.
+    """
     with db_config.get_main_session() as session:
-        # Retrieve search parameters
-        description = request.args.get('description', '')
-        title = request.args.get('title', '')
-        area = request.args.get('searchimage_area', '')
-        equipment_group = request.args.get('searchimage_equipment_group', '')
-        model = request.args.get('searchimage_model', '')
-        asset_number = request.args.get('searchimage_asset_number', '')
-        location = request.args.get('searchimage_location', '')
+        try:
+            # Extract search parameters from request
+            search_params = _extract_search_parameters(request)
 
-        logger.debug(
-            f"Search parameters - Description: {description}, Title: {title}, Area: {area}, Equipment Group: {equipment_group}, Model: {model}, Asset Number: {asset_number}, Location: {location}")
+            logger.debug(f"Search parameters: {search_params}")
 
-        # Perform search using the updated function
-        result = search_images_db(session, description=description, title=title, area=area,
-                                  equipment_group=equipment_group, model=model, asset_number=asset_number,
-                                  location=location)
+            # Use the Image.search_images class method
+            images = Image.search_images(session, **search_params)
 
-        if 'images' in result:
-            return jsonify(result)
-        else:
-            return jsonify({'error': 'No images found'}), 404
+            if images:
+                logger.info(f"Found {len(images)} images matching the criteria")
+                return jsonify({
+                    "images": images,
+                    "count": len(images)
+                })
+            else:
+                logger.info("No images found matching the criteria")
+                return jsonify({
+                    "images": [],
+                    "count": 0,
+                    "message": "No images found matching the search criteria"
+                })
+
+        except Exception as e:
+            logger.error(f"Error in search_images route: {e}")
+            return jsonify({
+                "error": f"An error occurred while searching images: {str(e)}"
+            }), 500
 
 
-def search_images_db(session, description='', title='', area='', equipment_group='', model='', asset_number='', location=''):
-    logger.info("Starting search_images_db")
-    logger.debug(
-        f"Search parameters - Description: {description}, Title: {title}, Area: {area}, Equipment Group: {equipment_group}, Model: {model}, Asset Number: {asset_number}, Location: {location}")
+def _extract_search_parameters(request):
+    """
+    Helper function to extract and convert search parameters from Flask request.
 
+    Args:
+        request: Flask request object
+
+    Returns:
+        Dictionary of search parameters for Image.search_images
+    """
+    params = {}
+
+    # Text-based searches
+    description = request.args.get('description', '').strip()
+    if description:
+        params['description'] = description
+
+    title = request.args.get('title', '').strip()
+    if title:
+        params['title'] = title
+
+    # Direct ID searches
+    position_id = request.args.get('position_id')
+    if position_id:
+        try:
+            params['position_id'] = int(position_id)
+        except ValueError:
+            logger.warning(f"Invalid position_id: {position_id}")
+
+    tool_id = request.args.get('tool_id')
+    if tool_id:
+        try:
+            params['tool_id'] = int(tool_id)
+        except ValueError:
+            logger.warning(f"Invalid tool_id: {tool_id}")
+
+    task_id = request.args.get('task_id')
+    if task_id:
+        try:
+            params['task_id'] = int(task_id)
+        except ValueError:
+            logger.warning(f"Invalid task_id: {task_id}")
+
+    problem_id = request.args.get('problem_id')
+    if problem_id:
+        try:
+            params['problem_id'] = int(problem_id)
+        except ValueError:
+            logger.warning(f"Invalid problem_id: {problem_id}")
+
+    completed_document_id = request.args.get('completed_document_id')
+    if completed_document_id:
+        try:
+            params['completed_document_id'] = int(completed_document_id)
+        except ValueError:
+            logger.warning(f"Invalid completed_document_id: {completed_document_id}")
+
+    # Hierarchy-based searches (supporting both old and new parameter names)
+    area_id = request.args.get('area_id') or request.args.get('searchimage_area') or request.args.get('area')
+    if area_id:
+        try:
+            params['area_id'] = int(area_id)
+        except ValueError:
+            logger.warning(f"Invalid area_id: {area_id}")
+
+    equipment_group_id = (request.args.get('equipment_group_id') or
+                          request.args.get('searchimage_equipment_group') or
+                          request.args.get('equipment_group'))
+    if equipment_group_id:
+        try:
+            params['equipment_group_id'] = int(equipment_group_id)
+        except ValueError:
+            logger.warning(f"Invalid equipment_group_id: {equipment_group_id}")
+
+    model_id = request.args.get('model_id') or request.args.get('searchimage_model') or request.args.get('model')
+    if model_id:
+        try:
+            params['model_id'] = int(model_id)
+        except ValueError:
+            logger.warning(f"Invalid model_id: {model_id}")
+
+    asset_number_id = (request.args.get('asset_number_id') or
+                       request.args.get('searchimage_asset_number') or
+                       request.args.get('asset_number'))
+    if asset_number_id:
+        try:
+            params['asset_number_id'] = int(asset_number_id)
+        except ValueError:
+            logger.warning(f"Invalid asset_number_id: {asset_number_id}")
+
+    location_id = (request.args.get('location_id') or
+                   request.args.get('searchimage_location') or
+                   request.args.get('location'))
+    if location_id:
+        try:
+            params['location_id'] = int(location_id)
+        except ValueError:
+            logger.warning(f"Invalid location_id: {location_id}")
+
+    subassembly_id = request.args.get('subassembly_id')
+    if subassembly_id:
+        try:
+            params['subassembly_id'] = int(subassembly_id)
+        except ValueError:
+            logger.warning(f"Invalid subassembly_id: {subassembly_id}")
+
+    component_assembly_id = request.args.get('component_assembly_id')
+    if component_assembly_id:
+        try:
+            params['component_assembly_id'] = int(component_assembly_id)
+        except ValueError:
+            logger.warning(f"Invalid component_assembly_id: {component_assembly_id}")
+
+    assembly_view_id = request.args.get('assembly_view_id')
+    if assembly_view_id:
+        try:
+            params['assembly_view_id'] = int(assembly_view_id)
+        except ValueError:
+            logger.warning(f"Invalid assembly_view_id: {assembly_view_id}")
+
+    site_location_id = request.args.get('site_location_id')
+    if site_location_id:
+        try:
+            params['site_location_id'] = int(site_location_id)
+        except ValueError:
+            logger.warning(f"Invalid site_location_id: {site_location_id}")
+
+    # Limit parameter
+    limit = request.args.get('limit', '50')
     try:
-        # Create the base query with explicit joins
-        query = (
-            session.query(Image)
-            .join(ImagePositionAssociation, Image.id == ImagePositionAssociation.image_id)
-            .join(Position, ImagePositionAssociation.position_id == Position.id)
-            .options(joinedload(Image.image_position_association).joinedload(ImagePositionAssociation.position))
-        )
+        params['limit'] = int(limit)
+        # Ensure reasonable limits
+        if params['limit'] > 1000:
+            params['limit'] = 1000
+        elif params['limit'] < 1:
+            params['limit'] = 50
+    except ValueError:
+        logger.warning(f"Invalid limit: {limit}, using default 50")
+        params['limit'] = 50
 
-        # Apply filters based on provided parameters
-        if description:
-            query = query.filter(Image.description.ilike(f'%{description}%'))
-        if title:
-            query = query.filter(Image.title.ilike(f'%{title}%'))
-        if area:
-            query = query.filter(Position.area_id == int(area))
-        if equipment_group:
-            query = query.filter(Position.equipment_group_id == int(equipment_group))
-            if area:
-                query = query.filter(Position.area_id == int(area))
-        if model:
-            query = query.filter(Position.model_id == int(model))
-            if equipment_group:
-                query = query.filter(Position.equipment_group_id == int(equipment_group))
-            if area:
-                query = query.filter(Position.area_id == int(area))
-        if asset_number:
-            query = query.filter(Position.asset_number_id == int(asset_number))
-            if model:
-                query = query.filter(Position.model_id == int(model))
-            if equipment_group:
-                query = query.filter(Position.equipment_group_id == int(equipment_group))
-            if area:
-                query = query.filter(Position.area_id == int(area))
-        if location:
-            query = query.filter(Position.location_id == int(location))
-            if model:
-                query = query.filter(Position.model_id == int(model))
-            if equipment_group:
-                query = query.filter(Position.equipment_group_id == int(equipment_group))
-            if area:
-                query = query.filter(Position.area_id == int(area))
-
-        results = query.all()
-
-        # Convert the results to a list of dictionaries for JSON response
-        images = [
-            {
-                'id': img.id,
-                'title': img.title,
-                'description': img.description,
-            }
-            for img in results
-        ]
-
-        logger.info(f"Found {len(images)} images matching the criteria")
-        return {"images": images}
-    except Exception as e:
-        session.rollback()
-        logger.error(f"An error occurred while searching images: {e}")
-        return {"error": str(e)}
+    return params
 
 
+# Additional utility routes that might be useful
 
-def search_images_db(session, description='', title='', area='', equipment_group='', model='', asset_number='', location=''):
-    logger.info("Starting search_images_db")
-    logger.debug(
-        f"Search parameters - Description: {description}, Title: {title}, Area: {area}, Equipment Group: {equipment_group}, Model: {model}, Asset Number: {asset_number}, Location: {location}")
+@search_images_bp.route('/image/<int:image_id>/details', methods=['GET'])
+def get_image_details(image_id):
+    """
+    Route to get detailed information about a specific image including all associations.
+    """
+    with db_config.get_main_session() as session:
+        try:
+            # Search for the specific image
+            images = Image.search_images(session, limit=1)
 
-    try:
-        # Create the base query with explicit joins
-        query = (
-            session.query(Image)
-            .join(ImagePositionAssociation, Image.id == ImagePositionAssociation.image_id)
-            .join(Position, ImagePositionAssociation.position_id == Position.id)
-            .options(joinedload(Image.image_position_association).joinedload(ImagePositionAssociation.position))
-        )
+            # Filter by ID (since search_images doesn't have direct ID filter)
+            image = session.query(Image).filter_by(id=image_id).first()
 
-        # Apply filters based on provided parameters
-        if description:
-            query = query.filter(Image.description.ilike(f'%{description}%'))
-        if title:
-            query = query.filter(Image.title.ilike(f'%{title}%'))
-        if area:
-            query = query.filter(Position.area_id == int(area))
-        if equipment_group:
-            # Ensure that equipment_group is filtered only if area is also selected
-            query = query.filter(Position.equipment_group_id == int(equipment_group))
-            if area:
-                query = query.filter(Position.area_id == int(area))
-        if model:
-            # Ensure that model is filtered only if equipment_group is also selected
-            query = query.filter(Position.model_id == int(model))
-            if equipment_group:
-                query = query.filter(Position.equipment_group_id == int(equipment_group))
-            if area:
-                query = query.filter(Position.area_id == int(area))
-        if asset_number:
-            # Ensure that asset_number is filtered only if model is also selected
-            query = query.filter(Position.asset_number_id == int(asset_number))
-            if model:
-                query = query.filter(Position.model_id == int(model))
-            if equipment_group:
-                query = query.filter(Position.equipment_group_id == int(equipment_group))
-            if area:
-                query = query.filter(Position.area_id == int(area))
-        if location:
-            # Ensure that location is filtered only if model is also selected
-            query = query.filter(Position.location_id == int(location))
-            if model:
-                query = query.filter(Position.model_id == int(model))
-            if equipment_group:
-                query = query.filter(Position.equipment_group_id == int(equipment_group))
-            if area:
-                query = query.filter(Position.area_id == int(area))
+            if image:
+                # Get associations using the helper method
+                associations = Image._get_image_associations(session, image_id)
 
-        results = query.all()
+                image_details = {
+                    "id": image.id,
+                    "title": image.title,
+                    "description": image.description,
+                    "file_path": image.file_path,
+                    "associations": associations
+                }
 
-        # Convert the results to a list of dictionaries for JSON response
-        images = [
-            {
-                'id': img.id,
-                'title': img.title,
-                'description': img.description,
-            }
-            for img in results
-        ]
+                return jsonify(image_details)
+            else:
+                return jsonify({"error": "Image not found"}), 404
 
-        logger.info(f"Found {len(images)} images matching the criteria")
-        return {"images": images}
-    except Exception as e:
-        session.rollback()
-        logger.error(f"An error occurred while searching images: {e}")
-        return {"error": str(e)}
+        except Exception as e:
+            logger.error(f"Error getting image details for ID {image_id}: {e}")
+            return jsonify({"error": f"An error occurred: {str(e)}"}), 500
+
+
+@search_images_bp.route('/health', methods=['GET'])
+def health_check():
+    """
+    Simple health check endpoint.
+    """
+    return jsonify({
+        "status": "healthy",
+        "service": "search_images_bp"
+    })
