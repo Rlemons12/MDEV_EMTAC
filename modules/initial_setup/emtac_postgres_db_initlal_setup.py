@@ -4,7 +4,7 @@ import subprocess
 import shutil
 import platform
 from sqlalchemy import inspect, text
-
+from modules.emtacdb.emtacdb_fts import Document
 
 # Enhanced logging functions for Windows compatibility
 def setup_windows_console():
@@ -1145,12 +1145,41 @@ def main():
         setup_virtual_environment_and_install_requirements()
 
         # Step 5: Database schema setup (tables, etc.)
+        info_id("🔧 STEP 5: Database schema setup")
         check_and_create_database_schema()
 
+        # Step 5.5: Set up Full-Text Search (FTS) tables
+        info_id("🔧 STEP 5.5: Full-Text Search (FTS) table setup")
+        print("\n" + "=" * 50)
+        print("🔍 FULL-TEXT SEARCH SETUP")
+        print("=" * 50)
+        print("This will enable advanced search capabilities:")
+        print("• Create FTS table for document indexing")
+        print("• Set up GIN indexes for fast searches")
+        print("• Enable automatic search vector updates")
+        print("• Requires PostgreSQL extensions (pg_trgm, unaccent)")
+        print("")
+        setup_fts = input("🔍 Set up Full-Text Search tables? (Recommended for PostgreSQL) (y/n): ").strip().lower()
+        if setup_fts in ['y', 'yes']:
+            try:
+                from modules.emtacdb.emtacdb_fts import CompleteDocument
+                if Document.create_fts_table():
+                    info_id("✅ Full-Text Search tables created successfully")
+                else:
+                    warning_id("⚠️ Failed to create Full-Text Search tables, continuing setup")
+            except ImportError as e:
+                warning_id(f"⚠️ Could not import CompleteDocument: {e}. Skipping FTS setup")
+            except Exception as e:
+                warning_id(f"⚠️ Error setting up Full-Text Search tables: {e}. Continuing setup")
+        else:
+            info_id("⏭️ Skipped Full-Text Search table setup")
+
         # Step 6: AI configuration
+        info_id("🔧 STEP 6: AI configuration")
         run_post_setup_ai_configuration()
 
-        # Step 7: AUDIT SYSTEM SETUP (NEW)
+        # Step 7: AUDIT SYSTEM SETUP
+        info_id("🔧 STEP 7: Audit system setup")
         setup_audit_system()
 
         # Step 8: Run setup scripts
@@ -1229,6 +1258,7 @@ def main():
         print("   • PostgreSQL/SQLite database created EARLY (no import errors)")
         print("   • All database tables and relationships ready")
         print("   • Database extensions and optimizations enabled")
+        print("   • Full-Text Search tables configured (if enabled)")
         print("")
 
         if setup_state.get('audit_system_enabled'):
@@ -1273,6 +1303,7 @@ def main():
             print(f"📊 DATABASE INFORMATION:")
             print(f"   Type: {db_type}")
             print(f"   Status: ✅ Ready for use")
+            print(f"   Full-Text Search: {'✅ Enabled' if setup_fts in ['y', 'yes'] else '⏭️ Disabled'}")
 
             if setup_state.get('audit_system_enabled'):
                 print(f"   Audit System: ✅ Active and monitoring")
@@ -1295,13 +1326,15 @@ def main():
             print("   2. All 8 data import scripts use PostgreSQL framework")
             print("   3. Admin users are ready with secure authentication")
             print("   4. Advanced position creation tools are available")
+            if setup_fts in ['y', 'yes']:
+                print("   5. Full-Text Search is enabled for document indexing")
             if setup_state.get('audit_system_enabled'):
-                print("   5. Audit system is tracking all database changes")
-                print("   6. Check audit logs with: SELECT * FROM audit_log;")
-            print("   7. Start your EMTAC application")
-            print("   8. Log in with your admin credentials (admin123)")
-            print("   9. Change default passwords for security")
-            print("   10. Begin using all EMTAC features")
+                print("   6. Audit system is tracking all database changes")
+                print("   7. Check audit logs with: SELECT * FROM audit_log;")
+            print("   8. Start your EMTAC application")
+            print("   9. Log in with your admin credentials (admin123)")
+            print("   10. Change default passwords for security")
+            print("   11. Begin using all EMTAC features")
 
         except Exception as e:
             warning_id(f"⚠️ Could not display final database info: {e}")
@@ -1310,6 +1343,8 @@ def main():
         print("🎉 Your Enhanced EMTAC System is Ready!")
         print("📋 Early database creation prevents all import errors")
         print("🎯 Advanced position creation and management tools available")
+        if setup_fts in ['y', 'yes']:
+            print("🔍 Full-Text Search enabled for advanced document search")
         if setup_state.get('audit_system_enabled'):
             print("🔍 Comprehensive audit system providing full change tracking")
         print("🚀 World-class user experience with enterprise reliability")
