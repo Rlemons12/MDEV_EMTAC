@@ -45,7 +45,7 @@ from functools import wraps  # Required if you need to recreate with_request_id
 
 
 from modules.emtacdb.utlity.system_manager import SystemResourceManager
-from plugins import generate_embedding, store_embedding
+from plugins import generate_embedding, CLIPModelHandler
 from plugins.ai_modules import ModelsConfig
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -1940,6 +1940,9 @@ class Part(Base):
                 session.close()
                 debug_id(f"Closed database session for Part.get_by_id", rid)
 
+
+# Updated Image class methods - PostgreSQL compatible
+
 class Image(Base):
     __tablename__ = 'image'
 
@@ -1951,20 +1954,17 @@ class Image(Base):
     parts_position_image = relationship("PartsPositionImageAssociation", back_populates="image")
     image_problem = relationship("ImageProblemAssociation", back_populates="image")
     image_task = relationship("ImageTaskAssociation", back_populates="image")
-    """bill_of_material = relationship("BillOfMaterial", back_populates="image")"""
     image_completed_document_association = relationship("ImageCompletedDocumentAssociation", back_populates="image")
     image_embedding = relationship("ImageEmbedding", back_populates="image")
     image_position_association = relationship("ImagePositionAssociation", back_populates="image")
     tool_image_association = relationship("ToolImageAssociation", back_populates="image", cascade="all, delete-orphan")
-
-    # Enhanced version of your existing Image methods
 
     @classmethod
     @with_request_id
     def add_to_db(cls, session, title, file_path, description="", position_id=None, complete_document_id=None,
                   clean_title=True, request_id=None):
         """
-        Enhanced version of your existing add_to_db method with better session management and error handling.
+        Enhanced version of add_to_db method with PostgreSQL/SQLite compatibility.
         """
         # Import locally to avoid circular dependencies
         import re
@@ -2036,11 +2036,22 @@ class Image(Base):
     @with_request_id
     def _add_to_db_internal(cls, session, title, src, description, position_id, complete_document_id, request_id):
         """
-        Internal method that does the actual work with your existing logic but enhanced error handling.
+        Internal method with database-agnostic implementation.
         """
         try:
-            # Set SQLite busy timeout for better concurrency
-            session.execute(text("PRAGMA busy_timeout = 30000"))
+            # Database-agnostic setup instead of SQLite PRAGMA
+            db_config = DatabaseConfig()
+            if hasattr(db_config, 'is_postgresql') and db_config.is_postgresql:
+                # PostgreSQL-specific settings (if needed)
+                debug_id("Using PostgreSQL database", request_id)
+                # PostgreSQL handles concurrency automatically - no busy timeout needed
+            else:
+                # SQLite-specific settings
+                debug_id("Using SQLite database", request_id)
+                try:
+                    session.execute(text("PRAGMA busy_timeout = 30000"))
+                except Exception as e:
+                    warning_id(f"Could not set SQLite busy timeout: {e}", request_id)
 
             # Check if image with same title and description already exists
             existing_image = session.query(cls).filter(
@@ -2186,7 +2197,7 @@ class Image(Base):
     @with_request_id
     def create_with_tool_association(cls, session, title, file_path, tool, description="", request_id=None):
         """
-        Enhanced version of your existing create_with_tool_association method.
+        Enhanced version with database compatibility.
         """
         rid = request_id or get_request_id()
 
@@ -2219,7 +2230,7 @@ class Image(Base):
     @with_request_id
     def generate_embedding(self, session, model_handler, request_id=None):
         """
-        Enhanced version of your existing generate_embedding method.
+        Enhanced version with database compatibility.
         """
         rid = request_id or get_request_id()
 
@@ -2228,7 +2239,7 @@ class Image(Base):
             if os.path.isabs(self.file_path):
                 absolute_file_path = self.file_path
             else:
-                absolute_file_path = os.path.join(BASE_DIR, self.file_path)
+                absolute_file_path = os.path.join(DATABASE_DIR, self.file_path)
 
             info_id(f"Opening image: {absolute_file_path}", rid)
 
@@ -2270,22 +2281,17 @@ class Image(Base):
 
         except Exception as e:
             error_id(f"Error generating embedding: {e}", rid, exc_info=True)
-
-            # Log the error to failed_uploads.txt
-            error_file_path = os.path.join(DATABASE_DIR, 'images', 'failed_uploads.txt')
-            os.makedirs(os.path.join(DATABASE_DIR, 'images'), exist_ok=True)
-            with open(error_file_path, 'a') as error_file:
-                error_file.write(f"Error generating embedding for image ID {self.id}: {e}\n")
-
             return False
 
-    # Add the helper methods from CompleteDocument
+    # Database-agnostic helper methods
     @classmethod
     @with_request_id
     def commit_with_retry(cls, session, retries=3, delay=0.5, request_id=None):
         """
-        Enhanced commit with retry logic - borrowed from CompleteDocument.
+        Database-agnostic commit with retry logic.
         """
+        db_config = DatabaseConfig()
+
         for attempt in range(retries):
             try:
                 session.commit()
@@ -2296,6 +2302,7 @@ class Image(Base):
             except Exception as e:
                 error_msg = str(e).lower()
 
+                # Handle different database-specific errors
                 if "pending rollback" in error_msg:
                     warning_id(f"Session rolled back, clearing state for retry {attempt + 1}/{retries}", request_id)
                     try:
@@ -2310,8 +2317,9 @@ class Image(Base):
                         error_id(f"Session rollback error after {retries} retries", request_id)
                         raise RuntimeError(f"Session in invalid state after {retries} retries")
 
-                elif "database is locked" in error_msg or "locked" in error_msg:
-                    warning_id(f"Database locked, retry {attempt + 1}/{retries} in {delay}s", request_id)
+                elif ("database is locked" in error_msg or "locked" in error_msg or
+                      "deadlock" in error_msg or "timeout" in error_msg):
+                    warning_id(f"Database contention, retry {attempt + 1}/{retries} in {delay}s", request_id)
 
                     try:
                         session.rollback()
@@ -2322,10 +2330,10 @@ class Image(Base):
                         time.sleep(delay)
                         delay = min(delay * 1.2, 2)
                     else:
-                        error_id(f"Database locked after {retries} retries", request_id)
-                        raise RuntimeError(f"Database is locked after {retries} retries")
+                        error_id(f"Database contention after {retries} retries", request_id)
+                        raise RuntimeError(f"Database contention after {retries} retries")
                 else:
-                    error_id(f"Non-lock database error on attempt {attempt + 1}: {e}", request_id)
+                    error_id(f"Non-retryable database error on attempt {attempt + 1}: {e}", request_id)
                     try:
                         session.rollback()
                     except:
@@ -2338,10 +2346,11 @@ class Image(Base):
     @with_request_id
     def monitor_processing_session(cls, session, operation_name="image_operation", request_id=None):
         """
-        Context manager to monitor a database session during image processing.
-        Borrowed from CompleteDocument class.
+        Database-agnostic session monitor.
         """
         import time
+
+        # Also fix this in your Image.monitor_processing_session method:
 
         class SessionMonitor:
             def __init__(self, session, operation_name, request_id):
@@ -2354,11 +2363,21 @@ class Image(Base):
                 self.start_time = time.time()
                 info_id(f"Starting monitored operation: {self.operation_name}", self.request_id)
 
-                # Set SQLite busy timeout
+                # OLD (causes PostgreSQL error):
+                # self.session.execute(text("PRAGMA busy_timeout = 30000"))
+
+                # NEW (database-agnostic):
                 try:
-                    self.session.execute(text("PRAGMA busy_timeout = 30000"))
-                except:
-                    pass
+                    db_config = DatabaseConfig()
+                    if hasattr(db_config, 'is_postgresql') and db_config.is_postgresql:
+                        # PostgreSQL - no PRAGMA commands needed
+                        debug_id("Using PostgreSQL for monitored session", self.request_id)
+                    else:
+                        # SQLite - set busy timeout
+                        self.session.execute(text("PRAGMA busy_timeout = 30000"))
+                        debug_id("Set SQLite busy timeout for monitored session", self.request_id)
+                except Exception as e:
+                    warning_id(f"Could not configure session timeout: {e}", self.request_id)
 
                 return self.session
 
@@ -2371,10 +2390,337 @@ class Image(Base):
                     error_id(f"Failed monitored operation: {self.operation_name} after {elapsed:.2f}s: {exc_val}",
                              self.request_id)
 
-                    if "database is locked" in str(exc_val).lower():
-                        warning_id(f"Database lock during {self.operation_name}", self.request_id)
+                    # Database-agnostic error detection
+                    error_str = str(exc_val).lower()
+                    if "database is locked" in error_str or "timeout" in error_str or "deadlock" in error_str:
+                        warning_id(f"Database contention during {self.operation_name}", self.request_id)
 
         return SessionMonitor(session, operation_name, request_id)
+
+    @classmethod
+    @with_request_id
+    def serve_file(cls, image_id, request_id=None):
+        """
+        Enhanced serve_file method with database compatibility and proper logging.
+        Returns a tuple (success, response, status_code) for Flask compatibility.
+        """
+        # Import locally to avoid circular dependencies
+        import os
+        from flask import send_file
+        from modules.configuration.config import DATABASE_DIR
+        from modules.configuration.log_config import info_id, error_id, debug_id
+
+        # Get or generate request_id
+        rid = request_id or get_request_id()
+
+        info_id(f"Attempting to retrieve image with ID: {image_id}", rid)
+
+        # Create session using the same pattern as other methods
+        db_config = DatabaseConfig()
+        try:
+            with cls.monitor_processing_session(
+                    db_config.get_main_session(),
+                    "serve_image_file",
+                    rid
+            ) as session:
+
+                # Query for the image
+                image = session.query(cls).filter_by(id=image_id).first()
+
+                if not image:
+                    error_id(f"No image found in database with ID: {image_id}", rid)
+                    return False, "Image not found", 404
+
+                # Build the absolute file path
+                if os.path.isabs(image.file_path):
+                    file_path = image.file_path
+                else:
+                    file_path = os.path.join(DATABASE_DIR, image.file_path)
+
+                debug_id(f"Checking file path: {file_path}", rid)
+
+                if not os.path.exists(file_path):
+                    error_id(f"File not found on disk: {file_path}", rid)
+                    return False, "Image file not found", 404
+
+                info_id(f"Serving file: {file_path}", rid)
+
+                # Determine mimetype based on file extension
+                _, ext = os.path.splitext(file_path)
+                mimetype_map = {
+                    '.jpg': 'image/jpeg',
+                    '.jpeg': 'image/jpeg',
+                    '.png': 'image/png',
+                    '.gif': 'image/gif',
+                    '.bmp': 'image/bmp',
+                    '.webp': 'image/webp',
+                    '.tiff': 'image/tiff',
+                    '.tif': 'image/tiff',
+                    '.svg': 'image/svg+xml'
+                }
+                mimetype = mimetype_map.get(ext.lower(), 'image/jpeg')
+
+                debug_id(f"Using mimetype: {mimetype} for extension: {ext}", rid)
+
+                response = send_file(file_path, mimetype=mimetype, as_attachment=False)
+                return True, response, 200
+
+        except Exception as e:
+            error_id(f"Unhandled error while serving image with ID {image_id}: {e}", rid, exc_info=True)
+            return False, "Internal Server Error", 500
+
+    @classmethod
+    @with_request_id
+    def search_images(cls, session, title=None, description=None, position_id=None,
+                      tool_id=None, task_id=None, problem_id=None, completed_document_id=None,
+                      area_id=None, equipment_group_id=None, model_id=None, asset_number_id=None,
+                      location_id=None, subassembly_id=None, component_assembly_id=None,
+                      assembly_view_id=None, site_location_id=None, limit=50, request_id=None):
+        """
+        Dynamic search method for Images with comprehensive filtering capabilities.
+
+        Args:
+            session: SQLAlchemy database session
+            title (str, optional): Search in image title (partial match)
+            description (str, optional): Search in image description (partial match)
+            position_id (int, optional): Filter by specific position ID
+            tool_id (int, optional): Filter by specific tool ID
+            task_id (int, optional): Filter by specific task ID
+            problem_id (int, optional): Filter by specific problem ID
+            completed_document_id (int, optional): Filter by specific completed document ID
+            area_id (int, optional): Filter by area ID (via position hierarchy)
+            equipment_group_id (int, optional): Filter by equipment group ID (via position hierarchy)
+            model_id (int, optional): Filter by model ID (via position hierarchy)
+            asset_number_id (int, optional): Filter by asset number ID (via position hierarchy)
+            location_id (int, optional): Filter by location ID (via position hierarchy)
+            subassembly_id (int, optional): Filter by subassembly ID (via position hierarchy)
+            component_assembly_id (int, optional): Filter by component assembly ID (via position hierarchy)
+            assembly_view_id (int, optional): Filter by assembly view ID (via position hierarchy)
+            site_location_id (int, optional): Filter by site location ID (via position hierarchy)
+            limit (int): Maximum number of results to return (default 50)
+            request_id (str, optional): Unique identifier for the request
+
+        Returns:
+            List of dictionaries containing image details and related information
+        """
+        # Import locally to avoid circular dependencies
+        from modules.configuration.log_config import info_id, debug_id, error_id, warning_id
+
+        # Get or generate request_id
+        rid = request_id or get_request_id()
+
+        info_id("========== DYNAMIC IMAGE SEARCH ==========", rid)
+        debug_id(f"Search parameters: title='{title}', description='{description}', "
+                 f"position_id={position_id}, tool_id={tool_id}, task_id={task_id}, "
+                 f"problem_id={problem_id}, completed_document_id={completed_document_id}, "
+                 f"area_id={area_id}, equipment_group_id={equipment_group_id}, "
+                 f"model_id={model_id}, asset_number_id={asset_number_id}, "
+                 f"location_id={location_id}, subassembly_id={subassembly_id}, "
+                 f"component_assembly_id={component_assembly_id}, assembly_view_id={assembly_view_id}, "
+                 f"site_location_id={site_location_id}, limit={limit}", rid)
+
+        try:
+            # Start with base query
+            query = session.query(cls)
+            filter_conditions = []
+            join_conditions = []
+
+            # Text-based searches on image properties
+            if title:
+                filter_conditions.append(cls.title.ilike(f"%{title}%"))
+                debug_id(f"Added title filter: '{title}'", rid)
+
+            if description:
+                filter_conditions.append(cls.description.ilike(f"%{description}%"))
+                debug_id(f"Added description filter: '{description}'", rid)
+
+            # Direct association searches
+            if position_id:
+                if 'ImagePositionAssociation' not in join_conditions:
+                    query = query.join(ImagePositionAssociation, cls.id == ImagePositionAssociation.image_id)
+                    join_conditions.append('ImagePositionAssociation')
+                filter_conditions.append(ImagePositionAssociation.position_id == position_id)
+                debug_id(f"Added position_id filter: {position_id}", rid)
+
+            if tool_id:
+                if 'ToolImageAssociation' not in join_conditions:
+                    query = query.join(ToolImageAssociation, cls.id == ToolImageAssociation.image_id)
+                    join_conditions.append('ToolImageAssociation')
+                filter_conditions.append(ToolImageAssociation.tool_id == tool_id)
+                debug_id(f"Added tool_id filter: {tool_id}", rid)
+
+            if task_id:
+                if 'ImageTaskAssociation' not in join_conditions:
+                    query = query.join(ImageTaskAssociation, cls.id == ImageTaskAssociation.image_id)
+                    join_conditions.append('ImageTaskAssociation')
+                filter_conditions.append(ImageTaskAssociation.task_id == task_id)
+                debug_id(f"Added task_id filter: {task_id}", rid)
+
+            if problem_id:
+                if 'ImageProblemAssociation' not in join_conditions:
+                    query = query.join(ImageProblemAssociation, cls.id == ImageProblemAssociation.image_id)
+                    join_conditions.append('ImageProblemAssociation')
+                filter_conditions.append(ImageProblemAssociation.problem_id == problem_id)
+                debug_id(f"Added problem_id filter: {problem_id}", rid)
+
+            if completed_document_id:
+                if 'ImageCompletedDocumentAssociation' not in join_conditions:
+                    query = query.join(ImageCompletedDocumentAssociation,
+                                       cls.id == ImageCompletedDocumentAssociation.image_id)
+                    join_conditions.append('ImageCompletedDocumentAssociation')
+                filter_conditions.append(
+                    ImageCompletedDocumentAssociation.complete_document_id == completed_document_id)
+                debug_id(f"Added completed_document_id filter: {completed_document_id}", rid)
+
+            # Hierarchy-based searches through Position
+            hierarchy_filters = [area_id, equipment_group_id, model_id, asset_number_id, location_id,
+                                 subassembly_id, component_assembly_id, assembly_view_id, site_location_id]
+
+            if any(hierarchy_filters):
+                # Join with Position through ImagePositionAssociation if not already joined
+                if 'ImagePositionAssociation' not in join_conditions:
+                    query = query.join(ImagePositionAssociation, cls.id == ImagePositionAssociation.image_id)
+                    join_conditions.append('ImagePositionAssociation')
+                if 'Position' not in join_conditions:
+                    query = query.join(Position, ImagePositionAssociation.position_id == Position.id)
+                    join_conditions.append('Position')
+
+                # Add hierarchy filters
+                if area_id:
+                    filter_conditions.append(Position.area_id == area_id)
+                    debug_id(f"Added area_id filter: {area_id}", rid)
+                if equipment_group_id:
+                    filter_conditions.append(Position.equipment_group_id == equipment_group_id)
+                    debug_id(f"Added equipment_group_id filter: {equipment_group_id}", rid)
+                if model_id:
+                    filter_conditions.append(Position.model_id == model_id)
+                    debug_id(f"Added model_id filter: {model_id}", rid)
+                if asset_number_id:
+                    filter_conditions.append(Position.asset_number_id == asset_number_id)
+                    debug_id(f"Added asset_number_id filter: {asset_number_id}", rid)
+                if location_id:
+                    filter_conditions.append(Position.location_id == location_id)
+                    debug_id(f"Added location_id filter: {location_id}", rid)
+                if subassembly_id:
+                    filter_conditions.append(Position.subassembly_id == subassembly_id)
+                    debug_id(f"Added subassembly_id filter: {subassembly_id}", rid)
+                if component_assembly_id:
+                    filter_conditions.append(Position.component_assembly_id == component_assembly_id)
+                    debug_id(f"Added component_assembly_id filter: {component_assembly_id}", rid)
+                if assembly_view_id:
+                    filter_conditions.append(Position.assembly_view_id == assembly_view_id)
+                    debug_id(f"Added assembly_view_id filter: {assembly_view_id}", rid)
+                if site_location_id:
+                    filter_conditions.append(Position.site_location_id == site_location_id)
+                    debug_id(f"Added site_location_id filter: {site_location_id}", rid)
+
+            # Apply all filters
+            if filter_conditions:
+                from sqlalchemy import and_
+                query = query.filter(and_(*filter_conditions))
+                debug_id(f"Applied {len(filter_conditions)} filter conditions", rid)
+            else:
+                warning_id("No search criteria provided, returning all images", rid)
+
+            # Add distinct to avoid duplicates from joins
+            query = query.distinct()
+
+            # Apply limit and execute
+            query = query.limit(limit)
+            results = query.all()
+
+            info_id(f"Found {len(results)} images matching search criteria", rid)
+
+            # Build detailed response
+            images = []
+            for image in results:
+                try:
+                    image_details = {
+                        "id": image.id,
+                        "title": image.title,
+                        "description": image.description,
+                        "file_path": image.file_path,
+                        "associations": cls._get_image_associations(session, image.id, rid)
+                    }
+                    images.append(image_details)
+                    debug_id(f"Processed image: ID={image.id}, Title='{image.title}'", rid)
+
+                except Exception as e:
+                    error_id(f"Error processing image ID {image.id}: {e}", rid, exc_info=True)
+                    continue
+
+            info_id(f"Successfully processed {len(images)} images", rid)
+            return images
+
+        except Exception as e:
+            error_id(f"Error in search_images: {e}", rid, exc_info=True)
+            return []
+        finally:
+            info_id("========== DYNAMIC IMAGE SEARCH COMPLETE ==========", rid)
+
+    @classmethod
+    @with_request_id
+    def _get_image_associations(cls, session, image_id, request_id=None):
+        """
+        Helper method to get all associations for an image.
+
+        Args:
+            session: SQLAlchemy database session
+            image_id (int): ID of the image
+            request_id (str, optional): Unique identifier for the request
+
+        Returns:
+            Dictionary containing all association details
+        """
+        from modules.configuration.log_config import debug_id, error_id
+
+        rid = request_id or get_request_id()
+        associations = {}
+
+        try:
+            # Get position associations
+            position_assocs = session.query(ImagePositionAssociation).filter(
+                ImagePositionAssociation.image_id == image_id).all()
+            associations['positions'] = [{'position_id': assoc.position_id} for assoc in position_assocs]
+
+            # Get tool associations
+            tool_assocs = session.query(ToolImageAssociation).filter(
+                ToolImageAssociation.image_id == image_id).all()
+            associations['tools'] = [{'tool_id': assoc.tool_id, 'description': assoc.description}
+                                     for assoc in tool_assocs]
+
+            # Get task associations
+            task_assocs = session.query(ImageTaskAssociation).filter(
+                ImageTaskAssociation.image_id == image_id).all()
+            associations['tasks'] = [{'task_id': assoc.task_id} for assoc in task_assocs]
+
+            # Get problem associations
+            problem_assocs = session.query(ImageProblemAssociation).filter(
+                ImageProblemAssociation.image_id == image_id).all()
+            associations['problems'] = [{'problem_id': assoc.problem_id} for assoc in problem_assocs]
+
+            # Get completed document associations
+            doc_assocs = session.query(ImageCompletedDocumentAssociation).filter(
+                ImageCompletedDocumentAssociation.image_id == image_id).all()
+            associations['completed_documents'] = [{'document_id': assoc.complete_document_id}
+                                                   for assoc in doc_assocs]
+
+            # Get parts position associations
+            parts_assocs = session.query(PartsPositionImageAssociation).filter(
+                PartsPositionImageAssociation.image_id == image_id).all()
+            associations['parts_positions'] = [{'part_id': assoc.part_id, 'position_id': assoc.position_id}
+                                               for assoc in parts_assocs]
+
+            debug_id(f"Retrieved associations for image {image_id}: "
+                     f"{len(associations.get('positions', []))} positions, "
+                     f"{len(associations.get('tools', []))} tools, "
+                     f"{len(associations.get('tasks', []))} tasks, "
+                     f"{len(associations.get('problems', []))} problems", rid)
+
+        except Exception as e:
+            error_id(f"Error getting associations for image {image_id}: {e}", rid, exc_info=True)
+
+        return associations
 
 class ImageEmbedding(Base):
     __tablename__ = 'image_embedding'
@@ -2770,7 +3116,6 @@ class Drawing(Base):
             if not session_provided:
                 session.close()
 
-
 class Document(Base):
     __tablename__ = 'document'
 
@@ -2786,6 +3131,79 @@ class Document(Base):
     embeddings = relationship("DocumentEmbedding", back_populates="document")
     complete_document = relationship("CompleteDocument", back_populates="document")
 
+    @classmethod
+    @with_request_id
+    def create_fts_table(cls):
+        """
+        Create the PostgreSQL FTS table for search functionality.
+        Call this once to enable enhanced search features.
+        """
+        db_config = DatabaseConfig()
+
+        with db_config.main_session() as session:
+            try:
+                # Enable extensions with separate transactions
+                session.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
+                session.commit()
+                session.execute(text("CREATE EXTENSION IF NOT EXISTS unaccent"))
+                session.commit()
+
+                # Create the FTS table
+                session.execute(text("""
+                    CREATE TABLE IF NOT EXISTS documents_fts (
+                        id SERIAL PRIMARY KEY,
+                        title TEXT NOT NULL,
+                        content TEXT,
+                        search_vector TSVECTOR,
+                        created_at TIMESTAMP DEFAULT NOW(),
+                        updated_at TIMESTAMP DEFAULT NOW(),
+                        UNIQUE(title)
+                    )
+                """))
+                session.commit()
+
+                # Create indexes
+                index_statements = [
+                    "CREATE INDEX IF NOT EXISTS idx_documents_fts_search_vector ON documents_fts USING gin(search_vector)",
+                    "CREATE INDEX IF NOT EXISTS idx_documents_fts_title ON documents_fts(title)",
+                    "CREATE INDEX IF NOT EXISTS idx_documents_fts_title_gin ON documents_fts USING gin(title gin_trgm_ops)",
+                    "CREATE INDEX IF NOT EXISTS idx_documents_fts_content_gin ON documents_fts USING gin(content gin_trgm_ops)"
+                ]
+                for stmt in index_statements:
+                    session.execute(text(stmt))
+                    session.commit()
+
+                # Create trigger function with proper dollar-quoting
+                session.execute(text("""
+                    CREATE OR REPLACE FUNCTION update_search_vector() RETURNS trigger AS $$
+                    BEGIN
+                        NEW.search_vector := to_tsvector('english', NEW.title || ' ' || COALESCE(NEW.content, ''));
+                        NEW.updated_at := NOW();
+                        RETURN NEW;
+                    END;
+                    $$ LANGUAGE plpgsql
+                """))
+                session.commit()
+
+                # Create trigger
+                session.execute(text("DROP TRIGGER IF EXISTS search_vector_update ON documents_fts"))
+                session.commit()
+                session.execute(text("""
+                    CREATE TRIGGER search_vector_update 
+                    BEFORE INSERT OR UPDATE ON documents_fts 
+                    FOR EACH ROW EXECUTE FUNCTION update_search_vector()
+                """))
+                session.commit()
+
+                print(f"✅ Enhanced PostgreSQL FTS table created successfully with automatic search vector updates")
+                return True
+
+            except Exception as e:
+                session.rollback()
+                print(f"❌ Failed to create PostgreSQL FTS table: {e}")
+                return False
+
+
 class DocumentEmbedding(Base):
     __tablename__ = 'document_embedding'
 
@@ -2793,14 +3211,15 @@ class DocumentEmbedding(Base):
     document_id = Column(Integer, ForeignKey('document.id'))
     model_name = Column(String, nullable=False)
     model_embedding = Column(LargeBinary, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     document = relationship("Document", back_populates="embeddings")
 
-
 class CompleteDocument(Base):
     """
-    Modern document model with robust database handling.
-    Fixed PostgreSQL UPSERT and Unicode logging issues.
+    Modern document model with robust PostgreSQL database handling.
+    Streamlined for PostgreSQL-only operations with enhanced performance.
     """
 
     __tablename__ = 'complete_document'
@@ -2860,15 +3279,14 @@ class CompleteDocument(Base):
         return globals().get('Document')
 
     # =====================================================
-    # PUBLIC API - 3 MAIN METHODS
+    # PUBLIC API - 3 MAIN METHODS (Enhanced for PostgreSQL)
     # =====================================================
 
     @classmethod
     @with_request_id
     def process_upload(cls, files, metadata, request_id=None):
         """
-        Main upload processing method.
-        Auto-detects database type and uses optimal strategy.
+        Main upload processing method - now optimized for PostgreSQL with concurrent processing.
         """
         valid_files = [f for f in files if f.filename.strip()]
         if not valid_files:
@@ -2876,15 +3294,13 @@ class CompleteDocument(Base):
             return False
 
         db_config = DatabaseConfig()
-        info_id(f"Processing {len(valid_files)} files using {db_config.main_database_url.split('://')[0]}", request_id)
+        info_id(f"Processing {len(valid_files)} files using PostgreSQL with concurrent processing", request_id)
 
         try:
             position_id = cls._create_position(metadata, request_id)
 
-            if db_config.is_postgresql:
-                return cls._process_concurrent(valid_files, metadata, position_id, request_id)
-            else:
-                return cls._process_sequential(valid_files, metadata, position_id, request_id)
+            # Always use concurrent processing for PostgreSQL (enhanced performance)
+            return cls._process_concurrent(valid_files, metadata, position_id, request_id)
 
         except Exception as e:
             error_id(f"Upload failed: {e}", request_id)
@@ -2893,22 +3309,19 @@ class CompleteDocument(Base):
     @classmethod
     @with_request_id
     def search_documents(cls, query, limit=50, request_id=None):
-        """Search documents using database-appropriate method."""
+        """Search documents using PostgreSQL full-text search with ranking."""
         if not query or not query.strip():
             return []
 
         db_config = DatabaseConfig()
 
         with db_config.main_session() as session:
-            if db_config.is_postgresql:
-                return cls._search_postgresql(session, query, limit, request_id)
-            else:
-                return cls._search_sqlite(session, query, limit, request_id)
+            return cls._search_postgresql(session, query, limit, request_id)
 
     @classmethod
     @with_request_id
     def find_similar(cls, document_id, threshold=0.3, limit=10, request_id=None):
-        """Find documents similar to the given document."""
+        """Find documents similar to the given document using PostgreSQL similarity functions."""
         db_config = DatabaseConfig()
 
         with db_config.main_session() as session:
@@ -2916,14 +3329,11 @@ class CompleteDocument(Base):
             if not source:
                 return []
 
-            if db_config.is_postgresql:
-                return cls._similar_postgresql(session, source, threshold, limit, request_id)
-            else:
-                return cls._similar_sqlite(session, source, threshold, limit, request_id)
+            return cls._similar_postgresql(session, source, threshold, limit, request_id)
 
     @classmethod
     def dynamic_search(cls, session, **filters):
-        """Dynamic search with relationship support - kept for compatibility."""
+        """Dynamic search with relationship support - enhanced for PostgreSQL."""
         query = session.query(cls)
         filter_conditions = []
 
@@ -2942,11 +3352,13 @@ class CompleteDocument(Base):
                 relation = relationships.get(relation_name)
                 if relation:
                     related_class = relation.property.mapper.class_
+                    # Use PostgreSQL case-insensitive search
                     condition = getattr(related_class, related_attr).ilike(f"%{value}%")
                     filter_conditions.append(condition)
             else:
                 attr = getattr(cls, key, None)
                 if attr:
+                    # Use PostgreSQL case-insensitive search
                     condition = attr.ilike(f"%{value}%")
                     filter_conditions.append(condition)
 
@@ -2956,15 +3368,15 @@ class CompleteDocument(Base):
         return query.all()
 
     # =====================================================
-    # PROCESSING STRATEGIES
+    # PROCESSING STRATEGIES (PostgreSQL Optimized)
     # =====================================================
 
     @classmethod
     @with_request_id
     def _process_concurrent(cls, files, metadata, position_id, request_id):
-        """PostgreSQL concurrent processing."""
+        """Enhanced PostgreSQL concurrent processing with better performance."""
         max_workers = min(len(files), 4)
-        info_id(f"PostgreSQL: {max_workers} concurrent workers", request_id)
+        info_id(f"PostgreSQL: Using {max_workers} concurrent workers for optimal performance", request_id)
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {
@@ -2978,13 +3390,13 @@ class CompleteDocument(Base):
                 try:
                     if future.result():
                         success_count += 1
-                        debug_id(f"SUCCESS: {file.filename}", request_id)  # Fixed unicode issue
+                        debug_id(f"SUCCESS: {file.filename}", request_id)
                     else:
-                        warning_id(f"FAILED: {file.filename}", request_id)  # Fixed unicode issue
+                        warning_id(f"FAILED: {file.filename}", request_id)
                 except Exception as e:
                     error_id(f"Error processing {file.filename}: {e}", request_id)
 
-        # Optimize PostgreSQL after bulk operations
+        # Always optimize PostgreSQL after bulk operations
         if success_count > 0:
             cls._optimize_postgresql(request_id)
 
@@ -2993,28 +3405,8 @@ class CompleteDocument(Base):
 
     @classmethod
     @with_request_id
-    def _process_sequential(cls, files, metadata, position_id, request_id):
-        """SQLite sequential processing."""
-        info_id(f"SQLite: sequential processing of {len(files)} files", request_id)
-
-        success_count = 0
-        for i, file in enumerate(files, 1):
-            try:
-                if cls._process_file(file, metadata, position_id, request_id):
-                    success_count += 1
-                    debug_id(f"SUCCESS {i}/{len(files)}: {file.filename}", request_id)  # Fixed unicode issue
-                else:
-                    warning_id(f"FAILED {i}/{len(files)}: {file.filename}", request_id)  # Fixed unicode issue
-            except Exception as e:
-                error_id(f"Error processing {file.filename}: {e}", request_id)
-
-        info_id(f"SQLite processing complete: {success_count}/{len(files)} successful", request_id)
-        return success_count == len(files)
-
-    @classmethod
-    @with_request_id
     def _process_file(cls, file, metadata, position_id, request_id):
-        """Process single file - core logic."""
+        """Process single file - enhanced for PostgreSQL performance."""
         try:
             # Save file securely
             filename = secure_filename(file.filename)
@@ -3040,22 +3432,20 @@ class CompleteDocument(Base):
             return False
 
     # =====================================================
-    # DATABASE OPERATIONS
+    # DATABASE OPERATIONS (PostgreSQL Optimized)
     # =====================================================
 
     @classmethod
     @with_request_id
     def _save_document(cls, title, file_path, content, position_id, request_id):
-        """Save document to database with associations."""
+        """Save document to PostgreSQL database with enhanced associations."""
         db_config = DatabaseConfig()
 
         with db_config.main_session() as session:
             try:
-                # Set database-specific optimizations
-                if db_config.is_postgresql:
-                    session.execute(text("SET work_mem = '256MB'"))
-                else:
-                    session.execute(text("PRAGMA busy_timeout = 30000"))
+                # Set PostgreSQL-specific optimizations
+                session.execute(text("SET work_mem = '256MB'"))
+                session.execute(text("SET maintenance_work_mem = '512MB'"))
 
                 # Upsert document
                 document_id = cls._upsert_document(session, title, file_path, content)
@@ -3063,77 +3453,39 @@ class CompleteDocument(Base):
                 # Create associations
                 cls._create_associations(session, document_id, position_id)
 
-                # Add to search index
+                # Add to PostgreSQL search index
                 cls._add_to_search(session, title, content)
 
                 # Create chunks
-                cls._create_chunks(session, document_id, title, content)
+                cls._create_chunks(session, document_id, title, content, file_path)
 
                 session.commit()
-                debug_id(f"Saved document: {title}", request_id)
+                debug_id(f"Saved document to PostgreSQL: {title}", request_id)
                 return True
 
             except Exception as e:
                 session.rollback()
-                error_id(f"Database save failed for {title}: {e}", request_id)
+                error_id(f"PostgreSQL database save failed for {title}: {e}", request_id)
                 return False
 
     @classmethod
     def _upsert_document(cls, session, title, file_path, content):
-        """Create or update document using database-appropriate method."""
-        db_config = DatabaseConfig()
-
-        if db_config.is_postgresql:
-            # PostgreSQL - Use INSERT with error handling instead of UPSERT
-            # This avoids the unique constraint requirement
-            try:
-                # First try to find existing document
-                existing = session.query(cls).filter_by(title=title).first()
-
-                if existing:
-                    # Update existing document
-                    if existing.content != content:
-                        existing.content = content
-                        existing.file_path = os.path.relpath(file_path, os.getcwd())
-                        rev_num = int(existing.rev[1:]) + 1 if existing.rev.startswith('R') else 1
-                        existing.rev = f"R{rev_num}"
-                    session.flush()
-                    return existing.id
-                else:
-                    # Create new document
-                    doc = cls(
-                        title=title,
-                        file_path=os.path.relpath(file_path, os.getcwd()),
-                        content=content,
-                        rev="R0"
-                    )
-                    session.add(doc)
-                    session.flush()
-                    return doc.id
-
-            except Exception as e:
-                # Fallback to simple insert
-                debug_id(f"PostgreSQL upsert fallback for {title}: {e}")
-                doc = cls(
-                    title=f"{title}_{uuid.uuid4().hex[:8]}",  # Make unique
-                    file_path=os.path.relpath(file_path, os.getcwd()),
-                    content=content,
-                    rev="R0"
-                )
-                session.add(doc)
-                session.flush()
-                return doc.id
-        else:
-            # SQLite approach (unchanged)
+        """Create or update document using PostgreSQL optimized method."""
+        try:
+            # First try to find existing document
             existing = session.query(cls).filter_by(title=title).first()
+
             if existing:
+                # Update existing document
                 if existing.content != content:
                     existing.content = content
                     existing.file_path = os.path.relpath(file_path, os.getcwd())
                     rev_num = int(existing.rev[1:]) + 1 if existing.rev.startswith('R') else 1
                     existing.rev = f"R{rev_num}"
+                session.flush()
                 return existing.id
             else:
+                # Create new document
                 doc = cls(
                     title=title,
                     file_path=os.path.relpath(file_path, os.getcwd()),
@@ -3144,16 +3496,29 @@ class CompleteDocument(Base):
                 session.flush()
                 return doc.id
 
+        except Exception as e:
+            # Fallback to unique title if there's a conflict
+            debug_id(f"PostgreSQL upsert fallback for {title}: {e}")
+            doc = cls(
+                title=f"{title}_{uuid.uuid4().hex[:8]}",  # Make unique
+                file_path=os.path.relpath(file_path, os.getcwd()),
+                content=content,
+                rev="R0"
+            )
+            session.add(doc)
+            session.flush()
+            return doc.id
+
     @classmethod
     def _create_associations(cls, session, document_id, position_id):
-        """Create document-position associations."""
+        """Create document-position associations with PostgreSQL optimization."""
         AssociationClass = cls._get_association_class()
 
         if AssociationClass is None:
             debug_id("Association class not available, skipping", None)
             return
 
-        # Check if association already exists
+        # Check if association already exists using PostgreSQL-optimized query
         existing = session.query(AssociationClass).filter_by(
             complete_document_id=document_id,
             position_id=position_id
@@ -3168,42 +3533,36 @@ class CompleteDocument(Base):
 
     @classmethod
     def _add_to_search(cls, session, title, content):
-        """Add document to search index with proper transaction handling."""
-        db_config = DatabaseConfig()
-
+        """Add document to PostgreSQL FTS index with proper transaction handling."""
         try:
-            if db_config.is_postgresql:
-                # Use a savepoint for PostgreSQL FTS to avoid transaction abort
-                savepoint = session.begin_nested()  # Creates a savepoint
-                try:
-                    sql = text("""
-                        INSERT INTO documents_fts (title, content, search_vector)
-                        VALUES (:title, :content, to_tsvector('english', :title || ' ' || :content))
-                        ON CONFLICT (title) DO UPDATE SET
-                            content = EXCLUDED.content,
-                            search_vector = EXCLUDED.search_vector
-                    """)
-                    session.execute(sql, {'title': title, 'content': content})
-                    savepoint.commit()  # Commit the savepoint
-                    debug_id("Added to PostgreSQL FTS")
-                except Exception as fts_error:
-                    savepoint.rollback()  # Rollback only the savepoint, not main transaction
-                    debug_id(f"PostgreSQL FTS skipped: {fts_error}")
-            else:
-                # SQLite FTS5
+            # Use a savepoint for PostgreSQL FTS to avoid transaction abort
+            savepoint = session.begin_nested()  # Creates a savepoint
+            try:
+                # Enhanced PostgreSQL FTS with better search capabilities
                 sql = text("""
-                    INSERT OR REPLACE INTO documents_fts (title, content) 
-                    VALUES (:title, :content)
+                    INSERT INTO documents_fts (title, content, search_vector)
+                    VALUES (:title, :content, to_tsvector('english', :title || ' ' || :content))
+                    ON CONFLICT (title) DO UPDATE SET
+                        content = EXCLUDED.content,
+                        search_vector = EXCLUDED.search_vector,
+                        updated_at = CURRENT_TIMESTAMP
                 """)
                 session.execute(sql, {'title': title, 'content': content})
-                debug_id("Added to SQLite FTS")
+                savepoint.commit()  # Commit the savepoint
+                debug_id("Added to PostgreSQL FTS with enhanced search vector")
+            except Exception as fts_error:
+                savepoint.rollback()  # Rollback only the savepoint, not main transaction
+                debug_id(f"PostgreSQL FTS skipped: {fts_error}")
         except Exception as e:
             # If even the savepoint approach fails, just skip FTS entirely
             debug_id(f"Search indexing completely skipped: {e}")
 
+    # This method should also be part of your CompleteDocument class
     @classmethod
-    def _create_chunks(cls, session, document_id, title, content):
-        """Create document chunks for analysis with proper error handling."""
+    @with_request_id
+    def _create_chunks(cls, session, document_id, title, content, file_path=None):
+        """Create document chunks for analysis with PostgreSQL optimization and embedding generation."""
+        debug_id("Starting _create_chunks")
         DocumentClass = cls._get_document_class()
 
         if DocumentClass is None:
@@ -3213,47 +3572,130 @@ class CompleteDocument(Base):
         try:
             chunks = cls._split_text(content, 300)  # 300 words per chunk
 
-            chunk_count = 0
+            # Get the file_path from the parent document if not provided
+            if file_path is None:
+                parent_doc = session.query(cls).filter_by(id=document_id).first()
+                file_path = parent_doc.file_path if parent_doc else "unknown"
+
+            # Batch create chunks for better PostgreSQL performance
+            chunk_objects = []
             for i, chunk in enumerate(chunks):
                 if chunk.strip():  # Only create non-empty chunks
                     try:
                         doc_chunk = DocumentClass(
                             name=f"{title} - Chunk {i + 1}",
+                            file_path=file_path,  # Set the file_path to avoid null constraint violation
                             content=chunk.strip(),
                             complete_document_id=document_id,
                             rev="R0"
                         )
-                        session.add(doc_chunk)
-                        chunk_count += 1
+                        chunk_objects.append(doc_chunk)
                     except Exception as chunk_error:
                         debug_id(f"Skipped chunk {i + 1}: {chunk_error}")
                         continue
 
-            if chunk_count > 0:
-                debug_id(f"Created {chunk_count} document chunks")
+            if chunk_objects:
+                # Batch insert for better PostgreSQL performance
+                session.add_all(chunk_objects)
+                session.flush()  # Get the IDs for embedding generation
+
+                # Generate embeddings for each chunk - proper way to call a classmethod
+                try:
+                    cls._generate_embeddings_for_chunks(session, chunk_objects)
+                    debug_id(f"Created {len(chunk_objects)} document chunks with embeddings")
+                except Exception as embed_error:
+                    debug_id(f"Error in _generate_embeddings_for_chunks: {embed_error}")
+                    import traceback
+                    debug_id(f"Traceback: {traceback.format_exc()}")
             else:
                 debug_id("No chunks created")
 
         except Exception as e:
             debug_id(f"Chunk creation skipped: {e}")
+            import traceback
+            debug_id(f"Traceback: {traceback.format_exc()}")
+
+    @classmethod
+    @with_request_id
+    def _generate_embeddings_for_chunks(cls, session, chunk_objects):
+        """Generate embeddings for document chunks."""
+        debug_id("Starting _generate_embeddings_for_chunks")
+
+        try:
+            # First, import the necessary modules
+            import plugins.ai_modules
+            from plugins.ai_modules import generate_embedding, ModelsConfig
+
+            # Get current embedding model name
+            current_embedding_model = ModelsConfig.get_config_value('embedding', 'CURRENT_MODEL')
+
+            if current_embedding_model == "NoEmbeddingModel":
+                debug_id("Embedding generation disabled, skipping")
+                return
+
+            debug_id(f"Generating embeddings for {len(chunk_objects)} chunks using {current_embedding_model}")
+
+            # Process each chunk
+            for chunk in chunk_objects:
+                try:
+                    # Generate embedding for this chunk
+                    embeddings = generate_embedding(chunk.content, current_embedding_model)
+
+                    if embeddings:
+                        # Use explicit import for the storage function right before using it
+                        # This ensures it's in the current scope
+                        from plugins.ai_modules.ai_models import store_embedding_enhanced
+
+                        # Store the embedding using the enhanced function
+                        cls._store_embedding(session, chunk.id, embeddings, current_embedding_model)
+                        debug_id(f"Generated embedding for chunk: {chunk.name}")
+                    else:
+                        debug_id(f"No embedding generated for chunk: {chunk.name}")
+
+                except Exception as e:
+                    debug_id(f"Error generating embedding for chunk {chunk.name}: {e}")
+                    import traceback
+                    debug_id(f"Traceback: {traceback.format_exc()}")
+                    continue
+
+        except Exception as e:
+            debug_id(f"Embedding generation for chunks skipped: {e}")
+            import traceback
+            debug_id(f"Traceback: {traceback.format_exc()}")
+
+    @classmethod
+    def _store_embedding(cls, session, document_id, embeddings, model_name):
+        """Helper method to store embeddings using direct import."""
+        try:
+            # Direct import from the module
+            from plugins.ai_modules.ai_models import store_embedding_enhanced
+
+            # Call the function
+            return store_embedding_enhanced(session, document_id, embeddings, model_name)
+        except Exception as e:
+            debug_id(f"Error in _store_embedding helper: {e}")
+            import traceback
+            debug_id(f"Traceback: {traceback.format_exc()}")
+            return False
 
     # =====================================================
-    # SEARCH IMPLEMENTATIONS
+    # SEARCH IMPLEMENTATIONS (PostgreSQL Only)
     # =====================================================
 
     @classmethod
     def _search_postgresql(cls, session, query, limit, request_id):
-        """PostgreSQL full-text search with ranking and highlighting."""
+        """Enhanced PostgreSQL full-text search with ranking and highlighting."""
         try:
+            # Enhanced search with better ranking and highlighting
             sql = text("""
-                SELECT cd.id, cd.title, cd.file_path,
-                       ts_rank(fts.search_vector, plainto_tsquery('english', :query)) as rank,
+                SELECT cd.id, cd.title, cd.file_path, cd.rev,
+                       ts_rank_cd(fts.search_vector, plainto_tsquery('english', :query)) as rank,
                        ts_headline('english', cd.content, plainto_tsquery('english', :query), 
-                                  'MaxWords=50, MinWords=10') as highlight
+                                  'MaxWords=50, MinWords=10, StartSel=<mark>, StopSel=</mark>') as highlight
                 FROM complete_document cd
                 JOIN documents_fts fts ON cd.title = fts.title
                 WHERE fts.search_vector @@ plainto_tsquery('english', :query)
-                ORDER BY rank DESC
+                ORDER BY rank DESC, cd.id DESC
                 LIMIT :limit
             """)
 
@@ -3265,11 +3707,12 @@ class CompleteDocument(Base):
                     'id': row[0],
                     'title': row[1],
                     'file_path': row[2],
-                    'relevance': float(row[3]),
-                    'highlight': row[4]
+                    'rev': row[3],
+                    'relevance': float(row[4]),
+                    'highlight': row[5]
                 })
 
-            info_id(f"PostgreSQL search found {len(results)} results", request_id)
+            info_id(f"PostgreSQL enhanced search found {len(results)} results", request_id)
             return results
 
         except Exception as e:
@@ -3277,149 +3720,69 @@ class CompleteDocument(Base):
             return []
 
     @classmethod
-    def _search_sqlite(cls, session, query, limit, request_id):
-        """SQLite FTS search."""
-        try:
-            sql = text("""
-                SELECT cd.id, cd.title, cd.file_path
-                FROM complete_document cd
-                JOIN documents_fts fts ON cd.title = fts.title
-                WHERE documents_fts MATCH :query
-                ORDER BY rank
-                LIMIT :limit
-            """)
-
-            result = session.execute(sql, {'query': query, 'limit': limit})
-
-            results = []
-            for row in result:
-                results.append({
-                    'id': row[0],
-                    'title': row[1],
-                    'file_path': row[2],
-                    'relevance': 1.0,  # SQLite doesn't provide easy ranking
-                    'highlight': ''  # No highlighting for SQLite
-                })
-
-            info_id(f"SQLite search found {len(results)} results", request_id)
-            return results
-
-        except Exception as e:
-            error_id(f"SQLite search failed: {e}", request_id)
-            return []
-
-    @classmethod
     def _similar_postgresql(cls, session, source, threshold, limit, request_id):
-        """PostgreSQL similarity search using pg_trgm extension."""
+        """Enhanced PostgreSQL similarity search using pg_trgm extension."""
         try:
+            # Enable pg_trgm extension if not already enabled
+            try:
+                session.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
+            except:
+                pass  # Extension might already exist
+
+            # Enhanced similarity search with better algorithms
             sql = text("""
-                SELECT id, title, similarity(title, :source_title) as sim
-                FROM complete_document 
-                WHERE id != :source_id 
-                  AND similarity(title, :source_title) >= :threshold
-                ORDER BY sim DESC
+                SELECT cd.id, cd.title, cd.file_path, cd.rev,
+                       similarity(cd.title, :source_title) as title_sim,
+                       similarity(cd.content, :source_content) as content_sim,
+                       GREATEST(
+                           similarity(cd.title, :source_title),
+                           similarity(cd.content, :source_content) * 0.7
+                       ) as combined_sim
+                FROM complete_document cd
+                WHERE cd.id != :source_id 
+                  AND (
+                      similarity(cd.title, :source_title) >= :threshold
+                      OR similarity(cd.content, :source_content) >= :threshold
+                  )
+                ORDER BY combined_sim DESC
                 LIMIT :limit
             """)
 
             result = session.execute(sql, {
                 'source_title': source.title,
+                'source_content': source.content[:1000] if source.content else '',  # Limit content for performance
                 'source_id': source.id,
                 'threshold': threshold,
                 'limit': limit
             })
 
-            return [
-                {'id': row[0], 'title': row[1], 'similarity': float(row[2])}
-                for row in result
-            ]
+            similar_docs = []
+            for row in result:
+                similar_docs.append({
+                    'id': row[0],
+                    'title': row[1],
+                    'file_path': row[2],
+                    'rev': row[3],
+                    'title_similarity': float(row[4]),
+                    'content_similarity': float(row[5]),
+                    'combined_similarity': float(row[6])
+                })
+
+            info_id(f"PostgreSQL enhanced similarity search found {len(similar_docs)} results", request_id)
+            return similar_docs
 
         except Exception as e:
             error_id(f"PostgreSQL similarity search failed: {e}", request_id)
             return []
 
-    @classmethod
-    def _similar_sqlite(cls, session, source, threshold, limit, request_id):
-        """SQLite similarity search using word overlap."""
-        try:
-            docs = session.query(cls).filter(cls.id != source.id).all()
-
-            similar = []
-            source_words = set(source.title.lower().split())
-
-            for doc in docs:
-                doc_words = set(doc.title.lower().split())
-                if source_words and doc_words:
-                    # Jaccard similarity
-                    jaccard = len(source_words & doc_words) / len(source_words | doc_words)
-                    if jaccard >= threshold:
-                        similar.append({
-                            'id': doc.id,
-                            'title': doc.title,
-                            'similarity': jaccard
-                        })
-
-            # Sort by similarity and limit results
-            similar.sort(key=lambda x: x['similarity'], reverse=True)
-            return similar[:limit]
-
-        except Exception as e:
-            error_id(f"SQLite similarity search failed: {e}", request_id)
-            return []
-
     # =====================================================
-    # UTILITY METHODS
+    # UTILITY METHODS (PostgreSQL Optimized)
     # =====================================================
-
-    @classmethod
-    def create_fts_table(cls):
-        """
-        Create the FTS table for search functionality.
-        Call this once to enable search features.
-        """
-        db_config = DatabaseConfig()
-
-        with db_config.main_session() as session:
-            try:
-                if db_config.is_postgresql:
-                    # Create PostgreSQL FTS table
-                    sql = text("""
-                        CREATE TABLE IF NOT EXISTS documents_fts (
-                            id SERIAL PRIMARY KEY,
-                            title TEXT NOT NULL,
-                            content TEXT,
-                            search_vector TSVECTOR,
-                            created_at TIMESTAMP DEFAULT NOW(),
-                            updated_at TIMESTAMP DEFAULT NOW(),
-                            UNIQUE(title)
-                        );
-
-                        CREATE INDEX IF NOT EXISTS idx_documents_fts_search_vector 
-                        ON documents_fts USING gin(search_vector);
-
-                        CREATE INDEX IF NOT EXISTS idx_documents_fts_title 
-                        ON documents_fts(title);
-                    """)
-                else:
-                    # Create SQLite FTS table
-                    sql = text("""
-                        CREATE VIRTUAL TABLE IF NOT EXISTS documents_fts 
-                        USING fts5(title, content);
-                    """)
-
-                session.execute(sql)
-                session.commit()
-
-                print(f"✅ FTS table created successfully for {db_config.main_database_url.split('://')[0]}")
-                return True
-
-            except Exception as e:
-                print(f"❌ Failed to create FTS table: {e}")
-                return False
 
     @classmethod
     @with_request_id
     def _create_position(cls, metadata, request_id):
-        """Create position record from metadata."""
+        """Create position record from metadata using PostgreSQL."""
         PositionClass = cls._get_position_class()
         SiteLocationClass = cls._get_site_location_class()
 
@@ -3454,29 +3817,23 @@ class CompleteDocument(Base):
             session.add(position)
             session.commit()
 
-            info_id(f"Created position {position.id}", request_id)
+            info_id(f"Created position {position.id} in PostgreSQL", request_id)
             return position.id
 
     @classmethod
     @with_request_id
     def _create_position_fallback(cls, metadata, request_id):
-        """Fallback position creation when model classes aren't available."""
+        """Fallback position creation using PostgreSQL raw SQL."""
         db_config = DatabaseConfig()
 
         with db_config.main_session() as session:
             try:
-                # Try to create position using raw SQL
-                if db_config.is_postgresql:
-                    sql = text("""
-                        INSERT INTO position (area_id, equipment_group_id, model_id, asset_number_id, location_id)
-                        VALUES (:area_id, :equipment_group_id, :model_id, :asset_number_id, :location_id)
-                        RETURNING id
-                    """)
-                else:
-                    sql = text("""
-                        INSERT INTO position (area_id, equipment_group_id, model_id, asset_number_id, location_id)
-                        VALUES (:area_id, :equipment_group_id, :model_id, :asset_number_id, :location_id)
-                    """)
+                # PostgreSQL-specific position creation
+                sql = text("""
+                    INSERT INTO position (area_id, equipment_group_id, model_id, asset_number_id, location_id)
+                    VALUES (:area_id, :equipment_group_id, :model_id, :asset_number_id, :location_id)
+                    RETURNING id
+                """)
 
                 result = session.execute(sql, {
                     'area_id': cls._safe_int(metadata.get('area')),
@@ -3486,24 +3843,20 @@ class CompleteDocument(Base):
                     'location_id': cls._safe_int(metadata.get('location'))
                 })
 
-                if db_config.is_postgresql:
-                    position_id = result.fetchone()[0]
-                else:
-                    position_id = result.lastrowid
-
+                position_id = result.fetchone()[0]
                 session.commit()
-                info_id(f"Created position {position_id} using fallback method", request_id)
+                info_id(f"Created position {position_id} using PostgreSQL fallback method", request_id)
                 return position_id
 
             except Exception as e:
-                error_id(f"Fallback position creation failed: {e}", request_id)
+                error_id(f"PostgreSQL fallback position creation failed: {e}", request_id)
                 # Return a default position ID (you may need to adjust this)
                 return 1
 
     @classmethod
     @with_request_id
     def _extract_content(cls, file_path, request_id):
-        """Extract text content from file based on extension."""
+        """Extract text content from file - convert DOCX to PDF first if needed."""
         ext = os.path.splitext(file_path)[1].lower()
 
         try:
@@ -3512,9 +3865,18 @@ class CompleteDocument(Base):
             elif ext == '.txt':
                 return cls._extract_txt_text(file_path, request_id)
             elif ext == '.docx':
-                # DOCX processing could be added here
-                warning_id(f"DOCX processing not implemented: {file_path}", request_id)
-                return None
+                # Convert DOCX to PDF first, then use existing PDF processing
+                info_id("Converting DOCX to PDF for processing", request_id)
+                pdf_path = cls._convert_docx_to_pdf(file_path, request_id)
+                if pdf_path:
+                    # Use existing PDF text extraction
+                    text = cls._extract_pdf_text(pdf_path, request_id)
+                    # Clean up temporary PDF
+                    cls._cleanup_temp_file(pdf_path, request_id)
+                    return text
+                else:
+                    error_id("DOCX to PDF conversion failed", request_id)
+                    return None
             else:
                 warning_id(f"Unsupported file type: {ext}", request_id)
                 return None
@@ -3568,11 +3930,17 @@ class CompleteDocument(Base):
 
         with db_config.main_session() as session:
             try:
+                # Enhanced PostgreSQL optimization
                 session.execute(text("ANALYZE complete_document"))
                 session.execute(text("ANALYZE documents_fts"))
                 session.execute(text("ANALYZE document"))
+
+                # Additional PostgreSQL optimizations
+                session.execute(text("VACUUM ANALYZE complete_document"))
+                session.execute(text("VACUUM ANALYZE documents_fts"))
+
                 session.commit()
-                debug_id("PostgreSQL tables analyzed", request_id)
+                debug_id("PostgreSQL tables analyzed and optimized", request_id)
             except Exception as e:
                 debug_id(f"PostgreSQL optimization skipped: {e}", request_id)
 
@@ -3611,6 +3979,442 @@ class CompleteDocument(Base):
                 chunks.append(chunk)
 
         return chunks
+
+    @classmethod
+    @with_request_id
+    def serve_file(cls, document_id, download=None, request_id=None):
+        """
+        Enhanced serve_file method for CompleteDocument with database compatibility and proper logging.
+        Returns a tuple (success, response, status_code) for Flask compatibility.
+
+        Args:
+            document_id (int): ID of the document to serve
+            download (bool, optional): Force download if True, view inline if False, auto-detect if None
+            request_id (str, optional): Unique identifier for the request
+        """
+        # Import locally to avoid circular dependencies
+        import os
+        from flask import send_file
+        from modules.configuration.config import DATABASE_DIR
+        from modules.configuration.log_config import info_id, error_id, debug_id
+
+        # Get or generate request_id
+        rid = request_id or get_request_id()
+
+        info_id(f"Attempting to retrieve document with ID: {document_id}", rid)
+
+        # Create session using DatabaseConfig
+        db_config = DatabaseConfig()
+        try:
+            with db_config.main_session() as session:
+
+                # Query for the document
+                document = session.query(cls).filter_by(id=document_id).first()
+
+                if not document:
+                    error_id(f"No document found in database with ID: {document_id}", rid)
+                    return False, "Document not found", 404
+
+                debug_id(f"Found document: {document.title}, File path: {document.file_path}", rid)
+
+                # Try multiple potential file path locations
+                potential_paths = []
+
+                if document.file_path:
+                    # Check if file_path is absolute
+                    if os.path.isabs(document.file_path):
+                        potential_paths.append(document.file_path)
+                    else:
+                        # Try relative to current working directory (based on your _upsert_document method)
+                        potential_paths.append(os.path.join(os.getcwd(), document.file_path))
+                        # Try relative to DATABASE_DIR
+                        potential_paths.append(os.path.join(DATABASE_DIR, document.file_path))
+
+                    # Try common document storage locations
+                    clean_path = document.file_path.lstrip('/\\\\')
+                    potential_paths.extend([
+                        os.path.join(os.getcwd(), "uploads", clean_path),
+                        os.path.join(DATABASE_DIR, "uploads", clean_path),
+                        os.path.join(DATABASE_DIR, "documents", clean_path),
+                        os.path.join(DATABASE_DIR, clean_path),
+                        # Try just the filename in uploads directory
+                        os.path.join(os.getcwd(), "uploads", os.path.basename(clean_path)),
+                        os.path.join(DATABASE_DIR, "uploads", os.path.basename(clean_path))
+                    ])
+
+                debug_id(f"Checking potential file paths: {potential_paths}", rid)
+
+                # Find the first existing file
+                file_path = None
+                for path in potential_paths:
+                    debug_id(f"Checking path: {path}", rid)
+                    if os.path.exists(path):
+                        file_path = path
+                        debug_id(f"Found existing file at: {path}", rid)
+                        break
+
+                if not file_path:
+                    error_id(f"Document file not found in any of these locations: {potential_paths}", rid)
+                    return False, "Document file not found", 404
+
+                info_id(f"Serving document file: {file_path}", rid)
+
+                # Determine mimetype based on file extension
+                _, ext = os.path.splitext(file_path)
+                mimetype_map = {
+                    '.pdf': 'application/pdf',
+                    '.doc': 'application/msword',
+                    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    '.xls': 'application/vnd.ms-excel',
+                    '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    '.ppt': 'application/vnd.ms-powerpoint',
+                    '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+                    '.txt': 'text/plain',
+                    '.rtf': 'application/rtf',
+                    '.csv': 'text/csv',
+                    '.xml': 'application/xml',
+                    '.json': 'application/json'
+                }
+                mimetype = mimetype_map.get(ext.lower(), 'application/octet-stream')
+
+                debug_id(f"Using mimetype: {mimetype} for extension: {ext}", rid)
+
+                # Determine disposition based on download parameter and file type
+                if download is True:
+                    # Force download
+                    as_attachment = True
+                    debug_id("Forcing download (as_attachment=True)", rid)
+                elif download is False:
+                    # Force inline viewing
+                    as_attachment = False
+                    debug_id("Forcing inline view (as_attachment=False)", rid)
+                else:
+                    # Auto-detect based on file type - PDFs and text files can be viewed inline
+                    as_attachment = ext.lower() not in ['.pdf', '.txt', '.csv', '.xml', '.json']
+                    debug_id(f"Auto-detect disposition: as_attachment={as_attachment} for {ext}", rid)
+
+                response = send_file(file_path, mimetype=mimetype, as_attachment=as_attachment)
+                return True, response, 200
+
+        except Exception as e:
+            error_id(f"Unhandled error while serving document with ID {document_id}: {e}", rid, exc_info=True)
+            return False, "Internal Server Error", 500
+
+
+    @classmethod
+    @with_request_id
+    def _cleanup_temp_file(cls, file_path, request_id):
+        """Clean up temporary files."""
+        try:
+            if file_path and os.path.exists(file_path):
+                # Remove the file
+                os.remove(file_path)
+                # Remove the temporary directory if empty
+                temp_dir = os.path.dirname(file_path)
+                if os.path.exists(temp_dir) and not os.listdir(temp_dir):
+                    os.rmdir(temp_dir)
+                debug_id(f"Cleaned up temporary file: {file_path}", request_id)
+        except Exception as e:
+            warning_id(f"Failed to cleanup temp file {file_path}: {e}", request_id)
+
+    @classmethod
+    @with_request_id
+    def monitor_processing_session(cls, session, operation_name="document_operation", request_id=None):
+        """
+        Database-agnostic session monitor for CompleteDocument class.
+        """
+        import time
+        from sqlalchemy import text
+        from modules.configuration.log_config import info_id, error_id, debug_id, warning_id
+
+        class SessionMonitor:
+            def __init__(self, session, operation_name, request_id):
+                self.session = session
+                self.operation_name = operation_name
+                self.request_id = request_id
+                self.start_time = None
+
+            def __enter__(self):
+                self.start_time = time.time()
+                info_id(f"Starting monitored operation: {self.operation_name}", self.request_id)
+
+                try:
+                    db_config = DatabaseConfig()
+                    if hasattr(db_config, 'is_postgresql') and db_config.is_postgresql:
+                        # PostgreSQL - no PRAGMA commands needed
+                        debug_id("Using PostgreSQL for monitored session", self.request_id)
+                    else:
+                        # SQLite - set busy timeout
+                        self.session.execute(text("PRAGMA busy_timeout = 30000"))
+                        debug_id("Set SQLite busy timeout for monitored session", self.request_id)
+                except Exception as e:
+                    warning_id(f"Could not configure session timeout: {e}", self.request_id)
+
+                return self.session
+
+            def __exit__(self, exc_type, exc_val, exc_tb):
+                elapsed = time.time() - self.start_time
+
+                if exc_type is None:
+                    info_id(f"Completed monitored operation: {self.operation_name} in {elapsed:.2f}s", self.request_id)
+                else:
+                    error_id(f"Failed monitored operation: {self.operation_name} after {elapsed:.2f}s: {exc_val}",
+                             self.request_id)
+
+                    # Database-agnostic error detection
+                    error_str = str(exc_val).lower()
+                    if "database is locked" in error_str or "timeout" in error_str or "deadlock" in error_str:
+                        warning_id(f"Database contention during {self.operation_name}", self.request_id)
+
+        return SessionMonitor(session, operation_name, request_id)
+
+    @classmethod
+    @with_request_id
+    def search_documents_enhanced(cls, session, title=None, content=None, file_path=None,
+                                  position_id=None, area_id=None, equipment_group_id=None,
+                                  model_id=None, asset_number_id=None, location_id=None,
+                                  subassembly_id=None, component_assembly_id=None,
+                                  assembly_view_id=None, site_location_id=None,
+                                  limit=50, request_id=None):
+        """
+        Enhanced dynamic search method for CompleteDocument with comprehensive filtering capabilities.
+
+        Args:
+            session: SQLAlchemy database session
+            title (str, optional): Search in document title (partial match)
+            content (str, optional): Search in document content (partial match)
+            file_path (str, optional): Search in file path (partial match)
+            position_id (int, optional): Filter by specific position ID
+            area_id (int, optional): Filter by area ID (via position hierarchy)
+            equipment_group_id (int, optional): Filter by equipment group ID (via position hierarchy)
+            model_id (int, optional): Filter by model ID (via position hierarchy)
+            asset_number_id (int, optional): Filter by asset number ID (via position hierarchy)
+            location_id (int, optional): Filter by location ID (via position hierarchy)
+            subassembly_id (int, optional): Filter by subassembly ID (via position hierarchy)
+            component_assembly_id (int, optional): Filter by component assembly ID (via position hierarchy)
+            assembly_view_id (int, optional): Filter by assembly view ID (via position hierarchy)
+            site_location_id (int, optional): Filter by site location ID (via position hierarchy)
+            limit (int): Maximum number of results to return (default 50)
+            request_id (str, optional): Unique identifier for the request
+
+        Returns:
+            List of dictionaries containing document details and related information
+        """
+        # Get or generate request_id
+        rid = request_id or get_request_id()
+
+        info_id("========== ENHANCED DOCUMENT SEARCH ==========", rid)
+        debug_id(f"Search parameters: title='{title}', content='{content}', "
+                 f"file_path='{file_path}', position_id={position_id}, "
+                 f"area_id={area_id}, equipment_group_id={equipment_group_id}, "
+                 f"model_id={model_id}, asset_number_id={asset_number_id}, "
+                 f"location_id={location_id}, subassembly_id={subassembly_id}, "
+                 f"component_assembly_id={component_assembly_id}, assembly_view_id={assembly_view_id}, "
+                 f"site_location_id={site_location_id}, limit={limit}", rid)
+
+        try:
+            # Start with base query
+            query = session.query(cls)
+            filter_conditions = []
+            join_conditions = []
+
+            # Text-based searches on document properties
+            if title:
+                filter_conditions.append(cls.title.ilike(f"%{title}%"))
+                debug_id(f"Added title filter: '{title}'", rid)
+
+            if content:
+                filter_conditions.append(cls.content.ilike(f"%{content}%"))
+                debug_id(f"Added content filter: '{content}'", rid)
+
+            if file_path:
+                filter_conditions.append(cls.file_path.ilike(f"%{file_path}%"))
+                debug_id(f"Added file_path filter: '{file_path}'", rid)
+
+            # Get association and position classes
+            AssociationClass = cls._get_association_class()
+            PositionClass = cls._get_position_class()
+
+            if not AssociationClass or not PositionClass:
+                warning_id("Association or Position class not available, skipping hierarchy searches", rid)
+                hierarchy_filters = []
+            else:
+                hierarchy_filters = [position_id, area_id, equipment_group_id, model_id, asset_number_id, location_id,
+                                     subassembly_id, component_assembly_id, assembly_view_id, site_location_id]
+
+            # Direct position association search or hierarchy-based searches
+            if position_id or any(hierarchy_filters[1:]):  # Skip position_id in hierarchy check
+                if AssociationClass and PositionClass:
+                    # Join with Position through CompletedDocumentPositionAssociation
+                    if 'CompletedDocumentPositionAssociation' not in join_conditions:
+                        query = query.join(AssociationClass,
+                                           cls.id == AssociationClass.complete_document_id)
+                        join_conditions.append('CompletedDocumentPositionAssociation')
+                    if 'Position' not in join_conditions:
+                        query = query.join(PositionClass, AssociationClass.position_id == PositionClass.id)
+                        join_conditions.append('Position')
+
+                    # Add position ID filter
+                    if position_id:
+                        filter_conditions.append(AssociationClass.position_id == position_id)
+                        debug_id(f"Added position_id filter: {position_id}", rid)
+
+                    # Add hierarchy filters
+                    if area_id:
+                        filter_conditions.append(PositionClass.area_id == area_id)
+                        debug_id(f"Added area_id filter: {area_id}", rid)
+                    if equipment_group_id:
+                        filter_conditions.append(PositionClass.equipment_group_id == equipment_group_id)
+                        debug_id(f"Added equipment_group_id filter: {equipment_group_id}", rid)
+                    if model_id:
+                        filter_conditions.append(PositionClass.model_id == model_id)
+                        debug_id(f"Added model_id filter: {model_id}", rid)
+                    if asset_number_id:
+                        filter_conditions.append(PositionClass.asset_number_id == asset_number_id)
+                        debug_id(f"Added asset_number_id filter: {asset_number_id}", rid)
+                    if location_id:
+                        filter_conditions.append(PositionClass.location_id == location_id)
+                        debug_id(f"Added location_id filter: {location_id}", rid)
+                    if subassembly_id:
+                        filter_conditions.append(PositionClass.subassembly_id == subassembly_id)
+                        debug_id(f"Added subassembly_id filter: {subassembly_id}", rid)
+                    if component_assembly_id:
+                        filter_conditions.append(PositionClass.component_assembly_id == component_assembly_id)
+                        debug_id(f"Added component_assembly_id filter: {component_assembly_id}", rid)
+                    if assembly_view_id:
+                        filter_conditions.append(PositionClass.assembly_view_id == assembly_view_id)
+                        debug_id(f"Added assembly_view_id filter: {assembly_view_id}", rid)
+                    if site_location_id:
+                        filter_conditions.append(PositionClass.site_location_id == site_location_id)
+                        debug_id(f"Added site_location_id filter: {site_location_id}", rid)
+
+            # Apply all filters
+            if filter_conditions:
+                from sqlalchemy import and_
+                query = query.filter(and_(*filter_conditions))
+                debug_id(f"Applied {len(filter_conditions)} filter conditions", rid)
+            else:
+                warning_id("No search criteria provided, returning recent documents", rid)
+
+            # Add distinct to avoid duplicates from joins
+            query = query.distinct()
+
+            # Order by ID descending to get recent documents first
+            query = query.order_by(cls.id.desc())
+
+            # Apply limit and execute
+            query = query.limit(limit)
+            results = query.all()
+
+            info_id(f"Found {len(results)} documents matching search criteria", rid)
+
+            # Build detailed response
+            documents = []
+            for document in results:
+                try:
+                    document_details = {
+                        "id": document.id,
+                        "title": document.title,
+                        "file_path": document.file_path,
+                        "rev": document.rev,
+                        "content_preview": document.content[:200] + "..." if document.content and len(
+                            document.content) > 200 else document.content,
+                        "view_url": f"/search_documents/view_document/{document.id}",
+                        "download_url": f"/search_documents/download_document/{document.id}"
+                    }
+
+                    # Add file existence check if file_path exists
+                    if document.file_path:
+                        import os
+
+                        potential_paths = [
+                            document.file_path if os.path.isabs(document.file_path) else None,
+                            os.path.join(os.getcwd(), document.file_path),
+                            os.path.join(DATABASE_DIR, document.file_path),
+                            os.path.join(os.getcwd(), "uploads", os.path.basename(document.file_path))
+                        ]
+
+                        file_exists = any(os.path.exists(path) for path in potential_paths if path)
+                    else:
+                        file_exists = False
+
+                    document_details["file_exists"] = file_exists
+                    documents.append(document_details)
+                    debug_id(
+                        f"Processed document: ID={document.id}, Title='{document.title}', File exists={file_exists}",
+                        rid)
+
+                except Exception as e:
+                    error_id(f"Error processing document ID {document.id}: {e}", rid, exc_info=True)
+                    continue
+
+            info_id(f"Successfully processed {len(documents)} documents", rid)
+            return documents
+
+        except Exception as e:
+            error_id(f"Error in search_documents_enhanced: {e}", rid, exc_info=True)
+            return []
+        finally:
+            info_id("========== ENHANCED DOCUMENT SEARCH COMPLETE ==========", rid)
+
+    @classmethod
+    @with_request_id
+    def _convert_docx_to_pdf(cls, docx_path, request_id):
+        """Convert DOCX to PDF using docx2pdf library."""
+        try:
+            from docx2pdf import convert
+            import pythoncom
+            import tempfile
+            import os
+
+            # Initialize COM for Word automation (Windows)
+            pythoncom.CoInitialize()
+            debug_id("COM initialization successful", request_id)
+
+            # Create temporary PDF path
+            temp_dir = tempfile.mkdtemp()
+            base_name = os.path.splitext(os.path.basename(docx_path))[0]
+            pdf_path = os.path.join(temp_dir, f"{base_name}.pdf")
+
+            debug_id(f"Converting DOCX to PDF: {docx_path} -> {pdf_path}", request_id)
+
+            # Convert DOCX to PDF
+            convert(docx_path, pdf_path)
+
+            if os.path.exists(pdf_path):
+                info_id(f"Successfully converted DOCX to PDF: {pdf_path}", request_id)
+                return pdf_path
+            else:
+                error_id("PDF conversion failed - output file not created", request_id)
+                return None
+
+        except ImportError:
+            error_id("docx2pdf not installed. Run: pip install docx2pdf", request_id)
+            return None
+        except Exception as e:
+            error_id(f"DOCX to PDF conversion failed: {e}", request_id)
+            return None
+        finally:
+            try:
+                pythoncom.CoUninitialize()
+            except:
+                pass
+
+    @classmethod
+    @with_request_id
+    def _cleanup_temp_file(cls, file_path, request_id):
+        """Clean up temporary files and directories."""
+        try:
+            if file_path and os.path.exists(file_path):
+                # Remove the file
+                os.remove(file_path)
+                # Remove the temporary directory if empty
+                temp_dir = os.path.dirname(file_path)
+                if os.path.exists(temp_dir) and not os.listdir(temp_dir):
+                    os.rmdir(temp_dir)
+                debug_id(f"Cleaned up temporary file: {file_path}", request_id)
+        except Exception as e:
+            warning_id(f"Failed to cleanup temp file {file_path}: {e}", request_id)
 
 class Problem(Base):
     __tablename__ = 'problem'
