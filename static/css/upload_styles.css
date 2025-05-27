@@ -131,11 +131,25 @@ body {
 }
 
 .form-container select {
-    color: black;
+    color: black !important;
+    background-color: #f0f0f0 !important;
+
 }
 
 .form-container select option {
-    color: black;
+    color: black !important;
+    background-color: #fff !important;
+}
+
+/* If you are using Select2 for searchable dropdowns */
+.select2-container .select2-selection--single {
+    color: black !important;
+    background-color: #f0f0f0 !important;
+}
+.select2-dropdown,
+.select2-results__option {
+    color: black !important;
+    background-color: #fff !important;
 }
 
 /* Form labels */
