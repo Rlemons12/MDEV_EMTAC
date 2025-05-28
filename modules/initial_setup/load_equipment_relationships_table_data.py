@@ -75,6 +75,25 @@ class PostgreSQLEquipmentRelationshipsLoader:
             ('SiteLocation', SiteLocation, ['id', 'title', 'room_number', 'site_area'])
         ]
 
+    def create_database_tables(self, session):
+        """Create database tables if they don't exist - THIS IS THE KEY FIX!"""
+        try:
+            info_id("Creating database tables if they don't exist", self.request_id)
+            info_id("Creating database tables...")
+
+            # Get the engine from the session
+            engine = session.bind
+
+            # Create all tables defined in the Base metadata
+            Base.metadata.create_all(engine)
+
+            info_id("Database tables created/verified")
+            info_id("Database tables created successfully", self.request_id)
+
+        except Exception as e:
+            error_id(f"Error creating database tables: {str(e)}", self.request_id)
+            raise
+
     def validate_excel_file(self, file_path):
         """Validate the Excel file structure and required sheets."""
         info_id(f"Validating Excel file: {file_path}", self.request_id)
@@ -162,22 +181,26 @@ class PostgreSQLEquipmentRelationshipsLoader:
             total_records = 0
 
             for sheet_name, model_class, _ in self.table_order:
-                count = session.query(model_class).count()
-                existing_data[sheet_name] = count
-                total_records += count
+                try:
+                    count = session.query(model_class).count()
+                    existing_data[sheet_name] = count
+                    total_records += count
+                except Exception as e:
+                    # If table doesn't exist, count is 0
+                    warning_id(f"Table {sheet_name} might not exist: {str(e)}", self.request_id)
+                    existing_data[sheet_name] = 0
 
             if total_records > 0:
-                print(f"\n⚠️  EXISTING EQUIPMENT DATA DETECTED")
-                print(f"=" * 45)
+                warning_id("EXISTING EQUIPMENT DATA DETECTED")
+                warning_id("=" * 45)
                 for sheet_name, count in existing_data.items():
                     if count > 0:
-                        print(f"📊 {sheet_name}: {count} records")
-                print(f"📊 Total Records: {total_records}")
-                print(f"🔄 Loading new data may create duplicates!")
-                print(f"💡 The system will handle duplicates automatically")
-                print()
+                        info_id(f"{sheet_name}: {count} records")
+                info_id(f"Total Records: {total_records}")
+                warning_id("Loading new data may create duplicates!")
+                info_id("The system will handle duplicates automatically")
 
-                proceed = input("⚠️  Continue with equipment relationships import? (y/n): ").strip().lower()
+                proceed = input("Continue with equipment relationships import? (y/n): ").strip().lower()
                 if proceed not in ['y', 'yes']:
                     info_id("User chose to skip import due to existing data", self.request_id)
                     return False
@@ -192,7 +215,7 @@ class PostgreSQLEquipmentRelationshipsLoader:
         """Create a comprehensive database backup before making changes."""
         try:
             info_id("Creating database backup", self.request_id)
-            print("💾 Creating database backup...")
+            info_id("Creating database backup...")
 
             with log_timed_operation("create_database_backup", self.request_id):
                 # Define backup directory
@@ -237,12 +260,12 @@ class PostgreSQLEquipmentRelationshipsLoader:
                         df.to_excel(writer, sheet_name=sheet_name, index=False)
 
                 info_id(f"Database backup created: {excel_file_name}", self.request_id)
-                print(f"   ✅ Backup saved: {excel_file_name}")
+                info_id(f"Backup saved: {excel_file_name}")
 
         except Exception as e:
             error_id(f"Error creating database backup: {str(e)}", self.request_id)
             # Don't raise - backup failure shouldn't stop the import
-            print(f"   ⚠️  Backup failed: {str(e)}")
+            warning_id(f"Backup failed: {str(e)}")
 
     def delete_duplicates_enhanced(self, session, model, attribute, sheet_name):
         """Enhanced duplicate removal with detailed logging."""
@@ -298,7 +321,7 @@ class PostgreSQLEquipmentRelationshipsLoader:
     def process_single_table(self, session, df, model_class, sheet_name):
         """Process a single table with enhanced error handling and progress tracking."""
         info_id(f"Processing {sheet_name} table", self.request_id)
-        print(f"   📊 Processing {sheet_name}...")
+        info_id(f"Processing {sheet_name}...")
 
         try:
             processed_count = 0
@@ -444,7 +467,7 @@ class PostgreSQLEquipmentRelationshipsLoader:
                 self.stats[stat_key] = processed_count
 
             info_id(f"Processed {processed_count} {sheet_name} records", self.request_id)
-            print(f"      ✅ Processed {processed_count} records")
+            info_id(f"Processed {processed_count} records")
 
         except Exception as e:
             error_id(f"Error processing {sheet_name} table: {str(e)}", self.request_id)
@@ -454,7 +477,7 @@ class PostgreSQLEquipmentRelationshipsLoader:
         """Create revision control snapshots with enhanced error handling."""
         try:
             info_id("Creating revision control snapshots", self.request_id)
-            print("📸 Creating revision snapshots...")
+            info_id("Creating revision snapshots...")
 
             with log_timed_operation("create_revision_snapshots", self.request_id):
                 rev_session = RevisionControlSession()
@@ -511,7 +534,7 @@ class PostgreSQLEquipmentRelationshipsLoader:
                     self.stats['snapshots_created'] = snapshots_created
 
                     info_id(f"Created {snapshots_created} total snapshots", self.request_id)
-                    print(f"   ✅ Created {snapshots_created} snapshots")
+                    info_id(f"Created {snapshots_created} snapshots")
 
                 except Exception as e:
                     rev_session.rollback()
@@ -523,28 +546,28 @@ class PostgreSQLEquipmentRelationshipsLoader:
         except Exception as e:
             error_id(f"Error creating revision snapshots: {str(e)}", self.request_id)
             # Don't raise - snapshot failure shouldn't stop the import
-            print(f"   ⚠️  Snapshot creation failed: {str(e)}")
+            warning_id(f"Snapshot creation failed: {str(e)}")
 
     def display_processing_summary(self):
         """Display comprehensive processing summary."""
-        print(f"\n📊 Processing Summary")
-        print(f"=" * 40)
+        info_id("Processing Summary")
+        info_id("=" * 40)
 
         for key, value in self.stats.items():
             if value > 0:
                 formatted_key = key.replace('_', ' ').title()
-                print(f"{formatted_key}: {value}")
+                info_id(f"{formatted_key}: {value}")
 
         if self.stats['errors_encountered'] > 0:
-            print(f"⚠️  Errors Encountered: {self.stats['errors_encountered']}")
+            warning_id(f"Errors Encountered: {self.stats['errors_encountered']}")
 
         info_id(f"Processing summary: {self.stats}", self.request_id)
 
     def load_equipment_relationships(self, file_path=None):
         """Main method to load equipment relationships data."""
         try:
-            print(f"\n🎯 Equipment Relationships Data Import")
-            print(f"=" * 45)
+            info_id("Equipment Relationships Data Import")
+            info_id("=" * 45)
 
             # Determine file path
             if not file_path:
@@ -555,10 +578,13 @@ class PostgreSQLEquipmentRelationshipsLoader:
             if not is_valid:
                 raise ValueError(f"Invalid Excel file: {message}")
 
-            print(f"📂 Loading from: {os.path.basename(file_path)}")
+            info_id(f"Loading from: {os.path.basename(file_path)}")
 
             # Get database session
             with self.db_config.main_session() as session:
+                # CREATE TABLES FIRST - This is the key fix for your original error!
+                self.create_database_tables(session)
+
                 # Check existing data
                 if not self.check_existing_data(session):
                     return False
@@ -567,7 +593,7 @@ class PostgreSQLEquipmentRelationshipsLoader:
                 self.create_database_backup(session)
 
                 # Process each table in correct order
-                print(f"🔄 Processing tables in dependency order...")
+                info_id("Processing tables in dependency order...")
 
                 for sheet_name, model_class, required_columns in self.table_order:
                     try:
@@ -582,11 +608,11 @@ class PostgreSQLEquipmentRelationshipsLoader:
                     except Exception as e:
                         error_id(f"Error processing {sheet_name}: {str(e)}", self.request_id)
                         self.stats['errors_encountered'] += 1
-                        print(f"   ❌ Error processing {sheet_name}: {str(e)}")
+                        error_id(f"Error processing {sheet_name}: {str(e)}")
                         continue
 
                 # Remove duplicates
-                print(f"🧹 Removing duplicates...")
+                info_id("Removing duplicates...")
                 duplicate_mappings = [
                     (Area, 'name', 'Area'),
                     (EquipmentGroup, 'name', 'EquipmentGroup'),
@@ -602,7 +628,7 @@ class PostgreSQLEquipmentRelationshipsLoader:
                 # Commit all changes
                 session.commit()
                 info_id("All database changes committed successfully", self.request_id)
-                print(f"   💾 All changes committed to database")
+                info_id("All changes committed to database")
 
                 # Create revision snapshots
                 self.create_revision_snapshots(session)
@@ -610,14 +636,14 @@ class PostgreSQLEquipmentRelationshipsLoader:
             # Display summary
             self.display_processing_summary()
 
-            print(f"\n✅ Equipment Relationships Import Completed Successfully!")
+            info_id("Equipment Relationships Import Completed Successfully!")
             info_id("Equipment relationships import completed successfully", self.request_id)
 
             return True
 
         except Exception as e:
             error_id(f"Equipment relationships import failed: {str(e)}", self.request_id, exc_info=True)
-            print(f"\n❌ Import failed: {str(e)}")
+            error_id(f"Import failed: {str(e)}")
             return False
 
 
@@ -626,8 +652,8 @@ def main():
     Main function to load equipment relationships data.
     Uses the new PostgreSQL framework with enhanced error handling and features.
     """
-    print("\n🎯 Starting Equipment Relationships Data Import")
-    print("=" * 55)
+    info_id("Starting Equipment Relationships Data Import")
+    info_id("=" * 55)
 
     loader = None
     try:
@@ -638,18 +664,18 @@ def main():
         success = loader.load_equipment_relationships()
 
         if success:
-            print("\n✅ Equipment Relationships Import Completed Successfully!")
-            print("=" * 55)
+            info_id("Equipment Relationships Import Completed Successfully!")
+            info_id("=" * 55)
         else:
-            print("\n⚠️  Equipment Relationships Import Completed with Issues")
-            print("=" * 55)
+            warning_id("Equipment Relationships Import Completed with Issues")
+            info_id("=" * 55)
 
     except KeyboardInterrupt:
-        print("\n🛑 Import interrupted by user")
+        warning_id("Import interrupted by user")
         if loader:
             error_id("Import interrupted by user", loader.request_id)
     except Exception as e:
-        print(f"\n❌ Import failed: {str(e)}")
+        error_id(f"Import failed: {str(e)}")
         if loader:
             error_id(f"Import failed: {str(e)}", loader.request_id, exc_info=True)
     finally:
