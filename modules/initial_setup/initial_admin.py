@@ -40,8 +40,8 @@ class PostgreSQLAdminCreator:
 
         if not ADMIN_CREATION_PASSWORD:
             error_id("Admin creation password not configured in settings", self.request_id)
-            print("❌ Admin creation password is not configured")
-            print("💡 Please check your configuration settings")
+            error_id("Admin creation password is not configured")
+            info_id("Please check your configuration settings")
             return False
 
         # Clean and validate the entered password
@@ -53,7 +53,7 @@ class PostgreSQLAdminCreator:
 
         if entered_password != expected_password:
             error_id("Incorrect admin creation password provided", self.request_id)
-            print("❌ Incorrect password")
+            error_id("Incorrect password")
             return False
 
         info_id("Admin creation password validated successfully", self.request_id)
@@ -63,7 +63,7 @@ class PostgreSQLAdminCreator:
         """Check for existing admin users and provide user feedback."""
         try:
             info_id("Checking for existing admin users", self.request_id)
-            print("🔍 Checking for existing admin users...")
+            info_id("Checking for existing admin users...")
 
             # Check for regular admin users
             existing_admin = session.query(User).filter_by(user_level=UserLevel.ADMIN).first()
@@ -83,35 +83,32 @@ class PostgreSQLAdminCreator:
             }
 
             if existing_admin or existing_kivy_admin:
-                print(f"\n⚠️  EXISTING ADMIN USERS FOUND")
-                print(f"=" * 35)
+                warning_id("EXISTING ADMIN USERS FOUND")
+                warning_id("=" * 35)
 
                 if existing_admin:
-                    print(
-                        f"👤 Regular Admin: {existing_admin.employee_id} ({existing_admin.first_name} {existing_admin.last_name})")
+                    info_id(f"Regular Admin: {existing_admin.employee_id} ({existing_admin.first_name} {existing_admin.last_name})")
 
                 if existing_kivy_admin:
-                    print(
-                        f"📱 Kivy Admin: {existing_kivy_admin.employee_id} ({existing_kivy_admin.first_name} {existing_kivy_admin.last_name})")
+                    info_id(f"Kivy Admin: {existing_kivy_admin.employee_id} ({existing_kivy_admin.first_name} {existing_kivy_admin.last_name})")
 
-                print(f"📊 Total Users: {total_users}")
+                info_id(f"Total Users: {total_users}")
                 if total_kivy_users > 0:
-                    print(f"📱 Total Kivy Users: {total_kivy_users}")
-                print()
+                    info_id(f"Total Kivy Users: {total_kivy_users}")
 
                 info_id(f"Found existing admins - Regular: {bool(existing_admin)}, Kivy: {bool(existing_kivy_admin)}",
                         self.request_id)
             else:
-                print(f"   📋 No existing admin users found")
+                info_id("No existing admin users found")
                 if total_users > 0 or total_kivy_users > 0:
-                    print(f"   📊 Current users: {total_users} regular, {total_kivy_users} kivy users")
+                    info_id(f"Current users: {total_users} regular, {total_kivy_users} kivy users")
                 info_id("No existing admin users found", self.request_id)
 
             return results
 
         except Exception as e:
             error_id(f"Error checking existing users: {str(e)}", self.request_id)
-            print(f"⚠️  Error checking existing users: {str(e)}")
+            error_id(f"Error checking existing users: {str(e)}")
             return None
 
     def create_regular_admin(self, session, user_check_results):
@@ -120,12 +117,12 @@ class PostgreSQLAdminCreator:
             if user_check_results and user_check_results['regular_admin_exists']:
                 existing_admin = user_check_results['existing_admin']
                 info_id(f"Regular admin already exists: {existing_admin.employee_id}", self.request_id)
-                print(f"✅ Regular admin user already exists: {existing_admin.employee_id}")
+                info_id(f"Regular admin user already exists: {existing_admin.employee_id}")
                 self.stats['users_already_exist'] += 1
                 return True
 
             info_id("Creating regular admin user", self.request_id)
-            print("👤 Creating regular admin user...")
+            info_id("Creating regular admin user...")
 
             with log_timed_operation("create_regular_admin", self.request_id):
                 # Create the admin user
@@ -150,16 +147,16 @@ class PostgreSQLAdminCreator:
                 session.flush()  # Get the ID without committing
 
                 info_id(f"Created regular admin user with ID: {admin_user.id}", self.request_id)
-                print(f"   ✅ Created regular admin: {admin_user.employee_id}")
-                print(f"   🔑 Default password: admin123")
-                print(f"   💡 Please change the password after first login")
+                info_id(f"Created regular admin: {admin_user.employee_id}")
+                info_id("Default password: admin123")
+                info_id("Please change the password after first login")
 
                 self.stats['users_created'] += 1
                 return True
 
         except Exception as e:
             error_id(f"Error creating regular admin user: {str(e)}", self.request_id, exc_info=True)
-            print(f"   ❌ Error creating regular admin: {str(e)}")
+            error_id(f"Error creating regular admin: {str(e)}")
             self.stats['errors_encountered'] += 1
             return False
 
@@ -169,12 +166,12 @@ class PostgreSQLAdminCreator:
             if user_check_results and user_check_results['kivy_admin_exists']:
                 existing_kivy_admin = user_check_results['existing_kivy_admin']
                 info_id(f"Kivy admin already exists: {existing_kivy_admin.employee_id}", self.request_id)
-                print(f"✅ Kivy admin user already exists: {existing_kivy_admin.employee_id}")
+                info_id(f"Kivy admin user already exists: {existing_kivy_admin.employee_id}")
                 self.stats['users_already_exist'] += 1
                 return True
 
             info_id("Creating Kivy admin user", self.request_id)
-            print("📱 Creating Kivy admin user...")
+            info_id("Creating Kivy admin user...")
 
             with log_timed_operation("create_kivy_admin", self.request_id):
                 # Create the Kivy admin user
@@ -199,49 +196,49 @@ class PostgreSQLAdminCreator:
                 session.flush()  # Get the ID without committing
 
                 info_id(f"Created Kivy admin user with ID: {kivy_admin.id}", self.request_id)
-                print(f"   ✅ Created Kivy admin: {kivy_admin.employee_id}")
-                print(f"   🔑 Default password: admin123")
-                print(f"   💡 Please change the password after first login")
+                info_id(f"Created Kivy admin: {kivy_admin.employee_id}")
+                info_id("Default password: admin123")
+                info_id("Please change the password after first login")
 
                 self.stats['users_created'] += 1
                 return True
 
         except Exception as e:
             error_id(f"Error creating Kivy admin user: {str(e)}", self.request_id, exc_info=True)
-            print(f"   ❌ Error creating Kivy admin: {str(e)}")
+            error_id(f"Error creating Kivy admin: {str(e)}")
             self.stats['errors_encountered'] += 1
             return False
 
     def display_final_summary(self):
         """Display comprehensive admin creation summary."""
-        print(f"\n🎉 ADMIN CREATION COMPLETE!")
-        print(f"=" * 35)
-        print(f"📊 Final Summary:")
-        print(f"   👥 Users created: {self.stats['users_created']}")
-        print(f"   ✅ Users already existed: {self.stats['users_already_exist']}")
+        info_id("ADMIN CREATION COMPLETE!")
+        info_id("=" * 35)
+        info_id("Final Summary:")
+        info_id(f"   Users created: {self.stats['users_created']}")
+        info_id(f"   Users already existed: {self.stats['users_already_exist']}")
 
         if self.stats['errors_encountered'] > 0:
-            print(f"   ❌ Errors encountered: {self.stats['errors_encountered']}")
+            warning_id(f"   Errors encountered: {self.stats['errors_encountered']}")
 
         if self.stats['processing_time'] > 0:
-            print(f"   ⏱️  Processing time: {self.stats['processing_time']:.2f}s")
+            info_id(f"   Processing time: {self.stats['processing_time']:.2f}s")
 
-        print(f"=" * 35)
+        info_id("=" * 35)
 
         if self.stats['users_created'] > 0:
-            print(f"🔑 IMPORTANT SECURITY NOTES:")
-            print(f"   • Default password is 'admin123'")
-            print(f"   • Change passwords immediately after first login")
-            print(f"   • Use strong, unique passwords for production")
-            print(f"   • Consider enabling two-factor authentication")
+            info_id("IMPORTANT SECURITY NOTES:")
+            info_id("   - Default password is 'admin123'")
+            info_id("   - Change passwords immediately after first login")
+            info_id("   - Use strong, unique passwords for production")
+            info_id("   - Consider enabling two-factor authentication")
 
         info_id(f"Admin creation summary: {self.stats}", self.request_id)
 
     def create_admin_users(self, admin_password):
         """Main method to create admin users with comprehensive handling."""
         try:
-            print(f"\n👤 Initial Admin User Creation")
-            print(f"=" * 35)
+            info_id("Initial Admin User Creation")
+            info_id("=" * 35)
 
             start_time = time.time()
 
@@ -261,11 +258,11 @@ class PostgreSQLAdminCreator:
                 needs_kivy_admin = not user_check_results['kivy_admin_exists']
 
                 if not needs_regular_admin and not needs_kivy_admin:
-                    print(f"📋 All admin users already exist")
+                    info_id("All admin users already exist")
                     info_id("All admin users already exist, nothing to create", self.request_id)
                     self.stats['users_already_exist'] = 2
                 else:
-                    print(f"🚀 Creating missing admin users...")
+                    info_id("Creating missing admin users...")
 
                     # Create regular admin if needed
                     if needs_regular_admin:
@@ -279,11 +276,11 @@ class PostgreSQLAdminCreator:
                     try:
                         session.commit()
                         info_id("All admin user changes committed successfully", self.request_id)
-                        print(f"   💾 All changes saved successfully")
+                        info_id("All changes saved successfully")
                     except Exception as e:
                         session.rollback()
                         error_id(f"Error committing admin user changes: {str(e)}", self.request_id)
-                        print(f"   ❌ Error saving changes: {str(e)}")
+                        error_id(f"Error saving changes: {str(e)}")
                         return False
 
             # Update final statistics
@@ -297,30 +294,30 @@ class PostgreSQLAdminCreator:
 
         except Exception as e:
             error_id(f"Admin user creation failed: {str(e)}", self.request_id, exc_info=True)
-            print(f"\n❌ Admin creation failed: {str(e)}")
+            error_id(f"Admin creation failed: {str(e)}")
             return False
 
 
 def prompt_for_admin_password():
     """Enhanced password prompting with validation."""
-    print(f"\n🔐 Admin Creation Authentication")
-    print(f"=" * 35)
-    print(f"Enter the admin creation password to proceed.")
-    print(f"💡 This is configured in your application settings.")
-    print()
+    info_id("Admin Creation Authentication")
+    info_id("=" * 35)
+    info_id("Enter the admin creation password to proceed.")
+    info_id("This is configured in your application settings.")
+    info_id("")
 
     max_attempts = 3
     for attempt in range(1, max_attempts + 1):
-        admin_password = input(f"🔑 Admin creation password (attempt {attempt}/{max_attempts}): ").strip()
+        admin_password = input(f"Admin creation password (attempt {attempt}/{max_attempts}): ").strip()
 
         if admin_password:
             return admin_password
         else:
-            print(f"⚠️  Please enter a password")
+            warning_id("Please enter a password")
             if attempt < max_attempts:
-                print(f"💡 {max_attempts - attempt} attempts remaining")
+                info_id(f"{max_attempts - attempt} attempts remaining")
 
-    print(f"❌ Maximum attempts exceeded")
+    error_id("Maximum attempts exceeded")
     return None
 
 
@@ -328,8 +325,8 @@ def main():
     """
     Main function to handle the admin creation process using PostgreSQL framework.
     """
-    print("\n🎯 Starting Initial Admin User Creation")
-    print("=" * 45)
+    info_id("Starting Initial Admin User Creation")
+    info_id("=" * 45)
 
     creator = None
     try:
@@ -339,25 +336,25 @@ def main():
         # Prompt for admin password
         admin_password = prompt_for_admin_password()
         if not admin_password:
-            print("❌ Admin creation cancelled - no valid password provided")
+            error_id("Admin creation cancelled - no valid password provided")
             return
 
         # Create admin users
         success = creator.create_admin_users(admin_password)
 
         if success:
-            print("\n✅ Initial Admin Creation Completed Successfully!")
-            print("=" * 45)
+            info_id("Initial Admin Creation Completed Successfully!")
+            info_id("=" * 45)
         else:
-            print("\n⚠️  Initial Admin Creation Completed with Issues")
-            print("=" * 45)
+            warning_id("Initial Admin Creation Completed with Issues")
+            info_id("=" * 45)
 
     except KeyboardInterrupt:
-        print("\n🛑 Admin creation interrupted by user")
+        warning_id("Admin creation interrupted by user")
         if creator:
             error_id("Admin creation interrupted by user", creator.request_id)
     except Exception as e:
-        print(f"\n❌ Admin creation failed: {str(e)}")
+        error_id(f"Admin creation failed: {str(e)}")
         if creator:
             error_id(f"Admin creation failed: {str(e)}", creator.request_id, exc_info=True)
     finally:
