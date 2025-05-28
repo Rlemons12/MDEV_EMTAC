@@ -427,3 +427,31 @@ class DatabaseConfig:
                 'database_type': 'PostgreSQL' if self.is_postgresql else 'SQLite',
                 'url': self.main_database_url
             }
+
+    def get_unicode_database_url(self):
+        """Get database URL with proper Unicode encoding parameters."""
+        base_url = self.get_database_url()  # Your existing method
+
+        # Add encoding parameters if not already present
+        if '?' in base_url:
+            return base_url + "&client_encoding=utf8&connect_timeout=30"
+        else:
+            return base_url + "?client_encoding=utf8&connect_timeout=30"
+
+    def create_unicode_engine(self):
+        """Create SQLAlchemy engine with proper Unicode support."""
+        from sqlalchemy import create_engine
+
+        engine = create_engine(
+            self.get_unicode_database_url(),
+            # Ensure connection uses UTF-8
+            connect_args={
+                'client_encoding': 'utf8',
+            },
+            # Connection pool settings
+            pool_pre_ping=True,
+            pool_recycle=3600,
+            echo=False
+        )
+
+        return engine
