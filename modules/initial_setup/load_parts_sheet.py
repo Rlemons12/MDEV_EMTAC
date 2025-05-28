@@ -96,14 +96,8 @@ class OptimizedPostgreSQLPartsSheetLoader:
             part_count = session.query(Part).count()
 
             if part_count > 0:
-                print(f"\n⚠️  EXISTING PARTS DATA DETECTED")
-                print(f"=" * 45)
-                print(f"📊 Current parts in database: {part_count:,}")
-                print(f"💡 Duplicate part numbers will be automatically skipped")
-                print(f"🔄 Only new parts will be added to the database")
-                print()
-
-                proceed = input("⚠️  Continue with parts import? (y/n): ").strip().lower()
+                info_id(f"Found {part_count:,} existing parts in database", self.request_id)
+                proceed = input("Continue with parts import? (y/n): ").strip().lower()
                 if proceed not in ['y', 'yes']:
                     info_id("User chose to skip parts import due to existing data", self.request_id)
                     return False
@@ -118,7 +112,6 @@ class OptimizedPostgreSQLPartsSheetLoader:
         """Create a backup of existing parts data."""
         try:
             info_id("Creating parts backup", self.request_id)
-            print("💾 Creating parts backup...")
 
             with log_timed_operation("create_parts_backup", self.request_id):
                 # Define backup directory
@@ -153,20 +146,16 @@ class OptimizedPostgreSQLPartsSheetLoader:
                     # Save to Excel
                     backup_df.to_excel(backup_path, index=False, sheet_name='Parts_Backup')
                     info_id(f"Parts backup created: {backup_filename} ({len(backup_df)} records)", self.request_id)
-                    print(f"   ✅ Backup saved: {backup_filename} ({len(backup_df):,} records)")
                 else:
                     info_id("No existing parts to backup", self.request_id)
-                    print(f"   📋 No existing parts to backup")
 
         except Exception as e:
             error_id(f"Error creating parts backup: {str(e)}", self.request_id)
-            print(f"   ⚠️  Backup failed: {str(e)}")
             # Don't raise - backup failure shouldn't stop the import
 
     def clean_and_validate_data(self, df):
         """Clean and validate the parts data using vectorized operations."""
         info_id("Cleaning and validating parts data", self.request_id)
-        print("🧹 Cleaning and validating data...")
 
         try:
             original_rows = len(df)
@@ -199,7 +188,6 @@ class OptimizedPostgreSQLPartsSheetLoader:
 
                     if removed_count > 0:
                         warning_id(f"Removed {removed_count} rows with empty {field}", self.request_id)
-                        print(f"   ⚠️  Removed {removed_count} rows with empty {field}")
 
             # Validate part numbers format using vectorized operations
             if 'ITEMNUM' in df.columns:
@@ -210,11 +198,9 @@ class OptimizedPostgreSQLPartsSheetLoader:
 
                 if invalid_count > 0:
                     warning_id(f"Removed {invalid_count} rows with invalid part numbers", self.request_id)
-                    print(f"   ⚠️  Removed {invalid_count} rows with invalid part numbers")
 
             final_rows = len(df)
             info_id(f"Data cleaning complete: {original_rows} -> {final_rows} rows", self.request_id)
-            print(f"   ✅ Data cleaned: {original_rows:,} -> {final_rows:,} rows")
 
             return df
 
@@ -246,14 +232,13 @@ class OptimizedPostgreSQLPartsSheetLoader:
             raise
 
     def process_parts_data_vectorized(self, session, df):
-        """Process parts data using vectorized operations - MUCH faster!"""
+        """Process parts data using vectorized operations."""
         info_id("Processing parts data using vectorized operations", self.request_id)
-        print("⚙️  Processing parts data...")
 
         try:
             # Get existing part numbers
             existing_part_numbers = self.get_existing_part_numbers_fast(session)
-            print(f"   📋 Found {len(existing_part_numbers):,} existing parts in database")
+            info_id(f"Found {len(existing_part_numbers):,} existing parts in database", self.request_id)
 
             # Remove duplicates within the import data first (vectorized)
             initial_count = len(df)
@@ -261,7 +246,7 @@ class OptimizedPostgreSQLPartsSheetLoader:
             internal_dupes = initial_count - len(df_dedupe)
 
             if internal_dupes > 0:
-                print(f"   🔄 Removed {internal_dupes:,} internal duplicates")
+                info_id(f"Removed {internal_dupes:,} internal duplicates", self.request_id)
 
             # Filter out existing parts using vectorized operations
             if existing_part_numbers:
@@ -275,7 +260,7 @@ class OptimizedPostgreSQLPartsSheetLoader:
             # Create dictionary mapping using vectorized operations
             parts_data = []
             if not df_new.empty:
-                print(f"   📊 Processing {len(df_new):,} new parts...")
+                info_id(f"Processing {len(df_new):,} new parts", self.request_id)
 
                 # Use vectorized operations to create the parts list
                 for db_col, excel_col in self.column_mapping.items():
@@ -292,11 +277,7 @@ class OptimizedPostgreSQLPartsSheetLoader:
             self.stats['duplicates_skipped'] = internal_dupes + db_dupes
 
             info_id(f"Vectorized processing complete: {len(parts_data)} new parts", self.request_id)
-            print(f"   ✅ Processing complete:")
-            print(f"      📈 New parts: {len(parts_data):,}")
-            print(f"      📋 Total duplicates skipped: {internal_dupes + db_dupes:,}")
-            print(f"         • Internal duplicates: {internal_dupes:,}")
-            print(f"         • Database duplicates: {db_dupes:,}")
+            info_id(f"Total duplicates skipped: {internal_dupes + db_dupes:,} (Internal: {internal_dupes:,}, Database: {db_dupes:,})", self.request_id)
 
             return parts_data
 
@@ -308,12 +289,10 @@ class OptimizedPostgreSQLPartsSheetLoader:
         """Optimized bulk insertion using PostgreSQL-specific features."""
         if not new_parts:
             info_id("No new parts to insert", self.request_id)
-            print("   📋 No new parts to insert")
             return []
 
         try:
             info_id(f"Bulk inserting {len(new_parts)} parts", self.request_id)
-            print(f"💾 Inserting {len(new_parts):,} new parts...")
 
             with log_timed_operation("bulk_insert_parts_optimized", self.request_id):
                 if self.db_config.is_postgresql:
@@ -345,8 +324,6 @@ class OptimizedPostgreSQLPartsSheetLoader:
 
                 info_id(f"Successfully inserted {len(new_parts)} parts, retrieved {len(new_part_ids)} IDs",
                         self.request_id)
-                print(f"   ✅ Successfully inserted {len(new_parts):,} parts")
-
                 return new_part_ids
 
         except Exception as e:
@@ -361,7 +338,6 @@ class OptimizedPostgreSQLPartsSheetLoader:
 
         try:
             info_id("Starting automatic part-image association process", self.request_id)
-            print("🔗 Creating part-image associations...")
 
             with log_timed_operation("create_part_image_associations", self.request_id):
                 # Use RelationshipManager for associations
@@ -375,35 +351,26 @@ class OptimizedPostgreSQLPartsSheetLoader:
 
                     if total_associations > 0:
                         info_id(f"Created {total_associations} part-image associations", self.request_id)
-                        print(f"   ✅ Created {total_associations:,} part-image associations")
                     else:
                         info_id("No part-image associations created", self.request_id)
-                        print(f"   📋 No matching images found for association")
 
         except Exception as e:
             error_id(f"Error during part-image association: {str(e)}", self.request_id)
-            print(f"   ⚠️  Association error: {str(e)}")
             # Don't raise - association failure shouldn't stop the main import
 
     def display_final_summary(self):
-        """Display comprehensive processing summary."""
-        print(f"\n🎉 PARTS IMPORT COMPLETE!")
-        print(f"=" * 40)
-        print(f"📊 Final Summary:")
-        print(f"   📁 Total rows processed: {self.stats['total_rows_found']:,}")
-        print(f"   ✅ New parts added: {self.stats['new_parts_added']:,}")
-        print(f"   📋 Duplicates skipped: {self.stats['duplicates_skipped']:,}")
-        print(f"   🔗 Associations created: {self.stats['associations_created']:,}")
+        """Log comprehensive processing summary."""
+        info_id("Parts import completed", self.request_id)
+        info_id(f"Total rows processed: {self.stats['total_rows_found']:,}", self.request_id)
+        info_id(f"New parts added: {self.stats['new_parts_added']:,}", self.request_id)
+        info_id(f"Duplicates skipped: {self.stats['duplicates_skipped']:,}", self.request_id)
+        info_id(f"Associations created: {self.stats['associations_created']:,}", self.request_id)
 
         if self.stats['errors_encountered'] > 0:
-            print(f"   ❌ Errors encountered: {self.stats['errors_encountered']:,}")
+            error_id(f"Errors encountered: {self.stats['errors_encountered']:,}", self.request_id)
 
         if self.stats['processing_time'] > 0:
-            print(f"   ⏱️  Processing time: {self._format_time(self.stats['processing_time'])}")
-
-        print(f"=" * 40)
-
-        info_id(f"Optimized parts import summary: {self.stats}", self.request_id)
+            info_id(f"Processing time: {self._format_time(self.stats['processing_time'])}", self.request_id)
 
     def _format_time(self, seconds):
         """Format seconds into readable time string."""
@@ -419,15 +386,14 @@ class OptimizedPostgreSQLPartsSheetLoader:
     def load_parts_from_excel(self, file_path=None):
         """Main method to load parts from Excel file using optimized operations."""
         try:
-            print(f"\n🚀 OPTIMIZED Parts Sheet Data Import")
-            print(f"=" * 42)
+            info_id("Starting optimized parts sheet data import", self.request_id)
 
             # Determine file path
             if not file_path:
                 load_sheet_filename = "load_MP2_ITEMS_BOMS.xlsx"
                 file_path = os.path.join(DB_LOADSHEET, load_sheet_filename)
 
-            print(f"📂 Source file: {os.path.basename(file_path)}")
+            info_id(f"Source file: {os.path.basename(file_path)}", self.request_id)
 
             # Validate Excel file
             is_valid, message = self.validate_excel_file(file_path)
@@ -446,17 +412,16 @@ class OptimizedPostgreSQLPartsSheetLoader:
                 self.create_parts_backup(session)
 
                 # Load data using optimized reading
-                print(f"📊 Loading Excel data...")
+                info_id(f"Loading Excel data", self.request_id)
                 with log_timed_operation("load_excel_data", self.request_id):
                     # Read entire sheet at once - faster than chunks for most cases
                     df = pd.read_excel(file_path, sheet_name="EQUIP_BOMS")
                     info_id(f"Loaded Excel sheet with {len(df)} rows", self.request_id)
-                    print(f"   ✅ Loaded {len(df):,} rows from Excel")
 
                 # Clean and validate data using vectorized operations
                 df_cleaned = self.clean_and_validate_data(df)
 
-                # Process parts data using vectorized operations (MUCH faster!)
+                # Process parts data using vectorized operations
                 new_parts = self.process_parts_data_vectorized(session, df_cleaned)
 
                 # Bulk insert parts using optimized method
@@ -468,7 +433,7 @@ class OptimizedPostgreSQLPartsSheetLoader:
             # Update final statistics
             self.stats['processing_time'] = time.time() - start_time
 
-            # Display summary
+            # Log summary
             self.display_final_summary()
 
             info_id("Optimized parts import completed successfully", self.request_id)
@@ -476,7 +441,6 @@ class OptimizedPostgreSQLPartsSheetLoader:
 
         except Exception as e:
             error_id(f"Optimized parts import failed: {str(e)}", self.request_id, exc_info=True)
-            print(f"\n❌ Import failed: {str(e)}")
             return False
 
 
@@ -484,8 +448,7 @@ def main():
     """
     Main function to load parts data using the optimized PostgreSQL framework.
     """
-    print("\n🚀 Starting OPTIMIZED Parts Sheet Import")
-    print("=" * 45)
+    info_id("Starting optimized parts sheet import", request_id=None)
 
     loader = None
     try:
@@ -496,20 +459,14 @@ def main():
         success = loader.load_parts_from_excel()
 
         if success:
-            print("\n✅ Optimized Parts Sheet Import Completed Successfully!")
-            print("=" * 52)
+            info_id("Optimized parts sheet import completed successfully", loader.request_id)
         else:
-            print("\n⚠️  Optimized Parts Sheet Import Completed with Issues")
-            print("=" * 55)
+            warning_id("Optimized parts sheet import completed with issues", loader.request_id)
 
     except KeyboardInterrupt:
-        print("\n🛑 Import interrupted by user")
-        if loader:
-            error_id("Import interrupted by user", loader.request_id)
+        error_id("Import interrupted by user", loader.request_id if loader else None)
     except Exception as e:
-        print(f"\n❌ Import failed: {str(e)}")
-        if loader:
-            error_id(f"Import failed: {str(e)}", loader.request_id, exc_info=True)
+        error_id(f"Import failed: {str(e)}", loader.request_id if loader else None, exc_info=True)
     finally:
         # Close logger
         try:
