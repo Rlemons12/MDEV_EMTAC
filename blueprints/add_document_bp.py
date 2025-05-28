@@ -2,7 +2,7 @@
 import psutil
 from flask import Blueprint, request, jsonify, redirect, url_for
 from sqlalchemy import text
-from modules.emtacdb.emtacdb_fts import CompleteDocument, Document
+from modules.emtacdb.emtacdb_fts import CompleteDocument, Document, Image
 from modules.emtacdb.utlity.revision_database.auditlog import commit_audit_logs, add_audit_log_entry
 from modules.configuration.config_env import DatabaseConfig
 import traceback
@@ -34,26 +34,16 @@ def initialize_fts_table():
 @add_document_bp.route("/add_document", methods=["POST"])
 @with_request_id
 def add_document():
-    """
-    Enhanced document upload route using PostgreSQL-optimized CompleteDocument class.
-    Handles file uploads with concurrent processing and proper error handling.
-    """
     request_id = get_request_id()
     info_id("Received a request to add documents", request_id)
-
-    # Validate request
     if "files" not in request.files:
         error_id("No files uploaded", request_id)
         return jsonify({"message": "No files uploaded"}), 400
-
     files = request.files.getlist("files")
     if not files or all(f.filename == "" for f in files):
         error_id("No valid files provided", request_id)
         return jsonify({"message": "No valid files provided"}), 400
-
     info_id(f"Processing {len(files)} files: {[f.filename for f in files]}", request_id)
-
-    # Collect and validate metadata
     metadata = {
         'title': request.form.get("title", "").strip(),
         'area': request.form.get("area", "").strip(),
@@ -67,31 +57,81 @@ def add_document():
         'tags': request.form.get("tags", "").strip(),
         'priority': request.form.get("priority", "normal").strip(),
     }
-
     info_id(f"Metadata: {metadata}", request_id)
-
     try:
-        # Ensure FTS table exists before processing
         _ensure_fts_table_exists(request_id)
-
-        # Process upload using the PostgreSQL-optimized method
-        with log_timed_operation("Document processing", request_id):
-            success = CompleteDocument.process_upload(files, metadata, request_id)
-
+        with log_timed_operation("Document processing with image extraction", request_id):
+            success, response, status = CompleteDocument.process_upload(files, metadata, request_id)
         if success:
-            info_id("Successfully processed all files", request_id)
+            info_id("Successfully processed all files with image extraction", request_id)
             _log_successful_processing(files, metadata, request_id)
             return redirect(request.referrer or url_for("index"))
         else:
-            error_id("Document processing failed", request_id)
-            _log_failed_processing(files, "Document processing failed", request_id)
-            return jsonify({"message": "Document processing failed"}), 500
-
+            error_id(f"Document processing failed: {response.get('errors')}", request_id)
+            _log_failed_processing(files, response.get('errors', "Document processing failed"), request_id)
+            return jsonify(response), status
     except Exception as e:
         error_id(f"Error processing files: {e}", request_id)
         error_id(traceback.format_exc(), request_id)
         _log_failed_processing(files, str(e), request_id)
         return jsonify({"message": f"Error processing files: {str(e)}"}), 500
+
+def _log_failed_processing(files, error_message, request_id):
+    try:
+        add_audit_log_entry(
+            table_name="complete_document",
+            operation="ERROR",
+            record_id=None,
+            new_data={
+                "error": str(error_message),
+                "files_attempted": [f.filename for f in files],
+                "processing_method": "concurrent_postgresql_with_images"
+            },
+            request_id=request_id
+        )
+        commit_audit_logs()
+    except Exception as e:
+        warning_id(f"Audit logging failed: {e}", request_id)
+
+def _log_successful_processing(files, metadata, request_id):
+    try:
+        add_audit_log_entry(
+            table_name="complete_document",
+            operation="CREATE",
+            record_id=None,
+            new_data={
+                "files_processed": len(files),
+                "filenames": [f.filename for f in files],
+                "metadata": metadata,
+                "processing_method": "concurrent_postgresql_with_images"
+            },
+            request_id=request_id
+        )
+        commit_audit_logs()
+    except Exception as e:
+        warning_id(f"Audit logging failed: {e}", request_id)
+
+
+@add_document_bp.route("/image/<int:image_id>", methods=["GET"])
+@with_request_id
+def serve_image(image_id):
+    """
+    Serve an image file by ID.
+    """
+    request_id = get_request_id()
+
+    try:
+        success, response, status_code = Image.serve_file(image_id, request_id)
+
+        if success:
+            return response
+        else:
+            return jsonify({"error": response, "success": False}), status_code
+
+    except Exception as e:
+        error_id(f"Error serving image {image_id}: {e}", request_id)
+        return jsonify({"error": "Internal server error", "success": False}), 500
+
 
 def _ensure_fts_table_exists(request_id):
     """Ensure the FTS table exists before processing documents."""
@@ -115,43 +155,6 @@ def _ensure_fts_table_exists(request_id):
     except Exception as e:
         warning_id(f"Error checking/creating FTS table: {e}", request_id)
 
-def _log_successful_processing(files, metadata, request_id):
-    """Log successful processing to audit trail."""
-    try:
-        add_audit_log_entry(
-            table_name="complete_document",
-            operation="CREATE",
-            record_id=None,  # Multiple documents created
-            new_data={
-                "files_processed": len(files),
-                "filenames": [f.filename for f in files],
-                "metadata": metadata,
-                "processing_method": "concurrent_postgresql"
-            },
-            commit_to_db=False
-        )
-        commit_audit_logs()
-    except Exception as audit_e:
-        # Don't fail the whole operation if audit logging fails
-        warning_id(f"Audit logging failed: {audit_e}", request_id)
-
-def _log_failed_processing(files, error_message, request_id):
-    """Log failed processing to audit trail."""
-    try:
-        add_audit_log_entry(
-            table_name="complete_document",
-            operation="ERROR",
-            record_id=None,
-            new_data={
-                "error": error_message,
-                "files_attempted": [f.filename for f in files],
-                "processing_method": "concurrent_postgresql"
-            },
-            commit_to_db=False
-        )
-        commit_audit_logs()
-    except Exception:
-        pass  # Ignore audit logging errors
 
 @add_document_bp.route("/initialize_fts", methods=["POST"])
 @with_request_id
@@ -218,6 +221,25 @@ def health_check():
         health_status["status"] = "unhealthy"
         health_status["error"] = str(e)
         return jsonify(health_status), 503
+
+
+@add_document_bp.route("/image/<int:image_id>", methods=["GET"])
+@with_request_id
+def serve_document_image(image_id):
+    """Serve an image file by ID."""
+    request_id = get_request_id()
+
+    try:
+        success, response, status_code = Image.serve_file(image_id, request_id)
+
+        if success:
+            return response
+        else:
+            return jsonify({"error": response, "success": False}), status_code
+
+    except Exception as e:
+        error_id(f"Error serving image {image_id}: {e}", request_id)
+        return jsonify({"error": "Internal server error", "success": False}), 500
 
 
 def calculate_optimal_workers(memory_threshold=0.5, max_workers=None, request_id=None):
