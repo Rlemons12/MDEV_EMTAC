@@ -54,7 +54,6 @@ class OptimizedPositionCreator:
     def validate_database_structure(self, session):
         """Validate database structure using optimized queries."""
         info_id("Validating database structure for position creation", self.request_id)
-        print("🔍 Validating database structure...")
 
         try:
             with log_timed_operation("validate_database_structure", self.request_id):
@@ -82,13 +81,11 @@ class OptimizedPositionCreator:
 
                         if count == 0 and display_name in ['Area', 'EquipmentGroup', 'Model']:
                             warning_id(f"Critical table {display_name} is empty", self.request_id)
-                            print(f"   ⚠️  {display_name}: No records found (critical)")
                         else:
-                            print(f"   ✅ {display_name}: {count:,} records")
+                            info_id(f"{display_name}: {count:,} records", self.request_id)
 
                     except Exception as e:
                         error_id(f"Error checking {display_name} table: {str(e)}", self.request_id)
-                        print(f"   ❌ {display_name}: Error - {str(e)}")
                         return False
 
                 # Check for critical missing data
@@ -99,23 +96,18 @@ class OptimizedPositionCreator:
 
                 if critical_missing:
                     error_id(f"Critical tables are empty: {critical_missing}", self.request_id)
-                    print(f"\n❌ Cannot proceed: Critical tables are empty: {', '.join(critical_missing)}")
-                    print(f"💡 Please run the equipment relationships import first")
                     return False
 
                 info_id("Database structure validation successful", self.request_id)
-                print(f"   ✅ Database structure validation passed")
                 return True
 
         except Exception as e:
             error_id(f"Error validating database structure: {str(e)}", self.request_id)
-            print(f"❌ Database validation failed: {str(e)}")
             return False
 
     def load_hierarchy_data_vectorized(self, session, area_limit=None):
         """Load all hierarchy data using optimized bulk queries."""
         info_id("Loading hierarchy data using vectorized operations", self.request_id)
-        print("📊 Loading hierarchy data...")
 
         try:
             start_time = time.time()
@@ -227,25 +219,22 @@ class OptimizedPositionCreator:
 
                 self.stats['data_loading_time'] = time.time() - start_time
 
-                # Print summary
+                # Log summary
                 total_records = sum(len(df) for df in self.hierarchy_data.values())
                 info_id(f"Loaded {total_records} hierarchy records", self.request_id)
-                print(f"   ✅ Loaded hierarchy data:")
                 for name, df in self.hierarchy_data.items():
-                    print(f"      • {name.title()}: {len(df):,}")
+                    info_id(f"{name.title()}: {len(df):,}", self.request_id)
 
                 return True
 
         except Exception as e:
             error_id(f"Error loading hierarchy data: {str(e)}", self.request_id)
-            print(f"❌ Failed to load hierarchy data: {str(e)}")
             return False
 
     def load_existing_positions_vectorized(self, session):
         """Load existing positions using optimized bulk query."""
         try:
             info_id("Loading existing positions using vectorized operations", self.request_id)
-            print("🔍 Loading existing positions...")
 
             with log_timed_operation("load_existing_positions", self.request_id):
                 if self.db_config.is_postgresql:
@@ -275,17 +264,14 @@ class OptimizedPositionCreator:
                     )
 
                 info_id(f"Loaded {len(self.existing_positions)} existing positions", self.request_id)
-                print(f"   ✅ Loaded {len(self.existing_positions):,} existing positions")
 
         except Exception as e:
             error_id(f"Error loading existing positions: {str(e)}", self.request_id)
-            print(f"   ⚠️  Error loading positions: {str(e)}")
             self.existing_positions = set()
 
     def generate_position_combinations_vectorized(self):
         """Generate all possible position combinations using vectorized operations."""
         info_id("Generating position combinations using vectorized operations", self.request_id)
-        print("⚙️  Generating position combinations...")
 
         try:
             start_time = time.time()
@@ -300,7 +286,7 @@ class OptimizedPositionCreator:
                 assets_df = self.hierarchy_data['assets']
                 locations_df = self.hierarchy_data['locations']
 
-                print(f"   📊 Processing {len(areas_df):,} areas...")
+                info_id(f"Processing {len(areas_df):,} areas", self.request_id)
 
                 # For each area, generate combinations using vectorized operations
                 for _, area in areas_df.iterrows():
@@ -347,7 +333,6 @@ class OptimizedPositionCreator:
                 self.stats['total_combinations_found'] = len(combinations_df)
 
                 info_id(f"Generated {len(combinations_df):,} position combinations", self.request_id)
-                print(f"   ✅ Generated {len(combinations_df):,} combinations")
 
                 return combinations_df
 
@@ -445,7 +430,6 @@ class OptimizedPositionCreator:
     def filter_duplicates_vectorized(self, combinations_df):
         """Filter out duplicate combinations using vectorized operations."""
         info_id("Filtering duplicates using vectorized operations", self.request_id)
-        print("🔍 Filtering duplicate positions...")
 
         try:
             start_time = time.time()
@@ -487,8 +471,6 @@ class OptimizedPositionCreator:
                 info_id(
                     f"Filtered {duplicates_filtered + internal_duplicates} duplicates, {len(new_combinations_df)} new positions to create",
                     self.request_id)
-                print(f"   ✅ Filtered {duplicates_filtered + internal_duplicates:,} duplicates")
-                print(f"   🎯 {len(new_combinations_df):,} new positions to create")
 
                 return new_combinations_df
 
@@ -500,12 +482,10 @@ class OptimizedPositionCreator:
         """Bulk insert positions using optimized database operations."""
         if positions_df.empty:
             info_id("No positions to insert", self.request_id)
-            print("   📋 No new positions to create")
             return
 
         try:
             info_id(f"Bulk inserting {len(positions_df)} positions", self.request_id)
-            print(f"💾 Inserting {len(positions_df):,} new positions...")
 
             start_time = time.time()
 
@@ -552,7 +532,6 @@ class OptimizedPositionCreator:
                 self.stats['positions_created'] = len(cleaned_positions_data)
 
                 info_id(f"Successfully bulk inserted {len(cleaned_positions_data)} positions", self.request_id)
-                print(f"   ✅ Successfully inserted {len(cleaned_positions_data):,} positions")
 
         except Exception as e:
             session.rollback()
@@ -560,34 +539,28 @@ class OptimizedPositionCreator:
             raise
 
     def display_optimized_summary(self):
-        """Display comprehensive processing summary."""
-        print(f"\n🎉 OPTIMIZED POSITION CREATION COMPLETE!")
-        print(f"=" * 55)
-        print(f"📊 Final Summary:")
-        print(f"   📁 Total combinations found: {self.stats['total_combinations_found']:,}")
-        print(f"   🔍 Combinations processed: {self.stats['total_combinations_processed']:,}")
-        print(f"   ✅ New positions created: {self.stats['positions_created']:,}")
-        print(f"   📋 Duplicates skipped: {self.stats['duplicates_skipped']:,}")
+        """Log comprehensive processing summary."""
+        info_id("Optimized position creation completed", self.request_id)
+        info_id(f"Total combinations found: {self.stats['total_combinations_found']:,}", self.request_id)
+        info_id(f"Combinations processed: {self.stats['total_combinations_processed']:,}", self.request_id)
+        info_id(f"New positions created: {self.stats['positions_created']:,}", self.request_id)
+        info_id(f"Duplicates skipped: {self.stats['duplicates_skipped']:,}", self.request_id)
 
         if self.stats['errors_encountered'] > 0:
-            print(f"   ❌ Errors encountered: {self.stats['errors_encountered']:,}")
+            error_id(f"Errors encountered: {self.stats['errors_encountered']:,}", self.request_id)
 
-        print(f"   ⏱️  Total processing time: {self._format_time(self.stats['processing_time'])}")
+        info_id(f"Total processing time: {self._format_time(self.stats['processing_time'])}", self.request_id)
 
         # Detailed timing breakdown
-        print(f"\n📊 Performance Breakdown:")
-        print(f"   🔄 Data loading: {self._format_time(self.stats['data_loading_time'])}")
-        print(f"   ⚙️  Combination generation: {self._format_time(self.stats['combination_generation_time'])}")
-        print(f"   🔍 Duplicate filtering: {self._format_time(self.stats['duplicate_filtering_time'])}")
-        print(f"   💾 Bulk insertion: {self._format_time(self.stats['bulk_insertion_time'])}")
+        info_id("Performance breakdown:", self.request_id)
+        info_id(f"Data loading: {self._format_time(self.stats['data_loading_time'])}", self.request_id)
+        info_id(f"Combination generation: {self._format_time(self.stats['combination_generation_time'])}", self.request_id)
+        info_id(f"Duplicate filtering: {self._format_time(self.stats['duplicate_filtering_time'])}", self.request_id)
+        info_id(f"Bulk insertion: {self._format_time(self.stats['bulk_insertion_time'])}", self.request_id)
 
         if self.stats['processing_time'] > 0:
             rate = self.stats['positions_created'] / self.stats['processing_time']
-            print(f"   🚀 Processing rate: {rate:.1f} positions/sec")
-
-        print(f"=" * 55)
-
-        info_id(f"Optimized position creation summary: {self.stats}", self.request_id)
+            info_id(f"Processing rate: {rate:.1f} positions/sec", self.request_id)
 
     def _format_time(self, seconds):
         """Format seconds into readable time string."""
@@ -603,11 +576,9 @@ class OptimizedPositionCreator:
     def run_optimized_position_creation(self, area_limit=None, dry_run=False):
         """Main optimized method to run position creation."""
         try:
-            print(f"\n🚀 OPTIMIZED Equipment Position Creation")
-            print(f"=" * 50)
+            info_id("Starting optimized equipment position creation", self.request_id)
 
             if dry_run:
-                print(f"🧪 DRY RUN MODE - No positions will be created")
                 info_id("Running in optimized dry-run mode", self.request_id)
 
             total_start_time = time.time()
@@ -629,14 +600,14 @@ class OptimizedPositionCreator:
                 combinations_df = self.generate_position_combinations_vectorized()
 
                 if combinations_df.empty:
-                    print("📋 No position combinations found to process")
+                    info_id("No position combinations found to process", self.request_id)
                     return True
 
                 # Filter duplicates using vectorized operations
                 new_positions_df = self.filter_duplicates_vectorized(combinations_df)
 
                 if dry_run:
-                    print(f"🧪 Dry run complete - would have created {len(new_positions_df):,} positions")
+                    info_id(f"Dry run complete - would have created {len(new_positions_df):,} positions", self.request_id)
                     return True
 
                 # Bulk insert positions using optimized operations
@@ -645,14 +616,13 @@ class OptimizedPositionCreator:
             # Update final statistics
             self.stats['processing_time'] = time.time() - total_start_time
 
-            # Display optimized summary
+            # Log summary
             self.display_optimized_summary()
 
             return True
 
         except Exception as e:
             error_id(f"Optimized position creation failed: {str(e)}", self.request_id, exc_info=True)
-            print(f"\n❌ Optimized position creation failed: {str(e)}")
             return False
 
 
@@ -669,8 +639,7 @@ def main():
 
     args = parser.parse_args()
 
-    print("\n🚀 Starting OPTIMIZED Equipment Position Creation")
-    print("=" * 60)
+    info_id("Starting optimized equipment position creation", request_id=None)
 
     creator = None
     try:
@@ -684,20 +653,14 @@ def main():
         )
 
         if success:
-            print("\n✅ Optimized Position Creation Completed Successfully!")
-            print("=" * 60)
+            info_id("Optimized position creation completed successfully", creator.request_id)
         else:
-            print("\n⚠️  Optimized Position Creation Completed with Issues")
-            print("=" * 60)
+            warning_id("Optimized position creation completed with issues", creator.request_id)
 
     except KeyboardInterrupt:
-        print("\n🛑 Operation interrupted by user")
-        if creator:
-            error_id("Operation interrupted by user", creator.request_id)
+        error_id("Operation interrupted by user", creator.request_id if creator else None)
     except Exception as e:
-        print(f"\n❌ Operation failed: {str(e)}")
-        if creator:
-            error_id(f"Operation failed: {str(e)}", creator.request_id, exc_info=True)
+        error_id(f"Operation failed: {str(e)}", creator.request_id if creator else None, exc_info=True)
     finally:
         # Close logger
         try:
