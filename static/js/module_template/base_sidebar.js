@@ -151,6 +151,28 @@ function initializeVoiceSelection() {
             }
         }
 
+        document.addEventListener('DOMContentLoaded', function() {
+        const themeSelect = document.getElementById('theme-select');
+        const themeStyle = document.getElementById('theme-style');
+
+        // On theme selection change, set the theme CSS
+        themeSelect.addEventListener('change', function() {
+            const themeFile = this.value;
+            themeStyle.href = themeFile
+                ? "{{ url_for('static', filename='css/module_template/themes/') }}" + themeFile
+                : "";
+            localStorage.setItem('selectedTheme', themeFile);
+        });
+
+        // On load, restore the theme if previously selected
+        const savedTheme = localStorage.getItem('selectedTheme');
+        if (savedTheme) {
+            themeStyle.href = "{{ url_for('static', filename='css/module_template/themes/') }}" + savedTheme;
+            themeSelect.value = savedTheme;
+        }
+    });
+
+
         // Initial population
         populateVoiceList();
 
