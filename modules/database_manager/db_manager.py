@@ -5,7 +5,7 @@ from sqlalchemy import and_, text, or_
 import pandas as pd
 import json
 from datetime import datetime
-
+from dataclasses import dataclass
 import psycopg2
 from psycopg2.extras import execute_values
 import os
@@ -22,6 +22,559 @@ from modules.configuration.log_config import (
     with_request_id
 )
 from modules.configuration.config_env import DatabaseConfig
+import subprocess
+import time
+import psutil
+from dotenv import load_dotenv
+
+
+@dataclass
+class ImagePosition:
+    """Represents an image's position within the document."""
+    page_number: int
+    bbox: Tuple[float, float, float, float]  # x0, y0, x1, y1
+    image_index: int
+    estimated_size: Tuple[int, int]  # width, height
+    content_type: str  # 'figure', 'diagram', 'photo', etc.
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            'page_number': self.page_number,
+            'bbox': self.bbox,
+            'image_index': self.image_index,
+            'estimated_size': self.estimated_size,
+            'content_type': self.content_type
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ImagePosition':
+        """Create from dictionary."""
+        return cls(
+            page_number=data['page_number'],
+            bbox=tuple(data['bbox']),
+            image_index=data['image_index'],
+            estimated_size=tuple(data['estimated_size']),
+            content_type=data['content_type']
+        )
+
+
+@dataclass
+class ChunkBoundary:
+    """Represents where a chunk should be split."""
+    page_number: int
+    start_position: float  # Y coordinate on page
+    end_position: float
+    chunk_type: str  # 'text', 'heading', 'caption', etc.
+    associated_images: List[int]  # Indices of related images
+    context_data: Dict[str, Any]
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            'page_number': self.page_number,
+            'start_position': self.start_position,
+            'end_position': self.end_position,
+            'chunk_type': self.chunk_type,
+            'associated_images': self.associated_images,
+            'context_data': self.context_data
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ChunkBoundary':
+        """Create from dictionary."""
+        return cls(
+            page_number=data['page_number'],
+            start_position=data['start_position'],
+            end_position=data['end_position'],
+            chunk_type=data['chunk_type'],
+            associated_images=data['associated_images'],
+            context_data=data['context_data']
+        )
+
+
+@dataclass
+class DocumentStructureMap:
+    """Complete mapping of document structure."""
+    total_pages: int
+    image_positions: List[ImagePosition]
+    chunk_boundaries: List[ChunkBoundary]
+    page_layouts: Dict[int, Dict[str, Any]]
+    extraction_plan: Dict[str, Any]
+    metadata: Dict[str, Any]
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            'total_pages': self.total_pages,
+            'image_positions': [img.to_dict() for img in self.image_positions],
+            'chunk_boundaries': [chunk.to_dict() for chunk in self.chunk_boundaries],
+            'page_layouts': self.page_layouts,
+            'extraction_plan': self.extraction_plan,
+            'metadata': self.metadata
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'DocumentStructureMap':
+        """Create from dictionary."""
+        return cls(
+            total_pages=data['total_pages'],
+            image_positions=[ImagePosition.from_dict(img) for img in data['image_positions']],
+            chunk_boundaries=[ChunkBoundary.from_dict(chunk) for chunk in data['chunk_boundaries']],
+            page_layouts=data['page_layouts'],
+            extraction_plan=data['extraction_plan'],
+            metadata=data['metadata']
+        )
+
+    def save_to_file(self, file_path: str) -> None:
+        """Save structure map to JSON file."""
+        with open(file_path, 'w') as f:
+            json.dump(self.to_dict(), f, indent=2)
+
+    @classmethod
+    def load_from_file(cls, file_path: str) -> 'DocumentStructureMap':
+        """Load structure map from JSON file."""
+        with open(file_path, 'r') as f:
+            data = json.load(f)
+        return cls.from_dict(data)
+
+
+class PostgreSQLDocumentStructureManager(PostgreSQLDatabaseManager):
+    """
+    Enhanced document structure analysis and management using PostgreSQL.
+    Integrates with your existing database management classes.
+    """
+
+    def __init__(self, session=None, request_id=None):
+        super().__init__(session, request_id)
+
+    @with_request_id
+    def analyze_document_structure(self, file_path: str, request_id=None) -> DocumentStructureMap:
+        """
+        Comprehensive document structure analysis - the first wave.
+        """
+        info_id(f"Starting PostgreSQL-backed document structure analysis: {file_path}", request_id)
+
+        try:
+            # Open the document
+            doc = fitz.open(file_path)
+
+            structure_map = DocumentStructureMap(
+                total_pages=len(doc),
+                image_positions=[],
+                chunk_boundaries=[],
+                page_layouts={},
+                extraction_plan={},
+                metadata={
+                    'analyzed_at': datetime.now().isoformat(),
+                    'file_path': file_path,
+                    'analysis_version': '1.0',
+                    'analyzer': 'PostgreSQLDocumentStructureManager'
+                }
+            )
+
+            info_id(f"Analyzing {structure_map.total_pages} pages with PostgreSQL backend", request_id)
+
+            # Analyze each page
+            for page_num in range(len(doc)):
+                page = doc[page_num]
+                page_analysis = self._analyze_page_structure(page, page_num, request_id)
+
+                # Store page layout
+                structure_map.page_layouts[page_num] = page_analysis['layout']
+
+                # Add image positions
+                structure_map.image_positions.extend(page_analysis['images'])
+
+                # Add chunk boundaries
+                structure_map.chunk_boundaries.extend(page_analysis['chunks'])
+
+            # Create extraction plan
+            structure_map.extraction_plan = self._create_extraction_plan(structure_map, request_id)
+
+            # Store structure analysis in database for future reference
+            self._store_structure_analysis(structure_map, request_id)
+
+            doc.close()
+
+            info_id(f"PostgreSQL structure analysis complete: {len(structure_map.image_positions)} images, "
+                    f"{len(structure_map.chunk_boundaries)} chunk boundaries", request_id)
+
+            return structure_map
+
+        except Exception as e:
+            error_id(f"Error in PostgreSQL document structure analysis: {e}", request_id, exc_info=True)
+            raise
+
+    def _store_structure_analysis(self, structure_map: DocumentStructureMap, request_id=None):
+        """Store structure analysis results in PostgreSQL for future reference."""
+        try:
+            with self.transaction():
+                # Create table if it doesn't exist
+                self.execute_raw_sql("""
+                    CREATE TABLE IF NOT EXISTS document_structure_analysis (
+                        id SERIAL PRIMARY KEY,
+                        file_path TEXT NOT NULL,
+                        analysis_date TIMESTAMP DEFAULT NOW(),
+                        total_pages INTEGER,
+                        total_images INTEGER,
+                        total_chunks INTEGER,
+                        structure_data JSONB,
+                        metadata JSONB,
+                        created_at TIMESTAMP DEFAULT NOW()
+                    )
+                """)
+
+                # Store the analysis
+                self.execute_raw_sql("""
+                    INSERT INTO document_structure_analysis 
+                    (file_path, total_pages, total_images, total_chunks, structure_data, metadata)
+                    VALUES (:file_path, :total_pages, :total_images, :total_chunks, :structure_data, :metadata)
+                """, {
+                    'file_path': structure_map.metadata.get('file_path'),
+                    'total_pages': structure_map.total_pages,
+                    'total_images': len(structure_map.image_positions),
+                    'total_chunks': len(structure_map.chunk_boundaries),
+                    'structure_data': json.dumps(structure_map.to_dict()),
+                    'metadata': json.dumps(structure_map.metadata)
+                })
+
+                debug_id("Stored structure analysis in PostgreSQL", request_id)
+
+        except Exception as e:
+            warning_id(f"Could not store structure analysis: {e}", request_id)
+
+    def get_stored_structure_analysis(self, file_path: str, request_id=None) -> Optional[DocumentStructureMap]:
+        """Retrieve previously stored structure analysis."""
+        try:
+            result = self.execute_raw_sql("""
+                SELECT structure_data FROM document_structure_analysis 
+                WHERE file_path = :file_path 
+                ORDER BY analysis_date DESC 
+                LIMIT 1
+            """, {'file_path': file_path}).fetchone()
+
+            if result:
+                structure_data = json.loads(result[0])
+                return DocumentStructureMap.from_dict(structure_data)
+
+            return None
+
+        except Exception as e:
+            debug_id(f"Could not retrieve stored structure analysis: {e}", request_id)
+            return None
+
+    # ... (Include all the other methods from the previous artifact)
+    # For brevity, I'm showing the key integration points
+
+    @with_request_id
+    def guided_extraction_with_postgresql(self, file_path: str, metadata: Dict[str, Any],
+                                          request_id=None) -> Tuple[bool, Dict[str, Any], int]:
+        """
+        PostgreSQL-optimized guided extraction using structure analysis.
+        """
+        info_id(f"Starting PostgreSQL-guided extraction: {file_path}", request_id)
+
+        try:
+            # Check if we have a stored analysis
+            structure_map = self.get_stored_structure_analysis(file_path, request_id)
+
+            if not structure_map:
+                # Perform fresh analysis
+                structure_map = self.analyze_document_structure(file_path, request_id)
+            else:
+                info_id("Using cached structure analysis from PostgreSQL", request_id)
+
+            # Perform guided extraction
+            extraction_result = self._perform_postgresql_guided_extraction(
+                file_path, structure_map, metadata, request_id
+            )
+
+            if not extraction_result['success']:
+                return False, extraction_result, 500
+
+            # Create associations using PostgreSQL-optimized methods
+            association_result = self._create_postgresql_associations(
+                extraction_result['complete_document_id'],
+                structure_map.extraction_plan,
+                request_id
+            )
+
+            # Combine results
+            final_result = {
+                'success': True,
+                'complete_document_id': extraction_result['complete_document_id'],
+                'chunks_created': extraction_result['chunks_created'],
+                'images_extracted': extraction_result['images_extracted'],
+                'associations_created': association_result['associations_created'],
+                'structure_analysis': {
+                    'total_pages_analyzed': structure_map.total_pages,
+                    'chunks_planned': len(structure_map.chunk_boundaries),
+                    'images_planned': len(structure_map.image_positions),
+                    'cached_analysis_used': structure_map is not None
+                },
+                'processing_method': 'postgresql_structure_guided'
+            }
+
+            info_id(f"PostgreSQL guided extraction completed: {final_result}", request_id)
+            return True, final_result, 200
+
+        except Exception as e:
+            error_id(f"Error in PostgreSQL guided extraction: {e}", request_id, exc_info=True)
+            return False, {'error': str(e), 'success': False}, 500
+
+    def _create_postgresql_associations(self, complete_document_id: int,
+                                        extraction_plan: Dict[str, Any],
+                                        request_id=None) -> Dict[str, Any]:
+        """
+        Create associations using PostgreSQL-optimized bulk operations.
+        """
+        try:
+            associations_created = 0
+
+            with self.transaction():
+                # Get chunk and image mappings from database
+                chunks = self.session.query(Document).filter(
+                    Document.complete_document_id == complete_document_id
+                ).all()
+
+                images = self.session.query(Image).filter(
+                    Image.complete_document_id == complete_document_id
+                ).all()
+
+                # Create mapping dictionaries for efficient lookup
+                chunk_mapping = {}
+                image_mapping = {}
+
+                for chunk in chunks:
+                    chunk_metadata = json.loads(chunk.metadata) if chunk.metadata else {}
+                    if chunk_metadata.get('structure_guided'):
+                        page_num = chunk_metadata.get('page_number')
+                        chunk_type = chunk_metadata.get('chunk_type')
+                        key = f"chunk_{page_num}_{chunk_type}"
+                        chunk_mapping[key] = chunk.id
+
+                for image in images:
+                    image_metadata = json.loads(image.metadata) if image.metadata else {}
+                    if image_metadata.get('structure_guided'):
+                        page_num = image_metadata.get('page_number')
+                        img_index = image_metadata.get('image_index', 0)
+                        key = f"image_{page_num}_{img_index}"
+                        image_mapping[key] = image.id
+
+                # Prepare bulk association data
+                association_data = []
+
+                for chunk_key, association_info in extraction_plan.get('association_pre_mapping', {}).items():
+                    if chunk_key in chunk_mapping:
+                        chunk_id = chunk_mapping[chunk_key]
+
+                        for image_key in association_info['associated_images']:
+                            if image_key in image_mapping:
+                                image_id = image_mapping[image_key]
+
+                                association_data.append({
+                                    'complete_document_id': complete_document_id,
+                                    'image_id': image_id,
+                                    'document_id': chunk_id,
+                                    'page_number': association_info['page_number'],
+                                    'association_method': association_info['association_method'],
+                                    'confidence_score': association_info['confidence_score'],
+                                    'context_metadata': json.dumps({
+                                        'pre_computed': True,
+                                        'structure_guided': True,
+                                        'postgresql_optimized': True,
+                                        'created_at': datetime.now().isoformat()
+                                    })
+                                })
+
+                # Use PostgreSQL bulk insert for associations
+                if association_data:
+                    columns = [
+                        'complete_document_id', 'image_id', 'document_id',
+                        'page_number', 'association_method', 'confidence_score',
+                        'context_metadata'
+                    ]
+
+                    # Convert to tuples for bulk insert
+                    data_tuples = [
+                        tuple(assoc[col] for col in columns)
+                        for assoc in association_data
+                    ]
+
+                    self.bulk_insert('image_completed_document_association', data_tuples, columns)
+                    associations_created = len(data_tuples)
+
+            info_id(f"Created {associations_created} PostgreSQL-optimized associations", request_id)
+            return {'associations_created': associations_created}
+
+        except Exception as e:
+            error_id(f"Error creating PostgreSQL associations: {e}", request_id)
+            return {'associations_created': 0, 'error': str(e)}
+
+
+# ==========================================
+# ENHANCED BACKWARD COMPATIBILITY
+# Update your existing compatibility classes
+# ==========================================
+
+class DocumentStructureManager(PostgreSQLDocumentStructureManager):
+    """
+    Backward compatible document structure manager.
+    Uses PostgreSQL backend with enhanced structure analysis.
+    """
+
+    def __init__(self, session=None, request_id=None):
+        super().__init__(session, request_id)
+        info_id("Using PostgreSQL-backed document structure manager", self.request_id)
+
+    def analyze_document(self, file_path: str) -> DocumentStructureMap:
+        """Backward compatible method name."""
+        return self.analyze_document_structure(file_path, self.request_id)
+
+    def guided_extraction(self, file_path: str, metadata: Dict[str, Any]) -> Tuple[bool, Dict[str, Any], int]:
+        """Backward compatible method name."""
+        return self.guided_extraction_with_postgresql(file_path, metadata, self.request_id)
+
+
+# ==========================================
+# UTILITY FUNCTIONS FOR STRUCTURE ANALYSIS
+# Add these helper functions to your db_manager.py
+# ==========================================
+
+def create_document_structure_tables(db_config: DatabaseConfig):
+    """
+    Create necessary tables for document structure analysis.
+    Call this during your database setup.
+    """
+    try:
+        with db_config.main_session() as session:
+            # Create structure analysis storage table
+            session.execute(text("""
+                CREATE TABLE IF NOT EXISTS document_structure_analysis (
+                    id SERIAL PRIMARY KEY,
+                    file_path TEXT NOT NULL,
+                    analysis_date TIMESTAMP DEFAULT NOW(),
+                    total_pages INTEGER,
+                    total_images INTEGER,
+                    total_chunks INTEGER,
+                    structure_data JSONB,
+                    metadata JSONB,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    UNIQUE(file_path, analysis_date)
+                )
+            """))
+
+            # Create indexes for performance
+            session.execute(text("""
+                CREATE INDEX IF NOT EXISTS idx_doc_structure_file_path 
+                ON document_structure_analysis(file_path)
+            """))
+
+            session.execute(text("""
+                CREATE INDEX IF NOT EXISTS idx_doc_structure_analysis_date 
+                ON document_structure_analysis(analysis_date DESC)
+            """))
+
+            # Create GIN index for JSONB structure_data
+            session.execute(text("""
+                CREATE INDEX IF NOT EXISTS idx_doc_structure_data_gin 
+                ON document_structure_analysis USING gin(structure_data)
+            """))
+
+            session.commit()
+            print("✅ Document structure analysis tables created successfully")
+
+    except Exception as e:
+        print(f"❌ Error creating document structure tables: {e}")
+        raise
+
+
+def get_structure_analysis_stats(db_config: DatabaseConfig) -> Dict[str, Any]:
+    """
+    Get statistics about stored structure analyses.
+    """
+    try:
+        with db_config.main_session() as session:
+            result = session.execute(text("""
+                SELECT 
+                    COUNT(*) as total_analyses,
+                    AVG(total_pages) as avg_pages,
+                    AVG(total_images) as avg_images,
+                    AVG(total_chunks) as avg_chunks,
+                    MAX(analysis_date) as latest_analysis,
+                    MIN(analysis_date) as earliest_analysis
+                FROM document_structure_analysis
+            """)).fetchone()
+
+            if result:
+                return {
+                    'total_analyses': result[0],
+                    'average_pages': float(result[1]) if result[1] else 0,
+                    'average_images': float(result[2]) if result[2] else 0,
+                    'average_chunks': float(result[3]) if result[3] else 0,
+                    'latest_analysis': result[4].isoformat() if result[4] else None,
+                    'earliest_analysis': result[5].isoformat() if result[5] else None
+                }
+
+            return {}
+
+    except Exception as e:
+        print(f"Error getting structure analysis stats: {e}")
+        return {}
+
+
+# ==========================================
+# EXAMPLE USAGE WITH YOUR EXISTING CODE
+# ==========================================
+
+def example_integration_with_existing_code():
+    """
+    Example of how to integrate structure analysis with your existing db_manager.py patterns.
+    """
+
+    # Using your existing database patterns
+    with PostgreSQLDatabaseManager() as db_manager:
+        # Create structure manager using the same session
+        structure_manager = PostgreSQLDocumentStructureManager(
+            session=db_manager.session,
+            request_id=db_manager.request_id
+        )
+
+        # Analyze document structure
+        file_path = "/path/to/document.pdf"
+        structure_map = structure_manager.analyze_document_structure(file_path)
+
+        # Use the structure map for guided extraction
+        metadata = {"title": "Technical Manual", "department": "Engineering"}
+        success, result, status = structure_manager.guided_extraction_with_postgresql(
+            file_path, metadata
+        )
+
+        if success:
+            print(f"Structure-guided processing completed:")
+            print(f"- Document ID: {result['complete_document_id']}")
+            print(f"- Chunks created: {result['chunks_created']}")
+            print(f"- Images extracted: {result['images_extracted']}")
+            print(f"- Associations created: {result['associations_created']}")
+
+
+# Add this to your existing database setup
+def enhanced_database_setup():
+    """
+    Enhanced database setup including structure analysis tables.
+    Add this to your existing database initialization.
+    """
+    db_config = DatabaseConfig()
+
+    # Your existing database setup...
+
+    # Add structure analysis tables
+    create_document_structure_tables(db_config)
+
+    # Get current stats
+    stats = get_structure_analysis_stats(db_config)
+    print(f"Structure analysis database ready. Current stats: {stats}")
 
 
 class PostgreSQLDatabaseManager:
@@ -95,8 +648,8 @@ class PostgreSQLDatabaseManager:
 
             # Set PostgreSQL-specific optimizations
             with self.savepoint():
-                self.session.execute(text("SET work_mem = '256MB'"))
-                self.session.execute(text("SET maintenance_work_mem = '512MB'"))
+                self.session.execute(text("SET work_mem = '4MB'"))
+                self.session.execute(text("SET maintenance_work_mem = '128MB'"))
 
             # Get the raw connection
             connection = self.session.connection().connection
@@ -1392,3 +1945,295 @@ class EnhancedExcelToSQLiteMapper(EnhancedExcelToPostgreSQLMapper):
                 session.rollback()
                 error_id(f"Error storing mapping information: {str(e)}", self.request_id)
                 raise
+
+
+def ensure_database_service_running(env_file='.env', max_wait_seconds=30):
+    """
+    Ensure PostgreSQL service is running and database is accessible.
+    Supports both Windows services and portable PostgreSQL installations.
+
+    Args:
+        env_file (str): Path to .env file with database configuration
+        max_wait_seconds (int): Maximum time to wait for service to start
+
+    Returns:
+        bool: True if database service is running and accessible, False otherwise
+    """
+
+    def _log(message, level="INFO"):
+        print(f"[{level}] {message}")
+
+    def _is_postgres_running():
+        """Check if PostgreSQL process is running - Windows, Linux, macOS compatible"""
+        try:
+            for proc in psutil.process_iter(['name', 'cmdline']):
+                try:
+                    proc_name = proc.info['name'].lower()
+                    # Check for various PostgreSQL process names
+                    postgres_names = ['postgres', 'postgresql', 'pg_ctl', 'postmaster']
+                    if any(pg_name in proc_name for pg_name in postgres_names):
+                        return True
+                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                    continue
+        except Exception as e:
+            _log(f"Error checking PostgreSQL processes: {e}", "WARNING")
+
+        # Fallback: try to connect to the port
+        try:
+            import socket
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(2)
+            result = sock.connect_ex(('localhost', 5432))
+            sock.close()
+            return result == 0
+        except Exception:
+            pass
+
+        return False
+
+    def _start_postgres():
+        """Start PostgreSQL service - handles both Windows services and portable installations"""
+        _log("Attempting to start PostgreSQL service...")
+
+        import platform
+        system = platform.system().lower()
+
+        if system == "windows":
+            # First, try portable PostgreSQL installation (your setup)
+            portable_paths = [
+                # Your specific paths
+                {
+                    'bin_dir': r"C:\Users\10169062\Desktop\AU_IndusMaintdb\Database\postgreSQL\pgsql\bin",
+                    'data_dir': r"C:\Users\10169062\PostgreSQL\data"
+                },
+                # Common portable PostgreSQL locations
+                {
+                    'bin_dir': r"C:\PostgreSQL\bin",
+                    'data_dir': r"C:\PostgreSQL\data"
+                },
+                {
+                    'bin_dir': r"C:\Program Files\PostgreSQL\15\bin",
+                    'data_dir': r"C:\Program Files\PostgreSQL\15\data"
+                },
+                {
+                    'bin_dir': r"C:\Program Files\PostgreSQL\14\bin",
+                    'data_dir': r"C:\Program Files\PostgreSQL\14\data"
+                }
+            ]
+
+            # Try portable PostgreSQL first
+            for paths in portable_paths:
+                bin_dir = paths['bin_dir']
+                data_dir = paths['data_dir']
+                pg_ctl_path = os.path.join(bin_dir, 'pg_ctl.exe')
+
+                if os.path.exists(pg_ctl_path) and os.path.exists(data_dir):
+                    try:
+                        _log(f"Found portable PostgreSQL: {pg_ctl_path}")
+                        _log(f"Using data directory: {data_dir}")
+
+                        # Start PostgreSQL using pg_ctl
+                        cmd = [pg_ctl_path, '-D', data_dir, 'start']
+                        _log(f"Running command: {' '.join(cmd)}")
+
+                        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+
+                        if result.returncode == 0:
+                            _log("✅ PostgreSQL started successfully using pg_ctl")
+                            return True
+                        elif "already running" in result.stderr.lower() or "already running" in result.stdout.lower():
+                            _log("✅ PostgreSQL was already running")
+                            return True
+                        else:
+                            _log(f"pg_ctl failed: {result.stderr}", "WARNING")
+
+                    except Exception as e:
+                        _log(f"Error starting PostgreSQL with pg_ctl: {e}", "WARNING")
+                        continue
+
+            # If portable PostgreSQL didn't work, try Windows services
+            _log("Trying Windows services as fallback...")
+            windows_commands = [
+                ['net', 'start', 'postgresql-x64-15'],
+                ['net', 'start', 'postgresql-x64-14'],
+                ['net', 'start', 'postgresql-x64-13'],
+                ['net', 'start', 'postgresql-x64-12'],
+                ['net', 'start', 'postgresql'],
+                ['sc', 'start', 'postgresql-x64-15'],
+                ['sc', 'start', 'postgresql-x64-14'],
+                ['net', 'start', 'PostgreSQL'],
+            ]
+
+            for cmd in windows_commands:
+                try:
+                    _log(f"Trying Windows command: {' '.join(cmd)}")
+                    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, shell=True)
+                    if result.returncode == 0:
+                        _log(f"✅ PostgreSQL started using: {' '.join(cmd)}")
+                        return True
+                    elif "already" in result.stdout.lower() or "already" in result.stderr.lower():
+                        _log("PostgreSQL service was already running")
+                        return True
+                except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError) as e:
+                    _log(f"Command failed: {e}", "DEBUG")
+                    continue
+
+            # If all attempts fail, provide helpful advice
+            _log("❌ Could not start PostgreSQL on Windows", "ERROR")
+            _log("💡 Manual steps to try:", "INFO")
+            _log("   1. Run this command manually:", "INFO")
+            _log('      cd "C:\\Users\\10169062\\Desktop\\AU_IndusMaintdb\\Database\\postgreSQL\\pgsql\\bin"', "INFO")
+            _log('      .\\pg_ctl.exe -D "C:\\Users\\10169062\\PostgreSQL\\data" start', "INFO")
+            _log("   2. Or check Windows Services (services.msc)", "INFO")
+            _log("   3. Or verify PostgreSQL is installed correctly", "INFO")
+            return False
+
+        else:
+            # Linux and macOS service management (unchanged)
+            unix_commands = [
+                ['sudo', 'systemctl', 'start', 'postgresql'],
+                ['brew', 'services', 'start', 'postgresql'],
+                ['sudo', 'service', 'postgresql', 'start'],
+                ['sudo', 'brew', 'services', 'start', 'postgresql@14'],
+                ['sudo', 'brew', 'services', 'start', 'postgresql@13'],
+            ]
+
+            for cmd in unix_commands:
+                try:
+                    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+                    if result.returncode == 0:
+                        _log(f"✅ PostgreSQL started using: {' '.join(cmd)}")
+                        return True
+                except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
+                    continue
+
+            _log("❌ Could not start PostgreSQL - no suitable service manager found", "ERROR")
+            return False
+
+    def _test_database_connection():
+        """Test actual database connectivity using environment variables"""
+        try:
+            import psycopg2
+        except ImportError:
+            _log("psycopg2 not available for connection testing", "WARNING")
+            return True  # Assume it's okay if we can't test
+
+        try:
+            # Get connection parameters from environment
+            host = os.getenv('POSTGRES_HOST', 'localhost')
+            port = os.getenv('POSTGRES_PORT', '5432')
+            user = os.getenv('POSTGRES_USER', 'postgres')
+            password = os.getenv('POSTGRES_PASSWORD', '')
+            database = os.getenv('POSTGRES_DB', 'postgres')
+
+            _log("Testing database connection...")
+
+            # Test connection with timeout
+            conn = psycopg2.connect(
+                host=host,
+                port=port,
+                user=user,
+                password=password,
+                database=database,
+                connect_timeout=10
+            )
+
+            # Quick test query
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+
+            cursor.close()
+            conn.close()
+
+            _log("Database connection test successful")
+            return True
+
+        except Exception as e:
+            _log(f"Database connection test failed: {str(e)}", "ERROR")
+            return False
+
+    # Main logic
+    _log("Checking PostgreSQL database service...")
+
+    # Load environment variables
+    if os.path.exists(env_file):
+        load_dotenv(env_file)
+        _log(f"Loaded environment variables from {env_file}")
+    else:
+        _log(f"Environment file {env_file} not found, using system environment", "WARNING")
+
+    # Check if PostgreSQL is already running
+    if _is_postgres_running():
+        _log("✅ PostgreSQL service is already running")
+    else:
+        _log("❌ PostgreSQL service is not running")
+
+        if not _start_postgres():
+            _log("❌ Failed to start PostgreSQL service", "ERROR")
+
+            # Provide platform-specific troubleshooting advice
+            import platform
+            if platform.system().lower() == "windows":
+                _log("🔧 Windows PostgreSQL Troubleshooting:", "INFO")
+                _log("   1. Try starting manually:", "INFO")
+                _log('      cd "C:\\Users\\10169062\\Desktop\\AU_IndusMaintdb\\Database\\postgreSQL\\pgsql\\bin"',
+                     "INFO")
+                _log('      .\\pg_ctl.exe -D "C:\\Users\\10169062\\PostgreSQL\\data" start', "INFO")
+                _log("   2. Check if data directory exists:", "INFO")
+                _log('      C:\\Users\\10169062\\PostgreSQL\\data', "INFO")
+                _log("   3. Verify PostgreSQL installation", "INFO")
+                _log("   4. Check .env file database credentials", "INFO")
+            else:
+                _log("🔧 Unix/Linux PostgreSQL Troubleshooting:", "INFO")
+                _log("   1. Install PostgreSQL: sudo apt install postgresql", "INFO")
+                _log("   2. Start manually: sudo systemctl start postgresql", "INFO")
+                _log("   3. Enable auto-start: sudo systemctl enable postgresql", "INFO")
+
+            return False
+
+        # Wait for service to fully start
+        _log("⏳ Waiting for PostgreSQL service to fully initialize...")
+        start_time = time.time()
+
+        while time.time() - start_time < max_wait_seconds:
+            if _is_postgres_running():
+                _log("✅ PostgreSQL service started successfully")
+                break
+            time.sleep(1)
+        else:
+            _log("❌ PostgreSQL service failed to start within timeout", "ERROR")
+            return False
+
+    # Test database connectivity
+    if _test_database_connection():
+        _log("✅ Database service is ready for connections")
+        return True
+    else:
+        _log("⚠️  PostgreSQL service is running but database connection failed", "WARNING")
+        _log("🔧 Connection Troubleshooting:", "INFO")
+        _log("   1. Check your .env file database credentials", "INFO")
+        _log("   2. Verify database exists (create it if needed)", "INFO")
+        _log("   3. Check PostgreSQL authentication settings (pg_hba.conf)", "INFO")
+        _log("   4. Ensure user has proper permissions", "INFO")
+        return False
+
+
+# Convenience function for use with your DatabaseManager
+def get_database_manager_safely(**kwargs):
+    """
+    Get a DatabaseManager instance, ensuring the database service is running first.
+
+    Args:
+        **kwargs: Arguments to pass to DatabaseManager constructor
+
+    Returns:
+        DatabaseManager: Ready-to-use database manager instance
+
+    Raises:
+        RuntimeError: If database service cannot be started or is not accessible
+    """
+    if not ensure_database_service_running():
+        raise RuntimeError("Database service is not available")
+
+    return DatabaseManager(**kwargs)
