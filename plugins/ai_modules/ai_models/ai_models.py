@@ -759,43 +759,235 @@ class NoImageModel(ImageModel):
         return "Image description is currently disabled."
 
 
-class CLIPModelHandler(ImageModel):
+class CLIPModelHandler:  # Add (ImageModel) if you have a base class
+    """Optimized CLIP model handler with offline mode and intelligent caching"""
+
+    # Class-level cache to avoid reloading models across instances
+    _model_cache = {}
+    _processor_cache = {}
+    _cache_initialized = False
+
     def __init__(self):
         self.model_name = "CLIPModelHandler"
-        logger.info("Initializing CLIP model handler")
+        self.clip_model_name = "openai/clip-vit-base-patch32"
+
+        # Configure offline mode FIRST to prevent network checks
+        if not self._cache_initialized:
+            self._configure_offline_mode()
+            CLIPModelHandler._cache_initialized = True
+
+        logger.info("Initializing optimized CLIP model handler")
+
+        # Load model and processor with intelligent caching
+        self.model, self.processor = self._load_or_get_cached_model()
+
+        # Set device (GPU if available, otherwise CPU)
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        if hasattr(self.model, 'to'):
+            self.model.to(self.device)
+
+        logger.info(f"✅ CLIP model ready on {self.device}")
+
+    def _configure_offline_mode(self):
+        """Configure environment to disable online checks - MAJOR SPEEDUP!"""
+        # Set environment variables to force offline mode
+        offline_env_vars = {
+            "TRANSFORMERS_OFFLINE": "1",
+            "HF_HUB_OFFLINE": "1",
+            "HF_DATASETS_OFFLINE": "1",
+            "TOKENIZERS_PARALLELISM": "false"  # Disable warnings
+        }
+
+        for key, value in offline_env_vars.items():
+            os.environ[key] = value
+
+        logger.info("🚀 Configured offline mode - network checks disabled")
+
+    def _load_or_get_cached_model(self):
+        """Load model with intelligent caching - avoids repeated loading"""
+        cache_key = self.clip_model_name
+
+        # Return cached model if available
+        if cache_key in self._model_cache:
+            logger.info("⚡ Using cached CLIP model (instant load)")
+            return self._model_cache[cache_key], self._processor_cache[cache_key]
+
+        logger.info("🔄 Loading CLIP model for first time...")
+        start_time = time.time()
+
+        try:
+            # ATTEMPT 1: Try offline loading first (fastest - no network)
+            processor = CLIPProcessor.from_pretrained(
+                self.clip_model_name,
+                local_files_only=True,
+                cache_dir="./model_cache"
+            )
+            model = CLIPModel.from_pretrained(
+                self.clip_model_name,
+                local_files_only=True,
+                cache_dir="./model_cache"
+            )
+            logger.info("✅ Loaded CLIP model from local cache (offline)")
+
+        except Exception as offline_error:
+            logger.warning(f"Offline loading failed: {offline_error}")
+            logger.info("📥 Downloading model from HuggingFace (first time only)...")
+
+            # ATTEMPT 2: Download if not cached (temporarily allow network)
+            # Temporarily disable offline mode for download
+            temp_offline_vars = {}
+            for key in ["TRANSFORMERS_OFFLINE", "HF_HUB_OFFLINE"]:
+                if key in os.environ:
+                    temp_offline_vars[key] = os.environ.pop(key)
+
+            try:
+                processor = CLIPProcessor.from_pretrained(
+                    self.clip_model_name,
+                    cache_dir="./model_cache"
+                )
+                model = CLIPModel.from_pretrained(
+                    self.clip_model_name,
+                    cache_dir="./model_cache"
+                )
+                logger.info("📥 Successfully downloaded and cached CLIP model")
+
+            except Exception as download_error:
+                logger.error(f"Failed to download model: {download_error}")
+                raise
+
+            finally:
+                # Restore offline mode
+                for key, value in temp_offline_vars.items():
+                    os.environ[key] = value
+
+        # Cache the loaded models in memory
+        self._model_cache[cache_key] = model
+        self._processor_cache[cache_key] = processor
+
+        load_time = time.time() - start_time
+        logger.info(f"✅ CLIP model loaded and cached in {load_time:.2f}s")
+
+        return model, processor
+
+    def is_valid_image(self, image):
+        """Check if image meets requirements for CLIP processing"""
+        try:
+            if not isinstance(image, PILImage.Image):
+                return False
+
+            # Check minimum dimensions (CLIP is quite flexible)
+            width, height = image.size
+            min_size = 32  # CLIP can handle small images
+            max_size = 2048  # Reasonable upper limit
+
+            if width < min_size or height < min_size:
+                logger.debug(f"Image too small: {width}x{height}")
+                return False
+
+            if width > max_size or height > max_size:
+                logger.debug(f"Image very large: {width}x{height} (will resize)")
+                # CLIP preprocessor will handle resizing
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Error validating image: {e}")
+            return False
+
+    def get_image_embedding(self, image):
+        """Generate CLIP embedding for an image - CORE FUNCTIONALITY"""
+        try:
+            if not self.is_valid_image(image):
+                logger.warning("Invalid image for embedding generation")
+                return None
+
+            # Preprocess image using CLIP processor
+            inputs = self.processor(images=image, return_tensors="pt", padding=True)
+
+            # Move inputs to correct device
+            inputs = {k: v.to(self.device) for k, v in inputs.items()}
+
+            # Generate embedding with no gradient computation (faster)
+            with torch.no_grad():
+                image_features = self.model.get_image_features(**inputs)
+
+            # Normalize the embedding (important for similarity comparisons)
+            embedding = image_features / image_features.norm(dim=-1, keepdim=True)
+
+            # Convert to numpy array for storage/compatibility
+            embedding_np = embedding.cpu().numpy().flatten()
+
+            logger.debug(f"Generated embedding with shape: {embedding_np.shape}")
+            return embedding_np
+
+        except Exception as e:
+            logger.error(f"Error generating image embedding: {e}")
+            return None
 
     def process_image(self, image_path: str) -> str:
-        """Basic image processing - can be extended based on requirements."""
+        """Process image and return status info"""
         try:
-            # Placeholder for actual CLIP processing
             logger.info(f"Processing image with CLIP: {image_path}")
-            return f"Processed image: {image_path}"
+
+            # Load and validate image
+            image = PILImage.open(image_path).convert("RGB")
+
+            if not self.is_valid_image(image):
+                return f"Invalid image: {image_path}"
+
+            # Generate embedding
+            embedding = self.get_image_embedding(image)
+
+            if embedding is not None:
+                return f"Successfully processed: {image_path} (embedding: {embedding.shape})"
+            else:
+                return f"Failed to generate embedding: {image_path}"
+
         except Exception as e:
             logger.error(f"Error processing image with CLIP: {e}")
             return f"Error processing image: {str(e)}"
 
     def compare_images(self, image1_path: str, image2_path: str) -> dict:
-        """Compare two images using CLIP embeddings."""
+        """Compare two images using CLIP embeddings with cosine similarity"""
         try:
-            logger.info(f"Comparing images with CLIP: {image1_path} vs {image2_path}")
+            logger.info(f"Comparing images: {image1_path} vs {image2_path}")
 
-            # Placeholder for actual CLIP comparison logic
-            # In a real implementation, you'd:
-            # 1. Load both images
-            # 2. Generate CLIP embeddings for each
-            # 3. Calculate cosine similarity
-            # 4. Return similarity score
+            # Load both images
+            image1 = PILImage.open(image1_path).convert("RGB")
+            image2 = PILImage.open(image2_path).convert("RGB")
 
-            # For now, return a mock response
-            similarity_score = 0.75  # Placeholder value
+            # Generate embeddings
+            embedding1 = self.get_image_embedding(image1)
+            embedding2 = self.get_image_embedding(image2)
+
+            if embedding1 is None or embedding2 is None:
+                raise ValueError("Failed to generate embeddings for one or both images")
+
+            # Calculate cosine similarity
+            similarity = cosine_similarity([embedding1], [embedding2])[0][0]
+
+            # Convert numpy types to Python types for JSON serialization
+            similarity = float(similarity)
+
+            # Interpret similarity score
+            if similarity > 0.9:
+                interpretation = "Very similar"
+            elif similarity > 0.7:
+                interpretation = "Similar"
+            elif similarity > 0.5:
+                interpretation = "Somewhat similar"
+            else:
+                interpretation = "Different"
 
             return {
-                "similarity": similarity_score,
+                "similarity": similarity,
+                "interpretation": interpretation,
                 "image1": image1_path,
                 "image2": image2_path,
                 "model": self.model_name,
                 "message": "Comparison completed successfully"
             }
+
         except Exception as e:
             logger.error(f"Error comparing images with CLIP: {e}")
             return {
@@ -808,14 +1000,74 @@ class CLIPModelHandler(ImageModel):
             }
 
     def generate_description(self, image_path: str) -> str:
-        """Generate image description using CLIP."""
+        """Generate basic image description"""
         try:
-            logger.info(f"Generating description with CLIP: {image_path}")
-            # Placeholder for actual CLIP description logic
-            return f"CLIP-generated description for {image_path}"
+            logger.info(f"Generating description for: {image_path}")
+
+            # Load image
+            image = PILImage.open(image_path).convert("RGB")
+
+            if not self.is_valid_image(image):
+                return f"Invalid image for description: {image_path}"
+
+            # Get basic image properties
+            width, height = image.size
+            aspect_ratio = width / height
+
+            # Determine orientation
+            if aspect_ratio > 1.3:
+                orientation = "landscape"
+            elif aspect_ratio < 0.77:
+                orientation = "portrait"
+            else:
+                orientation = "square"
+
+            # Calculate megapixels
+            megapixels = (width * height) / 1_000_000
+
+            # Generate description
+            description = f"A {orientation} image with {width}×{height} pixels ({megapixels:.1f}MP)"
+
+            # Add file info
+            import os
+            file_size = os.path.getsize(image_path) / 1024  # KB
+            if file_size > 1024:
+                size_str = f"{file_size / 1024:.1f}MB"
+            else:
+                size_str = f"{file_size:.0f}KB"
+
+            description += f", file size: {size_str}"
+
+            return description
+
         except Exception as e:
-            logger.error(f"Error generating description with CLIP: {e}")
+            logger.error(f"Error generating description: {e}")
             return f"Error generating description: {str(e)}"
+
+    @classmethod
+    def get_cache_stats(cls):
+        """Get information about model cache status"""
+        return {
+            "models_cached": len(cls._model_cache),
+            "cache_initialized": cls._cache_initialized,
+            "cached_model_names": list(cls._model_cache.keys())
+        }
+
+    @classmethod
+    def clear_cache(cls):
+        """Clear the model cache to free memory"""
+        cls._model_cache.clear()
+        cls._processor_cache.clear()
+        cls._cache_initialized = False
+        logger.info("🗑️ Cleared CLIP model cache")
+
+    @classmethod
+    def preload_model(cls, model_name="openai/clip-vit-base-patch32"):
+        """Preload model at application startup for fastest first access"""
+        logger.info("🚀 Preloading CLIP model...")
+        handler = cls()  # This will load and cache the model
+        logger.info("✅ CLIP model preloaded and cached")
+        return handler
 
 
 # Configuration management functions
