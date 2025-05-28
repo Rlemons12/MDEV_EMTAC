@@ -77,14 +77,8 @@ class OptimizedImageFolderProcessor:
                 image_count = session.query(Image).count()
 
             if image_count > 0:
-                print(f"\n⚠️  EXISTING IMAGES DETECTED")
-                print(f"=" * 40)
-                print(f"📊 Current images in database: {image_count:,}")
-                print(f"🔄 New images will be checked for duplicates")
-                print(f"💡 Duplicate images will be skipped automatically")
-                print()
-
-                proceed = input("⚠️  Continue with image import? (y/n): ").strip().lower()
+                info_id(f"Found {image_count:,} existing images in database", self.request_id)
+                proceed = input("Continue with image import? (y/n): ").strip().lower()
                 if proceed not in ['y', 'yes']:
                     info_id("User chose to skip image import due to existing data", self.request_id)
                     return False
@@ -98,7 +92,6 @@ class OptimizedImageFolderProcessor:
     def scan_for_images_vectorized(self, folder_path, recursive=True):
         """Optimized image scanning using vectorized operations."""
         info_id(f"Scanning for images in: {folder_path} (recursive={recursive})", self.request_id)
-        print(f"📂 Scanning for images...")
 
         try:
             with log_timed_operation("scan_for_images", self.request_id):
@@ -137,8 +130,6 @@ class OptimizedImageFolderProcessor:
                     image_files = []
 
                 info_id(f"Found {len(image_files)} image files", self.request_id)
-                print(f"   ✅ Found {len(image_files):,} image files")
-
                 return image_files
 
         except Exception as e:
@@ -167,9 +158,8 @@ class OptimizedImageFolderProcessor:
             return set()
 
     def prepare_image_data_vectorized(self, image_files, existing_titles):
-        """Prepare image data using vectorized operations - MUCH faster!"""
+        """Prepare image data using vectorized operations."""
         info_id("Preparing image data using vectorized operations", self.request_id)
-        print("⚙️  Processing image data...")
 
         try:
             with log_timed_operation("prepare_image_data", self.request_id):
@@ -206,7 +196,7 @@ class OptimizedImageFolderProcessor:
                 failed_copies = []
 
                 if not df_new.empty:
-                    print(f"   📊 Processing {len(df_new):,} new images...")
+                    info_id(f"Processing {len(df_new):,} new images", self.request_id)
 
                     # Create destination directory
                     dest_dir = os.path.join(DATABASE_DIR, "DB_IMAGES")
@@ -241,18 +231,17 @@ class OptimizedImageFolderProcessor:
 
                         # Progress update
                         if i + batch_size < len(df_new):
-                            print(f"      📁 Copied {i + batch_size:,}/{len(df_new):,} files...")
+                            info_id(f"Copied {i + batch_size:,}/{len(df_new):,} files", self.request_id)
 
                 # Update statistics
                 self.stats['duplicates_found'] = internal_dupes + db_dupes
                 self.stats['new_images_added'] = len(new_image_data)
 
                 info_id(f"Prepared {len(new_image_data)} new images for database insertion", self.request_id)
-                print(f"   ✅ Prepared {len(new_image_data):,} new images")
-                print(f"      📋 Internal duplicates: {internal_dupes:,}")
-                print(f"      📋 Database duplicates: {db_dupes:,}")
+                info_id(f"Internal duplicates: {internal_dupes:,}", self.request_id)
+                info_id(f"Database duplicates: {db_dupes:,}", self.request_id)
                 if failed_copies:
-                    print(f"      ❌ Copy failures: {len(failed_copies):,}")
+                    info_id(f"Copy failures: {len(failed_copies):,}", self.request_id)
 
                 return new_image_data, failed_copies
 
@@ -264,12 +253,10 @@ class OptimizedImageFolderProcessor:
         """Perform optimized bulk insertion of images."""
         if not new_image_data:
             info_id("No new images to insert", self.request_id)
-            print("   📋 No new images to insert")
             return []
 
         try:
             info_id(f"Bulk inserting {len(new_image_data)} images", self.request_id)
-            print(f"💾 Inserting {len(new_image_data):,} new images...")
 
             with log_timed_operation("bulk_insert_images", self.request_id):
                 # Use optimized bulk insert
@@ -298,8 +285,6 @@ class OptimizedImageFolderProcessor:
                                      for img in newly_inserted]
 
                 info_id(f"Successfully inserted {len(new_image_data)} images", self.request_id)
-                print(f"   ✅ Successfully inserted {len(new_image_data):,} images")
-
                 return new_image_ids
 
         except Exception as e:
@@ -314,7 +299,6 @@ class OptimizedImageFolderProcessor:
 
         try:
             info_id("Starting optimized embedding generation", self.request_id)
-            print("🤖 Generating image embeddings...")
 
             # Load the model once
             model_handler = ModelsConfig.load_image_model()
@@ -323,7 +307,6 @@ class OptimizedImageFolderProcessor:
             # Skip embedding generation for NoImageModel
             if model_name == 'NoImageModel':
                 info_id("Skipping embedding generation for NoImageModel", self.request_id)
-                print("   ⏩ Skipping embeddings (NoImageModel selected)")
                 return
 
             with log_timed_operation("bulk_generate_embeddings", self.request_id):
@@ -360,7 +343,7 @@ class OptimizedImageFolderProcessor:
 
                             # Progress update
                             if processed_count % 25 == 0:
-                                print(f"      🤖 Generated {processed_count:,}/{len(new_image_ids):,} embeddings...")
+                                info_id(f"Generated {processed_count:,}/{len(new_image_ids):,} embeddings", self.request_id)
 
                         except Exception as e:
                             error_id(f"Error generating embedding for {img_data['title']}: {str(e)}", self.request_id)
@@ -372,21 +355,16 @@ class OptimizedImageFolderProcessor:
                     session.commit()
 
                     info_id(f"Generated {len(embeddings_data)} embeddings", self.request_id)
-                    print(f"   ✅ Generated {len(embeddings_data):,} embeddings")
                 else:
-                    print("   📋 No embeddings generated")
+                    info_id("No embeddings generated", self.request_id)
 
         except Exception as e:
             error_id(f"Error generating embeddings: {str(e)}", self.request_id)
-            print(f"   ⚠️  Embedding generation error: {str(e)}")
 
     def process_folder_optimized(self, folder_path, recursive=True):
         """Main optimized method to process an image folder."""
         try:
-            print(f"\n🚀 OPTIMIZED Image Folder Processing")
-            print(f"=" * 45)
-            print(f"📁 Source: {folder_path}")
-            print(f"🔄 Recursive: {'Yes' if recursive else 'No'}")
+            info_id(f"Starting optimized image folder processing for: {folder_path} (recursive={'Yes' if recursive else 'No'})", self.request_id)
 
             # Validate folder
             if not os.path.exists(folder_path):
@@ -407,7 +385,7 @@ class OptimizedImageFolderProcessor:
                 image_files = self.scan_for_images_vectorized(folder_path, recursive)
 
                 if not image_files:
-                    print("📋 No image files found to process")
+                    info_id("No image files found to process", self.request_id)
                     return True
 
                 self.stats['total_files_found'] = len(image_files)
@@ -433,34 +411,27 @@ class OptimizedImageFolderProcessor:
                 if self.stats['total_files_found'] > 0 else 0
             )
 
-            # Display optimized summary
+            # Log summary
             self.display_optimized_summary()
 
             return True
 
         except Exception as e:
             error_id(f"Error in optimized folder processing: {str(e)}", self.request_id, exc_info=True)
-            print(f"❌ Error processing folder: {str(e)}")
             return False
 
     def display_optimized_summary(self):
-        """Display comprehensive processing summary."""
-        print(f"\n🎉 OPTIMIZED IMAGE PROCESSING COMPLETE!")
-        print(f"=" * 55)
-        print(f"📊 Final Summary:")
-        print(f"   📁 Total files found: {self.stats['total_files_found']:,}")
-        print(f"   ✅ Successfully processed: {self.stats['new_images_added']:,}")
-        print(f"   📋 Duplicates skipped: {self.stats['duplicates_found']:,}")
-        print(f"   ❌ Files with errors: {self.stats['files_errored']:,}")
-        print(f"   ⏱️  Total processing time: {self._format_time(self.stats['processing_time'])}")
+        """Log comprehensive processing summary."""
+        info_id("Optimized image processing completed", self.request_id)
+        info_id(f"Total files found: {self.stats['total_files_found']:,}", self.request_id)
+        info_id(f"Successfully processed: {self.stats['new_images_added']:,}", self.request_id)
+        info_id(f"Duplicates skipped: {self.stats['duplicates_found']:,}", self.request_id)
+        info_id(f"Files with errors: {self.stats['files_errored']:,}", self.request_id)
+        info_id(f"Total processing time: {self._format_time(self.stats['processing_time'])}", self.request_id)
 
         if self.stats['processing_time'] > 0:
             rate = self.stats['total_files_found'] / self.stats['processing_time']
-            print(f"   🚀 Processing rate: {rate:.1f} files/sec")
-
-        print(f"=" * 55)
-
-        info_id(f"Optimized image processing summary: {self.stats}", self.request_id)
+            info_id(f"Processing rate: {rate:.1f} files/sec", self.request_id)
 
     def _format_time(self, seconds):
         """Format seconds into readable time string."""
@@ -478,15 +449,8 @@ class OptimizedImageFolderProcessor:
         try:
             info_id("Setting up AI model configuration", self.request_id)
 
-            print(f"\n🤖 AI Model Selection")
-            print(f"=" * 30)
-            print(f"Select an image processing model:")
-            print(f"1. 🎯 CLIPModelHandler (Full AI processing)")
-            print(f"2. ⚡ NoImageModel (Skip embedding generation - MUCH faster)")
-            print(f"3. 🔧 Custom (Enter model name manually)")
-
             while True:
-                choice = input(f"📝 Select option (1-3): ").strip()
+                choice = input("Select option (1-3): ").strip()
 
                 if choice == "1":
                     selected_model = "CLIPModelHandler"
@@ -495,26 +459,24 @@ class OptimizedImageFolderProcessor:
                     selected_model = "NoImageModel"
                     break
                 elif choice == "3":
-                    model_name = input("🔧 Enter custom model name: ").strip()
+                    model_name = input("Enter custom model name: ").strip()
                     if model_name:
                         selected_model = model_name
                         break
                     else:
-                        print("❌ Please enter a valid model name")
+                        warning_id("Invalid model name provided", self.request_id)
                 else:
-                    print("❌ Invalid choice. Please select 1, 2, or 3.")
+                    warning_id("Invalid choice. Please select 1, 2, or 3.", self.request_id)
 
             # Set the model
             success = ModelsConfig.set_current_image_model(selected_model)
 
             if success:
                 info_id(f"Successfully set image model to: {selected_model}", self.request_id)
-                print(f"✅ Image model set to: {selected_model}")
             else:
                 error_id(f"Failed to set image model to: {selected_model}", self.request_id)
                 warning_id("Falling back to NoImageModel", self.request_id)
                 ModelsConfig.set_current_image_model("NoImageModel")
-                print(f"⚠️  Fell back to NoImageModel")
 
         except Exception as e:
             error_id(f"Error setting up AI model: {str(e)}", self.request_id)
@@ -525,8 +487,7 @@ def main():
     """
     Main function for optimized image processing.
     """
-    print("\n🚀 Starting OPTIMIZED Image Folder Processing")
-    print("=" * 55)
+    info_id("Starting optimized image folder processing", request_id=None)
 
     processor = None
     try:
@@ -542,64 +503,56 @@ def main():
             folders = sys.argv[1:]
             info_id(f"Using command line folders: {folders}", processor.request_id)
         else:
-            print(f"\n📁 Folder Selection")
-            print(f"Enter folder paths containing images (blank line to finish):")
-
             while True:
-                folder_path = input("📂 Folder path: ").strip().strip('"').strip("'")
+                folder_path = input("Folder path: ").strip().strip('"').strip("'")
                 if not folder_path:
                     break
 
                 if not os.path.isdir(folder_path):
-                    print(f"⚠️  Invalid directory: {folder_path}")
+                    warning_id(f"Invalid directory: {folder_path}", processor.request_id)
                     continue
 
                 folders.append(folder_path)
-                print(f"✅ Added: {folder_path}")
+                info_id(f"Added folder: {folder_path}", processor.request_id)
 
         if not folders:
-            print("❌ No valid folders provided")
+            warning_id("No valid folders provided", processor.request_id)
             return
 
         # Processing options
-        recursive = input("🔄 Process subfolders recursively? (y/n, default: y): ").strip().lower() != 'n'
+        recursive = input("Process subfolders recursively? (y/n, default: y): ").strip().lower() != 'n'
+        info_id(f"Recursive processing: {'Yes' if recursive else 'No'}", processor.request_id)
 
         # Process each folder with optimized method
         success_count = 0
         total_start_time = time.time()
 
         for i, folder in enumerate(folders, 1):
-            print(f"\n🔄 Processing folder {i}/{len(folders)}: {os.path.basename(folder)}")
+            info_id(f"Processing folder {i}/{len(folders)}: {os.path.basename(folder)}", processor.request_id)
 
             try:
                 if processor.process_folder_optimized(folder, recursive=recursive):
                     success_count += 1
-                    print(f"✅ Folder {i} completed successfully")
+                    info_id(f"Folder {i} completed successfully", processor.request_id)
                 else:
-                    print(f"⚠️  Folder {i} completed with issues")
+                    warning_id(f"Folder {i} completed with issues", processor.request_id)
             except Exception as e:
-                print(f"❌ Error processing folder {i}: {str(e)}")
                 error_id(f"Error processing folder {folder}: {str(e)}", processor.request_id)
 
         # Final summary
         total_time = time.time() - total_start_time
-        print(f"\n🎉 ALL FOLDERS PROCESSED!")
-        print(f"=" * 40)
-        print(f"✅ Successful: {success_count}/{len(folders)}")
-        print(f"⏱️  Total time: {processor._format_time(total_time)}")
+        info_id("All folders processed", processor.request_id)
+        info_id(f"Successful: {success_count}/{len(folders)}", processor.request_id)
+        info_id(f"Total time: {processor._format_time(total_time)}", processor.request_id)
         if success_count < len(folders):
-            print(f"⚠️  Issues: {len(folders) - success_count}/{len(folders)}")
+            warning_id(f"Issues: {len(folders) - success_count}/{len(folders)}", processor.request_id)
 
         info_id("Optimized image folder processing completed", processor.request_id)
 
     except KeyboardInterrupt:
-        print("\n🛑 Processing interrupted by user")
-        if processor:
-            error_id("Processing interrupted by user", processor.request_id)
+        error_id("Processing interrupted by user", processor.request_id if processor else None)
     except Exception as e:
-        print(f"\n❌ Processing failed: {str(e)}")
-        if processor:
-            error_id(f"Processing failed: {str(e)}", processor.request_id, exc_info=True)
+        error_id(f"Processing failed: {str(e)}", processor.request_id if processor else None, exc_info=True)
     finally:
         # Cleanup
         try:
