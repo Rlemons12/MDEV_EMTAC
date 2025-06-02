@@ -4,148 +4,147 @@ import sys
 import time
 from datetime import datetime
 
-#cd "C:\Users\10169062\Desktop\AU_IndusMaintdb\Database\postgreSQL\pgsql\bin"
-#.\pg_ctl.exe -D "C:\Users\10169062\PostgreSQL\data" start
-
-
-
-# Set these to your actual paths
+# UPDATE THESE PATHS TO MATCH YOUR SETUP
 BIN_DIR = r"C:\Users\10169062\Desktop\AU_IndusMaintdb\Database\postgreSQL\pgsql\bin"
 DATA_DIR = r"C:\Users\10169062\PostgreSQL\data"
 
 
 def run_pg_ctl(args, timeout=30):
     """Helper to run pg_ctl with given arguments and timeout."""
-    cmd = [os.path.join(BIN_DIR, "pg_ctl.exe"), "-D", DATA_DIR] + args
+    pg_ctl_path = os.path.join(BIN_DIR, "pg_ctl.exe")
+    cmd = [pg_ctl_path, "-D", DATA_DIR] + args
 
     try:
-        print(f"Running command: {' '.join(cmd)}")
+        print(f"Running: {' '.join(cmd)}")
         result = subprocess.run(
             cmd,
             cwd=BIN_DIR,
             capture_output=True,
             text=True,
-            timeout=timeout
+            timeout=timeout,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
         )
         return result
     except subprocess.TimeoutExpired:
-        print(f"⚠️  Command timed out after {timeout} seconds!")
-        print("This might indicate PostgreSQL is taking longer than usual to start/stop.")
+        print(f"[WARNING] Command timed out after {timeout} seconds")
         return None
     except FileNotFoundError:
-        print(f"❌ pg_ctl.exe not found at: {os.path.join(BIN_DIR, 'pg_ctl.exe')}")
+        print(f"[ERROR] pg_ctl.exe not found at: {pg_ctl_path}")
         print("Please check your BIN_DIR path in the script.")
         return None
+    except PermissionError:
+        print(f"[ERROR] Permission denied. Try running as Administrator or check folder permissions.")
+        return None
     except Exception as e:
-        print(f"❌ Unexpected error: {e}")
+        print(f"[ERROR] Unexpected error: {e}")
         return None
 
 
 def start_postgres():
-    """Start PostgreSQL server with improved feedback."""
-    print("🚀 Starting PostgreSQL server...")
+    """Start PostgreSQL server."""
+    print("[INFO] Starting PostgreSQL server...")
 
-    # Use a log file in the data directory
-    log_file = os.path.join(DATA_DIR, "server.log")
-    result = run_pg_ctl(["-l", log_file, "start"], timeout=45)
-
-    if result is None:
-        print("❌ Failed to start PostgreSQL (command timeout or error)")
+    # Check if already running first
+    status_result = run_pg_ctl(["status"])
+    if status_result and "server is running" in status_result.stdout:
+        print("[SUCCESS] PostgreSQL is already running!")
         return
 
-    print(f"📊 Return code: {result.returncode}")
+    # Try to start with log file and shorter timeout
+    log_file = os.path.join(DATA_DIR, "server.log")
+    print("[INFO] Attempting to start PostgreSQL (this may take a few seconds)...")
+
+    result = run_pg_ctl(["-l", log_file, "start", "-w"], timeout=20)  # Added -w flag and shorter timeout
+
+    if result is None:
+        print("[ERROR] Start command timed out or failed")
+        try_manual_start()
+        return
+
+    print(f"[INFO] Return code: {result.returncode}")
 
     if result.stdout.strip():
-        print(f"📤 Output: {result.stdout.strip()}")
+        print(f"[OUTPUT] {result.stdout.strip()}")
 
     if result.stderr.strip():
-        print(f"⚠️  Errors: {result.stderr.strip()}")
+        print(f"[ERROR] {result.stderr.strip()}")
 
     if result.returncode == 0:
-        print("✅ PostgreSQL server started successfully!")
-
-        # Wait a moment and verify it's actually running
-        print("🔍 Verifying server status...")
-        time.sleep(2)
-        verify_status()
+        print("[SUCCESS] PostgreSQL server started!")
+        # Brief pause then verify
+        print("[INFO] Verifying server status...")
+        time.sleep(1)
+        if verify_status():
+            print("[INFO] Server startup completed successfully")
+        else:
+            print("[WARNING] Server may still be starting up")
     else:
-        print("❌ Error starting PostgreSQL server")
-        print(f"💡 Check the log file: {log_file}")
-
-        # Try to show recent log entries
+        print("[ERROR] Failed to start PostgreSQL server")
         show_recent_logs(log_file)
+        try_manual_start()
 
-        # Run quick diagnosis automatically
-        quick_diagnosis()
-
-        print(f"\n🔧 Quick Manual Commands to Try:")
-        print(f'   cd "{BIN_DIR}"')
-        if os.name == 'nt':  # Windows
-            print(f'   PowerShell: .\\pg_ctl.exe -D "{DATA_DIR}" start')
-            print(f'   Command Prompt: pg_ctl.exe -D "{DATA_DIR}" start')
-        print("💡 See menu option 7 for complete troubleshooting guide")
+    print("[INFO] Start operation completed - returning to menu")
 
 
 def stop_postgres():
     """Stop PostgreSQL server."""
-    print("🛑 Stopping PostgreSQL server...")
+    print("[INFO] Stopping PostgreSQL server...")
     result = run_pg_ctl(["stop"])
 
     if result is None:
-        print("❌ Failed to stop PostgreSQL (command timeout or error)")
+        print("[ERROR] Failed to stop PostgreSQL")
         return
 
     if result.returncode == 0:
-        print("✅ PostgreSQL server stopped successfully.")
+        print("[SUCCESS] PostgreSQL server stopped.")
     else:
-        print("❌ Error stopping PostgreSQL server:")
+        print("[ERROR] Error stopping PostgreSQL server:")
         if result.stderr.strip():
-            print(f"⚠️  Error details: {result.stderr.strip()}")
+            print(f"[ERROR] {result.stderr.strip()}")
 
 
 def status_postgres():
-    """Check PostgreSQL server status with detailed info."""
-    print("🔍 Checking PostgreSQL server status...")
+    """Check PostgreSQL server status."""
+    print("[INFO] Checking PostgreSQL server status...")
     result = run_pg_ctl(["status"])
 
     if result is None:
-        print("❌ Failed to check status (command timeout or error)")
+        print("[ERROR] Failed to check status")
         return
 
     if "server is running" in result.stdout:
-        print("✅ PostgreSQL server is RUNNING")
-
-        # Extract PID if available
+        print("[SUCCESS] PostgreSQL server is RUNNING")
         lines = result.stdout.split('\n')
         for line in lines:
             if "PID" in line:
-                print(f"📋 {line.strip()}")
+                print(f"[INFO] {line.strip()}")
     elif "no server running" in result.stdout:
-        print("❌ PostgreSQL server is NOT running")
+        print("[INFO] PostgreSQL server is NOT running")
     else:
-        print("❓ Unable to determine server status")
+        print("[WARNING] Unable to determine server status")
         if result.stdout.strip():
-            print(f"📤 Output: {result.stdout.strip()}")
-        if result.stderr.strip():
-            print(f"⚠️  Errors: {result.stderr.strip()}")
+            print(f"[OUTPUT] {result.stdout.strip()}")
 
 
 def verify_status():
-    """Quick status verification without extra output."""
+    """Quick status verification."""
     result = run_pg_ctl(["status"])
     if result and "server is running" in result.stdout:
-        print("✅ Status verified: Server is running")
+        print("[SUCCESS] Status verified: Server is running")
         return True
     else:
-        print("⚠️  Status check: Server may not be fully started")
+        print("[WARNING] Server may not be fully started")
         return False
 
 
-def show_recent_logs(log_file, lines=10):
+def show_recent_logs(log_file=None, lines=10):
     """Show recent entries from PostgreSQL log file."""
+    if log_file is None:
+        log_file = os.path.join(DATA_DIR, "server.log")
+
     try:
         if os.path.exists(log_file):
-            print(f"\n📄 Last {lines} lines from {log_file}:")
+            print(f"\n[INFO] Last {lines} lines from {log_file}:")
             print("-" * 50)
             with open(log_file, 'r', encoding='utf-8', errors='ignore') as f:
                 all_lines = f.readlines()
@@ -154,259 +153,193 @@ def show_recent_logs(log_file, lines=10):
                     print(line.rstrip())
             print("-" * 50)
         else:
-            print(f"📄 Log file not found: {log_file}")
+            print(f"[WARNING] Log file not found: {log_file}")
     except Exception as e:
-        print(f"❌ Could not read log file: {e}")
+        print(f"[ERROR] Could not read log file: {e}")
 
 
 def check_paths():
     """Verify that required paths exist."""
-    print("🔍 Checking configuration...")
+    print("[INFO] Checking configuration...")
 
     if not os.path.exists(BIN_DIR):
-        print(f"❌ BIN_DIR not found: {BIN_DIR}")
+        print(f"[ERROR] BIN_DIR not found: {BIN_DIR}")
+        print("[FIX] Update BIN_DIR in the script to point to your PostgreSQL bin folder")
         return False
 
     pg_ctl_path = os.path.join(BIN_DIR, "pg_ctl.exe")
     if not os.path.exists(pg_ctl_path):
-        print(f"❌ pg_ctl.exe not found: {pg_ctl_path}")
+        print(f"[ERROR] pg_ctl.exe not found: {pg_ctl_path}")
         return False
 
     if not os.path.exists(DATA_DIR):
-        print(f"❌ DATA_DIR not found: {DATA_DIR}")
+        print(f"[ERROR] DATA_DIR not found: {DATA_DIR}")
+        print("[FIX] Update DATA_DIR in the script or initialize database")
         return False
 
-    # Check for essential PostgreSQL files
     config_file = os.path.join(DATA_DIR, "postgresql.conf")
     if not os.path.exists(config_file):
-        print(f"❌ PostgreSQL config not found: {config_file}")
-        print("💡 You may need to initialize the database with initdb")
+        print(f"[ERROR] PostgreSQL config not found: {config_file}")
+        print("[FIX] Initialize database with initdb")
         return False
 
-    print("✅ All paths and files look good!")
+    print("[SUCCESS] All paths and files look good!")
     return True
 
 
-def show_connection_info():
-    """Display connection information."""
-    print("\n🔗 Connection Information:")
-    print(f"   Host: localhost")
-    print(f"   Port: 5432")
-    print(f"   Database: pgsql_emtac")
-    print(f"   User: postgres")
-    print(f"   Connection string: psql -U postgres -d pgsql_emtac -h localhost")
+def try_manual_start():
+    """Provide manual start commands when automatic start fails."""
+    print("\n[MANUAL] Try these commands manually:")
+    print("=" * 40)
+    print("1. Open Command Prompt (cmd)")
+    print(f"2. cd \"{BIN_DIR}\"")
+    print(f"3. pg_ctl.exe -D \"{DATA_DIR}\" start")
+    print("\nOR with PowerShell:")
+    print(f"1. cd \"{BIN_DIR}\"")
+    print(f"2. .\\pg_ctl.exe -D \"{DATA_DIR}\" start")
 
 
 def quick_diagnosis():
-    """Run quick diagnostic checks and provide immediate help."""
-    print("\n🔍 Running Quick Diagnosis...")
+    """Run quick diagnostic checks."""
+    print("\n[DIAGNOSIS] Running checks...")
     print("-" * 30)
 
-    issues_found = []
+    issues = []
 
-    # Check 1: Paths exist
+    # Check paths
     if not os.path.exists(BIN_DIR):
-        issues_found.append(f"❌ BIN_DIR not found: {BIN_DIR}")
+        issues.append(f"BIN_DIR not found: {BIN_DIR}")
     else:
-        print(f"✅ BIN_DIR exists: {BIN_DIR}")
+        print(f"[OK] BIN_DIR exists: {BIN_DIR}")
 
     pg_ctl_path = os.path.join(BIN_DIR, "pg_ctl.exe")
     if not os.path.exists(pg_ctl_path):
-        issues_found.append(f"❌ pg_ctl.exe not found: {pg_ctl_path}")
+        issues.append(f"pg_ctl.exe not found: {pg_ctl_path}")
     else:
-        print(f"✅ pg_ctl.exe found")
+        print(f"[OK] pg_ctl.exe found")
 
     if not os.path.exists(DATA_DIR):
-        issues_found.append(f"❌ DATA_DIR not found: {DATA_DIR}")
+        issues.append(f"DATA_DIR not found: {DATA_DIR}")
     else:
-        print(f"✅ DATA_DIR exists: {DATA_DIR}")
+        print(f"[OK] DATA_DIR exists: {DATA_DIR}")
 
-    # Check 2: PostgreSQL config
+    # Check database initialization
     config_file = os.path.join(DATA_DIR, "postgresql.conf")
     if not os.path.exists(config_file):
-        issues_found.append("❌ Database not initialized (postgresql.conf missing)")
-        issues_found.append(f"💡 Run: initdb.exe -D \"{DATA_DIR}\" -U postgres")
+        issues.append("Database not initialized (postgresql.conf missing)")
     else:
-        print("✅ Database appears initialized")
+        print("[OK] Database appears initialized")
 
-    # Check 3: Port availability
-    try:
-        result = subprocess.run(["netstat", "-an"], capture_output=True, text=True, timeout=10)
-        if ":5432" in result.stdout:
-            print("⚠️  Port 5432 is in use (this might be normal if PostgreSQL is running)")
-        else:
-            print("✅ Port 5432 appears available")
-    except:
-        print("❓ Could not check port availability")
-
-    # Check 4: Try to get PostgreSQL version
+    # Check PostgreSQL version
     try:
         version_file = os.path.join(DATA_DIR, "PG_VERSION")
         if os.path.exists(version_file):
             with open(version_file, 'r') as f:
                 version = f.read().strip()
-            print(f"✅ PostgreSQL version: {version}")
+            print(f"[OK] PostgreSQL version: {version}")
         else:
-            issues_found.append("❌ PG_VERSION file not found")
+            issues.append("PG_VERSION file not found")
     except:
-        print("❓ Could not read PostgreSQL version")
+        print("[WARNING] Could not read PostgreSQL version")
 
     # Summary
-    if issues_found:
-        print(f"\n🚨 Found {len(issues_found)} issue(s):")
-        for issue in issues_found:
-            print(f"   {issue}")
-        print("\n💡 Suggested actions:")
-        print("   1. Check menu option 6 for detailed troubleshooting")
-        print("   2. Try the manual commands shown above")
-        print("   3. Run as Administrator if permission issues")
+    if issues:
+        print(f"\n[ISSUES] Found {len(issues)} issue(s):")
+        for issue in issues:
+            print(f"   - {issue}")
     else:
-        print("\n✅ No obvious issues detected!")
-        print("💡 If you're still having problems:")
-        print("   1. Check recent logs (menu option 4)")
-        print("   2. Try manual commands (menu option 6)")
+        print("\n[SUCCESS] No obvious issues detected!")
 
 
-def troubleshooting_guide():
-    """Display comprehensive troubleshooting instructions."""
-    print("\n🔧 PostgreSQL Troubleshooting Guide")
-    print("=" * 40)
+def show_connection_info():
+    """Display connection information."""
+    print("\n[CONNECTION] PostgreSQL Connection Info:")
+    print("   Host: localhost")
+    print("   Port: 5432")
+    print("   Default Database: postgres")
+    print("   User: postgres")
+    print(f"   Test Connection: psql -U postgres -h localhost")
 
-    print("\n📋 STEP 1: Manual Command Testing")
-    print("-" * 30)
-    print("If the script isn't working, try these manual commands:")
-    print()
-    print("🖥️  Option A: Using PowerShell")
-    print(f'   cd "{BIN_DIR}"')
-    print(f'   .\\pg_ctl.exe -D "{DATA_DIR}" status')
-    print(f'   .\\pg_ctl.exe -D "{DATA_DIR}" start')
-    print("   ⚠️  Note: PowerShell requires .\\ prefix!")
-    print()
-    print("🖥️  Option B: Using Command Prompt (easier)")
-    print("   Press Win+R, type 'cmd', press Enter, then:")
-    print(f'   cd "{BIN_DIR}"')
-    print(f'   pg_ctl.exe -D "{DATA_DIR}" status')
-    print(f'   pg_ctl.exe -D "{DATA_DIR}" start')
 
-    print("\n📋 STEP 2: Check File Existence")
-    print("-" * 30)
-    print("Verify these files exist:")
-    print(f'   dir "{os.path.join(BIN_DIR, "pg_ctl.exe")}"')
-    print(f'   dir "{DATA_DIR}"')
-    print(f'   dir "{os.path.join(DATA_DIR, "postgresql.conf")}"')
+def test_start_nonblocking():
+    """Test start with immediate return - for debugging hanging issues."""
+    print("[TEST] Testing non-blocking start...")
 
-    print("\n📋 STEP 3: Database Initialization")
-    print("-" * 30)
-    print("If DATA_DIR is empty or missing postgresql.conf:")
-    print(f'   cd "{BIN_DIR}"')
-    print(f'   initdb.exe -D "{DATA_DIR}" -U postgres')
+    # Check current status first
+    print("[TEST] Step 1: Checking current status...")
+    status_result = run_pg_ctl(["status"])
+    if status_result and "server is running" in status_result.stdout:
+        print("[TEST] PostgreSQL is already running!")
+        return
 
-    print("\n📋 STEP 4: Port Conflicts")
-    print("-" * 30)
-    print("Check if port 5432 is already in use:")
-    print("   netstat -an | findstr :5432")
-    print("If another service is using port 5432, either:")
-    print("   - Stop that service")
-    print("   - Change PostgreSQL port in postgresql.conf")
-
-    print("\n📋 STEP 5: Log File Analysis")
-    print("-" * 30)
+    print("[TEST] Step 2: Attempting start with 5-second timeout...")
     log_file = os.path.join(DATA_DIR, "server.log")
-    print(f"Check the log file for errors:")
-    print(f'   type "{log_file}"')
-    print("Look for ERROR or FATAL messages")
 
-    print("\n📋 STEP 6: Permissions")
-    print("-" * 30)
-    print("If you get permission errors:")
-    print("   - Run Command Prompt as Administrator")
-    print("   - Check folder permissions on DATA_DIR")
-    print("   - Ensure user has read/write access to DATA_DIR")
+    # Very short timeout to see if it returns quickly
+    result = run_pg_ctl(["-l", log_file, "start", "-w"], timeout=5)
 
-    print("\n📋 STEP 7: Fresh Start")
-    print("-" * 30)
-    print("For a complete reset:")
-    print("1. Stop any running PostgreSQL:")
-    print(f'   pg_ctl.exe -D "{DATA_DIR}" stop')
-    print("2. Backup your data directory (if needed)")
-    print("3. Delete and recreate DATA_DIR:")
-    print(f'   rmdir /s "{DATA_DIR}"')
-    print(f'   mkdir "{DATA_DIR}"')
-    print("4. Initialize fresh database:")
-    print(f'   initdb.exe -D "{DATA_DIR}" -U postgres')
-    print("5. Start server:")
-    print(f'   pg_ctl.exe -D "{DATA_DIR}" start')
+    if result is None:
+        print("[TEST] Command timed out after 5 seconds - this indicates hanging")
+        print("[TEST] Try manual start: pg_ctl.exe -D DATA_DIR start")
+    else:
+        print(f"[TEST] Command returned with code: {result.returncode}")
+        print(f"[TEST] Output: {result.stdout.strip()}")
+        if result.stderr.strip():
+            print(f"[TEST] Errors: {result.stderr.strip()}")
 
-    print("\n📋 STEP 8: Connection Testing")
-    print("-" * 30)
-    print("Once server is running, test connection:")
-    print(f'   cd "{BIN_DIR}"')
-    print("   psql.exe -U postgres -h localhost")
-    print("   # Should connect to PostgreSQL prompt")
-    print("   # Type \\q to quit")
+    print("[TEST] Test completed")
 
-    print("\n📋 STEP 9: Common Error Solutions")
-    print("-" * 30)
-    print("🔸 'pg_ctl.exe not recognized':")
-    print("   → Use full path or add .\\ prefix in PowerShell")
-    print()
-    print("🔸 'database system is starting up':")
-    print("   → Wait 10-30 seconds, server is still initializing")
-    print()
-    print("🔸 'could not connect to server':")
-    print("   → Check server is running: pg_ctl status")
-    print("   → Check port: netstat -an | findstr :5432")
-    print()
-    print("🔸 'permission denied':")
-    print("   → Run as Administrator")
-    print("   → Check DATA_DIR permissions")
-    print()
-    print("🔸 'port 5432 already in use':")
-    print("   → Another PostgreSQL is running")
-    print("   → Or another service is using port 5432")
 
-    print("\n📋 STEP 10: Get Help")
-    print("-" * 30)
-    print("If still having issues:")
-    print("1. Run manual commands from STEP 1")
-    print("2. Copy the exact error message")
-    print("3. Check the log file from STEP 5")
-    print("4. Note your Windows version and PostgreSQL version")
+def fix_common_issues():
+    """Provide solutions for common issues."""
+    print("\n[FIXES] Common Issue Solutions:")
+    print("=" * 30)
 
-    print("\n💡 Quick Diagnosis Commands:")
-    print("-" * 30)
-    print("Run these to gather info:")
-    print(f'echo "PostgreSQL Version:" && type "{os.path.join(DATA_DIR, "PG_VERSION")}"')
-    print('echo "Windows Version:" && ver')
-    print('echo "Port Check:" && netstat -an | findstr :5432')
-    print(f'echo "Files Check:" && dir "{BIN_DIR}\\pg_ctl.exe" && dir "{DATA_DIR}\\postgresql.conf"')
+    print("\n1. Database Not Initialized:")
+    print(f"   cd \"{BIN_DIR}\"")
+    print(f"   initdb.exe -D \"{DATA_DIR}\" -U postgres")
+
+    print("\n2. Permission Issues:")
+    print("   - Ensure your user has read/write access to DATA_DIR")
+    print("   - Try running Command Prompt as Administrator")
+    print("   - Check Windows folder permissions")
+
+    print("\n3. Port Already in Use:")
+    print("   netstat -an | findstr :5432")
+    print("   - Stop other PostgreSQL instances")
+    print("   - Change port in postgresql.conf")
+
+    print("\n4. Path Issues:")
+    print("   - Update BIN_DIR and DATA_DIR in this script")
+    print("   - Use full paths, not relative paths")
 
 
 def main():
-    """Main menu loop with improved interface."""
-    print("🐘 PostgreSQL Server Control Panel")
-    print("=" * 35)
+    """Main menu loop."""
+    print("PostgreSQL Server Control Panel (No Admin Required)")
+    print("=" * 50)
 
     # Check paths on startup
     if not check_paths():
-        print("\n❌ Configuration issues detected. Please fix paths and try again.")
+        print("\n[ERROR] Configuration issues detected.")
+        print("[FIX] Update the BIN_DIR and DATA_DIR paths at the top of this script")
         input("Press Enter to exit...")
         return
 
     while True:
-        print(f"\n📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        print("🐘 PostgreSQL Server Control")
-        print("=" * 28)
-        print("1. 🚀 Start server")
-        print("2. 🛑 Stop server")
-        print("3. 🔍 Check status")
-        print("4. 📄 Show recent logs")
-        print("5. 🔗 Show connection info")
-        print("6. 🔍 Quick diagnosis")
-        print("7. 🔧 Troubleshooting guide")
-        print("8. 🚪 Exit")
+        print(f"\n[TIME] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print("PostgreSQL Control Menu")
+        print("=" * 22)
+        print("1. Start server")
+        print("2. Stop server")
+        print("3. Check status")
+        print("4. Show recent logs")
+        print("5. Connection info")
+        print("6. Quick diagnosis")
+        print("7. Fix common issues")
+        print("8. Exit")
 
-        choice = input("\nChoose an option [1-8]: ").strip()
+        choice = input("\nChoose option [1-8]: ").strip()
 
         if choice == '1':
             start_postgres()
@@ -415,19 +348,18 @@ def main():
         elif choice == '3':
             status_postgres()
         elif choice == '4':
-            log_file = os.path.join(DATA_DIR, "server.log")
-            show_recent_logs(log_file, 20)
+            show_recent_logs()
         elif choice == '5':
             show_connection_info()
         elif choice == '6':
             quick_diagnosis()
         elif choice == '7':
-            troubleshooting_guide()
+            fix_common_issues()
         elif choice == '8':
-            print("👋 Goodbye!")
+            print("Goodbye!")
             break
         else:
-            print("❌ Invalid option. Please enter 1-8.")
+            print("[ERROR] Invalid option. Please enter 1-8.")
 
         input("\nPress Enter to continue...")
 
