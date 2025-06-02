@@ -2,7 +2,7 @@
 import psutil
 from flask import Blueprint, request, jsonify, redirect, url_for
 from sqlalchemy import text
-from modules.emtacdb.emtacdb_fts import CompleteDocument, Document, Image
+from modules.emtacdb.emtacdb_fts import CompleteDocument, Document, Image, ImageCompletedDocumentAssociation
 from modules.emtacdb.utlity.revision_database.auditlog import commit_audit_logs, add_audit_log_entry
 from modules.configuration.config_env import DatabaseConfig
 import traceback
@@ -35,15 +35,20 @@ def initialize_fts_table():
 @with_request_id
 def add_document():
     request_id = get_request_id()
-    info_id("Received a request to add documents", request_id)
+    info_id("Received a request to add documents with image-chunk associations", request_id)
+
     if "files" not in request.files:
         error_id("No files uploaded", request_id)
         return jsonify({"message": "No files uploaded"}), 400
+
     files = request.files.getlist("files")
     if not files or all(f.filename == "" for f in files):
         error_id("No valid files provided", request_id)
         return jsonify({"message": "No valid files provided"}), 400
-    info_id(f"Processing {len(files)} files: {[f.filename for f in files]}", request_id)
+
+    info_id(f"Processing {len(files)} files with structure-guided extraction: {[f.filename for f in files]}",
+            request_id)
+
     metadata = {
         'title': request.form.get("title", "").strip(),
         'area': request.form.get("area", "").strip(),
@@ -57,24 +62,31 @@ def add_document():
         'tags': request.form.get("tags", "").strip(),
         'priority': request.form.get("priority", "normal").strip(),
     }
+
     info_id(f"Metadata: {metadata}", request_id)
+
     try:
         _ensure_fts_table_exists(request_id)
-        with log_timed_operation("Document processing with image extraction", request_id):
+
+        with log_timed_operation("Document processing with image-chunk associations", request_id):
+            # Use the enhanced CompleteDocument processing with structure-guided associations
             success, response, status = CompleteDocument.process_upload(files, metadata, request_id)
+
         if success:
-            info_id("Successfully processed all files with image extraction", request_id)
+            info_id("Successfully processed all files with image-chunk associations", request_id)
             _log_successful_processing(files, metadata, request_id)
             return redirect(request.referrer or url_for("index"))
         else:
             error_id(f"Document processing failed: {response.get('errors')}", request_id)
             _log_failed_processing(files, response.get('errors', "Document processing failed"), request_id)
             return jsonify(response), status
+
     except Exception as e:
         error_id(f"Error processing files: {e}", request_id)
         error_id(traceback.format_exc(), request_id)
         _log_failed_processing(files, str(e), request_id)
         return jsonify({"message": f"Error processing files: {str(e)}"}), 500
+
 
 def _log_failed_processing(files, error_message, request_id):
     try:
@@ -85,13 +97,14 @@ def _log_failed_processing(files, error_message, request_id):
             new_data={
                 "error": str(error_message),
                 "files_attempted": [f.filename for f in files],
-                "processing_method": "concurrent_postgresql_with_images"
+                "processing_method": "structure_guided_with_image_chunk_associations"
             },
             request_id=request_id
         )
         commit_audit_logs()
     except Exception as e:
         warning_id(f"Audit logging failed: {e}", request_id)
+
 
 def _log_successful_processing(files, metadata, request_id):
     try:
@@ -103,7 +116,7 @@ def _log_successful_processing(files, metadata, request_id):
                 "files_processed": len(files),
                 "filenames": [f.filename for f in files],
                 "metadata": metadata,
-                "processing_method": "concurrent_postgresql_with_images"
+                "processing_method": "structure_guided_with_image_chunk_associations"
             },
             request_id=request_id
         )
@@ -223,23 +236,101 @@ def health_check():
         return jsonify(health_status), 503
 
 
-@add_document_bp.route("/image/<int:image_id>", methods=["GET"])
+@add_document_bp.route("/document/<int:document_id>/images_with_chunks", methods=["GET"])
 @with_request_id
-def serve_document_image(image_id):
-    """Serve an image file by ID."""
+def get_document_images_with_chunks(document_id):
+    """
+    New endpoint to get all images for a document with their associated chunk context.
+    """
     request_id = get_request_id()
 
     try:
-        success, response, status_code = Image.serve_file(image_id, request_id)
+        images_with_context = CompleteDocument.get_images_with_chunk_context(document_id, request_id)
 
-        if success:
-            return response
-        else:
-            return jsonify({"error": response, "success": False}), status_code
+        return jsonify({
+            "success": True,
+            "document_id": document_id,
+            "images_count": len(images_with_context),
+            "images": images_with_context
+        }), 200
 
     except Exception as e:
-        error_id(f"Error serving image {image_id}: {e}", request_id)
-        return jsonify({"error": "Internal server error", "success": False}), 500
+        error_id(f"Error getting images with chunks for document {document_id}: {e}", request_id)
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@add_document_bp.route("/document/<int:document_id>/visual_summary", methods=["GET"])
+@with_request_id
+def get_document_visual_summary(document_id):
+    """
+    New endpoint to get a visual summary of document structure with image associations.
+    """
+    request_id = get_request_id()
+
+    try:
+        visual_summary = CompleteDocument.get_document_visual_summary(document_id, request_id)
+
+        if visual_summary:
+            return jsonify({
+                "success": True,
+                "visual_summary": visual_summary
+            }), 200
+        else:
+            return jsonify({
+                "success": False,
+                "error": "Document not found"
+            }), 404
+
+    except Exception as e:
+        error_id(f"Error getting visual summary for document {document_id}: {e}", request_id)
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@add_document_bp.route("/search_images", methods=["GET"])
+@with_request_id
+def search_images_by_text():
+    """
+    New endpoint to search for images by their associated chunk text content.
+    """
+    request_id = get_request_id()
+
+    search_text = request.args.get('q', '').strip()
+    document_id = request.args.get('document_id', type=int)
+    confidence_threshold = request.args.get('confidence', 0.5, type=float)
+
+    if not search_text:
+        return jsonify({
+            "success": False,
+            "error": "Search text required"
+        }), 400
+
+    try:
+        search_results = CompleteDocument.search_images_by_chunk_text(
+            search_text=search_text,
+            document_id=document_id,
+            confidence_threshold=confidence_threshold,
+            request_id=request_id
+        )
+
+        return jsonify({
+            "success": True,
+            "search_text": search_text,
+            "results_count": len(search_results),
+            "results": search_results
+        }), 200
+
+    except Exception as e:
+        error_id(f"Error searching images by text '{search_text}': {e}", request_id)
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
 
 
 def calculate_optimal_workers(memory_threshold=0.5, max_workers=None, request_id=None):
@@ -280,8 +371,9 @@ def calculate_optimal_workers(memory_threshold=0.5, max_workers=None, request_id
 
 def add_document_to_db_multithread(*args, **kwargs):
     """
-    DEPRECATED: This function has been replaced by CompleteDocument.process_upload()
+    DEPRECATED: This function has been replaced by CompleteDocument.process_upload_with_structure_analysis()
     Kept for backward compatibility. Consider updating calling code.
     """
-    warning_id("add_document_to_db_multithread is deprecated, use CompleteDocument.process_upload()")
+    warning_id(
+        "add_document_to_db_multithread is deprecated, use CompleteDocument.process_upload_with_structure_analysis()")
     return None, False
