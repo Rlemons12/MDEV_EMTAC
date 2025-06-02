@@ -185,18 +185,116 @@ def early_database_creation():
 
                 if db_exists:
                     info_id(f"Database '{database_name}' already exists")
+
+                    # Check if existing database has correct encoding
+                    cursor.execute("""
+                        SELECT datname, encoding, datcollate, datctype 
+                        FROM pg_database 
+                        WHERE datname = %s
+                    """, (database_name,))
+
+                    db_info = cursor.fetchone()
+                    if db_info:
+                        db_name, encoding, collate, ctype = db_info
+                        info_id(f"Current database encoding: {encoding} (collate: {collate}, ctype: {ctype})")
+
+                        if encoding == 6:  # UTF8
+                            info_id(f"SUCCESS: Database '{database_name}' has correct UTF-8 encoding")
+                        else:
+                            warning_id(
+                                f"WARNING: Database '{database_name}' has wrong encoding: {encoding} (should be 6 for UTF8)")
+                            warning_id(
+                                "This will cause Unicode errors with scientific documents containing special characters")
+
+                            recreate = input(
+                                f"Recreate database '{database_name}' with UTF-8 encoding? (y/n): ").strip().lower()
+
+                            if recreate in ['y', 'yes']:
+                                info_id(f"Dropping and recreating database '{database_name}' with UTF-8...")
+                                try:
+                                    cursor.execute(f'DROP DATABASE "{database_name}"')
+                                    cursor.execute(f'''
+                                        CREATE DATABASE "{database_name}" 
+                                        WITH 
+                                        OWNER = "{username}"
+                                        ENCODING = 'UTF8'
+                                        LC_COLLATE = 'C'  
+                                        LC_CTYPE = 'C'
+                                        TEMPLATE = template0
+                                    ''')
+                                    info_id(f"SUCCESS: Recreated database '{database_name}' with UTF-8 encoding")
+
+                                    # Verify the new encoding
+                                    cursor.execute("""
+                                        SELECT datname, encoding, datcollate, datctype 
+                                        FROM pg_database 
+                                        WHERE datname = %s
+                                    """, (database_name,))
+
+                                    new_db_info = cursor.fetchone()
+                                    if new_db_info and new_db_info[1] == 6:
+                                        info_id("VERIFIED: Database now has UTF-8 encoding")
+                                    else:
+                                        error_id("ERROR: Database recreation failed to set UTF-8 encoding")
+                                        return False
+
+                                except Exception as e:
+                                    error_id(f"Failed to recreate database '{database_name}': {e}")
+                                    return False
+                            else:
+                                warning_id("Continuing with existing database (may experience Unicode issues)")
+                                warning_id("Scientific documents with special characters may fail to save")
+                    else:
+                        error_id(f"Could not retrieve encoding information for database '{database_name}'")
+                        return False
+
                 else:
                     info_id(f"Database '{database_name}' does not exist")
 
                     # Ask user if they want to create it
-                    create_db = input(f"Create PostgreSQL database '{database_name}'? (y/n): ").strip().lower()
+                    create_db = input(
+                        f"Create PostgreSQL database '{database_name}' with UTF-8 encoding? (y/n): ").strip().lower()
 
                     if create_db in ['y', 'yes']:
-                        info_id(f"Creating PostgreSQL database '{database_name}'...")
+                        info_id(f"Creating PostgreSQL database '{database_name}' with UTF-8 encoding...")
 
                         try:
-                            cursor.execute(f'CREATE DATABASE "{database_name}" OWNER "{username}"')
-                            info_id(f"Successfully created database '{database_name}'")
+                            # Create database with explicit UTF-8 encoding
+                            cursor.execute(f'''
+                                CREATE DATABASE "{database_name}" 
+                                WITH 
+                                OWNER = "{username}"
+                                ENCODING = 'UTF8'
+                                LC_COLLATE = 'C'  
+                                LC_CTYPE = 'C'
+                                TEMPLATE = template0
+                            ''')
+                            info_id(f"Database '{database_name}' created successfully")
+
+                            # Verify the encoding was set correctly
+                            cursor.execute("""
+                                SELECT datname, encoding, datcollate, datctype 
+                                FROM pg_database 
+                                WHERE datname = %s
+                            """, (database_name,))
+
+                            db_info = cursor.fetchone()
+                            if db_info:
+                                db_name, encoding, collate, ctype = db_info
+                                info_id(
+                                    f"Database encoding verification: {encoding} (collate: {collate}, ctype: {ctype})")
+
+                                if encoding == 6:  # UTF8
+                                    info_id(f"SUCCESS: Database '{database_name}' created with UTF-8 encoding")
+                                    info_id("Ready to handle Unicode characters in scientific documents")
+                                else:
+                                    error_id(f"ERROR: Database created with encoding {encoding} instead of UTF-8")
+                                    error_id("This may cause Unicode issues with scientific documents")
+                                    return False
+                            else:
+                                error_id("Could not verify database encoding after creation")
+                                return False
+
                         except Exception as e:
                             error_id(f"Failed to create database '{database_name}': {e}")
                             return False
