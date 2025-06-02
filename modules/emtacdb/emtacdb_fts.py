@@ -1,4 +1,6 @@
 
+from dataclasses import dataclass
+from typing import List, Dict, Any, Tuple, Optional
 import time
 import threading
 import uuid
@@ -10,6 +12,7 @@ import re
 import pandas as pd
 import fitz  # PyMuPDF
 from fuzzywuzzy import fuzz
+import unicodedata
 import tempfile
 import json
 from sqlalchemy import or_, and_
@@ -42,8 +45,6 @@ from modules.configuration.log_config import *
 from modules.configuration.config_env import DatabaseConfig
 from flask import g  # Required for access to g.request_id in the methods
 from functools import wraps  # Required if you need to recreate with_request_id
-
-
 from modules.emtacdb.utlity.system_manager import SystemResourceManager
 from plugins import generate_embedding, CLIPModelHandler
 from plugins.ai_modules import ModelsConfig
@@ -517,14 +518,12 @@ class Position(Base):
         if session is None:
             session = DatabaseConfig().get_main_session()
 
-        # 2) log input parameters
+        # 2) log input parameters - FIXED
         debug_id(
-            "add_to_db called with area_id=%s, equipment_group_id=%s, model_id=%s, "
-            "asset_number_id=%s, location_id=%s, subassembly_id=%s, "
-            "component_assembly_id=%s, assembly_view_id=%s, site_location_id=%s",
-            area_id, equipment_group_id, model_id,
-            asset_number_id, location_id, subassembly_id,
-            component_assembly_id, assembly_view_id, site_location_id
+            f"add_to_db called with area_id={area_id}, equipment_group_id={equipment_group_id}, "
+            f"model_id={model_id}, asset_number_id={asset_number_id}, location_id={location_id}, "
+            f"subassembly_id={subassembly_id}, component_assembly_id={component_assembly_id}, "
+            f"assembly_view_id={assembly_view_id}, site_location_id={site_location_id}"
         )
 
         # 3) build filter dict
@@ -1940,9 +1939,6 @@ class Part(Base):
                 session.close()
                 debug_id(f"Closed database session for Part.get_by_id", rid)
 
-
-# Updated Image class methods - PostgreSQL compatible
-
 class Image(Base):
     __tablename__ = 'image'
 
@@ -1950,6 +1946,7 @@ class Image(Base):
     title = Column(String, nullable=False)
     description = Column(String, nullable=False)
     file_path = Column(String, nullable=False)
+    img_metadata = Column(JSON)
 
     parts_position_image = relationship("PartsPositionImageAssociation", back_populates="image")
     image_problem = relationship("ImageProblemAssociation", back_populates="image")
@@ -1961,73 +1958,91 @@ class Image(Base):
 
     @classmethod
     @with_request_id
-    def add_to_db(cls, session, title, file_path, description="", position_id=None, complete_document_id=None,
-                  clean_title=True, request_id=None):
-        """
-        Enhanced version of add_to_db method with PostgreSQL/SQLite compatibility.
-        """
+    def add_to_db(cls, session, title, file_path, description, position_id=None, complete_document_id=None,
+                  metadata=None,
+                  request_id=None):
+        import shutil
+        import os
+        from modules.database_manager.db_manager import PostgreSQLDatabaseManager
+        from modules.configuration.config import DATABASE_PATH_IMAGES_FOLDER, DATABASE_DIR
+        try:
+            if session is None:
+                db_config = DatabaseConfig()
+                session = db_config.get_main_session().__enter__()
 
-        # Get or generate request_id
-        rid = request_id or get_request_id()
+            # Create a database manager instance for committing
+            db_manager = PostgreSQLDatabaseManager(session=session, request_id=request_id)
 
-        # Common image extensions to remove from title
-        COMMON_EXTENSIONS = [
-            '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.tif', '.webp',
-            '.svg', '.ico', '.heic', '.raw', '.cr2', '.nef', '.arw'
-        ]
+            # Create a unique destination path by combining the directory and a unique filename
+            original_filename = os.path.basename(file_path)
+            base_name, ext = os.path.splitext(original_filename)
+            destination_filename = f"{title.replace(' ', '_')}_{base_name}{ext}"  # Use title to make filename meaningful
 
-        # Clean the title if requested
-        original_title = title
-        if clean_title:
-            # Remove any image extensions embedded in the title
-            pattern = '|'.join([re.escape(ext) for ext in COMMON_EXTENSIONS])
-            regex = re.compile(f"({pattern})", re.IGNORECASE)
+            # FIXED: Create both absolute path (for file operations) and relative path (for database)
+            destination_absolute_path = os.path.join(DATABASE_PATH_IMAGES_FOLDER, destination_filename)
+            destination_relative_path = os.path.join("DB_IMAGES",
+                                                     destination_filename)  # Store relative path like before
 
-            # Iteratively remove extensions until none are found
-            while True:
-                new_title = regex.sub('', title)
-                if new_title == title:
-                    break
-                title = new_title
+            # Ensure the destination directory exists
+            os.makedirs(DATABASE_PATH_IMAGES_FOLDER, exist_ok=True)
 
-            # Clean up any dots that might be left at the end
-            title = title.rstrip('.')
+            shutil.copy(file_path, destination_absolute_path)
+            debug_id(f"Copied '{file_path}' -> '{destination_absolute_path}'", request_id)
 
-            # If we've removed everything, use a default name
-            if not title:
-                title = "image"
+            # FIXED: Store relative path in database (like the old system)
+            image = cls(
+                title=title,
+                description=description,
+                file_path=destination_relative_path,  # ✅ Store relative path like: DB_IMAGES\filename.png
+                img_metadata=metadata if metadata else {}
+            )
+            session.add(image)
+            session.flush()
 
-            # Enhanced logging with request_id
-            if title != original_title:
-                info_id(f"Cleaned title from '{original_title}' to '{title}'", rid)
+            debug_id(f"Added image to session: {title}, id={image.id}, stored path: {destination_relative_path}",
+                     request_id)
 
-        info_id(f"Processing image: {title}", rid)
+            # Conditionally handle embedding generation and associations if associated with a document OR position
+            if complete_document_id is not None or position_id is not None:
+                debug_id(f"Generating embedding for image {image.id}", request_id)
 
-        # Clean quotes from file path first
-        src = file_path
-        if src.startswith('"') and src.endswith('"'):
-            src = src[1:-1]
-        elif src.startswith("'") and src.endswith("'"):
-            src = src[1:-1]
+                # Only create position association if position_id is provided
+                if position_id is not None:
+                    debug_id(f"Added position association for image {image.id} with position_id {position_id}",
+                             request_id)
 
-        # Enhanced session management - check if we need to create our own session
-        session_provided = session is not None
-        if not session_provided:
-            db_config = DatabaseConfig()
-            with cls.monitor_processing_session(
-                    db_config.get_main_session(),
-                    "add_image_to_db",
-                    rid
-            ) as session:
-                return cls._add_to_db_internal(session, title, src, description, position_id,
-                                               complete_document_id, rid)
-        else:
-            return cls._add_to_db_internal(session, title, src, description, position_id,
-                                           complete_document_id, rid)
+                # Only create document association if complete_document_id is provided
+                if complete_document_id is not None:
+                    debug_id(
+                        f"Added enhanced document association for image {image.id} with complete_document_id {complete_document_id}",
+                        request_id)
+            else:
+                debug_id(f"Skipping embedding and associations for standalone image {image.id}", request_id)
+
+            # Use the database manager's commit_with_retry
+            if not db_manager.commit_with_retry():
+                raise Exception("Failed to commit image to database")
+
+            debug_id(f"Committed image to database: {title}, id={image.id}", request_id)
+            return image.id
+        except Exception as e:
+            error_id(f"Failed to add image to database: {e}", request_id)
+            if session is None:
+                session.__exit__(None, None, None)
+            return None
+
+    # =============================================================================
+    # Also fix the serve_file method to handle relative paths correctly
+    # =============================================================================
+
 
     @classmethod
     @with_request_id
-    def _add_to_db_internal(cls, session, title, src, description, position_id, complete_document_id, request_id):
+    def _add_to_db_internal(cls, session, title, src, description, position_id=None, complete_document_id=None,
+                            metadata=None,request_id=None):
+        """
+        Internal method with enhanced structure-guided association support.
+        """
         try:
             db_config = DatabaseConfig()
             if hasattr(db_config, 'is_postgresql') and db_config.is_postgresql:
@@ -2039,6 +2054,7 @@ class Image(Base):
                 except Exception as e:
                     warning_id(f"Could not set SQLite busy timeout: {e}", request_id)
 
+            # Check for existing image
             existing_image = session.query(cls).filter(
                 and_(cls.title == title, cls.description == description)
             ).first()
@@ -2047,6 +2063,7 @@ class Image(Base):
                 info_id(f"Image already exists: {title}", request_id)
                 return existing_image
 
+            # Copy file to destination
             _, ext = os.path.splitext(src)
             dest_name = f"{title}{ext}"
             dest_rel = os.path.join("DB_IMAGES", dest_name)
@@ -2055,15 +2072,19 @@ class Image(Base):
             shutil.copy2(src, dest_abs)
             debug_id(f"Copied '{src}' -> '{dest_abs}'", request_id)
 
+            # Create image record with enhanced metadata support
+            img_metadata = metadata or {}
             new_image = cls(
                 title=title,
                 description=description,
-                file_path=dest_rel
+                file_path=dest_rel,
+                img_metadata=img_metadata  # Store structure-guided metadata
             )
             session.add(new_image)
             session.flush()
             debug_id(f"Added image to session: {title}, id={new_image.id}", request_id)
 
+            # Generate embedding (existing logic)
             try:
                 model_handler = ModelsConfig.load_image_model()
                 info_id(f"Using model handler: {type(model_handler).__name__}", request_id)
@@ -2089,6 +2110,7 @@ class Image(Base):
             except Exception as e:
                 warning_id(f"Embedding failed for {title}: {e}", request_id)
 
+            # Create position association (existing logic)
             if position_id:
                 existing_association = session.query(ImagePositionAssociation).filter(
                     and_(ImagePositionAssociation.image_id == new_image.id,
@@ -2102,18 +2124,11 @@ class Image(Base):
                     session.add(image_position_association)
                     debug_id(f"Added position association for {title}", request_id)
 
+            # ENHANCED: Create structure-guided document association
             if complete_document_id:
-                existing_association = session.query(ImageCompletedDocumentAssociation).filter(
-                    and_(ImageCompletedDocumentAssociation.image_id == new_image.id,
-                         ImageCompletedDocumentAssociation.complete_document_id == complete_document_id)
-                ).first()
-                if existing_association is None:
-                    image_completed_document_association = ImageCompletedDocumentAssociation(
-                        image_id=new_image.id,
-                        complete_document_id=complete_document_id
-                    )
-                    session.add(image_completed_document_association)
-                    debug_id(f"Added document association for {title}", request_id)
+                cls._create_enhanced_document_association(
+                    session, new_image.id, complete_document_id, metadata, request_id
+                )
 
             cls.commit_with_retry(session, retries=5, delay=1, request_id=request_id)
             debug_id(f"Committed image to database: {title}, id={new_image.id}", request_id)
@@ -2126,6 +2141,59 @@ class Image(Base):
             except:
                 pass
             raise
+
+    @classmethod
+    def _create_enhanced_document_association(cls, session, image_id, complete_document_id, metadata, request_id):
+        """
+        Create enhanced ImageCompletedDocumentAssociation with structure-guided data.
+        """
+        try:
+            # Check for existing association
+            existing_association = session.query(ImageCompletedDocumentAssociation).filter(
+                and_(ImageCompletedDocumentAssociation.image_id == image_id,
+                     ImageCompletedDocumentAssociation.complete_document_id == complete_document_id)
+            ).first()
+
+            if existing_association is None:
+                # Extract structure-guided metadata
+                structure_metadata = metadata or {}
+
+                # Create enhanced association with structure-guided fields
+                association = ImageCompletedDocumentAssociation(
+                    image_id=image_id,
+                    complete_document_id=complete_document_id,
+                    # NEW: Structure-guided fields
+                    page_number=structure_metadata.get('page_number'),
+                    chunk_index=structure_metadata.get('image_index', 0),
+                    association_method=structure_metadata.get('association_method', 'structure_guided'),
+                    confidence_score=structure_metadata.get('confidence_score', 0.8),
+                    context_metadata=json.dumps({
+                        'structure_guided': structure_metadata.get('structure_guided', True),
+                        'content_type': structure_metadata.get('content_type', 'image'),
+                        'bbox': structure_metadata.get('bbox'),
+                        'estimated_size': structure_metadata.get('estimated_size'),
+                        'created_at': datetime.now().isoformat(),
+                        'processing_method': structure_metadata.get('processing_method', 'enhanced_add_to_db')
+                    })
+                )
+
+                session.add(association)
+                debug_id(f"Added enhanced document association for image {image_id}", request_id)
+            else:
+                debug_id(f"Document association already exists for image {image_id}", request_id)
+
+        except Exception as e:
+            warning_id(f"Failed to create enhanced document association: {e}", request_id)
+            # Fallback to basic association
+            try:
+                basic_association = ImageCompletedDocumentAssociation(
+                    image_id=image_id,
+                    complete_document_id=complete_document_id
+                )
+                session.add(basic_association)
+                debug_id(f"Added basic document association for image {image_id}", request_id)
+            except Exception as fallback_error:
+                error_id(f"Failed to create even basic association: {fallback_error}", request_id)
 
     @classmethod
     @with_request_id
@@ -2217,7 +2285,276 @@ class Image(Base):
             error_id(f"Error generating embedding: {e}", rid, exc_info=True)
             return False
 
-    # Database-agnostic helper methods
+    # =====================================================
+    # NEW: STRUCTURE-GUIDED QUERY METHODS
+    # =====================================================
+
+    @classmethod
+    @with_request_id
+    def get_images_with_chunk_context(cls, session, complete_document_id, request_id=None):
+        """
+        Get all images for a document with their associated chunk context.
+        This method supports the new structure-guided associations.
+        """
+        try:
+            from modules.emtacdb.emtacdb_fts import Document
+
+            # Query images with their associations and chunk context
+            result = session.query(
+                cls.id.label('image_id'),
+                cls.title.label('image_title'),
+                cls.file_path.label('image_path'),
+                cls.description.label('image_description'),
+                cls.img_metadata.label('image_metadata'),
+                Document.id.label('chunk_id'),
+                Document.name.label('chunk_name'),
+                Document.content.label('chunk_content'),
+                ImageCompletedDocumentAssociation.page_number,
+                ImageCompletedDocumentAssociation.chunk_index,
+                ImageCompletedDocumentAssociation.confidence_score,
+                ImageCompletedDocumentAssociation.association_method,
+                ImageCompletedDocumentAssociation.context_metadata
+            ).select_from(cls).join(
+                ImageCompletedDocumentAssociation,
+                cls.id == ImageCompletedDocumentAssociation.image_id
+            ).outerjoin(
+                Document,
+                ImageCompletedDocumentAssociation.document_id == Document.id
+            ).filter(
+                ImageCompletedDocumentAssociation.complete_document_id == complete_document_id
+            ).order_by(
+                ImageCompletedDocumentAssociation.page_number,
+                ImageCompletedDocumentAssociation.chunk_index
+            ).all()
+
+            images_with_context = []
+            for row in result:
+                # Parse context metadata
+                context_metadata = {}
+                if row.context_metadata:
+                    try:
+                        context_metadata = json.loads(row.context_metadata)
+                    except:
+                        pass
+
+                image_context = {
+                    'image_id': row.image_id,
+                    'image_title': row.image_title,
+                    'image_path': row.image_path,
+                    'image_description': row.image_description,
+                    'image_metadata': row.image_metadata,
+                    'chunk_id': row.chunk_id,
+                    'chunk_name': row.chunk_name,
+                    'chunk_content': row.chunk_content,
+                    'page_number': row.page_number,
+                    'chunk_index': row.chunk_index,
+                    'confidence_score': row.confidence_score,
+                    'association_method': row.association_method,
+                    'context_metadata': context_metadata,
+                    'view_url': f'/add_document/image/{row.image_id}',
+                    'has_chunk_association': row.chunk_id is not None,
+                    'structure_guided': context_metadata.get('structure_guided', False),
+                    'content_type': context_metadata.get('content_type', 'image'),
+                    'chunk_preview': row.chunk_content[:200] + "..." if row.chunk_content and len(
+                        row.chunk_content) > 200 else row.chunk_content
+                }
+                images_with_context.append(image_context)
+
+            info_id(f"Retrieved {len(images_with_context)} images with chunk context", request_id)
+            return images_with_context
+
+        except Exception as e:
+            error_id(f"Failed to get images with chunk context: {e}", request_id)
+            return []
+
+    @classmethod
+    @with_request_id
+    def search_by_chunk_text(cls, session, search_text, complete_document_id=None,
+                             confidence_threshold=0.5, request_id=None):
+        """
+        Search for images by their associated chunk text content.
+        Uses the new structure-guided associations.
+        """
+        try:
+            from modules.emtacdb.emtacdb_fts import Document, CompleteDocument
+
+            query = session.query(
+                cls.id.label('image_id'),
+                cls.title.label('image_title'),
+                cls.file_path.label('image_path'),
+                cls.description.label('image_description'),
+                Document.content.label('chunk_content'),
+                Document.name.label('chunk_name'),
+                CompleteDocument.title.label('document_title'),
+                ImageCompletedDocumentAssociation.confidence_score,
+                ImageCompletedDocumentAssociation.page_number,
+                ImageCompletedDocumentAssociation.association_method
+            ).select_from(cls).join(
+                ImageCompletedDocumentAssociation,
+                cls.id == ImageCompletedDocumentAssociation.image_id
+            ).join(
+                Document,
+                ImageCompletedDocumentAssociation.document_id == Document.id
+            ).join(
+                CompleteDocument,
+                ImageCompletedDocumentAssociation.complete_document_id == CompleteDocument.id
+            ).filter(
+                Document.content.ilike(f"%{search_text}%")
+            )
+
+            # Optional filters
+            if complete_document_id:
+                query = query.filter(CompleteDocument.id == complete_document_id)
+
+            if confidence_threshold:
+                query = query.filter(ImageCompletedDocumentAssociation.confidence_score >= confidence_threshold)
+
+            # Order by confidence and relevance
+            query = query.order_by(
+                ImageCompletedDocumentAssociation.confidence_score.desc(),
+                ImageCompletedDocumentAssociation.page_number
+            )
+
+            results = query.all()
+
+            search_results = []
+            for row in results:
+                # Highlight the search term in chunk content
+                highlighted_content = cls._highlight_search_term(row.chunk_content, search_text)
+
+                search_results.append({
+                    'image_id': row.image_id,
+                    'image_title': row.image_title,
+                    'image_path': row.image_path,
+                    'image_description': row.image_description,
+                    'chunk_content': row.chunk_content,
+                    'chunk_name': row.chunk_name,
+                    'document_title': row.document_title,
+                    'confidence': row.confidence_score,
+                    'page_number': row.page_number,
+                    'association_method': row.association_method,
+                    'highlighted_content': highlighted_content,
+                    'view_url': f'/add_document/image/{row.image_id}'
+                })
+
+            info_id(f"Found {len(search_results)} images matching '{search_text}'", request_id)
+            return search_results
+
+        except Exception as e:
+            error_id(f"Failed to search images by chunk text: {e}", request_id)
+            return []
+
+    @classmethod
+    @with_request_id
+    def get_association_statistics(cls, session, complete_document_id=None, request_id=None):
+        """
+        Get statistics about image-chunk associations, especially structure-guided ones.
+        Useful for monitoring and debugging the new association system.
+        """
+        try:
+            from sqlalchemy import func
+
+            # Base query for associations
+            base_query = session.query(ImageCompletedDocumentAssociation)
+
+            if complete_document_id:
+                base_query = base_query.filter(
+                    ImageCompletedDocumentAssociation.complete_document_id == complete_document_id
+                )
+
+            # Total associations
+            total_associations = base_query.count()
+
+            # Structure-guided associations
+            structure_guided = base_query.filter(
+                ImageCompletedDocumentAssociation.association_method == 'structure_guided'
+            ).count()
+
+            # High confidence associations
+            high_confidence = base_query.filter(
+                ImageCompletedDocumentAssociation.confidence_score >= 0.8
+            ).count()
+
+            # Average confidence score
+            avg_confidence = session.query(
+                func.avg(ImageCompletedDocumentAssociation.confidence_score)
+            ).filter(
+                ImageCompletedDocumentAssociation.complete_document_id == complete_document_id
+                if complete_document_id else True
+            ).scalar() or 0
+
+            # Associations by method
+            method_stats = session.query(
+                ImageCompletedDocumentAssociation.association_method,
+                func.count(ImageCompletedDocumentAssociation.id)
+            ).filter(
+                ImageCompletedDocumentAssociation.complete_document_id == complete_document_id
+                if complete_document_id else True
+            ).group_by(
+                ImageCompletedDocumentAssociation.association_method
+            ).all()
+
+            # Associations by page
+            page_stats = session.query(
+                ImageCompletedDocumentAssociation.page_number,
+                func.count(ImageCompletedDocumentAssociation.id)
+            ).filter(
+                ImageCompletedDocumentAssociation.complete_document_id == complete_document_id
+                if complete_document_id else True
+            ).group_by(
+                ImageCompletedDocumentAssociation.page_number
+            ).order_by(
+                ImageCompletedDocumentAssociation.page_number
+            ).all()
+
+            stats = {
+                'total_associations': total_associations,
+                'structure_guided_count': structure_guided,
+                'high_confidence_count': high_confidence,
+                'average_confidence': float(avg_confidence),
+                'structure_guided_percentage': (
+                            structure_guided / total_associations * 100) if total_associations > 0 else 0,
+                'high_confidence_percentage': (
+                            high_confidence / total_associations * 100) if total_associations > 0 else 0,
+                'associations_by_method': dict(method_stats),
+                'associations_by_page': dict(page_stats)
+            }
+
+            info_id(f"Association statistics: {stats['total_associations']} total, "
+                    f"{stats['structure_guided_percentage']:.1f}% structure-guided, "
+                    f"{stats['high_confidence_percentage']:.1f}% high-confidence", request_id)
+
+            return stats
+
+        except Exception as e:
+            error_id(f"Failed to get association statistics: {e}", request_id)
+            return {
+                'total_associations': 0,
+                'structure_guided_count': 0,
+                'high_confidence_count': 0,
+                'average_confidence': 0,
+                'structure_guided_percentage': 0,
+                'high_confidence_percentage': 0,
+                'associations_by_method': {},
+                'associations_by_page': {}
+            }
+
+    @classmethod
+    def _highlight_search_term(cls, content, search_term):
+        """Simple text highlighting for search results."""
+        if not content or not search_term:
+            return content
+
+        import re
+        # Case-insensitive highlighting
+        pattern = re.compile(re.escape(search_term), re.IGNORECASE)
+        highlighted = pattern.sub(f"<mark>{search_term}</mark>", content)
+        return highlighted
+
+    # =====================================================
+    # DATABASE-AGNOSTIC HELPER METHODS
+    # =====================================================
+
     @classmethod
     @with_request_id
     def commit_with_retry(cls, session, retries=3, delay=0.5, request_id=None):
@@ -2284,8 +2621,6 @@ class Image(Base):
         """
         import time
 
-        # Also fix this in your Image.monitor_processing_session method:
-
         class SessionMonitor:
             def __init__(self, session, operation_name, request_id):
                 self.session = session
@@ -2297,10 +2632,6 @@ class Image(Base):
                 self.start_time = time.time()
                 info_id(f"Starting monitored operation: {self.operation_name}", self.request_id)
 
-                # OLD (causes PostgreSQL error):
-                # self.session.execute(text("PRAGMA busy_timeout = 30000"))
-
-                # NEW (database-agnostic):
                 try:
                     db_config = DatabaseConfig()
                     if hasattr(db_config, 'is_postgresql') and db_config.is_postgresql:
@@ -2335,21 +2666,14 @@ class Image(Base):
     @with_request_id
     def serve_file(cls, image_id, request_id=None):
         """
-        Enhanced serve_file method with database compatibility and proper logging.
-        Returns a tuple (success, response, status_code) for Flask compatibility.
+        Enhanced serve_file method with proper relative path handling.
         """
-        # Import locally to avoid circular dependencies
-        import os
         from flask import send_file
         from modules.configuration.config import DATABASE_DIR
-        from modules.configuration.log_config import info_id, error_id, debug_id
 
-        # Get or generate request_id
         rid = request_id or get_request_id()
-
         info_id(f"Attempting to retrieve image with ID: {image_id}", rid)
 
-        # Create session using the same pattern as other methods
         db_config = DatabaseConfig()
         try:
             with cls.monitor_processing_session(
@@ -2358,17 +2682,18 @@ class Image(Base):
                     rid
             ) as session:
 
-                # Query for the image
                 image = session.query(cls).filter_by(id=image_id).first()
 
                 if not image:
                     error_id(f"No image found in database with ID: {image_id}", rid)
                     return False, "Image not found", 404
 
-                # Build the absolute file path
+                # FIXED: Handle relative paths correctly
                 if os.path.isabs(image.file_path):
+                    # If it's already an absolute path, use it directly
                     file_path = image.file_path
                 else:
+                    # If it's a relative path (like DB_IMAGES\filename.png), join with DATABASE_DIR
                     file_path = os.path.join(DATABASE_DIR, image.file_path)
 
                 debug_id(f"Checking file path: {file_path}", rid)
@@ -2394,14 +2719,18 @@ class Image(Base):
                 }
                 mimetype = mimetype_map.get(ext.lower(), 'image/jpeg')
 
-                debug_id(f"Using mimetype: {mimetype} for extension: {ext}", rid)
-
                 response = send_file(file_path, mimetype=mimetype, as_attachment=False)
                 return True, response, 200
 
         except Exception as e:
             error_id(f"Unhandled error while serving image with ID {image_id}: {e}", rid, exc_info=True)
             return False, "Internal Server Error", 500
+
+    # =====================================================
+    # COMPREHENSIVE SEARCH METHODS
+    # =====================================================
+
+    # Fix for the JSON DISTINCT error in Image.search_images()
 
     @classmethod
     @with_request_id
@@ -2411,39 +2740,14 @@ class Image(Base):
                       location_id=None, subassembly_id=None, component_assembly_id=None,
                       assembly_view_id=None, site_location_id=None, limit=50, request_id=None):
         """
-        Dynamic search method for Images with comprehensive filtering capabilities.
-
-        Args:
-            session: SQLAlchemy database session
-            title (str, optional): Search in image title (partial match)
-            description (str, optional): Search in image description (partial match)
-            position_id (int, optional): Filter by specific position ID
-            tool_id (int, optional): Filter by specific tool ID
-            task_id (int, optional): Filter by specific task ID
-            problem_id (int, optional): Filter by specific problem ID
-            completed_document_id (int, optional): Filter by specific completed document ID
-            area_id (int, optional): Filter by area ID (via position hierarchy)
-            equipment_group_id (int, optional): Filter by equipment group ID (via position hierarchy)
-            model_id (int, optional): Filter by model ID (via position hierarchy)
-            asset_number_id (int, optional): Filter by asset number ID (via position hierarchy)
-            location_id (int, optional): Filter by location ID (via position hierarchy)
-            subassembly_id (int, optional): Filter by subassembly ID (via position hierarchy)
-            component_assembly_id (int, optional): Filter by component assembly ID (via position hierarchy)
-            assembly_view_id (int, optional): Filter by assembly view ID (via position hierarchy)
-            site_location_id (int, optional): Filter by site location ID (via position hierarchy)
-            limit (int): Maximum number of results to return (default 50)
-            request_id (str, optional): Unique identifier for the request
-
-        Returns:
-            List of dictionaries containing image details and related information
+        Enhanced dynamic search method for Images with comprehensive filtering capabilities.
+        FIXED: Handles JSON column properly in DISTINCT queries.
         """
-        # Import locally to avoid circular dependencies
         from modules.configuration.log_config import info_id, debug_id, error_id, warning_id
 
-        # Get or generate request_id
         rid = request_id or get_request_id()
 
-        info_id("========== DYNAMIC IMAGE SEARCH ==========", rid)
+        info_id("========== ENHANCED DYNAMIC IMAGE SEARCH ==========", rid)
         debug_id(f"Search parameters: title='{title}', description='{description}', "
                  f"position_id={position_id}, tool_id={tool_id}, task_id={task_id}, "
                  f"problem_id={problem_id}, completed_document_id={completed_document_id}, "
@@ -2454,8 +2758,14 @@ class Image(Base):
                  f"site_location_id={site_location_id}, limit={limit}", rid)
 
         try:
-            # Start with base query
-            query = session.query(cls)
+            # FIXED: Start with base query selecting only non-JSON columns for DISTINCT
+            query = session.query(
+                cls.id,
+                cls.title,
+                cls.description,
+                cls.file_path
+                # Note: Exclude img_metadata from DISTINCT query
+            )
             filter_conditions = []
             join_conditions = []
 
@@ -2554,10 +2864,13 @@ class Image(Base):
                 query = query.filter(and_(*filter_conditions))
                 debug_id(f"Applied {len(filter_conditions)} filter conditions", rid)
             else:
-                warning_id("No search criteria provided, returning all images", rid)
+                warning_id("No search criteria provided, returning recent images", rid)
 
-            # Add distinct to avoid duplicates from joins
-            query = query.distinct()
+            # FIXED: Use DISTINCT on ID only to avoid JSON comparison issues
+            query = query.distinct(cls.id)
+
+            # Order by ID descending to get recent images first
+            query = query.order_by(cls.id.desc())
 
             # Apply limit and execute
             query = query.limit(limit)
@@ -2565,16 +2878,29 @@ class Image(Base):
 
             info_id(f"Found {len(results)} images matching search criteria", rid)
 
-            # Build detailed response
+            # FIXED: Get full image objects (including metadata) in a separate query
+            if results:
+                image_ids = [result.id for result in results]
+                full_images = session.query(cls).filter(cls.id.in_(image_ids)).all()
+
+                # Sort by the original order
+                id_to_image = {img.id: img for img in full_images}
+                ordered_images = [id_to_image[result.id] for result in results if result.id in id_to_image]
+            else:
+                ordered_images = []
+
+            # Build enhanced detailed response
             images = []
-            for image in results:
+            for image in ordered_images:
                 try:
                     image_details = {
                         "id": image.id,
                         "title": image.title,
                         "description": image.description,
                         "file_path": image.file_path,
-                        "associations": cls._get_image_associations(session, image.id, rid)
+                        "img_metadata": image.img_metadata,
+                        "view_url": f"/add_document/image/{image.id}",
+                        "associations": cls._get_enhanced_image_associations(session, image.id, rid)
                     }
                     images.append(image_details)
                     debug_id(f"Processed image: ID={image.id}, Title='{image.title}'", rid)
@@ -2587,24 +2913,16 @@ class Image(Base):
             return images
 
         except Exception as e:
-            error_id(f"Error in search_images: {e}", rid, exc_info=True)
+            error_id(f"Error in enhanced search_images: {e}", rid, exc_info=True)
             return []
         finally:
-            info_id("========== DYNAMIC IMAGE SEARCH COMPLETE ==========", rid)
+            info_id("========== ENHANCED DYNAMIC IMAGE SEARCH COMPLETE ==========", rid)
 
     @classmethod
     @with_request_id
-    def _get_image_associations(cls, session, image_id, request_id=None):
+    def _get_enhanced_image_associations(cls, session, image_id, request_id=None):
         """
-        Helper method to get all associations for an image.
-
-        Args:
-            session: SQLAlchemy database session
-            image_id (int): ID of the image
-            request_id (str, optional): Unique identifier for the request
-
-        Returns:
-            Dictionary containing all association details
+        Enhanced helper method to get all associations for an image, including structure-guided ones.
         """
         from modules.configuration.log_config import debug_id, error_id
 
@@ -2633,11 +2951,30 @@ class Image(Base):
                 ImageProblemAssociation.image_id == image_id).all()
             associations['problems'] = [{'problem_id': assoc.problem_id} for assoc in problem_assocs]
 
-            # Get completed document associations
+            # ENHANCED: Get completed document associations with structure-guided data
             doc_assocs = session.query(ImageCompletedDocumentAssociation).filter(
                 ImageCompletedDocumentAssociation.image_id == image_id).all()
-            associations['completed_documents'] = [{'document_id': assoc.complete_document_id}
-                                                   for assoc in doc_assocs]
+
+            enhanced_doc_assocs = []
+            for assoc in doc_assocs:
+                context_metadata = {}
+                if assoc.context_metadata:
+                    try:
+                        context_metadata = json.loads(assoc.context_metadata)
+                    except:
+                        pass
+
+                enhanced_doc_assocs.append({
+                    'document_id': assoc.complete_document_id,
+                    'page_number': assoc.page_number,
+                    'chunk_index': assoc.chunk_index,
+                    'association_method': assoc.association_method,
+                    'confidence_score': assoc.confidence_score,
+                    'structure_guided': context_metadata.get('structure_guided', False),
+                    'content_type': context_metadata.get('content_type', 'image')
+                })
+
+            associations['completed_documents'] = enhanced_doc_assocs
 
             # Get parts position associations
             parts_assocs = session.query(PartsPositionImageAssociation).filter(
@@ -2645,16 +2982,18 @@ class Image(Base):
             associations['parts_positions'] = [{'part_id': assoc.part_id, 'position_id': assoc.position_id}
                                                for assoc in parts_assocs]
 
-            debug_id(f"Retrieved associations for image {image_id}: "
+            debug_id(f"Retrieved enhanced associations for image {image_id}: "
                      f"{len(associations.get('positions', []))} positions, "
                      f"{len(associations.get('tools', []))} tools, "
                      f"{len(associations.get('tasks', []))} tasks, "
-                     f"{len(associations.get('problems', []))} problems", rid)
+                     f"{len(associations.get('problems', []))} problems, "
+                     f"{len(associations.get('completed_documents', []))} documents", rid)
 
         except Exception as e:
-            error_id(f"Error getting associations for image {image_id}: {e}", rid, exc_info=True)
+            error_id(f"Error getting enhanced associations for image {image_id}: {e}", rid, exc_info=True)
 
         return associations
+
 
 class ImageEmbedding(Base):
     __tablename__ = 'image_embedding'
@@ -3050,7 +3389,6 @@ class Drawing(Base):
             if not session_provided:
                 session.close()
 
-
 class Document(Base):
     """Your existing Document model with added image association relationship."""
     __tablename__ = 'document'
@@ -3062,6 +3400,7 @@ class Document(Base):
     complete_document_id = Column(Integer, ForeignKey('complete_document.id'))
     embedding = Column(LargeBinary)
     rev = Column(String, nullable=False, default="R0")
+    doc_metadata = Column(JSON)
 
     # Existing relationships
     embeddings = relationship("DocumentEmbedding", back_populates="document")
@@ -3221,7 +3560,7 @@ class CompleteDocument(Base):
     """
     Modern document model with robust PostgreSQL database handling.
     Streamlined for PostgreSQL-only operations with enhanced performance.
-    Now includes image extraction capabilities.
+    Now includes image extraction capabilities aligned with Image class and DocumentStructureManager.
     """
 
     __tablename__ = 'complete_document'
@@ -3280,6 +3619,16 @@ class CompleteDocument(Base):
         """Get Document class from same module."""
         return globals().get('Document')
 
+    @classmethod
+    def _get_image_class(cls):
+        """Get Image class from same module."""
+        return globals().get('Image')
+
+    @classmethod
+    def _get_image_association_class(cls):
+        """Get ImageCompletedDocumentAssociation class from same module."""
+        return globals().get('ImageCompletedDocumentAssociation')
+
     # =====================================================
     # PUBLIC API - 3 MAIN METHODS (Enhanced for PostgreSQL)
     # =====================================================
@@ -3293,9 +3642,8 @@ class CompleteDocument(Base):
         valid_files = [f for f in files if f.filename.strip()]
         if not valid_files:
             warning_id("No valid files provided", request_id)
-            return False
+            return False, {"error": "No valid files provided"}, 400
 
-        db_config = DatabaseConfig()
         info_id(f"Processing {len(valid_files)} files using PostgreSQL with concurrent processing", request_id)
 
         try:
@@ -3306,7 +3654,7 @@ class CompleteDocument(Base):
 
         except Exception as e:
             error_id(f"Upload failed: {e}", request_id)
-            return False
+            return False, {"error": str(e)}, 500
 
     @classmethod
     @with_request_id
@@ -3370,7 +3718,7 @@ class CompleteDocument(Base):
         return query.all()
 
     # =====================================================
-    # PROCESSING STRATEGIES (PostgreSQL Optimized)
+    # PROCESSING STRATEGIES (PostgreSQL Optimized) - FIXED
     # =====================================================
 
     @classmethod
@@ -3392,68 +3740,119 @@ class CompleteDocument(Base):
                     if success:
                         debug_id(f"SUCCESS: {file.filename}", request_id)
                     else:
-                        warning_id(f"FAILED: {file.filename} - {error['error']}", request_id)
+                        # FIXED: Safe error handling
+                        error_msg = error.get('error', 'Unknown error') if isinstance(error, dict) else str(error)
+                        warning_id(f"FAILED: {file.filename} - {error_msg}", request_id)
                 except Exception as e:
                     error_id(f"Error processing {file.filename}: {e}", request_id)
                     results.append((file.filename, False, {"error": str(e)}, 500))
+
             if all(r[1] for r in results):
                 cls._optimize_postgresql(request_id)
                 info_id(f"PostgreSQL processing complete: {len(files)}/{len(files)} successful", request_id)
                 return True, None, 200
+
             errors = [r[2] for r in results if not r[1]]
-            info_id(f"PostgreSQL processing complete: {sum(r[1] for r in results)}/{len(files)} successful", request_id)
-            return False, {"errors": errors}, max(r[3] for r in results if not r[1])
+            success_count = sum(r[1] for r in results)
+            info_id(f"PostgreSQL processing complete: {success_count}/{len(files)} successful", request_id)
+            # FIXED: Safe max calculation
+            error_statuses = [r[3] for r in results if not r[1]]
+            max_status = max(error_statuses) if error_statuses else 500
+            return False, {"errors": errors}, max_status
 
     @classmethod
     @with_request_id
     def _process_file(cls, file, metadata, position_id, request_id):
+        """FIXED: Enhanced file processing with aligned image extraction."""
         try:
             filename = secure_filename(file.filename)
             upload_dir = os.path.join(os.getcwd(), 'Uploads')
             os.makedirs(upload_dir, exist_ok=True)
             file_path = os.path.join(upload_dir, filename)
             file.save(file_path)
+
             title = metadata.get('title') or cls._clean_filename(filename)
             content = cls._extract_content(file_path, request_id)
+
             if not content:
                 warning_id(f"No content extracted from {filename}", request_id)
                 return False, {"error": f"No text content in {filename}"}, 400
+
+            # Save document and get ID
             document_id = cls._save_document_and_get_id(title, file_path, content, position_id, request_id)
             if not document_id:
                 error_id(f"Failed to save document {filename}", request_id)
                 return False, {"error": f"Failed to save document {filename}"}, 500
-            extracted_count = cls.extract_images_from_document(
-                file_path=file_path,
-                document_id=document_id,
-                position_id=position_id,
-                request_id=request_id
-            )
-            if extracted_count > 0:
-                info_id(f"Extracted {extracted_count} images from {filename}", request_id)
+
+            # FIXED: Use the aligned ImageCompletedDocumentAssociation method
+            try:
+                extracted_count = cls._extract_images_with_guided_association(
+                    file_path=file_path,
+                    document_id=document_id,
+                    position_id=position_id,
+                    request_id=request_id
+                )
+
+                if extracted_count > 0:
+                    info_id(f"Created {extracted_count} intelligent image-chunk associations for {filename}",
+                            request_id)
+            except Exception as img_error:
+                warning_id(f"Image extraction failed for {filename}: {img_error}", request_id)
+                # Continue processing even if image extraction fails
+
             return True, None, 200
+
         except Exception as e:
             error_id(f"File processing failed for {file.filename}: {e}", request_id)
             return False, {"error": str(e)}, 500
 
-    # =====================================================
-    # IMAGE EXTRACTION METHODS
-    # =====================================================
+    @classmethod
+    @with_request_id
+    def _extract_images_with_guided_association(cls, file_path, document_id, position_id=None, request_id=None):
+        """
+        FIXED: Use the aligned ImageCompletedDocumentAssociation.guided_extraction_with_mapping method.
+        """
+        try:
+            info_id(f"Starting guided image extraction for document {document_id}", request_id)
+
+            # Get the ImageCompletedDocumentAssociation class
+            AssociationClass = cls._get_image_association_class()
+            if not AssociationClass:
+                warning_id("ImageCompletedDocumentAssociation class not available, falling back to basic extraction",
+                           request_id)
+                return cls._extract_images_basic(file_path, document_id, position_id, request_id)
+
+            # Prepare metadata for the association method
+            metadata = {
+                'complete_document_id': document_id,
+                'position_id': position_id
+            }
+
+            # Use the aligned guided extraction method
+            success, result, status = AssociationClass.guided_extraction_with_mapping(
+                file_path=file_path,
+                metadata=metadata,
+                request_id=request_id
+            )
+
+            if success:
+                associations_created = result.get('associations_created', 0)
+                info_id(f"Guided extraction successful: {associations_created} associations created", request_id)
+                return associations_created
+            else:
+                warning_id(f"Guided extraction failed: {result.get('error', 'Unknown error')}", request_id)
+                # Fallback to basic extraction
+                return cls._extract_images_basic(file_path, document_id, position_id, request_id)
+
+        except Exception as e:
+            error_id(f"Error in guided image extraction: {e}", request_id)
+            # Fallback to basic extraction
+            return cls._extract_images_basic(file_path, document_id, position_id, request_id)
 
     @classmethod
     @with_request_id
-    def extract_images_from_document(cls, file_path, document_id, position_id=None, request_id=None):
-        """
-        Extract images from a document and pass them to add_image method.
-
-        Args:
-            file_path (str): Path to the document file
-            document_id (int): ID of the document
-            position_id (int, optional): Position ID for associations
-            request_id (str, optional): Request ID for logging
-
-        Returns:
-            int: Number of images extracted and processed
-        """
+    def _extract_images_basic(cls, file_path, document_id, position_id, request_id):
+        """FIXED: Fallback basic image extraction with proper session management."""
         ext = os.path.splitext(file_path)[1].lower()
 
         if ext == '.pdf':
@@ -3464,85 +3863,119 @@ class CompleteDocument(Base):
             debug_id(f"Image extraction not supported for {ext} files", request_id)
             return 0
 
-    @classmethod
-    def _get_image_class(cls):
-        return globals().get('Image')
+    # =====================================================
+    # IMAGE EXTRACTION METHODS (FIXED)
+    # =====================================================
 
     @classmethod
     @with_request_id
     def _extract_pdf_images(cls, file_path, document_id, position_id, request_id):
-        import tempfile, shutil
+        try:
+            import fitz  # PyMuPDF
 
-        ImageClass = cls._get_image_class()
-        if ImageClass is None:
-            error_id("Image class not available, skipping image extraction", request_id)
-            return 0
+            ImageClass = cls._get_image_class()
+            if ImageClass is None:
+                error_id("Image class not available, skipping image extraction", request_id)
+                return 0
 
-        extracted_count = 0
-        doc = fitz.open(file_path)
-        file_name = os.path.splitext(os.path.basename(file_path))[0]
-        TEMPORARY_UPLOAD_FILES = os.path.join(DATABASE_DIR, 'temp_upload_files')
-        os.makedirs(TEMPORARY_UPLOAD_FILES, exist_ok=True)
+            extracted_count = 0
+            doc = fitz.open(file_path)
+            file_name = os.path.splitext(os.path.basename(file_path))[0]
 
-        for page_num in range(len(doc)):
-            page = doc[page_num]
-            img_list = page.get_images(full=True)
+            db_config = DatabaseConfig()
+            with db_config.main_session() as session:
+                db_manager = PostgreSQLDatabaseManager(session=session, request_id=request_id)
+                chunks = session.query(Document).filter_by(complete_document_id=document_id).order_by(Document.id).all()
 
-            for img_index, img in enumerate(img_list):
-                try:
-                    xref = img[0]
-                    base_image = doc.extract_image(xref)
-                    image_bytes = base_image["image"]
-                    ext = base_image.get("ext", "jpg")
+                for page_num in range(len(doc)):
+                    page = doc[page_num]
+                    img_list = page.get_images(full=True)
 
-                    # write to a temp file
-                    with tempfile.NamedTemporaryFile(
-                            suffix=f'.{ext}',
-                            delete=False,
-                            dir=TEMPORARY_UPLOAD_FILES
-                    ) as tmp:
-                        tmp.write(image_bytes)
-                        temp_path = tmp.name
+                    page_chunks = [(i, chunk) for i, chunk in enumerate(chunks) if
+                                   chunk.doc_metadata and chunk.doc_metadata.get("page_number") == page_num]
+                    if not page_chunks:
+                        warning_id(f"No chunks found for page {page_num + 1}, skipping image association", request_id)
+                        continue
 
-                    title = f"{file_name} - Page {page_num + 1} Image {img_index + 1}"
-                    debug_id(f"Calling Image.add_image on {title}", request_id)
-
-                    success = ImageClass.add_to_db(
-                        session=None,  # let add_to_db create its own session
-                        title=title,  # your cleaned‐up title
-                        file_path=temp_path,  # <— note the name change here
-                        description="",  # or whatever you want
-                        position_id=position_id,
-                        complete_document_id=document_id,
-                        request_id=request_id
-                    )
-
-                    if success:
-                        extracted_count += 1
-                        debug_id(f"Successfully added image {title}", request_id)
-                    else:
-                        error_id(f"Failed to add image {title}", request_id)
-
-                except Exception as e:
-                    error_id(f"Error extracting image {img_index + 1} on page {page_num + 1}: {e}", request_id)
-                finally:
-                    # clean up temp file if it exists
-                    if 'temp_path' in locals() and os.path.exists(temp_path):
+                    for img_index, img in enumerate(img_list):
                         try:
-                            os.unlink(temp_path)
-                            debug_id(f"Removed temp file {temp_path}", request_id)
-                        except Exception as e:
-                            warning_id(f"Could not remove temp file {temp_path}: {e}", request_id)
+                            xref = img[0]
+                            base_image = doc.extract_image(xref)
+                            image_bytes = base_image["image"]
+                            ext = base_image.get("ext", "jpg")
 
-        doc.close()
-        info_id(f"Extracted {extracted_count} images from {file_name}", request_id)
-        return extracted_count
+                            with tempfile.NamedTemporaryFile(suffix=f'.{ext}', delete=False) as tmp:
+                                tmp.write(image_bytes)
+                                temp_path = tmp.name
+
+                            title = f"{file_name} - Page {page_num + 1} Image {img_index + 1}"
+
+                            chunk_index, nearest_chunk = page_chunks[img_index % len(page_chunks)]
+                            debug_id(
+                                f"Selected chunk for image on page {page_num + 1}: chunk_index={chunk_index}, chunk_id={nearest_chunk.id}",
+                                request_id)
+
+                            metadata = {
+                                'page_number': page_num,
+                                'image_index': img_index,
+                                'extraction_method': 'basic_pdf',
+                                'structure_guided': False
+                            }
+
+                            image_id = ImageClass.add_to_db(
+                                session=session,
+                                title=title,
+                                file_path=temp_path,
+                                description=f"Basic extraction from {os.path.basename(file_path)}",
+                                position_id=position_id,
+                                complete_document_id=document_id,
+                                metadata=metadata,
+                                request_id=request_id
+                            )
+
+                            if image_id is not None:
+                                assoc = ImageCompletedDocumentAssociation(
+                                    complete_document_id=document_id,
+                                    image_id=image_id,
+                                    document_id=nearest_chunk.id,
+                                    page_number=page_num,
+                                    chunk_index=chunk_index,
+                                    association_method='basic_pdf',
+                                    confidence_score=0.5,
+                                    context_metadata={'extraction_method': 'basic'}
+                                )
+                                session.add(assoc)
+                                extracted_count += 1
+                                debug_id(f"Associated image {image_id} with chunk {nearest_chunk.id}", request_id)
+
+                            try:
+                                os.unlink(temp_path)
+                            except:
+                                pass
+
+                        except Exception as e:
+                            error_id(f"Error extracting image {img_index + 1} on page {page_num + 1}: {e}", request_id)
+                            continue
+
+                db_manager.commit_with_retry()
+                doc.close()
+                info_id(f"Extracted {extracted_count} images from PDF", request_id)
+                return extracted_count
+
+        except Exception as e:
+            error_id(f"PDF image extraction failed: {e}", request_id)
+            return 0
 
     @classmethod
     @with_request_id
     def _extract_docx_images(cls, file_path, document_id, position_id, request_id):
-        """Extract images from DOCX and pass to add_image."""
+        """FIXED: Extract DOCX images using Image.add_to_db method with proper session management."""
         try:
+            ImageClass = cls._get_image_class()
+            if ImageClass is None:
+                error_id("Image class not available, skipping image extraction", request_id)
+                return 0
+
             extracted_count = 0
             file_name = os.path.splitext(os.path.basename(file_path))[0]
 
@@ -3566,15 +3999,25 @@ class CompleteDocument(Base):
                             temp_file.write(image_data)
                             temp_path = temp_file.name
 
-                        # Generate title
                         title = f"{file_name} - Image {idx + 1}"
 
-                        # Pass to add_image method
-                        success = cls.add_image(
-                            temp_file_path=temp_path,
+                        # Enhanced metadata for DOCX extraction
+                        metadata = {
+                            'image_index': idx,
+                            'extraction_method': 'basic_docx',
+                            'structure_guided': False,
+                            'original_path': img_path
+                        }
+
+                        # FIXED: Use Image.add_to_db with session=None
+                        success = ImageClass.add_to_db(
+                            session=None,  # Let Image.add_to_db create its own session
                             title=title,
-                            document_id=document_id,
+                            file_path=temp_path,
+                            description=f"Basic extraction from {os.path.basename(file_path)}",
                             position_id=position_id,
+                            complete_document_id=document_id,
+                            metadata=metadata,
                             request_id=request_id
                         )
 
@@ -3583,8 +4026,10 @@ class CompleteDocument(Base):
                             debug_id(f"Successfully processed DOCX image {idx + 1}", request_id)
 
                         # Clean up temp file
-                        if os.path.exists(temp_path):
+                        try:
                             os.unlink(temp_path)
+                        except:
+                            pass
 
                     except Exception as e:
                         error_id(f"Error extracting DOCX image {idx + 1}: {e}", request_id)
@@ -3597,69 +4042,9 @@ class CompleteDocument(Base):
             error_id(f"DOCX image extraction failed: {e}", request_id)
             return 0
 
-    @classmethod
-    def add_image(cls, temp_file_path, title, document_id, position_id=None, request_id=None):
-        """
-        Add image method - implement this to handle your image processing.
-
-        Args:
-            temp_file_path (str): Path to temporary image file
-            title (str): Image title
-            document_id (int): Associated document ID
-            position_id (int, optional): Associated position ID
-            request_id (str, optional): Request ID for logging
-
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        # TODO: Implement your image processing logic here
-        # This should:
-        # 1. Move/copy the temp file to permanent storage
-        # 2. Save image info to database
-        # 3. Create associations
-        # 4. Return True/False for success
-
-        debug_id(f"add_image called: {title}, temp_file: {temp_file_path}", request_id)
-
-        # For now, just return True - replace with your actual implementation
-        return True
-
     # =====================================================
     # DATABASE OPERATIONS (PostgreSQL Optimized)
     # =====================================================
-
-    @classmethod
-    @with_request_id
-    def _save_document(cls, title, file_path, content, position_id, request_id):
-        """Save document to PostgreSQL database with enhanced associations."""
-        db_config = DatabaseConfig()
-
-        with db_config.main_session() as session:
-            try:
-                # Set PostgreSQL-specific optimizations
-                session.execute(text("SET work_mem = '256MB'"))
-                session.execute(text("SET maintenance_work_mem = '512MB'"))
-
-                # Upsert document
-                document_id = cls._upsert_document(session, title, file_path, content)
-
-                # Create associations
-                cls._create_associations(session, document_id, position_id)
-
-                # Add to PostgreSQL search index
-                cls._add_to_search(session, title, content)
-
-                # Create chunks
-                cls._create_chunks(session, document_id, title, content, file_path)
-
-                session.commit()
-                debug_id(f"Saved document to PostgreSQL: {title}", request_id)
-                return True
-
-            except Exception as e:
-                session.rollback()
-                error_id(f"PostgreSQL database save failed for {title}: {e}", request_id)
-                return False
 
     @classmethod
     @with_request_id
@@ -3680,7 +4065,7 @@ class CompleteDocument(Base):
                 cls._create_associations(session, document_id, position_id)
 
                 # Add to PostgreSQL search index
-                cls._add_to_search(session, title, content)
+                cls._add_to_search_safe(session, title, content, request_id)
 
                 # Create chunks
                 cls._create_chunks(session, document_id, title, content, file_path)
@@ -3700,11 +4085,9 @@ class CompleteDocument(Base):
         try:
             # Ensure content is properly encoded as UTF-8 string
             if content:
-                # Handle potential encoding issues by ensuring proper UTF-8 encoding
                 if isinstance(content, bytes):
                     content = content.decode('utf-8', errors='replace')
                 else:
-                    # Ensure the string is properly encoded
                     content = content.encode('utf-8', errors='replace').decode('utf-8')
 
             # Ensure title is also properly encoded
@@ -3744,11 +4127,8 @@ class CompleteDocument(Base):
                 debug_id(f"Encoding error in upsert, attempting content sanitization: {e}")
 
                 # Sanitize content by removing problematic characters
-                import unicodedata
                 if content:
-                    # Normalize Unicode and remove non-printable characters
                     content = unicodedata.normalize('NFKD', content)
-                    # Replace problematic characters with ASCII equivalents where possible
                     content = content.encode('ascii', errors='replace').decode('ascii')
 
                 if title:
@@ -3782,12 +4162,101 @@ class CompleteDocument(Base):
             return doc.id
 
     @classmethod
+    @with_request_id
+    def _optimize_postgresql(cls, request_id):
+        """PostgreSQL optimization that integrates with the database manager patterns."""
+        try:
+            # Use the PostgreSQL optimization from db_manager
+            from modules.database_manager.db_manager import PostgreSQLDatabaseManager
+            PostgreSQLDatabaseManager._optimize_database(request_id)
+        except Exception as e:
+            debug_id(f"PostgreSQL optimization skipped: {e}", request_id)
+
+    # =====================================================
+    # ADDITIONAL ALIGNED METHODS
+    # =====================================================
+
+    @classmethod
+    @with_request_id
+    def get_images_with_chunk_context(cls, document_id, request_id=None):
+        """
+        ALIGNED: Get all images for a document with their associated chunk context.
+        Uses the Image class's enhanced query methods.
+        """
+        try:
+            ImageClass = cls._get_image_class()
+            if not ImageClass:
+                error_id("Image class not available", request_id)
+                return []
+
+            db_config = DatabaseConfig()
+            with db_config.main_session() as session:
+                return ImageClass.get_images_with_chunk_context(session, document_id, request_id)
+
+        except Exception as e:
+            error_id(f"Failed to get images with chunk context: {e}", request_id)
+            return []
+
+    @classmethod
+    @with_request_id
+    def search_images_by_chunk_text(cls, search_text, document_id=None, confidence_threshold=0.5, request_id=None):
+        """
+        ALIGNED: Search for images by their associated chunk text content.
+        Uses the Image class's enhanced search methods.
+        """
+        try:
+            ImageClass = cls._get_image_class()
+            if not ImageClass:
+                error_id("Image class not available", request_id)
+                return []
+
+            db_config = DatabaseConfig()
+            with db_config.main_session() as session:
+                return ImageClass.search_by_chunk_text(
+                    session, search_text, document_id, confidence_threshold, request_id
+                )
+
+        except Exception as e:
+            error_id(f"Failed to search images by chunk text: {e}", request_id)
+            return []
+
+    @classmethod
+    @with_request_id
+    def get_association_statistics(cls, document_id, request_id=None):
+        """
+        ALIGNED: Get statistics about image-chunk associations.
+        Uses the Image class's enhanced statistics methods.
+        """
+        try:
+            ImageClass = cls._get_image_class()
+            if not ImageClass:
+                error_id("Image class not available", request_id)
+                return {}
+
+            db_config = DatabaseConfig()
+            with db_config.main_session() as session:
+                return ImageClass.get_association_statistics(session, document_id, request_id)
+
+        except Exception as e:
+            error_id(f"Failed to get association statistics: {e}", request_id)
+            return {}
+
+    # =====================================================
+    # EXISTING METHODS (FIXED)
+    # =====================================================
+
+    @classmethod
     def _create_associations(cls, session, document_id, position_id):
-        """Create document-position associations with PostgreSQL optimization."""
+        """FIXED: Create document-position associations with PostgreSQL optimization and null check."""
         AssociationClass = cls._get_association_class()
 
         if AssociationClass is None:
             debug_id("Association class not available, skipping", None)
+            return
+
+        # FIXED: Add null check for position_id
+        if position_id is None:
+            debug_id("No position_id provided, skipping association creation", None)
             return
 
         # Check if association already exists using PostgreSQL-optimized query
@@ -3802,32 +4271,6 @@ class CompleteDocument(Base):
                 position_id=position_id
             )
             session.add(assoc)
-
-    @classmethod
-    def _add_to_search(cls, session, title, content):
-        """Add document to PostgreSQL FTS index with proper transaction handling."""
-        try:
-            # Use a savepoint for PostgreSQL FTS to avoid transaction abort
-            savepoint = session.begin_nested()  # Creates a savepoint
-            try:
-                # Enhanced PostgreSQL FTS with better search capabilities
-                sql = text("""
-                    INSERT INTO documents_fts (title, content, search_vector)
-                    VALUES (:title, :content, to_tsvector('english', :title || ' ' || :content))
-                    ON CONFLICT (title) DO UPDATE SET
-                        content = EXCLUDED.content,
-                        search_vector = EXCLUDED.search_vector,
-                        updated_at = CURRENT_TIMESTAMP
-                """)
-                session.execute(sql, {'title': title, 'content': content})
-                savepoint.commit()  # Commit the savepoint
-                debug_id("Added to PostgreSQL FTS with enhanced search vector")
-            except Exception as fts_error:
-                savepoint.rollback()  # Rollback only the savepoint, not main transaction
-                debug_id(f"PostgreSQL FTS skipped: {fts_error}")
-        except Exception as e:
-            # If even the savepoint approach fails, just skip FTS entirely
-            debug_id(f"Search indexing completely skipped: {e}")
 
     @classmethod
     @with_request_id
@@ -3864,7 +4307,6 @@ class CompleteDocument(Base):
                 savepoint.rollback()
                 # Try with ASCII-only content as fallback
                 try:
-                    import unicodedata
                     safe_title = unicodedata.normalize('NFKD', title).encode('ascii', errors='replace').decode('ascii')
                     safe_content = unicodedata.normalize('NFKD', content).encode('ascii', errors='replace').decode(
                         'ascii')
@@ -3889,60 +4331,57 @@ class CompleteDocument(Base):
 
     @classmethod
     @with_request_id
-    def _create_chunks(cls, session, document_id, title, content, file_path=None):
-        """Create document chunks for analysis with PostgreSQL optimization and embedding generation."""
-        debug_id("Starting _create_chunks")
+    def _create_chunks(cls, session, document_id, title, content, file_path=None, request_id=None):
+        debug_id("Starting _create_chunks", request_id)
         DocumentClass = cls._get_document_class()
 
         if DocumentClass is None:
-            debug_id("Document class not available, skipping chunk creation")
+            debug_id("Document class not available, skipping chunk creation", request_id)
             return
 
         try:
-            chunks = cls._split_text(content, 300)  # 300 words per chunk
-
-            # Get the file_path from the parent document if not provided
-            if file_path is None:
+            if not file_path:
                 parent_doc = session.query(cls).filter_by(id=document_id).first()
                 file_path = parent_doc.file_path if parent_doc else "unknown"
 
-            # Batch create chunks for better PostgreSQL performance
+            doc = fitz.open(file_path)
             chunk_objects = []
-            for i, chunk in enumerate(chunks):
-                if chunk.strip():  # Only create non-empty chunks
-                    try:
-                        doc_chunk = DocumentClass(
-                            name=f"{title} - Chunk {i + 1}",
-                            file_path=file_path,  # Set the file_path to avoid null constraint violation
-                            content=chunk.strip(),
-                            complete_document_id=document_id,
-                            rev="R0"
-                        )
-                        chunk_objects.append(doc_chunk)
-                    except Exception as chunk_error:
-                        debug_id(f"Skipped chunk {i + 1}: {chunk_error}")
+            chunk_counter = 0
+
+            for page_num in range(len(doc)):
+                page = doc[page_num]
+                page_text = page.get_text()
+
+                # Split the page text into smaller chunks of 150 words
+                page_chunks = cls._split_text(page_text, 150)
+
+                for page_chunk in page_chunks:
+                    if not page_chunk.strip():
                         continue
 
-            if chunk_objects:
-                # Batch insert for better PostgreSQL performance
-                session.add_all(chunk_objects)
-                session.flush()  # Get the IDs for embedding generation
+                    chunk_counter += 1
+                    doc_chunk = DocumentClass(
+                        name=f"{title} - Chunk {chunk_counter}",
+                        file_path=file_path,
+                        content=page_chunk.strip(),
+                        complete_document_id=document_id,
+                        rev="R0",
+                        doc_metadata={"page_number": page_num}
+                    )
+                    chunk_objects.append(doc_chunk)
 
-                # Generate embeddings for each chunk - proper way to call a classmethod
-                try:
-                    cls._generate_embeddings_for_chunks(session, chunk_objects)
-                    debug_id(f"Created {len(chunk_objects)} document chunks with embeddings")
-                except Exception as embed_error:
-                    debug_id(f"Error in _generate_embeddings_for_chunks: {embed_error}")
-                    import traceback
-                    debug_id(f"Traceback: {traceback.format_exc()}")
+            doc.close()
+
+            if chunk_objects:
+                session.add_all(chunk_objects)
+                session.flush()
+                cls._generate_embeddings_for_chunks(session, chunk_objects)
+                debug_id(f"Created {len(chunk_objects)} document chunks with embeddings", request_id)
             else:
-                debug_id("No chunks created")
+                debug_id("No chunks created", request_id)
 
         except Exception as e:
-            debug_id(f"Chunk creation skipped: {e}")
-            import traceback
-            debug_id(f"Traceback: {traceback.format_exc()}")
+            debug_id(f"Chunk creation skipped: {e}", request_id)
 
     @classmethod
     @with_request_id
@@ -4234,7 +4673,6 @@ class CompleteDocument(Base):
 
             # Additional Unicode normalization
             if text:
-                import unicodedata
                 # Normalize Unicode characters
                 text = unicodedata.normalize('NFKC', text)
 
@@ -4278,7 +4716,6 @@ class CompleteDocument(Base):
         try:
             from docx2pdf import convert
             import pythoncom
-            import tempfile
 
             # Initialize COM for Word automation (Windows)
             pythoncom.CoInitialize()
@@ -4315,28 +4752,6 @@ class CompleteDocument(Base):
 
     @classmethod
     @with_request_id
-    def _optimize_postgresql(cls, request_id):
-        """Run PostgreSQL optimizations after bulk operations."""
-        db_config = DatabaseConfig()
-
-        with db_config.main_session() as session:
-            try:
-                # Enhanced PostgreSQL optimization
-                session.execute(text("ANALYZE complete_document"))
-                session.execute(text("ANALYZE documents_fts"))
-                session.execute(text("ANALYZE document"))
-
-                # Additional PostgreSQL optimizations
-                session.execute(text("VACUUM ANALYZE complete_document"))
-                session.execute(text("VACUUM ANALYZE documents_fts"))
-
-                session.commit()
-                debug_id("PostgreSQL tables analyzed and optimized", request_id)
-            except Exception as e:
-                debug_id(f"PostgreSQL optimization skipped: {e}", request_id)
-
-    @classmethod
-    @with_request_id
     def _cleanup_temp_file(cls, file_path, request_id):
         """Clean up temporary files and directories."""
         try:
@@ -4350,27 +4765,6 @@ class CompleteDocument(Base):
                 debug_id(f"Cleaned up temporary file: {file_path}", request_id)
         except Exception as e:
             warning_id(f"Failed to cleanup temp file {file_path}: {e}", request_id)
-
-    @classmethod
-    @with_request_id
-    def _configure_database_encoding(cls, session, request_id=None):
-        """Configure database session for proper UTF-8 encoding."""
-        try:
-            # Set PostgreSQL client encoding to UTF-8
-            session.execute(text("SET client_encoding TO 'UTF8'"))
-
-            # Verify encoding settings
-            encoding_result = session.execute(text("SHOW client_encoding")).fetchone()
-            server_encoding_result = session.execute(text("SHOW server_encoding")).fetchone()
-
-            debug_id(f"Database client encoding: {encoding_result[0] if encoding_result else 'Unknown'}", request_id)
-            debug_id(f"Database server encoding: {server_encoding_result[0] if server_encoding_result else 'Unknown'}",
-                     request_id)
-
-            return True
-        except Exception as e:
-            error_id(f"Failed to configure database encoding: {e}", request_id)
-            return False
 
     @staticmethod
     def _clean_filename(filename):
@@ -4408,8 +4802,9 @@ class CompleteDocument(Base):
 
         return chunks
 
+
     # =====================================================
-    # ADVANCED METHODS (Additional functionality)
+    # ADDITIONAL UTILITY METHODS FOR COMPATIBILITY
     # =====================================================
 
     @classmethod
@@ -4524,682 +4919,6 @@ class CompleteDocument(Base):
         except Exception as e:
             error_id(f"Unhandled error while serving document with ID {document_id}: {e}", rid, exc_info=True)
             return False, "Internal Server Error", 500
-
-    @classmethod
-    @with_request_id
-    def monitor_processing_session(cls, session, operation_name="document_operation", request_id=None):
-        """Database-agnostic session monitor for CompleteDocument class."""
-        from modules.configuration.log_config import info_id, error_id, debug_id, warning_id
-
-        class SessionMonitor:
-            def __init__(self, session, operation_name, request_id):
-                self.session = session
-                self.operation_name = operation_name
-                self.request_id = request_id
-                self.start_time = None
-
-            def __enter__(self):
-                self.start_time = time.time()
-                info_id(f"Starting monitored operation: {self.operation_name}", self.request_id)
-
-                try:
-                    db_config = DatabaseConfig()
-                    if hasattr(db_config, 'is_postgresql') and db_config.is_postgresql:
-                        # PostgreSQL - no PRAGMA commands needed
-                        debug_id("Using PostgreSQL for monitored session", self.request_id)
-                    else:
-                        # SQLite - set busy timeout
-                        self.session.execute(text("PRAGMA busy_timeout = 30000"))
-                        debug_id("Set SQLite busy timeout for monitored session", self.request_id)
-                except Exception as e:
-                    warning_id(f"Could not configure session timeout: {e}", self.request_id)
-
-                return self.session
-
-            def __exit__(self, exc_type, exc_val, exc_tb):
-                elapsed = time.time() - self.start_time
-
-                if exc_type is None:
-                    info_id(f"Completed monitored operation: {self.operation_name} in {elapsed:.2f}s", self.request_id)
-                else:
-                    error_id(f"Failed monitored operation: {self.operation_name} after {elapsed:.2f}s: {exc_val}",
-                             self.request_id)
-
-                    # Database-agnostic error detection
-                    error_str = str(exc_val).lower()
-                    if "database is locked" in error_str or "timeout" in error_str or "deadlock" in error_str:
-                        warning_id(f"Database contention during {self.operation_name}", self.request_id)
-
-        return SessionMonitor(session, operation_name, request_id)
-
-    @classmethod
-    @with_request_id
-    def search_documents_enhanced(cls, session, title=None, content=None, file_path=None,
-                                  position_id=None, area_id=None, equipment_group_id=None,
-                                  model_id=None, asset_number_id=None, location_id=None,
-                                  subassembly_id=None, component_assembly_id=None,
-                                  assembly_view_id=None, site_location_id=None,
-                                  limit=50, request_id=None):
-        """Enhanced dynamic search method for CompleteDocument with comprehensive filtering capabilities."""
-        # Get or generate request_id
-        rid = request_id or get_request_id()
-
-        info_id("========== ENHANCED DOCUMENT SEARCH ==========", rid)
-        debug_id(f"Search parameters: title='{title}', content='{content}', "
-                 f"file_path='{file_path}', position_id={position_id}, "
-                 f"area_id={area_id}, equipment_group_id={equipment_group_id}, "
-                 f"model_id={model_id}, asset_number_id={asset_number_id}, "
-                 f"location_id={location_id}, subassembly_id={subassembly_id}, "
-                 f"component_assembly_id={component_assembly_id}, assembly_view_id={assembly_view_id}, "
-                 f"site_location_id={site_location_id}, limit={limit}", rid)
-
-        try:
-            # Start with base query
-            query = session.query(cls)
-            filter_conditions = []
-            join_conditions = []
-
-            # Text-based searches on document properties
-            if title:
-                filter_conditions.append(cls.title.ilike(f"%{title}%"))
-                debug_id(f"Added title filter: '{title}'", rid)
-
-            if content:
-                filter_conditions.append(cls.content.ilike(f"%{content}%"))
-                debug_id(f"Added content filter: '{content}'", rid)
-
-            if file_path:
-                filter_conditions.append(cls.file_path.ilike(f"%{file_path}%"))
-                debug_id(f"Added file_path filter: '{file_path}'", rid)
-
-            # Get association and position classes
-            AssociationClass = cls._get_association_class()
-            PositionClass = cls._get_position_class()
-
-            if not AssociationClass or not PositionClass:
-                warning_id("Association or Position class not available, skipping hierarchy searches", rid)
-                hierarchy_filters = []
-            else:
-                hierarchy_filters = [position_id, area_id, equipment_group_id, model_id, asset_number_id, location_id,
-                                     subassembly_id, component_assembly_id, assembly_view_id, site_location_id]
-
-            # Direct position association search or hierarchy-based searches
-            if position_id or any(hierarchy_filters[1:]):  # Skip position_id in hierarchy check
-                if AssociationClass and PositionClass:
-                    # Join with Position through CompletedDocumentPositionAssociation
-                    if 'CompletedDocumentPositionAssociation' not in join_conditions:
-                        query = query.join(AssociationClass,
-                                           cls.id == AssociationClass.complete_document_id)
-                        join_conditions.append('CompletedDocumentPositionAssociation')
-                    if 'Position' not in join_conditions:
-                        query = query.join(PositionClass, AssociationClass.position_id == PositionClass.id)
-                        join_conditions.append('Position')
-
-                    # Add position ID filter
-                    if position_id:
-                        filter_conditions.append(AssociationClass.position_id == position_id)
-                        debug_id(f"Added position_id filter: {position_id}", rid)
-
-                    # Add hierarchy filters
-                    if area_id:
-                        filter_conditions.append(PositionClass.area_id == area_id)
-                        debug_id(f"Added area_id filter: {area_id}", rid)
-                    if equipment_group_id:
-                        filter_conditions.append(PositionClass.equipment_group_id == equipment_group_id)
-                        debug_id(f"Added equipment_group_id filter: {equipment_group_id}", rid)
-                    if model_id:
-                        filter_conditions.append(PositionClass.model_id == model_id)
-                        debug_id(f"Added model_id filter: {model_id}", rid)
-                    if asset_number_id:
-                        filter_conditions.append(PositionClass.asset_number_id == asset_number_id)
-                        debug_id(f"Added asset_number_id filter: {asset_number_id}", rid)
-                    if location_id:
-                        filter_conditions.append(PositionClass.location_id == location_id)
-                        debug_id(f"Added location_id filter: {location_id}", rid)
-                    if subassembly_id:
-                        filter_conditions.append(PositionClass.subassembly_id == subassembly_id)
-                        debug_id(f"Added subassembly_id filter: {subassembly_id}", rid)
-                    if component_assembly_id:
-                        filter_conditions.append(PositionClass.component_assembly_id == component_assembly_id)
-                        debug_id(f"Added component_assembly_id filter: {component_assembly_id}", rid)
-                    if assembly_view_id:
-                        filter_conditions.append(PositionClass.assembly_view_id == assembly_view_id)
-                        debug_id(f"Added assembly_view_id filter: {assembly_view_id}", rid)
-                    if site_location_id:
-                        filter_conditions.append(PositionClass.site_location_id == site_location_id)
-                        debug_id(f"Added site_location_id filter: {site_location_id}", rid)
-
-            # Apply all filters
-            if filter_conditions:
-                query = query.filter(and_(*filter_conditions))
-                debug_id(f"Applied {len(filter_conditions)} filter conditions", rid)
-            else:
-                warning_id("No search criteria provided, returning recent documents", rid)
-
-            # Add distinct to avoid duplicates from joins
-            query = query.distinct()
-
-            # Order by ID descending to get recent documents first
-            query = query.order_by(cls.id.desc())
-
-            # Apply limit and execute
-            query = query.limit(limit)
-            results = query.all()
-
-            info_id(f"Found {len(results)} documents matching search criteria", rid)
-
-            # Build detailed response
-            documents = []
-            for document in results:
-                try:
-                    document_details = {
-                        "id": document.id,
-                        "title": document.title,
-                        "file_path": document.file_path,
-                        "rev": document.rev,
-                        "content_preview": document.content[:200] + "..." if document.content and len(
-                            document.content) > 200 else document.content,
-                        "view_url": f"/search_documents/view_document/{document.id}",
-                        "download_url": f"/search_documents/download_document/{document.id}"
-                    }
-
-                    # Add file existence check if file_path exists
-                    if document.file_path:
-                        from modules.configuration.config import DATABASE_DIR
-
-                        potential_paths = [
-                            document.file_path if os.path.isabs(document.file_path) else None,
-                            os.path.join(os.getcwd(), document.file_path),
-                            os.path.join(DATABASE_DIR, document.file_path),
-                            os.path.join(os.getcwd(), "uploads", os.path.basename(document.file_path))
-                        ]
-
-                        file_exists = any(os.path.exists(path) for path in potential_paths if path)
-                    else:
-                        file_exists = False
-
-                    document_details["file_exists"] = file_exists
-                    documents.append(document_details)
-                    debug_id(
-                        f"Processed document: ID={document.id}, Title='{document.title}', File exists={file_exists}",
-                        rid)
-
-                except Exception as e:
-                    error_id(f"Error processing document ID {document.id}: {e}", rid, exc_info=True)
-                    continue
-
-            info_id(f"Successfully processed {len(documents)} documents", rid)
-            return documents
-
-        except Exception as e:
-            error_id(f"Error in search_documents_enhanced: {e}", rid, exc_info=True)
-            return []
-        finally:
-            info_id("========== ENHANCED DOCUMENT SEARCH COMPLETE ==========", rid)
-
-    @classmethod
-    @with_request_id
-    def get_images_with_chunk_context(cls, document_id, request_id=None):
-        """
-        Get all images for a document with their associated chunk context.
-        Uses your existing models and relationships.
-        """
-        try:
-            db_config = DatabaseConfig()
-            with db_config.main_session() as session:
-
-                # Join across your existing tables
-                result = session.query(
-                    Image.id.label('image_id'),
-                    Image.title.label('image_title'),
-                    Image.filepath.label('image_path'),
-                    Document.id.label('chunk_id'),
-                    Document.name.label('chunk_name'),
-                    Document.content.label('chunk_content'),
-                    ImageCompletedDocumentAssociation.page_number,
-                    ImageCompletedDocumentAssociation.chunk_index,
-                    ImageCompletedDocumentAssociation.confidence_score,
-                    ImageCompletedDocumentAssociation.context_metadata
-                ).select_from(
-                    Image
-                ).join(
-                    ImageCompletedDocumentAssociation,
-                    Image.id == ImageCompletedDocumentAssociation.image_id
-                ).join(
-                    Document,
-                    ImageCompletedDocumentAssociation.document_id == Document.id
-                ).filter(
-                    ImageCompletedDocumentAssociation.complete_document_id == document_id
-                ).order_by(
-                    ImageCompletedDocumentAssociation.page_number,
-                    ImageCompletedDocumentAssociation.chunk_index
-                ).all()
-
-                images_with_context = []
-                for row in result:
-                    images_with_context.append({
-                        'image_id': row.image_id,
-                        'image_title': row.image_title,
-                        'image_path': row.image_path,
-                        'chunk_id': row.chunk_id,
-                        'chunk_name': row.chunk_name,
-                        'chunk_content': row.chunk_content,
-                        'page_number': row.page_number,
-                        'chunk_index': row.chunk_index,
-                        'confidence': row.confidence_score,
-                        'metadata': row.context_metadata,
-                        'view_url': f'/add_document/image/{row.image_id}',
-                        'chunk_preview': row.chunk_content[:200] + "..." if row.chunk_content and len(
-                            row.chunk_content) > 200 else row.chunk_content
-                    })
-
-                info_id(f"Retrieved {len(images_with_context)} images with chunk context", request_id)
-                return images_with_context
-
-        except Exception as e:
-            error_id(f"Failed to get images with chunk context: {e}", request_id)
-            return []
-
-    @classmethod
-    @with_request_id
-    def search_images_by_chunk_text(cls, search_text, document_id=None, confidence_threshold=0.5, request_id=None):
-        """
-        Find images by searching their associated chunk content.
-        Uses your existing Document model for text search.
-        """
-        try:
-            db_config = DatabaseConfig()
-            with db_config.main_session() as session:
-
-                query = session.query(
-                    Image.id.label('image_id'),
-                    Image.title.label('image_title'),
-                    Image.filepath.label('image_path'),
-                    Document.content.label('chunk_content'),
-                    Document.name.label('chunk_name'),
-                    CompleteDocument.title.label('document_title'),
-                    ImageCompletedDocumentAssociation.confidence_score,
-                    ImageCompletedDocumentAssociation.page_number
-                ).select_from(
-                    Image
-                ).join(
-                    ImageCompletedDocumentAssociation,
-                    Image.id == ImageCompletedDocumentAssociation.image_id
-                ).join(
-                    Document,
-                    ImageCompletedDocumentAssociation.document_id == Document.id
-                ).join(
-                    CompleteDocument,
-                    ImageCompletedDocumentAssociation.complete_document_id == CompleteDocument.id
-                ).filter(
-                    Document.content.ilike(f"%{search_text}%")
-                )
-
-                # Optional filters
-                if document_id:
-                    query = query.filter(CompleteDocument.id == document_id)
-
-                if confidence_threshold:
-                    query = query.filter(ImageCompletedDocumentAssociation.confidence_score >= confidence_threshold)
-
-                # Order by confidence and relevance
-                query = query.order_by(
-                    ImageCompletedDocumentAssociation.confidence_score.desc(),
-                    ImageCompletedDocumentAssociation.page_number
-                )
-
-                results = query.all()
-
-                search_results = []
-                for row in results:
-                    # Highlight the search term in chunk content
-                    highlighted_content = cls._highlight_search_term(row.chunk_content, search_text)
-
-                    search_results.append({
-                        'image_id': row.image_id,
-                        'image_title': row.image_title,
-                        'image_path': row.image_path,
-                        'chunk_content': row.chunk_content,
-                        'chunk_name': row.chunk_name,
-                        'document_title': row.document_title,
-                        'confidence': row.confidence_score,
-                        'page_number': row.page_number,
-                        'highlighted_content': highlighted_content,
-                        'view_url': f'/add_document/image/{row.image_id}'
-                    })
-
-                info_id(f"Found {len(search_results)} images matching '{search_text}'", request_id)
-                return search_results
-
-        except Exception as e:
-            error_id(f"Failed to search images by chunk text: {e}", request_id)
-            return []
-
-    @classmethod
-    def _highlight_search_term(cls, content, search_term):
-        """Simple text highlighting for search results."""
-        if not content or not search_term:
-            return content
-
-        import re
-        # Case-insensitive highlighting
-        pattern = re.compile(re.escape(search_term), re.IGNORECASE)
-        highlighted = pattern.sub(f"<mark>{search_term}</mark>", content)
-        return highlighted
-
-    @classmethod
-    @with_request_id
-    def get_chunk_statistics(cls, document_id, request_id=None):
-        """
-        Get statistics about chunks and their image associations.
-        """
-        try:
-            db_config = DatabaseConfig()
-            with db_config.main_session() as session:
-
-                # Get chunk statistics
-                stats = session.query(
-                    func.count(Document.id).label('total_chunks'),
-                    func.count(ImageCompletedDocumentAssociation.document_id).label('chunks_with_images'),
-                    func.count(ImageCompletedDocumentAssociation.image_id).label('total_image_associations'),
-                    func.avg(ImageCompletedDocumentAssociation.confidence_score).label('avg_confidence')
-                ).select_from(
-                    Document
-                ).outerjoin(
-                    ImageCompletedDocumentAssociation,
-                    Document.id == ImageCompletedDocumentAssociation.document_id
-                ).filter(
-                    Document.complete_document_id == document_id
-                ).first()
-
-                # Get chunks grouped by page
-                page_stats = session.query(
-                    ImageCompletedDocumentAssociation.page_number,
-                    func.count(ImageCompletedDocumentAssociation.image_id).label('images_count')
-                ).filter(
-                    ImageCompletedDocumentAssociation.complete_document_id == document_id
-                ).group_by(
-                    ImageCompletedDocumentAssociation.page_number
-                ).order_by(
-                    ImageCompletedDocumentAssociation.page_number
-                ).all()
-
-                return {
-                    'total_chunks': stats.total_chunks or 0,
-                    'chunks_with_images': stats.chunks_with_images or 0,
-                    'total_image_associations': stats.total_image_associations or 0,
-                    'average_confidence': float(stats.avg_confidence or 0),
-                    'coverage_percentage': (stats.chunks_with_images / max(1, stats.total_chunks)) * 100,
-                    'images_by_page': [
-                        {'page': page_stat.page_number, 'image_count': page_stat.images_count}
-                        for page_stat in page_stats
-                    ]
-                }
-
-        except Exception as e:
-            error_id(f"Failed to get chunk statistics: {e}", request_id)
-            return {}
-
-    @classmethod
-    @with_request_id
-    def find_similar_images_by_chunk_content(cls, chunk_id, similarity_threshold=0.3, request_id=None):
-        """
-        Find images associated with chunks that have similar content.
-        Uses PostgreSQL similarity functions with your existing chunks.
-        """
-        try:
-            db_config = DatabaseConfig()
-            with db_config.main_session() as session:
-
-                # Get the source chunk
-                source_chunk = session.query(Document).filter_by(id=chunk_id).first()
-                if not source_chunk:
-                    return []
-
-                # Find similar chunks using PostgreSQL similarity
-                similar_chunks_query = text("""
-                    SELECT d.id, d.content, d.name,
-                           similarity(d.content, :source_content) as similarity_score
-                    FROM document d
-                    WHERE d.id != :chunk_id 
-                      AND similarity(d.content, :source_content) >= :threshold
-                    ORDER BY similarity_score DESC
-                    LIMIT 10
-                """)
-
-                similar_chunks = session.execute(similar_chunks_query, {
-                    'source_content': source_chunk.content[:1000],  # Limit for performance
-                    'chunk_id': chunk_id,
-                    'threshold': similarity_threshold
-                }).fetchall()
-
-                if not similar_chunks:
-                    return []
-
-                # Get images associated with these similar chunks
-                similar_chunk_ids = [chunk.id for chunk in similar_chunks]
-
-                images_result = session.query(
-                    Image.id.label('image_id'),
-                    Image.title.label('image_title'),
-                    Image.filepath.label('image_path'),
-                    Document.id.label('chunk_id'),
-                    Document.content.label('chunk_content'),
-                    ImageCompletedDocumentAssociation.confidence_score
-                ).select_from(
-                    Image
-                ).join(
-                    ImageCompletedDocumentAssociation,
-                    Image.id == ImageCompletedDocumentAssociation.image_id
-                ).join(
-                    Document,
-                    ImageCompletedDocumentAssociation.document_id == Document.id
-                ).filter(
-                    Document.id.in_(similar_chunk_ids)
-                ).all()
-
-                # Combine with similarity scores
-                results = []
-                chunk_similarity_map = {chunk.id: float(chunk.similarity_score) for chunk in similar_chunks}
-
-                for row in images_result:
-                    results.append({
-                        'image_id': row.image_id,
-                        'image_title': row.image_title,
-                        'image_path': row.image_path,
-                        'chunk_id': row.chunk_id,
-                        'chunk_content': row.chunk_content,
-                        'chunk_similarity': chunk_similarity_map.get(row.chunk_id, 0),
-                        'association_confidence': row.confidence_score,
-                        'combined_score': chunk_similarity_map.get(row.chunk_id, 0) * (row.confidence_score or 0.5)
-                    })
-
-                # Sort by combined score
-                results.sort(key=lambda x: x['combined_score'], reverse=True)
-
-                info_id(f"Found {len(results)} similar images for chunk {chunk_id}", request_id)
-                return results
-
-        except Exception as e:
-            error_id(f"Failed to find similar images by chunk content: {e}", request_id)
-            return []
-
-    @classmethod
-    @with_request_id
-    def get_document_visual_summary(cls, document_id, request_id=None):
-        """
-        Get a visual summary showing document structure with image associations.
-        Perfect for creating document overviews or navigation.
-        """
-        try:
-            db_config = DatabaseConfig()
-            with db_config.main_session() as session:
-
-                # Get document info
-                doc_info = session.query(CompleteDocument).filter_by(id=document_id).first()
-                if not doc_info:
-                    return None
-
-                # Get all chunks with their image associations
-                chunks_query = session.query(
-                    Document.id.label('chunk_id'),
-                    Document.name.label('chunk_name'),
-                    Document.content.label('chunk_content'),
-                    func.count(ImageCompletedDocumentAssociation.image_id).label('image_count'),
-                    func.avg(ImageCompletedDocumentAssociation.confidence_score).label('avg_confidence'),
-                    func.min(ImageCompletedDocumentAssociation.page_number).label('first_page')
-                ).select_from(
-                    Document
-                ).outerjoin(
-                    ImageCompletedDocumentAssociation,
-                    Document.id == ImageCompletedDocumentAssociation.document_id
-                ).filter(
-                    Document.complete_document_id == document_id
-                ).group_by(
-                    Document.id, Document.name, Document.content
-                ).order_by(
-                    Document.id
-                ).all()
-
-                # Build visual summary
-                visual_summary = {
-                    'document_id': document_id,
-                    'document_title': doc_info.title,
-                    'total_chunks': len(chunks_query),
-                    'chunks': []
-                }
-
-                for chunk in chunks_query:
-                    chunk_summary = {
-                        'chunk_id': chunk.chunk_id,
-                        'chunk_name': chunk.chunk_name,
-                        'content_preview': chunk.chunk_content[:150] + "..." if chunk.chunk_content and len(
-                            chunk.chunk_content) > 150 else chunk.chunk_content,
-                        'word_count': len(chunk.chunk_content.split()) if chunk.chunk_content else 0,
-                        'image_count': chunk.image_count,
-                        'has_images': chunk.image_count > 0,
-                        'avg_confidence': float(chunk.avg_confidence or 0),
-                        'first_page': chunk.first_page,
-                        'chunk_url': f'/documents/{document_id}/chunks/{chunk.chunk_id}'
-                    }
-
-                    # Get specific images for this chunk
-                    if chunk.image_count > 0:
-                        images = session.query(
-                            Image.id, Image.title, Image.filepath
-                        ).join(
-                            ImageCompletedDocumentAssociation,
-                            Image.id == ImageCompletedDocumentAssociation.image_id
-                        ).filter(
-                            ImageCompletedDocumentAssociation.document_id == chunk.chunk_id
-                        ).limit(3).all()  # Show first 3 images
-
-                        chunk_summary['sample_images'] = [
-                            {
-                                'image_id': img.id,
-                                'title': img.title,
-                                'url': f'/add_document/image/{img.id}'
-                            } for img in images
-                        ]
-
-                    visual_summary['chunks'].append(chunk_summary)
-
-                # Add overall statistics
-                total_images = sum(chunk['image_count'] for chunk in visual_summary['chunks'])
-                chunks_with_images = sum(1 for chunk in visual_summary['chunks'] if chunk['has_images'])
-
-                visual_summary['statistics'] = {
-                    'total_images': total_images,
-                    'chunks_with_images': chunks_with_images,
-                    'coverage_percentage': (chunks_with_images / max(1, len(chunks_query))) * 100,
-                    'avg_images_per_chunk': total_images / max(1, len(chunks_query))
-                }
-
-                info_id(f"Generated visual summary for document {document_id}", request_id)
-                return visual_summary
-
-        except Exception as e:
-            error_id(f"Failed to get document visual summary: {e}", request_id)
-            return None
-
-    # =====================================================
-    # INTEGRATION WITH YOUR EXISTING FTS SYSTEM
-    # =====================================================
-
-    @classmethod
-    @with_request_id
-    def search_with_image_filter(cls, query, has_images_only=False, min_confidence=0.5, request_id=None):
-        """
-        Enhanced search that can filter by image associations.
-        Integrates with your existing FTS system.
-        """
-        try:
-            db_config = DatabaseConfig()
-            with db_config.main_session() as session:
-
-                if has_images_only:
-                    # Search only chunks that have images
-                    sql = text("""
-                        SELECT cd.id, cd.title, cd.file_path, cd.rev,
-                               d.id as chunk_id, d.name as chunk_name, d.content as chunk_content,
-                               COUNT(ica.image_id) as image_count,
-                               AVG(ica.confidence_score) as avg_confidence,
-                               ts_rank_cd(fts.search_vector, plainto_tsquery('english', :query)) as rank
-                        FROM complete_document cd
-                        JOIN document d ON cd.id = d.complete_document_id
-                        JOIN image_completed_document_association ica ON d.id = ica.document_id
-                        JOIN documents_fts fts ON cd.title = fts.title
-                        WHERE fts.search_vector @@ plainto_tsquery('english', :query)
-                          AND ica.confidence_score >= :min_confidence
-                        GROUP BY cd.id, cd.title, cd.file_path, cd.rev, d.id, d.name, d.content, fts.search_vector
-                        ORDER BY rank DESC, avg_confidence DESC
-                        LIMIT 50
-                    """)
-                else:
-                    # Regular search with optional image information
-                    sql = text("""
-                        SELECT cd.id, cd.title, cd.file_path, cd.rev,
-                               d.id as chunk_id, d.name as chunk_name, d.content as chunk_content,
-                               COALESCE(COUNT(ica.image_id), 0) as image_count,
-                               COALESCE(AVG(ica.confidence_score), 0) as avg_confidence,
-                               ts_rank_cd(fts.search_vector, plainto_tsquery('english', :query)) as rank
-                        FROM complete_document cd
-                        JOIN document d ON cd.id = d.complete_document_id
-                        LEFT JOIN image_completed_document_association ica ON d.id = ica.document_id
-                        JOIN documents_fts fts ON cd.title = fts.title
-                        WHERE fts.search_vector @@ plainto_tsquery('english', :query)
-                        GROUP BY cd.id, cd.title, cd.file_path, cd.rev, d.id, d.name, d.content, fts.search_vector
-                        ORDER BY rank DESC, image_count DESC
-                        LIMIT 50
-                    """)
-
-                result = session.execute(sql, {
-                    'query': query,
-                    'min_confidence': min_confidence
-                })
-
-                results = []
-                for row in result:
-                    results.append({
-                        'document_id': row[0],
-                        'document_title': row[1],
-                        'file_path': row[2],
-                        'rev': row[3],
-                        'chunk_id': row[4],
-                        'chunk_name': row[5],
-                        'chunk_content': row[6][:300] + "..." if len(row[6]) > 300 else row[6],
-                        'image_count': row[7],
-                        'avg_confidence': float(row[8]),
-                        'relevance': float(row[9]),
-                        'has_images': row[7] > 0
-                    })
-
-                info_id(f"Enhanced search found {len(results)} results", request_id)
-                return results
-
-        except Exception as e:
-            error_id(f"Enhanced search failed: {e}", request_id)
-            return []
 
 class Problem(Base):
     __tablename__ = 'problem'
@@ -9589,6 +9308,957 @@ class ImageCompletedDocumentAssociation(Base):
     image = relationship("Image", back_populates="image_completed_document_association")
     document_chunk = relationship("Document", back_populates="image_associations")
 
+    # =====================================================
+    # MODEL REFERENCES (ALIGNED)
+    # =====================================================
+
+    @classmethod
+    def _get_image_class(cls):
+        """Get Image class from same module."""
+        return globals().get('Image')
+
+    @classmethod
+    def _get_document_class(cls):
+        """Get Document class from same module."""
+        return globals().get('Document')
+
+    @classmethod
+    def _get_complete_document_class(cls):
+        """Get CompleteDocument class from same module."""
+        return globals().get('CompleteDocument')
+
+    # =====================================================
+    # MAIN PUBLIC METHODS (ALIGNED)
+    # =====================================================
+
+    @classmethod
+    @with_request_id
+    def guided_extraction_with_mapping(cls, file_path, metadata, request_id=None):
+        """
+        FIXED: Enhanced guided extraction with proper chunk distribution and intelligent association.
+        """
+        try:
+            complete_document_id = metadata.get('complete_document_id')
+            position_id = metadata.get('position_id')
+
+            if not complete_document_id:
+                return False, {"error": "complete_document_id required"}, 400
+
+            doc = fitz.open(file_path)
+            file_name = os.path.splitext(os.path.basename(file_path))[0]
+            associations_created = 0
+
+            db_config = DatabaseConfig()
+            with db_config.main_session() as session:
+                # FIXED: Get all chunks and create a comprehensive mapping
+                all_chunks = session.query(Document).filter_by(
+                    complete_document_id=complete_document_id
+                ).order_by(Document.id).all()
+
+                if not all_chunks:
+                    warning_id(f"No chunks found for complete_document_id {complete_document_id}", request_id)
+                    return False, {"error": "No chunks found"}, 400
+
+                info_id(f"Found {len(all_chunks)} total chunks for document {complete_document_id}", request_id)
+
+                # FIXED: Create a better chunk mapping system
+                chunk_page_map = cls._create_enhanced_chunk_page_mapping(all_chunks, request_id)
+
+                for page_num in range(len(doc)):
+                    page = doc[page_num]
+                    img_list = page.get_images(full=True)
+
+                    if not img_list:
+                        debug_id(f"No images found on page {page_num + 1}", request_id)
+                        continue
+
+                    # FIXED: Get chunks for this specific page with better logic
+                    page_chunks = cls._get_page_chunks_enhanced(
+                        chunk_page_map, page_num, all_chunks, request_id
+                    )
+
+                    if not page_chunks:
+                        warning_id(f"No chunks found for page {page_num + 1}, skipping image association", request_id)
+                        continue
+
+                    info_id(
+                        f"Page {page_num + 1}: Processing {len(img_list)} images with {len(page_chunks)} available chunks",
+                        request_id)
+
+                    for img_index, img in enumerate(img_list):
+                        try:
+                            xref = img[0]
+                            base_image = doc.extract_image(xref)
+                            image_bytes = base_image["image"]
+                            ext = base_image.get("ext", "jpg")
+
+                            with tempfile.NamedTemporaryFile(suffix=f'.{ext}', delete=False) as tmp:
+                                tmp.write(image_bytes)
+                                temp_path = tmp.name
+
+                            title = f"{file_name} - Page {page_num + 1} Image {img_index + 1}"
+
+                            # FIXED: Intelligent chunk selection with multiple strategies
+                            selected_chunk_info = cls._select_best_chunk_for_image(
+                                page_chunks, img_index, page_num, img, request_id
+                            )
+
+                            if not selected_chunk_info:
+                                warning_id(
+                                    f"Could not select appropriate chunk for image {img_index + 1} on page {page_num + 1}",
+                                    request_id)
+                                continue
+
+                            chunk_index = selected_chunk_info['chunk_index']
+                            nearest_chunk = selected_chunk_info['chunk']
+                            association_method = selected_chunk_info['method']
+                            confidence = selected_chunk_info['confidence']
+
+                            debug_id(
+                                f"Page {page_num + 1}, Image {img_index + 1}: Selected chunk_index={chunk_index}, chunk_id={nearest_chunk.id}, method={association_method}",
+                                request_id)
+
+                            # Create image metadata
+                            image_metadata = {
+                                'page_number': page_num,
+                                'image_index': img_index,
+                                'extraction_method': 'structure_guided_enhanced',
+                                'structure_guided': True,
+                                'association_method': association_method,
+                                'confidence_score': confidence
+                            }
+
+                            # Save the image
+                            image_id = Image.add_to_db(
+                                session=session,
+                                title=title,
+                                file_path=temp_path,
+                                description=f"Enhanced guided extraction from {os.path.basename(file_path)}",
+                                position_id=position_id,
+                                complete_document_id=complete_document_id,
+                                metadata=image_metadata,
+                                request_id=request_id
+                            )
+
+                            if image_id is not None:
+                                # FIXED: Create association with proper page and chunk indexing
+                                association = cls(
+                                    complete_document_id=complete_document_id,
+                                    image_id=image_id,
+                                    document_id=nearest_chunk.id,
+                                    page_number=page_num,  # Correct page number (0-indexed)
+                                    chunk_index=chunk_index,  # Proper chunk index within page
+                                    association_method=association_method,
+                                    confidence_score=confidence,
+                                    context_metadata=json.dumps({
+                                        'extraction_method': 'enhanced_guided',
+                                        'selection_strategy': association_method,
+                                        'page_total_images': len(img_list),
+                                        'page_total_chunks': len(page_chunks),
+                                        'created_at': datetime.now().isoformat()
+                                    })
+                                )
+                                session.add(association)
+                                associations_created += 1
+
+                                info_id(
+                                    f"Associated image {image_id} with chunk {nearest_chunk.id} (page {page_num + 1}, chunk_index {chunk_index})",
+                                    request_id)
+                            else:
+                                warning_id(f"Failed to save image {title}", request_id)
+
+                            # Cleanup temp file
+                            try:
+                                os.unlink(temp_path)
+                            except:
+                                pass
+
+                        except Exception as e:
+                            error_id(f"Error processing image {img_index + 1} on page {page_num + 1}: {e}", request_id)
+                            continue
+
+                session.commit()
+                doc.close()
+
+                info_id(f"Enhanced guided extraction completed: {associations_created} associations created",
+                        request_id)
+                return True, {"associations_created": associations_created}, 200
+
+        except Exception as e:
+            error_id(f"Enhanced guided extraction failed: {e}", request_id)
+            return False, {"error": str(e)}, 500
+
+    @classmethod
+    @with_request_id
+    def _process_images_with_structure_guidance(cls, file_path, complete_document_id, position_id,
+                                                structure_map, session, request_id):
+        """
+        ALIGNED: Process images using structure guidance and Image.add_to_db method.
+        """
+        try:
+            import fitz
+            import tempfile
+            import os
+
+            ImageClass = cls._get_image_class()
+            if not ImageClass:
+                error_id("Image class not available", request_id)
+                return 0
+
+            associations_created = 0
+            doc = fitz.open(file_path)
+
+            for image_pos in structure_map.image_positions:
+                try:
+                    # Generate appropriate title and metadata
+                    title = f"Page {image_pos.page_number + 1} - Image {image_pos.image_index + 1}"
+                    if hasattr(image_pos, 'content_type'):
+                        title += f" ({image_pos.content_type})"
+
+                    # Enhanced metadata for structure-guided association
+                    enhanced_metadata = {
+                        'page_number': image_pos.page_number,
+                        'image_index': image_pos.image_index,
+                        'bbox': image_pos.bbox,
+                        'estimated_size': image_pos.estimated_size,
+                        'content_type': getattr(image_pos, 'content_type', 'image/png'),
+                        'structure_guided': True,
+                        'association_method': 'structure_guided',
+                        'confidence_score': 0.9,
+                        'extraction_source': 'DocumentStructureManager'
+                    }
+
+                    # Extract the actual image file
+                    temp_image_path = cls._extract_image_from_position(
+                        doc, image_pos, request_id
+                    )
+
+                    if temp_image_path and os.path.exists(temp_image_path):
+                        try:
+                            # ALIGNED: Use Image.add_to_db with proper metadata
+                            image_record = ImageClass.add_to_db(
+                                session=session,
+                                title=title,
+                                file_path=temp_image_path,
+                                description=f"Structure-guided extraction from {os.path.basename(file_path)}",
+                                position_id=position_id,
+                                complete_document_id=complete_document_id,
+                                metadata=enhanced_metadata,
+                                request_id=request_id
+                            )
+
+                            if image_record:
+                                associations_created += 1
+                                debug_id(f"Successfully created structure-guided association for {title}", request_id)
+                            else:
+                                warning_id(f"Failed to create image record for {title}", request_id)
+
+                        finally:
+                            # Always clean up temp file
+                            try:
+                                os.unlink(temp_image_path)
+                            except:
+                                pass
+
+                except Exception as e:
+                    error_id(f"Error processing image {image_pos.image_index} on page {image_pos.page_number}: {e}",
+                             request_id)
+                    continue
+
+            doc.close()
+            info_id(f"Structure-guided image processing completed: {associations_created} associations created",
+                    request_id)
+            return associations_created
+
+        except Exception as e:
+            error_id(f"Error in structure-guided image processing: {e}", request_id)
+            return 0
+
+    @classmethod
+    @with_request_id
+    def _extract_image_from_position(cls, doc, image_pos, request_id):
+        """
+        ALIGNED: Extract a single image based on structure position data.
+        """
+        try:
+            import tempfile
+            import base64
+
+            page = doc[image_pos.page_number]
+
+            if getattr(image_pos, 'content_type', 'image/png') == 'image/svg+xml':
+                # Handle SVG images
+                if hasattr(image_pos, 'metadata') and isinstance(image_pos.metadata, dict):
+                    svg_data = image_pos.metadata.get('svg_data')
+                    if svg_data:
+                        with tempfile.NamedTemporaryFile(suffix='.svg', delete=False) as tmp:
+                            tmp.write(base64.b64decode(svg_data))
+                            return tmp.name
+
+                # Create placeholder SVG if no data
+                with tempfile.NamedTemporaryFile(suffix='.svg', delete=False) as tmp:
+                    svg_content = f'''<?xml version="1.0" encoding="UTF-8"?>
+                    <svg width="100" height="100" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="100" height="100" fill="#f0f0f0" stroke="#ccc"/>
+                        <text x="50" y="50" text-anchor="middle" dy=".3em">SVG Placeholder</text>
+                    </svg>'''
+                    tmp.write(svg_content.encode('utf-8'))
+                    return tmp.name
+            else:
+                # Handle regular images
+                img_list = page.get_images(full=True)
+                if image_pos.image_index < len(img_list):
+                    img = img_list[image_pos.image_index]
+                    xref = img[0]
+                    base_image = doc.extract_image(xref)
+                    image_bytes = base_image["image"]
+                    ext = base_image.get("ext", "png")
+
+                    with tempfile.NamedTemporaryFile(suffix=f'.{ext}', delete=False) as tmp:
+                        tmp.write(image_bytes)
+                        return tmp.name
+
+            return None
+
+        except Exception as e:
+            debug_id(f"Error extracting single image: {e}", request_id)
+            return None
+
+    @classmethod
+    @with_request_id
+    def _create_chunk_associations(cls, complete_document_id, structure_map, session, request_id):
+        """
+        ALIGNED: Create associations between images and document chunks.
+        """
+        try:
+            DocumentClass = cls._get_document_class()
+            ImageClass = cls._get_image_class()
+
+            if not DocumentClass or not ImageClass:
+                warning_id("Document or Image class not available for chunk associations", request_id)
+                return 0
+
+            chunk_associations = 0
+
+            # Get existing chunks for this document
+            chunks = session.query(DocumentClass).filter(
+                DocumentClass.complete_document_id == complete_document_id
+            ).all()
+
+            # Get existing images for this document
+            images = session.query(ImageClass).join(
+                cls, ImageClass.id == cls.image_id
+            ).filter(
+                cls.complete_document_id == complete_document_id
+            ).all()
+
+            if not chunks or not images:
+                debug_id("No chunks or images found for chunk association", request_id)
+                return 0
+
+            # Create associations based on structure analysis
+            for chunk in chunks:
+                try:
+                    # Parse chunk metadata to find related images
+                    chunk_metadata = {}
+                    if hasattr(chunk, 'metadata') and chunk.metadata:
+                        try:
+                            chunk_metadata = json.loads(chunk.metadata) if isinstance(chunk.metadata,
+                                                                                      str) else chunk.metadata
+                        except:
+                            pass
+
+                    page_number = chunk_metadata.get('page_number')
+                    if page_number is not None:
+                        # Find images on the same page
+                        related_images = [
+                            img for img in images
+                            if cls._get_image_page_number(img) == page_number
+                        ]
+
+                        # Create associations for related images
+                        for image in related_images:
+                            # Check if association already exists
+                            existing = session.query(cls).filter(
+                                cls.image_id == image.id,
+                                cls.document_id == chunk.id,
+                                cls.complete_document_id == complete_document_id
+                            ).first()
+
+                            if not existing:
+                                association = cls(
+                                    complete_document_id=complete_document_id,
+                                    image_id=image.id,
+                                    document_id=chunk.id,
+                                    page_number=page_number,
+                                    association_method='structure_guided_chunk',
+                                    confidence_score=0.8,
+                                    context_metadata=json.dumps({
+                                        'created_by': 'aligned_chunk_association',
+                                        'structure_guided': True,
+                                        'page_number': page_number,
+                                        'created_at': datetime.now().isoformat()
+                                    })
+                                )
+                                session.add(association)
+                                chunk_associations += 1
+
+                except Exception as e:
+                    debug_id(f"Error creating chunk association for chunk {chunk.id}: {e}", request_id)
+                    continue
+
+            info_id(f"Created {chunk_associations} chunk associations", request_id)
+            return chunk_associations
+
+        except Exception as e:
+            error_id(f"Error creating chunk associations: {e}", request_id)
+            return 0
+
+    @classmethod
+    def _get_image_page_number(cls, image):
+        """Helper to extract page number from image metadata."""
+        try:
+            if hasattr(image, 'img_metadata') and image.img_metadata:
+                metadata = image.img_metadata
+                if isinstance(metadata, str):
+                    metadata = json.loads(metadata)
+                return metadata.get('page_number')
+        except:
+            pass
+        return None
+
+    @classmethod
+    @with_request_id
+    def _fallback_basic_extraction(cls, file_path, metadata, request_id):
+        """
+        ALIGNED: Fallback to basic extraction if structure analysis fails.
+        """
+        try:
+            warning_id("Using fallback basic extraction method", request_id)
+
+            complete_document_id = metadata.get('complete_document_id')
+            position_id = metadata.get('position_id')
+
+            if not complete_document_id:
+                return False, {'error': 'Missing complete_document_id'}, 400
+
+            # Use basic PDF image extraction
+            associations_created = cls._basic_pdf_extraction(
+                file_path, complete_document_id, position_id, request_id
+            )
+
+            result = {
+                'success': True,
+                'complete_document_id': complete_document_id,
+                'associations_created': associations_created,
+                'processing_method': 'fallback_basic_extraction'
+            }
+
+            return True, result, 200
+
+        except Exception as e:
+            error_id(f"Fallback extraction failed: {e}", request_id)
+            return False, {'error': str(e)}, 500
+
+    @classmethod
+    @with_request_id
+    def _basic_pdf_extraction(cls, file_path, complete_document_id, position_id, request_id):
+        """Basic PDF image extraction using Image.add_to_db."""
+        try:
+            import fitz
+            import tempfile
+            from modules.configuration.config_env import DatabaseConfig
+
+            ImageClass = cls._get_image_class()
+            if not ImageClass:
+                return 0
+
+            db_config = DatabaseConfig()
+            associations_created = 0
+
+            with db_config.main_session() as session:
+                doc = fitz.open(file_path)
+                file_name = os.path.splitext(os.path.basename(file_path))[0]
+
+                for page_num in range(len(doc)):
+                    page = doc[page_num]
+                    img_list = page.get_images(full=True)
+
+                    for img_index, img in enumerate(img_list):
+                        try:
+                            xref = img[0]
+                            base_image = doc.extract_image(xref)
+                            image_bytes = base_image["image"]
+                            ext = base_image.get("ext", "jpg")
+
+                            with tempfile.NamedTemporaryFile(suffix=f'.{ext}', delete=False) as tmp:
+                                tmp.write(image_bytes)
+                                temp_path = tmp.name
+
+                            title = f"{file_name} - Page {page_num + 1} Image {img_index + 1}"
+
+                            metadata = {
+                                'page_number': page_num,
+                                'image_index': img_index,
+                                'extraction_method': 'fallback_basic',
+                                'structure_guided': False
+                            }
+
+                            image_record = ImageClass.add_to_db(
+                                session=session,
+                                title=title,
+                                file_path=temp_path,
+                                description=f"Fallback extraction from {os.path.basename(file_path)}",
+                                position_id=position_id,
+                                complete_document_id=complete_document_id,
+                                metadata=metadata,
+                                request_id=request_id
+                            )
+
+                            if image_record:
+                                associations_created += 1
+
+                            try:
+                                os.unlink(temp_path)
+                            except:
+                                pass
+
+                        except Exception as e:
+                            debug_id(f"Error in basic extraction for image {img_index}: {e}", request_id)
+                            continue
+
+                doc.close()
+
+            info_id(f"Basic extraction completed: {associations_created} associations", request_id)
+            return associations_created
+
+        except Exception as e:
+            error_id(f"Basic extraction failed: {e}", request_id)
+            return 0
+
+    # =====================================================
+    # STRUCTURE ANALYSIS METHODS (SIMPLIFIED AND ALIGNED)
+    # =====================================================
+
+    @classmethod
+    @with_request_id
+    def analyze_document_structure(cls, file_path: str, request_id=None, ocr_content=None):
+        """
+        ALIGNED: Use DocumentStructureManager from db_manager.py instead of duplicating logic.
+        """
+        try:
+            from modules.database_manager.db_manager import DocumentStructureManager
+            from modules.configuration.config_env import DatabaseConfig
+
+            info_id(f"Using DocumentStructureManager for analysis: {file_path}", request_id)
+
+            db_config = DatabaseConfig()
+            with db_config.main_session() as session:
+                structure_manager = DocumentStructureManager(session=session, request_id=request_id)
+                return structure_manager.analyze_document_structure(file_path, request_id, ocr_content)
+
+        except Exception as e:
+            error_id(f"Error in aligned document structure analysis: {e}", request_id, exc_info=True)
+            raise
+
+    # =====================================================
+    # QUERY AND UTILITY METHODS (ALIGNED)
+    # =====================================================
+
+    @classmethod
+    @with_request_id
+    def get_images_with_chunk_context(cls, complete_document_id, request_id=None):
+        """
+        ALIGNED: Get all images for a document with their associated chunk context.
+        Delegates to Image class method.
+        """
+        try:
+            ImageClass = cls._get_image_class()
+            if not ImageClass:
+                error_id("Image class not available", request_id)
+                return []
+
+            from modules.configuration.config_env import DatabaseConfig
+            db_config = DatabaseConfig()
+
+            with db_config.main_session() as session:
+                return ImageClass.get_images_with_chunk_context(session, complete_document_id, request_id)
+
+        except Exception as e:
+            error_id(f"Failed to get images with chunk context: {e}", request_id)
+            return []
+
+    @classmethod
+    @with_request_id
+    def search_by_chunk_text(cls, search_text, complete_document_id=None, confidence_threshold=0.5, request_id=None):
+        """
+        ALIGNED: Search for images by their associated chunk text content.
+        Delegates to Image class method.
+        """
+        try:
+            ImageClass = cls._get_image_class()
+            if not ImageClass:
+                error_id("Image class not available", request_id)
+                return []
+
+            from modules.configuration.config_env import DatabaseConfig
+            db_config = DatabaseConfig()
+
+            with db_config.main_session() as session:
+                return ImageClass.search_by_chunk_text(
+                    session, search_text, complete_document_id, confidence_threshold, request_id
+                )
+
+        except Exception as e:
+            error_id(f"Failed to search images by chunk text: {e}", request_id)
+            return []
+
+    @classmethod
+    @with_request_id
+    def get_association_statistics(cls, complete_document_id=None, request_id=None):
+        """
+        ALIGNED: Get statistics about image-chunk associations.
+        Delegates to Image class method.
+        """
+        try:
+            ImageClass = cls._get_image_class()
+            if not ImageClass:
+                error_id("Image class not available", request_id)
+                return {}
+
+            from modules.configuration.config_env import DatabaseConfig
+            db_config = DatabaseConfig()
+
+            with db_config.main_session() as session:
+                return ImageClass.get_association_statistics(session, complete_document_id, request_id)
+
+        except Exception as e:
+            error_id(f"Failed to get association statistics: {e}", request_id)
+            return {}
+
+    @classmethod
+    @with_request_id
+    def update_association_confidence(cls, association_id, new_confidence, request_id=None):
+        """Update the confidence score of an association."""
+        try:
+            from modules.configuration.config_env import DatabaseConfig
+            db_config = DatabaseConfig()
+
+            with db_config.main_session() as session:
+                association = session.query(cls).filter(cls.id == association_id).first()
+                if association:
+                    association.confidence_score = new_confidence
+                    session.commit()
+                    info_id(f"Updated association {association_id} confidence to {new_confidence}", request_id)
+                    return True
+                else:
+                    warning_id(f"Association {association_id} not found", request_id)
+                    return False
+
+        except Exception as e:
+            error_id(f"Failed to update association confidence: {e}", request_id)
+            return False
+
+    @classmethod
+    @with_request_id
+    def bulk_update_associations(cls, document_id, association_method='bulk_update', confidence_score=0.7,
+                                 request_id=None):
+        """Bulk update associations for a document."""
+        try:
+            from modules.configuration.config_env import DatabaseConfig
+            from sqlalchemy import text
+
+            db_config = DatabaseConfig()
+
+            with db_config.main_session() as session:
+                # Use raw SQL for bulk update efficiency
+                result = session.execute(text("""
+                    UPDATE image_completed_document_association 
+                    SET association_method = :method, confidence_score = :confidence 
+                    WHERE complete_document_id = :doc_id
+                """), {
+                    'method': association_method,
+                    'confidence': confidence_score,
+                    'doc_id': document_id
+                })
+
+                updated_count = result.rowcount
+                session.commit()
+
+                info_id(f"Bulk updated {updated_count} associations for document {document_id}", request_id)
+                return updated_count
+
+        except Exception as e:
+            error_id(f"Failed to bulk update associations: {e}", request_id)
+            return 0
+
+    # =====================================================
+    # HELPER METHODS (CLEANED UP)
+    # =====================================================
+
+    @classmethod
+    def _store_structure_analysis(cls, structure_map, request_id=None):
+        """
+        ALIGNED: Store structure analysis using the DocumentStructureManager approach.
+        """
+        try:
+            from modules.database_manager.db_manager import DocumentStructureManager
+            from modules.configuration.config_env import DatabaseConfig
+
+            db_config = DatabaseConfig()
+            with db_config.main_session() as session:
+                structure_manager = DocumentStructureManager(session=session, request_id=request_id)
+                # Use the manager's storage method if available
+                if hasattr(structure_manager, '_store_structure_analysis'):
+                    structure_manager._store_structure_analysis(structure_map, request_id)
+                else:
+                    debug_id("Structure analysis storage not available in DocumentStructureManager", request_id)
+
+        except Exception as e:
+            warning_id(f"Could not store structure analysis: {e}", request_id)
+
+    def to_dict(self):
+        """Convert association to dictionary for JSON serialization."""
+        return {
+            'id': self.id,
+            'complete_document_id': self.complete_document_id,
+            'image_id': self.image_id,
+            'document_id': self.document_id,
+            'page_number': self.page_number,
+            'chunk_index': self.chunk_index,
+            'association_method': self.association_method,
+            'confidence_score': self.confidence_score,
+            'context_metadata': self.context_metadata
+        }
+
+    def __repr__(self):
+        return (f"<ImageCompletedDocumentAssociation(id={self.id}, "
+                f"doc={self.complete_document_id}, img={self.image_id}, "
+                f"method='{self.association_method}', confidence={self.confidence_score})>")
+
+    @classmethod
+    def _create_enhanced_chunk_page_mapping(cls, all_chunks, request_id=None):
+        """
+        FIXED: Create a comprehensive mapping of chunks to pages with better metadata handling.
+        """
+        chunk_page_map = {}
+        chunks_without_page_info = []
+
+        for chunk in all_chunks:
+            page_number = None
+
+            # Try multiple ways to get page number
+            if hasattr(chunk, 'doc_metadata') and chunk.doc_metadata:
+                if isinstance(chunk.doc_metadata, dict):
+                    page_number = chunk.doc_metadata.get("page_number")
+                elif isinstance(chunk.doc_metadata, str):
+                    try:
+                        metadata_dict = json.loads(chunk.doc_metadata)
+                        page_number = metadata_dict.get("page_number")
+                    except:
+                        pass
+
+            # Fallback: try metadata field
+            if page_number is None and hasattr(chunk, 'metadata') and chunk.metadata:
+                try:
+                    if isinstance(chunk.metadata, dict):
+                        page_number = chunk.metadata.get("page_number")
+                    elif isinstance(chunk.metadata, str):
+                        metadata_dict = json.loads(chunk.metadata)
+                        page_number = metadata_dict.get("page_number")
+                except:
+                    pass
+
+            if page_number is not None:
+                if page_number not in chunk_page_map:
+                    chunk_page_map[page_number] = []
+                chunk_page_map[page_number].append(chunk)
+            else:
+                chunks_without_page_info.append(chunk)
+
+        # Log mapping statistics
+        info_id(
+            f"Chunk page mapping: {len(chunk_page_map)} pages mapped, {len(chunks_without_page_info)} chunks without page info",
+            request_id)
+        for page_num, chunks in chunk_page_map.items():
+            debug_id(f"Page {page_num}: {len(chunks)} chunks", request_id)
+
+        # FIXED: Distribute unmapped chunks across pages if needed
+        if chunks_without_page_info:
+            warning_id(f"Found {len(chunks_without_page_info)} chunks without page information, distributing evenly",
+                       request_id)
+            cls._distribute_unmapped_chunks(chunk_page_map, chunks_without_page_info, request_id)
+
+        return chunk_page_map
+
+    @classmethod
+    def _distribute_unmapped_chunks(cls, chunk_page_map, unmapped_chunks, request_id=None):
+        """
+        FIXED: Intelligently distribute chunks that don't have page information.
+        """
+        if not chunk_page_map:
+            # If no page mapping exists, create a default page 0
+            chunk_page_map[0] = unmapped_chunks
+            warning_id(f"No page mapping found, assigning all {len(unmapped_chunks)} chunks to page 0", request_id)
+            return
+
+        # Get the pages that have chunks
+        pages_with_chunks = sorted(chunk_page_map.keys())
+        chunks_per_page = len(unmapped_chunks) // len(pages_with_chunks)
+        remaining_chunks = len(unmapped_chunks) % len(pages_with_chunks)
+
+        chunk_index = 0
+        for i, page_num in enumerate(pages_with_chunks):
+            # Calculate how many chunks to assign to this page
+            chunks_to_assign = chunks_per_page
+            if i < remaining_chunks:
+                chunks_to_assign += 1
+
+            # Assign chunks to this page
+            for _ in range(chunks_to_assign):
+                if chunk_index < len(unmapped_chunks):
+                    chunk_page_map[page_num].append(unmapped_chunks[chunk_index])
+                    chunk_index += 1
+
+        debug_id(f"Distributed {len(unmapped_chunks)} unmapped chunks across {len(pages_with_chunks)} pages",
+                 request_id)
+
+    @classmethod
+    def _get_page_chunks_enhanced(cls, chunk_page_map, page_num, all_chunks, request_id=None):
+        """
+        FIXED: Get chunks for a specific page with fallback strategies.
+        """
+        # Strategy 1: Direct page mapping
+        if page_num in chunk_page_map:
+            page_chunks = [(i, chunk) for i, chunk in enumerate(chunk_page_map[page_num])]
+            debug_id(f"Strategy 1 - Direct mapping: Found {len(page_chunks)} chunks for page {page_num}", request_id)
+            return page_chunks
+
+        # Strategy 2: Check for off-by-one errors (0-indexed vs 1-indexed)
+        alt_page_num = page_num + 1 if page_num + 1 in chunk_page_map else page_num - 1
+        if alt_page_num in chunk_page_map and alt_page_num >= 0:
+            page_chunks = [(i, chunk) for i, chunk in enumerate(chunk_page_map[alt_page_num])]
+            debug_id(
+                f"Strategy 2 - Off-by-one correction: Found {len(page_chunks)} chunks for page {alt_page_num} (original {page_num})",
+                request_id)
+            return page_chunks
+
+        # Strategy 3: Use nearest page with chunks
+        available_pages = sorted(chunk_page_map.keys())
+        if available_pages:
+            nearest_page = min(available_pages, key=lambda x: abs(x - page_num))
+            page_chunks = [(i, chunk) for i, chunk in enumerate(chunk_page_map[nearest_page])]
+            warning_id(f"Strategy 3 - Nearest page: Using page {nearest_page} chunks for page {page_num}", request_id)
+            return page_chunks
+
+        # Strategy 4: Fallback to distributing all chunks
+        if all_chunks:
+            chunk_count = min(5, len(all_chunks))  # Limit to 5 chunks per page as fallback
+            start_idx = (page_num * chunk_count) % len(all_chunks)
+            fallback_chunks = []
+            for i in range(chunk_count):
+                chunk_idx = (start_idx + i) % len(all_chunks)
+                fallback_chunks.append((i, all_chunks[chunk_idx]))
+            warning_id(f"Strategy 4 - Fallback distribution: Created {len(fallback_chunks)} chunks for page {page_num}",
+                       request_id)
+            return fallback_chunks
+
+        warning_id(f"No chunks available for page {page_num} using any strategy", request_id)
+        return []
+
+    @classmethod
+    def _select_best_chunk_for_image(cls, page_chunks, img_index, page_num, img_data, request_id=None):
+        """
+        FIXED: Intelligent chunk selection with multiple strategies for better distribution.
+        """
+        if not page_chunks:
+            return None
+
+        # Strategy 1: Round-robin distribution (most balanced)
+        if len(page_chunks) > 1:
+            chunk_index = img_index % len(page_chunks)
+            selected_chunk_info = {
+                'chunk_index': chunk_index,
+                'chunk': page_chunks[chunk_index][1],
+                'method': 'round_robin',
+                'confidence': 0.8
+            }
+            debug_id(f"Round-robin selection: img {img_index} -> chunk {chunk_index}/{len(page_chunks)}", request_id)
+            return selected_chunk_info
+
+        # Strategy 2: Single chunk (assign all images to the one available chunk)
+        elif len(page_chunks) == 1:
+            selected_chunk_info = {
+                'chunk_index': 0,
+                'chunk': page_chunks[0][1],
+                'method': 'single_chunk',
+                'confidence': 0.7
+            }
+            debug_id(f"Single chunk selection: img {img_index} -> chunk 0 (only option)", request_id)
+            return selected_chunk_info
+
+        # Strategy 3: No chunks available
+        else:
+            warning_id(f"No chunks available for image {img_index} on page {page_num}", request_id)
+            return None
+
+    # ADDITIONAL DEBUGGING METHOD
+    @classmethod
+    @with_request_id
+    def debug_chunk_distribution(cls, complete_document_id, request_id=None):
+        """
+        DEBUGGING: Analyze chunk distribution for a document.
+        """
+        try:
+            db_config = DatabaseConfig()
+            with db_config.main_session() as session:
+                chunks = session.query(Document).filter_by(
+                    complete_document_id=complete_document_id
+                ).order_by(Document.id).all()
+
+                info_id(f"=== CHUNK DISTRIBUTION ANALYSIS FOR DOCUMENT {complete_document_id} ===", request_id)
+                info_id(f"Total chunks: {len(chunks)}", request_id)
+
+                page_distribution = {}
+                chunks_without_page = 0
+
+                for i, chunk in enumerate(chunks):
+                    page_num = None
+
+                    # Check doc_metadata
+                    if hasattr(chunk, 'doc_metadata') and chunk.doc_metadata:
+                        if isinstance(chunk.doc_metadata, dict):
+                            page_num = chunk.doc_metadata.get("page_number")
+                        elif isinstance(chunk.doc_metadata, str):
+                            try:
+                                metadata_dict = json.loads(chunk.doc_metadata)
+                                page_num = metadata_dict.get("page_number")
+                            except:
+                                pass
+
+                    if page_num is not None:
+                        if page_num not in page_distribution:
+                            page_distribution[page_num] = []
+                        page_distribution[page_num].append(chunk.id)
+                    else:
+                        chunks_without_page += 1
+                        debug_id(f"Chunk {chunk.id} (#{i}): NO PAGE INFO - name: {chunk.name}", request_id)
+
+                info_id(f"Chunks without page info: {chunks_without_page}", request_id)
+                info_id(f"Page distribution:", request_id)
+                for page_num in sorted(page_distribution.keys()):
+                    chunk_ids = page_distribution[page_num]
+                    info_id(
+                        f"  Page {page_num}: {len(chunk_ids)} chunks - IDs: {chunk_ids[:5]}{'...' if len(chunk_ids) > 5 else ''}",
+                        request_id)
+
+                info_id("=== END CHUNK DISTRIBUTION ANALYSIS ===", request_id)
+                return page_distribution
+
+        except Exception as e:
+            error_id(f"Error in chunk distribution analysis: {e}", request_id)
+            return {}
+
 # Process Classes
 class FileLog(Base):
     __tablename__ = 'file_logs'
@@ -10291,7 +10961,7 @@ class ToolImageAssociation(Base):
 
     @classmethod
     @with_request_id
-    def associate_with_tool(cls, session, image_id, tool_id, description=None):
+    def associate_with_tool(cls, session, image_id, tool_id, description=None, request_id=None):
         """Associate an existing image with a tool in the database.
 
         Args:
@@ -10299,49 +10969,59 @@ class ToolImageAssociation(Base):
             image_id: ID of the existing image to associate
             tool_id: ID of the tool to associate with the image
             description: Optional description for this specific association
+            request_id: Optional request ID for logging
 
         Returns:
-            The created ToolImageAssociation object or existing one if found
+            The created ToolImageAssociation object or existing one if found, or None on error
         """
-        # Import locally to avoid circular dependencies
+        rid = request_id or get_request_id()
 
-        logger.info(f"Associating image ID {image_id} with tool ID {tool_id}")
+        info_id(f"Associating image ID {image_id} with tool ID {tool_id}", rid)
 
-        # Check if association already exists
-        existing_association = session.query(cls).filter(
-            and_(
-                cls.image_id == image_id,
-                cls.tool_id == tool_id
-            )
-        ).first()
+        try:
+            # Check if association already exists
+            existing_association = session.query(cls).filter(
+                and_(
+                    cls.image_id == image_id,
+                    cls.tool_id == tool_id
+                )
+            ).first()
 
-        if existing_association is not None:
-            logger.info(f"Association already exists between image ID {image_id} and tool ID {tool_id}")
+            if existing_association is not None:
+                info_id(f"Association already exists between image ID {image_id} and tool ID {tool_id}", rid)
 
-            # Update description if provided and different
-            if description is not None and existing_association.description != description:
-                existing_association.description = description
-                logger.info(f"Updated description for existing association")
+                # Update description if provided and different
+                if description is not None and existing_association.description != description:
+                    existing_association.description = description
+                    info_id(f"Updated description for existing association", rid)
 
-            return existing_association
-        else:
-            # Create new association
-            logger.info(f"Creating new association between image ID {image_id} and tool ID {tool_id}")
-            new_association = cls(
-                image_id=image_id,
-                tool_id=tool_id,
-                description=description
-            )
-            session.add(new_association)
-            session.flush()  # Get ID without committing transaction
+                return existing_association
+            else:
+                # Create new association
+                info_id(f"Creating new association between image ID {image_id} and tool ID {tool_id}", rid)
+                new_association = cls(
+                    image_id=image_id,
+                    tool_id=tool_id,
+                    description=description
+                )
+                session.add(new_association)
+                session.flush()  # Get ID without committing transaction
 
-            logger.info(f"Created ToolImageAssociation with ID {new_association.id}")
-            return new_association
+                info_id(f"Created ToolImageAssociation with ID {new_association.id}", rid)
+                return new_association
+
+        except Exception as e:
+            error_id(f"Error in associate_with_tool: {e}", rid, exc_info=True)
+            try:
+                session.rollback()
+            except:
+                pass
+            return None
 
     @classmethod
     @with_request_id
     def add_and_associate_with_tool(cls, session, title, file_path, tool_id, description="",
-                                    association_description=None):
+                                    association_description=None, request_id=None):
         """Add an image to the database and associate it with a tool in one operation.
 
         Args:
@@ -10351,25 +11031,196 @@ class ToolImageAssociation(Base):
             tool_id: ID of the tool to associate with the image
             description: Description for the image itself
             association_description: Optional description for the tool-image association
+            request_id: Optional request ID for logging
 
         Returns:
-            Tuple of (Image object, ToolImageAssociation object)
+            Tuple of (Image object, ToolImageAssociation object) or (None, None) on error
         """
-        # Import the Image class locally to avoid circular imports
+        rid = request_id or get_request_id()
 
+        try:
+            info_id(f"Starting add_and_associate_with_tool for '{title}' with tool ID {tool_id}", rid)
 
-        # First add the image to the database
-        image = Image.add_to_db(session, title, file_path, description)
+            # First add the image to the database - this returns just the ID (integer)
+            created_image_id = Image.add_to_db(session, title, file_path, description, request_id=rid)
 
-        # Then create the association
-        association = cls.associate_with_tool(
-            session,
-            image_id=image.id,
-            tool_id=tool_id,
-            description=association_description
-        )
+            if created_image_id is None:
+                error_id(f"Failed to create image '{title}'", rid)
+                return None, None
 
-        return image, association
+            info_id(f"Successfully created image with ID: {created_image_id}", rid)
+
+            # Get the actual Image object from the database
+            image_object = session.query(Image).filter(Image.id == created_image_id).first()
+            if image_object is None:
+                error_id(f"Could not retrieve created image with ID {created_image_id}", rid)
+                return None, None
+
+            debug_id(f"Successfully retrieved image object: '{image_object.title}'", rid)
+
+            # Then create the association using the image ID (integer)
+            association = cls.associate_with_tool(
+                session,
+                image_id=created_image_id,  # Use the integer ID directly
+                tool_id=tool_id,
+                description=association_description,
+                request_id=rid
+            )
+
+            if association is None:
+                error_id(f"Failed to create tool association for image ID {created_image_id}", rid)
+                return image_object, None
+
+            info_id(
+                f"Successfully created image '{title}' (ID: {created_image_id}) and associated with tool ID {tool_id}",
+                rid)
+            return image_object, association
+
+        except Exception as e:
+            error_id(f"Error in add_and_associate_with_tool: {e}", rid, exc_info=True)
+            try:
+                session.rollback()
+            except:
+                pass
+            return None, None
+
+    # Additional helper methods for better tool-image management
+
+    @classmethod
+    @with_request_id
+    def get_tools_for_image(cls, session, image_id, request_id=None):
+        """Get all tools associated with a specific image.
+
+        Args:
+            session: Database session
+            image_id: ID of the image
+            request_id: Optional request ID for logging
+
+        Returns:
+            List of dictionaries containing tool information
+        """
+        rid = request_id or get_request_id()
+
+        try:
+            associations = session.query(cls).filter(cls.image_id == image_id).all()
+            tools = []
+
+            for assoc in associations:
+                if assoc.tool:  # Use relationship if available
+                    tools.append({
+                        'tool_id': assoc.tool_id,
+                        'tool_name': assoc.tool.name if hasattr(assoc.tool, 'name') else 'Unknown',
+                        'association_description': assoc.description,
+                        'association_id': assoc.id
+                    })
+
+            debug_id(f"Found {len(tools)} tools for image {image_id}", rid)
+            return tools
+
+        except Exception as e:
+            error_id(f"Error getting tools for image {image_id}: {e}", rid)
+            return []
+
+    @classmethod
+    @with_request_id
+    def get_images_for_tool(cls, session, tool_id, request_id=None):
+        """Get all images associated with a specific tool.
+
+        Args:
+            session: Database session
+            tool_id: ID of the tool
+            request_id: Optional request ID for logging
+
+        Returns:
+            List of dictionaries containing image information
+        """
+        rid = request_id or get_request_id()
+
+        try:
+            associations = session.query(cls).filter(cls.tool_id == tool_id).all()
+            images = []
+
+            for assoc in associations:
+                if assoc.image:  # Use relationship if available
+                    images.append({
+                        'image_id': assoc.image_id,
+                        'image_title': assoc.image.title,
+                        'image_description': assoc.image.description,
+                        'image_path': assoc.image.file_path,
+                        'association_description': assoc.description,
+                        'association_id': assoc.id,
+                        'view_url': f'/add_document/image/{assoc.image_id}'
+                    })
+
+            debug_id(f"Found {len(images)} images for tool {tool_id}", rid)
+            return images
+
+        except Exception as e:
+            error_id(f"Error getting images for tool {tool_id}: {e}", rid)
+            return []
+
+    @with_request_id
+    def remove_association(self, session, request_id=None):
+        """Remove this tool-image association.
+
+        Args:
+            session: Database session
+            request_id: Optional request ID for logging
+
+        Returns:
+            Boolean indicating success
+        """
+        rid = request_id or get_request_id()
+
+        try:
+            info_id(f"Removing tool-image association ID {self.id} (tool: {self.tool_id}, image: {self.image_id})", rid)
+            session.delete(self)
+            session.flush()
+            info_id(f"Successfully removed association ID {self.id}", rid)
+            return True
+
+        except Exception as e:
+            error_id(f"Error removing association {self.id}: {e}", rid)
+            try:
+                session.rollback()
+            except:
+                pass
+            return False
+
+    @classmethod
+    @with_request_id
+    def bulk_associate_images_with_tool(cls, session, image_ids, tool_id, description=None, request_id=None):
+        """Associate multiple images with a single tool.
+
+        Args:
+            session: Database session
+            image_ids: List of image IDs to associate
+            tool_id: ID of the tool
+            description: Optional description for all associations
+            request_id: Optional request ID for logging
+
+        Returns:
+            List of created ToolImageAssociation objects
+        """
+        rid = request_id or get_request_id()
+
+        try:
+            info_id(f"Bulk associating {len(image_ids)} images with tool ID {tool_id}", rid)
+
+            associations = []
+            for image_id in image_ids:
+                association = cls.associate_with_tool(
+                    session, image_id, tool_id, description, request_id=rid
+                )
+                if association:
+                    associations.append(association)
+
+            info_id(f"Successfully created {len(associations)} associations", rid)
+            return associations
+
+        except Exception as e:
+            error_id(f"Error in bulk_associate_images_with_tool: {e}", rid)
+            return []
 
 class ToolPositionAssociation(Base):
     __tablename__ = 'tool_position_association'
@@ -12197,8 +13048,6 @@ class KeywordSearch:
                 "status": "error",
                 "message": f"Error loading keywords from Excel: {str(e)}"
             }
-
-
 
 # Base.metadata.create_all(engine, checkfirst=True)  # <-- COMMENTED OUT
 
