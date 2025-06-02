@@ -178,7 +178,10 @@ def upload_image(request_id=None):
                         error_id("Failed to add image to database", request_id)
                         return jsonify({'message': 'Failed to add image to database'}), 500
 
-                    info_id(f"Successfully created image with ID: {new_image.id}", request_id)
+                    if isinstance(new_image, int):
+                        info_id(f"Successfully created image with ID: {new_image}", request_id)
+                    else:
+                        info_id(f"Successfully created image with ID: {new_image.id}", request_id)
 
                     # Clean up temporary file if it still exists (Image.add_to_db should have copied it)
                     if os.path.exists(temp_file_path):
