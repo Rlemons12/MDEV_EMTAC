@@ -17,6 +17,7 @@ from flask import Flask
 logger.info("Starting the Flask application")
 
 # Import blueprints
+from blueprints.upload_search_db.upload_document_list_data import get_upload_document_list_data_bp
 from blueprints.assembly_routes import assembly_model_bp
 from blueprints.tool_routes import tool_blueprint_bp
 from blueprints.pst_troubleshooting.pst_troubleshooting_task_bp import pst_troubleshooting_task_bp
@@ -79,6 +80,7 @@ Session = sessionmaker(bind=engine)
 
 
 def register_blueprints(app):
+    app.register_blueprint(get_upload_document_list_data_bp)
     app.register_blueprint(keyword_search_bp, url_prefix='/keyword_search')
     app.register_blueprint(drawing_routes)
     app.register_blueprint(assembly_model_bp,url_prefix='/assembly_model')
