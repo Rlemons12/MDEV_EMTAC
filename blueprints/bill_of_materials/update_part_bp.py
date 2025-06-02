@@ -1,4 +1,5 @@
 import logging
+from flask import jsonify
 import os
 from werkzeug.utils import secure_filename
 from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file
@@ -10,6 +11,7 @@ from modules.configuration.config import UPLOAD_FOLDER, ALLOWED_EXTENSIONS,DATAB
 from blueprints.bill_of_materials import update_part_bp
 from modules.configuration.log_config import logger, with_request_id
 from sqlalchemy import and_
+
 
 @update_part_bp.route('/edit_part/<int:part_id>', methods=['GET', 'POST'])
 @with_request_id
@@ -121,25 +123,30 @@ def edit_part(part_id):
                 filename = secure_filename(uploaded_file.filename)
                 logger.debug(f'Secured filename: {filename}')
 
-                # Create upload folder for parts - use a folder structure compatible with your existing code
-                upload_folder = os.path.join(UPLOAD_FOLDER, 'parts')
-                logger.debug(f'Upload folder path: {upload_folder}')
+                # UPDATED: Use unified storage location (DATABASE_PATH_IMAGES_FOLDER)
+                from modules.configuration.config import DATABASE_PATH_IMAGES_FOLDER
+
+                logger.debug(f'Using unified storage path: {DATABASE_PATH_IMAGES_FOLDER}')
 
                 # Create the directory if it doesn't exist
-                if not os.path.exists(upload_folder):
-                    logger.info(f'Creating upload directory: {upload_folder}')
-                    os.makedirs(upload_folder)
+                if not os.path.exists(DATABASE_PATH_IMAGES_FOLDER):
+                    logger.info(f'Creating unified image directory: {DATABASE_PATH_IMAGES_FOLDER}')
+                    os.makedirs(DATABASE_PATH_IMAGES_FOLDER)
 
-                # Save the file with absolute path
-                abs_file_path = os.path.join(upload_folder, filename)
+                # Create unique filename to avoid conflicts
+                base_name, ext = os.path.splitext(filename)
+                unique_filename = f"{part.part_number}_{base_name}{ext}".replace(' ', '_')
+
+                # Save the file to unified location
+                abs_file_path = os.path.join(DATABASE_PATH_IMAGES_FOLDER, unique_filename)
                 uploaded_file.save(abs_file_path)
-                logger.info(f'Image saved to: {abs_file_path}')
+                logger.info(f'Image saved to unified location: {abs_file_path}')
 
-                # Calculate relative path for storage in database (consistent with add_image_to_db)
-                rel_file_path = os.path.relpath(abs_file_path, BASE_DIR)
+                # UPDATED: Store unified relative path in database (consistent with tools)
+                rel_file_path = os.path.join("DB_IMAGES", unique_filename)
                 logger.debug(f'Relative file path for database: {rel_file_path}')
 
-                # Create a new Image record with relative path
+                # Create a new Image record with unified relative path
                 image_title = request.form.get('image_title', f"Image for {part.part_number}")
                 image_description = request.form.get('image_description', f"Image for part {part.part_number}")
 
@@ -152,33 +159,46 @@ def edit_part(part_id):
                     logger.info(f"Image with the same title, description, and file path already exists: {image_title}")
                     new_image = existing_image
                 else:
-                    # Create new image
+                    # Create new image with unified storage path
                     new_image = Image(
                         title=image_title,
                         description=image_description,
-                        file_path=rel_file_path  # Store relative path in the database
+                        file_path=rel_file_path  # Store unified relative path: DB_IMAGES/filename.png
                     )
                     db_session.add(new_image)
                     db_session.flush()  # Flush to get the image ID
-                    logger.info(f'Created new image record with ID: {new_image.id}')
+                    logger.info(f'Created new image record with ID: {new_image.id} using unified storage')
 
-                # Get the position ID from the form
+                # Get the position ID from the form and handle empty values properly
                 position_id = request.form.get('position_id')
-                if position_id:
-                    logger.debug(f'Position selected for image: {position_id}')
+
+                # FIXED: Convert empty string to None for PostgreSQL compatibility
+                if position_id and position_id.strip() and position_id not in ('', '__None', 'None'):
+                    try:
+                        position_id_int = int(position_id)
+                        logger.debug(f'Position selected for image: {position_id_int}')
+                    except (ValueError, TypeError):
+                        position_id_int = None
+                        logger.warning(f'Invalid position_id "{position_id}", using None')
                 else:
+                    position_id_int = None
                     logger.debug('No position selected for image')
 
-                # Create the association
+                # Create the association with proper position_id handling
                 association = PartsPositionImageAssociation(
                     part_id=part_id,
-                    position_id=position_id,
+                    position_id=position_id_int,
                     image_id=new_image.id
                 )
 
                 db_session.add(association)
-                logger.info(
-                    f'Created association between part {part_id}, position {position_id}, and image {new_image.id}')
+
+                # Update the log message to reflect the actual values
+                if position_id_int:
+                    logger.info(
+                        f'Created association between part {part_id}, position {position_id_int}, and image {new_image.id}')
+                else:
+                    logger.info(f'Created association between part {part_id} and image {new_image.id} (no position)')
 
             # Handle image removal if requested
             if 'remove_image' in request.form:
@@ -206,11 +226,21 @@ def edit_part(part_id):
                             image = db_session.query(Image).filter_by(id=image_id).first()
                             if image:
                                 logger.debug(f'Image {image_id} has no other associations, preparing to delete')
-                                # Delete the file from the filesystem - handle absolute path conversion
-                                abs_file_path = os.path.join(BASE_DIR, image.file_path)
+
+                                # UPDATED: Handle both old and new storage paths when deleting files
+                                if image.file_path.startswith('DB_IMAGES'):
+                                    # New unified storage path
+                                    abs_file_path = os.path.join(DATABASE_DIR, image.file_path)
+                                else:
+                                    # Legacy path (static/uploads/parts)
+                                    abs_file_path = os.path.join(BASE_DIR, image.file_path)
+
                                 if os.path.exists(abs_file_path):
                                     logger.debug(f'Deleting image file: {abs_file_path}')
                                     os.remove(abs_file_path)
+                                else:
+                                    logger.warning(f'Image file not found for deletion: {abs_file_path}')
+
                                 db_session.delete(image)
                                 logger.info(f'Deleted image record with ID: {image_id}')
                     else:
