@@ -93,7 +93,7 @@ print("[PRE-IMPORT] PostgreSQL database service is ready - proceeding with impor
 from modules.emtacdb.emtacdb_fts import UserLogin, initialize_database_tables
 from utilities.custom_jinja_filters import register_jinja_filters
 from modules.emtacdb.emtacdb_fts import (UserLevel)
-from modules.emtacdb.utlity.main_database.database import serve_image
+from modules.emtacdb.utlity.main_database.database import serve_image, db_config
 from blueprints import register_blueprints
 from modules.emtacdb.utlity.revision_database.event_listeners import register_event_listeners
 from modules.configuration.config import UPLOAD_FOLDER, DATABASE_URL
@@ -128,7 +128,7 @@ def create_unicode_engine(database_url):
 
     return engine
 
-
+db_config= DatabaseConfig()
 # Initialize main database engine (PostgreSQL) with Unicode support
 engine = create_unicode_engine(DATABASE_URL)
 # Add this to your database setup
