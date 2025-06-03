@@ -3906,37 +3906,92 @@ class CompleteDocument(Base):
 
     @classmethod
     def dynamic_search(cls, session, **filters):
-        """Dynamic search with relationship support - enhanced for PostgreSQL."""
+        """
+        Dynamic search with explicit relationship handling for CompleteDocument.
+        This approach explicitly handles the common search patterns used in the application.
+        """
+        from sqlalchemy import and_
+
         query = session.query(cls)
         filter_conditions = []
 
-        relationships = {
-            'document': cls.document,
-            'completed_document_position_association': cls.completed_document_position_association,
-            'powerpoint': cls.powerpoint,
-            'image_completed_document_association': cls.image_completed_document_association,
-            'complete_document_problem': cls.complete_document_problem,
-            'complete_document_task': cls.complete_document_task,
-        }
+        # Track if we need to join with position-related tables
+        needs_position_join = False
+        needs_association_join = False
 
         for key, value in filters.items():
-            if '__' in key:
-                relation_name, related_attr = key.split('__', 1)
-                relation = relationships.get(relation_name)
-                if relation:
-                    related_class = relation.property.mapper.class_
-                    # Use PostgreSQL case-insensitive search
-                    condition = getattr(related_class, related_attr).ilike(f"%{value}%")
-                    filter_conditions.append(condition)
-            else:
-                attr = getattr(cls, key, None)
-                if attr:
-                    # Use PostgreSQL case-insensitive search
-                    condition = attr.ilike(f"%{value}%")
+            if key.startswith('completed_document_position_association__position__'):
+                # This is a position-related search through the association
+                needs_association_join = True
+                needs_position_join = True
+
+                # Extract the position attribute name
+                position_attr = key.replace('completed_document_position_association__position__', '')
+
+                # Get the Position class
+                PositionClass = cls._get_position_class()
+                if PositionClass and hasattr(PositionClass, position_attr):
+                    attr = getattr(PositionClass, position_attr)
+                    if isinstance(value, str):
+                        condition = attr.ilike(f"%{value}%")
+                    else:
+                        condition = attr == value
                     filter_conditions.append(condition)
 
+            elif key.startswith('completed_document_position_association__'):
+                # This is an association-related search
+                needs_association_join = True
+
+                # Extract the association attribute name
+                assoc_attr = key.replace('completed_document_position_association__', '')
+
+                # Get the Association class
+                AssociationClass = cls._get_association_class()
+                if AssociationClass and hasattr(AssociationClass, assoc_attr):
+                    attr = getattr(AssociationClass, assoc_attr)
+                    if isinstance(value, str):
+                        condition = attr.ilike(f"%{value}%")
+                    else:
+                        condition = attr == value
+                    filter_conditions.append(condition)
+
+            elif key in ['title', 'content', 'file_path', 'rev']:
+                # Direct attributes on CompleteDocument
+                attr = getattr(cls, key, None)
+                if attr:
+                    if isinstance(value, str):
+                        condition = attr.ilike(f"%{value}%")
+                    else:
+                        condition = attr == value
+                    filter_conditions.append(condition)
+
+            else:
+                # Handle other relationship patterns or direct attributes
+                if hasattr(cls, key):
+                    attr = getattr(cls, key)
+                    if isinstance(value, str):
+                        condition = attr.ilike(f"%{value}%")
+                    else:
+                        condition = attr == value
+                    filter_conditions.append(condition)
+
+        # Add necessary joins
+        if needs_association_join:
+            AssociationClass = cls._get_association_class()
+            if AssociationClass:
+                query = query.join(AssociationClass, cls.id == AssociationClass.complete_document_id)
+
+                if needs_position_join:
+                    PositionClass = cls._get_position_class()
+                    if PositionClass:
+                        query = query.join(PositionClass, AssociationClass.position_id == PositionClass.id)
+
+        # Apply all filter conditions
         if filter_conditions:
             query = query.filter(and_(*filter_conditions))
+
+        # Add distinct to avoid duplicates from joins
+        query = query.distinct()
 
         return query.all()
 
@@ -3986,13 +4041,28 @@ class CompleteDocument(Base):
     @classmethod
     @with_request_id
     def _process_file(cls, file, metadata, position_id, request_id):
-        """FIXED: Enhanced file processing with aligned image extraction."""
+        """Enhanced file processing with correct DATABASE_DOC storage location."""
         try:
+            # Import the proper database configuration
+            from modules.configuration.config import DATABASE_DIR
+
             filename = secure_filename(file.filename)
-            upload_dir = os.path.join(os.getcwd(), 'Uploads')
-            os.makedirs(upload_dir, exist_ok=True)
-            file_path = os.path.join(upload_dir, filename)
+
+            # FIXED: Use DATABASE_DOC instead of generic Uploads folder
+            DATABASE_DOC = os.path.join(DATABASE_DIR, 'DB_DOC')
+            os.makedirs(DATABASE_DOC, exist_ok=True)
+            file_path = os.path.join(DATABASE_DOC, filename)
+
+            # Handle filename conflicts
+            counter = 1
+            original_file_path = file_path
+            while os.path.exists(file_path):
+                name, ext = os.path.splitext(filename)
+                file_path = os.path.join(DATABASE_DOC, f"{name}_{counter}{ext}")
+                counter += 1
+
             file.save(file_path)
+            info_id(f"Saved file to: {file_path}", request_id)
 
             title = metadata.get('title') or cls._clean_filename(filename)
             content = cls._extract_content(file_path, request_id)
@@ -4007,7 +4077,7 @@ class CompleteDocument(Base):
                 error_id(f"Failed to save document {filename}", request_id)
                 return False, {"error": f"Failed to save document {filename}"}, 500
 
-            # FIXED: Use the aligned ImageCompletedDocumentAssociation method
+            # Extract images with guided association
             try:
                 extracted_count = cls._extract_images_with_guided_association(
                     file_path=file_path,
@@ -4021,7 +4091,6 @@ class CompleteDocument(Base):
                             request_id)
             except Exception as img_error:
                 warning_id(f"Image extraction failed for {filename}: {img_error}", request_id)
-                # Continue processing even if image extraction fails
 
             return True, None, 200
 
@@ -4304,8 +4373,10 @@ class CompleteDocument(Base):
 
     @classmethod
     def _upsert_document(cls, session, title, file_path, content):
-        """Create or update document using PostgreSQL optimized method with proper Unicode handling."""
+        """Create or update document with correct relative path storage."""
         try:
+            from modules.configuration.config import DATABASE_DIR
+
             # Ensure content is properly encoded as UTF-8 string
             if content:
                 if isinstance(content, bytes):
@@ -4319,6 +4390,15 @@ class CompleteDocument(Base):
             else:
                 title = title.encode('utf-8', errors='replace').decode('utf-8')
 
+            # Calculate the correct relative path from DATABASE_DIR
+            DATABASE_DOC = os.path.join(DATABASE_DIR, 'DB_DOC')
+            if file_path.startswith(DATABASE_DOC):
+                # Store path relative to DATABASE_DOC (just the filename)
+                relative_path = os.path.relpath(file_path, DATABASE_DOC)
+            else:
+                # Fallback: store relative to DATABASE_DIR
+                relative_path = os.path.relpath(file_path, DATABASE_DIR)
+
             # First try to find existing document
             existing = session.query(cls).filter_by(title=title).first()
 
@@ -4326,7 +4406,7 @@ class CompleteDocument(Base):
                 # Update existing document
                 if existing.content != content:
                     existing.content = content
-                    existing.file_path = os.path.relpath(file_path, os.getcwd())
+                    existing.file_path = relative_path  # Store correct relative path
                     rev_num = int(existing.rev[1:]) + 1 if existing.rev.startswith('R') else 1
                     existing.rev = f"R{rev_num}"
                 session.flush()
@@ -4335,7 +4415,7 @@ class CompleteDocument(Base):
                 # Create new document
                 doc = cls(
                     title=title,
-                    file_path=os.path.relpath(file_path, os.getcwd()),
+                    file_path=relative_path,  # Store correct relative path
                     content=content,
                     rev="R0"
                 )
@@ -4362,7 +4442,7 @@ class CompleteDocument(Base):
                     # Retry with sanitized content
                     doc = cls(
                         title=f"{title}_{uuid.uuid4().hex[:8]}",
-                        file_path=os.path.relpath(file_path, os.getcwd()),
+                        file_path=relative_path,  # Use the correct relative path
                         content=content,
                         rev="R0"
                     )
@@ -4376,7 +4456,7 @@ class CompleteDocument(Base):
             debug_id(f"PostgreSQL upsert fallback for {title}: {e}")
             doc = cls(
                 title=f"{title}_{uuid.uuid4().hex[:8]}",  # Make unique
-                file_path=os.path.relpath(file_path, os.getcwd()),
+                file_path=relative_path,  # Use the correct relative path
                 content="[Content encoding error - original content could not be saved]",
                 rev="R0"
             )
@@ -5025,16 +5105,11 @@ class CompleteDocument(Base):
 
         return chunks
 
-
-    # =====================================================
-    # ADDITIONAL UTILITY METHODS FOR COMPATIBILITY
-    # =====================================================
-
     @classmethod
     @with_request_id
     def serve_file(cls, document_id, download=None, request_id=None):
         """
-        Enhanced serve_file method for CompleteDocument with database compatibility and proper logging.
+        Enhanced serve_file method for CompleteDocument with DATABASE_DOC support.
         Returns a tuple (success, response, status_code) for Flask compatibility.
         """
         # Import locally to avoid circular dependencies
@@ -5060,44 +5135,70 @@ class CompleteDocument(Base):
 
                 debug_id(f"Found document: {document.title}, File path: {document.file_path}", rid)
 
-                # Try multiple potential file path locations
+                # Define the correct DATABASE_DOC path
+                DATABASE_DOC = os.path.join(DATABASE_DIR, 'DB_DOC')
+
+                # Build potential file paths in order of preference
                 potential_paths = []
 
                 if document.file_path:
-                    # Check if file_path is absolute
+                    # Clean the file path
+                    clean_path = document.file_path.strip().replace('\\', '/')
+
+                    # 1. PRIORITY: Handle the specific case where DB_DOC is already in the path
+                    if clean_path.startswith('DB_DOC/') or clean_path.startswith('DB_DOC\\'):
+                        # Path already includes DB_DOC, so join with DATABASE_DIR instead
+                        potential_paths.append(os.path.join(DATABASE_DIR, clean_path))
+                        # Also try just the filename in DATABASE_DOC
+                        potential_paths.append(os.path.join(DATABASE_DOC, os.path.basename(clean_path)))
+                    else:
+                        # Normal case: DATABASE_DOC directory (correct location)
+                        # Handle both filename-only and relative paths
+                        potential_paths.append(os.path.join(DATABASE_DOC, os.path.basename(document.file_path)))
+                        if document.file_path != os.path.basename(document.file_path):
+                            # If it's a relative path, try it relative to DATABASE_DOC
+                            potential_paths.append(os.path.join(DATABASE_DOC, clean_path))
+
+                    # 2. If file_path is absolute, try it directly
                     if os.path.isabs(document.file_path):
                         potential_paths.append(document.file_path)
-                    else:
-                        # Try relative to current working directory (based on your _upsert_document method)
-                        potential_paths.append(os.path.join(os.getcwd(), document.file_path))
-                        # Try relative to DATABASE_DIR
-                        potential_paths.append(os.path.join(DATABASE_DIR, document.file_path))
 
-                    # Try common document storage locations
-                    clean_path = document.file_path.lstrip('/\\\\')
+                    # 3. LEGACY SUPPORT: Old storage locations (for backwards compatibility)
+                    clean_legacy_path = clean_path.lstrip('/\\\\')
                     potential_paths.extend([
-                        os.path.join(os.getcwd(), "uploads", clean_path),
-                        os.path.join(DATABASE_DIR, "uploads", clean_path),
-                        os.path.join(DATABASE_DIR, "documents", clean_path),
-                        os.path.join(DATABASE_DIR, clean_path),
-                        # Try just the filename in uploads directory
-                        os.path.join(os.getcwd(), "uploads", os.path.basename(clean_path)),
-                        os.path.join(DATABASE_DIR, "uploads", os.path.basename(clean_path))
+                        # Try relative to DATABASE_DIR (for paths like "DB_DOC\file.pdf")
+                        os.path.join(DATABASE_DIR, clean_legacy_path),
+                        # Try relative to current working directory
+                        os.path.join(os.getcwd(), document.file_path),
+                        # Try old uploads directories
+                        os.path.join(os.getcwd(), "Uploads", os.path.basename(clean_legacy_path)),
+                        os.path.join(os.getcwd(), "uploads", os.path.basename(clean_legacy_path)),
+                        os.path.join(DATABASE_DIR, "uploads", os.path.basename(clean_legacy_path)),
+                        os.path.join(DATABASE_DIR, "documents", os.path.basename(clean_legacy_path))
                     ])
 
-                debug_id(f"Checking potential file paths: {potential_paths}", rid)
+                debug_id(f"Database file_path: '{document.file_path}'", rid)
+                debug_id(f"DATABASE_DOC: {DATABASE_DOC}", rid)
+                debug_id(f"Checking {len(potential_paths)} potential file paths", rid)
 
                 # Find the first existing file
                 file_path = None
-                for path in potential_paths:
-                    debug_id(f"Checking path: {path}", rid)
+                for i, path in enumerate(potential_paths):
+                    debug_id(f"Checking path {i + 1}: {path}", rid)
                     if os.path.exists(path):
                         file_path = path
-                        debug_id(f"Found existing file at: {path}", rid)
+                        if i == 0:
+                            info_id(f"Found file in correct location: {path}", rid)
+                        elif i == 1:
+                            info_id(f"Found file using DATABASE_DIR join: {path}", rid)
+                        else:
+                            warning_id(f"Found file in legacy location {i + 1}: {path} - consider fixing database path",
+                                       rid)
                         break
 
                 if not file_path:
-                    error_id(f"Document file not found in any of these locations: {potential_paths}", rid)
+                    error_id(f"Document file not found in any location. Expected in: {DATABASE_DOC}", rid)
+                    debug_id(f"Searched paths: {potential_paths[:3]}... (and {len(potential_paths) - 3} more)", rid)
                     return False, "Document file not found", 404
 
                 info_id(f"Serving document file: {file_path}", rid)
