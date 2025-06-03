@@ -2006,10 +2006,29 @@ class Image(Base):
             if complete_document_id is not None or position_id is not None:
                 debug_id(f"Generating embedding for image {image.id}", request_id)
 
-                # Only create position association if position_id is provided
+                # Add this code in Image.add_to_db() method after session.flush() and before the commit
+
+                # Create position association if position_id is provided
                 if position_id is not None:
-                    debug_id(f"Added position association for image {image.id} with position_id {position_id}",
-                             request_id)
+                    # Check if association already exists
+                    existing_association = session.query(ImagePositionAssociation).filter(
+                        and_(ImagePositionAssociation.image_id == image.id,
+                             ImagePositionAssociation.position_id == position_id)
+                    ).first()
+
+                    if existing_association is None:
+                        # Create the association
+                        image_position_association = ImagePositionAssociation(
+                            image_id=image.id,
+                            position_id=position_id
+                        )
+                        session.add(image_position_association)
+                        debug_id(f"Added position association for image {image.id} with position_id {position_id}",
+                                 request_id)
+                    else:
+                        debug_id(
+                            f"Position association already exists for image {image.id} with position_id {position_id}",
+                            request_id)
 
                 # Only create document association if complete_document_id is provided
                 if complete_document_id is not None:
@@ -2730,8 +2749,6 @@ class Image(Base):
     # COMPREHENSIVE SEARCH METHODS
     # =====================================================
 
-    # Fix for the JSON DISTINCT error in Image.search_images()
-
     @classmethod
     @with_request_id
     def search_images(cls, session, title=None, description=None, position_id=None,
@@ -2741,13 +2758,14 @@ class Image(Base):
                       assembly_view_id=None, site_location_id=None, limit=50, request_id=None):
         """
         Enhanced dynamic search method for Images with comprehensive filtering capabilities.
+        UPDATED: Now includes direct position, parts position, AND completed document associations.
         FIXED: Handles JSON column properly in DISTINCT queries.
         """
         from modules.configuration.log_config import info_id, debug_id, error_id, warning_id
 
         rid = request_id or get_request_id()
 
-        info_id("========== ENHANCED DYNAMIC IMAGE SEARCH ==========", rid)
+        info_id("========== ENHANCED DYNAMIC IMAGE SEARCH WITH ALL ASSOCIATIONS ==========", rid)
         debug_id(f"Search parameters: title='{title}', description='{description}', "
                  f"position_id={position_id}, tool_id={tool_id}, task_id={task_id}, "
                  f"problem_id={problem_id}, completed_document_id={completed_document_id}, "
@@ -2758,140 +2776,289 @@ class Image(Base):
                  f"site_location_id={site_location_id}, limit={limit}", rid)
 
         try:
-            # FIXED: Start with base query selecting only non-JSON columns for DISTINCT
-            query = session.query(
-                cls.id,
-                cls.title,
-                cls.description,
-                cls.file_path
-                # Note: Exclude img_metadata from DISTINCT query
-            )
-            filter_conditions = []
-            join_conditions = []
+            # Collect all image IDs from different search paths
+            all_image_ids = set()
 
-            # Text-based searches on image properties
+            # Text-based search conditions
+            text_conditions = []
             if title:
-                filter_conditions.append(cls.title.ilike(f"%{title}%"))
+                text_conditions.append(cls.title.ilike(f"%{title}%"))
                 debug_id(f"Added title filter: '{title}'", rid)
-
             if description:
-                filter_conditions.append(cls.description.ilike(f"%{description}%"))
+                text_conditions.append(cls.description.ilike(f"%{description}%"))
                 debug_id(f"Added description filter: '{description}'", rid)
 
-            # Direct association searches
-            if position_id:
-                if 'ImagePositionAssociation' not in join_conditions:
-                    query = query.join(ImagePositionAssociation, cls.id == ImagePositionAssociation.image_id)
-                    join_conditions.append('ImagePositionAssociation')
-                filter_conditions.append(ImagePositionAssociation.position_id == position_id)
-                debug_id(f"Added position_id filter: {position_id}", rid)
+            # SEARCH PATH 1: Direct position associations
+            if position_id or any([area_id, equipment_group_id, model_id, asset_number_id, location_id,
+                                   subassembly_id, component_assembly_id, assembly_view_id, site_location_id]):
 
+                debug_id("Searching via direct position associations", rid)
+
+                # Build query for direct position associations
+                direct_query = session.query(cls.id).select_from(cls)
+
+                # Apply text filters
+                if text_conditions:
+                    from sqlalchemy import and_
+                    direct_query = direct_query.filter(and_(*text_conditions))
+
+                # Join with position associations
+                direct_query = direct_query.join(ImagePositionAssociation, cls.id == ImagePositionAssociation.image_id)
+                direct_query = direct_query.join(Position, ImagePositionAssociation.position_id == Position.id)
+
+                # Apply hierarchy filters
+                hierarchy_conditions = []
+                if position_id:
+                    hierarchy_conditions.append(ImagePositionAssociation.position_id == position_id)
+                    debug_id(f"Added direct position_id filter: {position_id}", rid)
+                if area_id:
+                    hierarchy_conditions.append(Position.area_id == area_id)
+                    debug_id(f"Added direct area_id filter: {area_id}", rid)
+                if equipment_group_id:
+                    hierarchy_conditions.append(Position.equipment_group_id == equipment_group_id)
+                    debug_id(f"Added direct equipment_group_id filter: {equipment_group_id}", rid)
+                if model_id:
+                    hierarchy_conditions.append(Position.model_id == model_id)
+                    debug_id(f"Added direct model_id filter: {model_id}", rid)
+                if asset_number_id:
+                    hierarchy_conditions.append(Position.asset_number_id == asset_number_id)
+                    debug_id(f"Added direct asset_number_id filter: {asset_number_id}", rid)
+                if location_id:
+                    hierarchy_conditions.append(Position.location_id == location_id)
+                    debug_id(f"Added direct location_id filter: {location_id}", rid)
+                if subassembly_id:
+                    hierarchy_conditions.append(Position.subassembly_id == subassembly_id)
+                    debug_id(f"Added direct subassembly_id filter: {subassembly_id}", rid)
+                if component_assembly_id:
+                    hierarchy_conditions.append(Position.component_assembly_id == component_assembly_id)
+                    debug_id(f"Added direct component_assembly_id filter: {component_assembly_id}", rid)
+                if assembly_view_id:
+                    hierarchy_conditions.append(Position.assembly_view_id == assembly_view_id)
+                    debug_id(f"Added direct assembly_view_id filter: {assembly_view_id}", rid)
+                if site_location_id:
+                    hierarchy_conditions.append(Position.site_location_id == site_location_id)
+                    debug_id(f"Added direct site_location_id filter: {site_location_id}", rid)
+
+                if hierarchy_conditions:
+                    from sqlalchemy import and_
+                    direct_query = direct_query.filter(and_(*hierarchy_conditions))
+
+                # Execute direct query and collect IDs
+                direct_results = direct_query.distinct().all()
+                direct_ids = {result.id for result in direct_results}
+                all_image_ids.update(direct_ids)
+                debug_id(f"Found {len(direct_ids)} images via direct position associations", rid)
+
+            # SEARCH PATH 2: Parts Position associations (NEW!)
+            if any([area_id, equipment_group_id, model_id, asset_number_id, location_id,
+                    subassembly_id, component_assembly_id, assembly_view_id, site_location_id]):
+
+                debug_id("Searching via parts position associations", rid)
+
+                # Build query for parts position associations
+                parts_query = session.query(cls.id).select_from(cls)
+
+                # Apply text filters
+                if text_conditions:
+                    from sqlalchemy import and_
+                    parts_query = parts_query.filter(and_(*text_conditions))
+
+                # Join with parts position associations
+                parts_query = parts_query.join(PartsPositionImageAssociation,
+                                               cls.id == PartsPositionImageAssociation.image_id)
+                parts_query = parts_query.join(Position, PartsPositionImageAssociation.position_id == Position.id)
+
+                # Apply hierarchy filters (same as direct position associations)
+                parts_hierarchy_conditions = []
+                if area_id:
+                    parts_hierarchy_conditions.append(Position.area_id == area_id)
+                    debug_id(f"Added parts area_id filter: {area_id}", rid)
+                if equipment_group_id:
+                    parts_hierarchy_conditions.append(Position.equipment_group_id == equipment_group_id)
+                    debug_id(f"Added parts equipment_group_id filter: {equipment_group_id}", rid)
+                if model_id:
+                    parts_hierarchy_conditions.append(Position.model_id == model_id)
+                    debug_id(f"Added parts model_id filter: {model_id}", rid)
+                if asset_number_id:
+                    parts_hierarchy_conditions.append(Position.asset_number_id == asset_number_id)
+                    debug_id(f"Added parts asset_number_id filter: {asset_number_id}", rid)
+                if location_id:
+                    parts_hierarchy_conditions.append(Position.location_id == location_id)
+                    debug_id(f"Added parts location_id filter: {location_id}", rid)
+                if subassembly_id:
+                    parts_hierarchy_conditions.append(Position.subassembly_id == subassembly_id)
+                    debug_id(f"Added parts subassembly_id filter: {subassembly_id}", rid)
+                if component_assembly_id:
+                    parts_hierarchy_conditions.append(Position.component_assembly_id == component_assembly_id)
+                    debug_id(f"Added parts component_assembly_id filter: {component_assembly_id}", rid)
+                if assembly_view_id:
+                    parts_hierarchy_conditions.append(Position.assembly_view_id == assembly_view_id)
+                    debug_id(f"Added parts assembly_view_id filter: {assembly_view_id}", rid)
+                if site_location_id:
+                    parts_hierarchy_conditions.append(Position.site_location_id == site_location_id)
+                    debug_id(f"Added parts site_location_id filter: {site_location_id}", rid)
+
+                if parts_hierarchy_conditions:
+                    from sqlalchemy import and_
+                    parts_query = parts_query.filter(and_(*parts_hierarchy_conditions))
+
+                # Execute parts query and collect IDs
+                parts_results = parts_query.distinct().all()
+                parts_ids = {result.id for result in parts_results}
+                all_image_ids.update(parts_ids)
+                debug_id(f"Found {len(parts_ids)} images via parts position associations", rid)
+
+            # SEARCH PATH 3: Completed document associations
+            if any([area_id, equipment_group_id, model_id, asset_number_id, location_id,
+                    subassembly_id, component_assembly_id, assembly_view_id, site_location_id]):
+
+                debug_id("Searching via completed document associations", rid)
+
+                # Build query for document associations
+                doc_query = session.query(cls.id).select_from(cls)
+
+                # Apply text filters
+                if text_conditions:
+                    from sqlalchemy import and_
+                    doc_query = doc_query.filter(and_(*text_conditions))
+
+                # Join through document associations
+                doc_query = doc_query.join(ImageCompletedDocumentAssociation,
+                                           cls.id == ImageCompletedDocumentAssociation.image_id)
+                doc_query = doc_query.join(CompleteDocument,
+                                           ImageCompletedDocumentAssociation.complete_document_id == CompleteDocument.id)
+                doc_query = doc_query.join(CompletedDocumentPositionAssociation,
+                                           CompleteDocument.id == CompletedDocumentPositionAssociation.complete_document_id)
+                doc_query = doc_query.join(Position,
+                                           CompletedDocumentPositionAssociation.position_id == Position.id)
+
+                # Apply hierarchy filters (same as direct path)
+                doc_hierarchy_conditions = []
+                if area_id:
+                    doc_hierarchy_conditions.append(Position.area_id == area_id)
+                    debug_id(f"Added document area_id filter: {area_id}", rid)
+                if equipment_group_id:
+                    doc_hierarchy_conditions.append(Position.equipment_group_id == equipment_group_id)
+                    debug_id(f"Added document equipment_group_id filter: {equipment_group_id}", rid)
+                if model_id:
+                    doc_hierarchy_conditions.append(Position.model_id == model_id)
+                    debug_id(f"Added document model_id filter: {model_id}", rid)
+                if asset_number_id:
+                    doc_hierarchy_conditions.append(Position.asset_number_id == asset_number_id)
+                    debug_id(f"Added document asset_number_id filter: {asset_number_id}", rid)
+                if location_id:
+                    doc_hierarchy_conditions.append(Position.location_id == location_id)
+                    debug_id(f"Added document location_id filter: {location_id}", rid)
+                if subassembly_id:
+                    doc_hierarchy_conditions.append(Position.subassembly_id == subassembly_id)
+                    debug_id(f"Added document subassembly_id filter: {subassembly_id}", rid)
+                if component_assembly_id:
+                    doc_hierarchy_conditions.append(Position.component_assembly_id == component_assembly_id)
+                    debug_id(f"Added document component_assembly_id filter: {component_assembly_id}", rid)
+                if assembly_view_id:
+                    doc_hierarchy_conditions.append(Position.assembly_view_id == assembly_view_id)
+                    debug_id(f"Added document assembly_view_id filter: {assembly_view_id}", rid)
+                if site_location_id:
+                    doc_hierarchy_conditions.append(Position.site_location_id == site_location_id)
+                    debug_id(f"Added document site_location_id filter: {site_location_id}", rid)
+
+                if doc_hierarchy_conditions:
+                    from sqlalchemy import and_
+                    doc_query = doc_query.filter(and_(*doc_hierarchy_conditions))
+
+                # Execute document query and collect IDs
+                doc_results = doc_query.distinct().all()
+                doc_ids = {result.id for result in doc_results}
+                all_image_ids.update(doc_ids)
+                debug_id(f"Found {len(doc_ids)} images via completed document associations", rid)
+
+            # SEARCH PATH 4: Direct association searches (tools, tasks, problems, specific documents)
             if tool_id:
-                if 'ToolImageAssociation' not in join_conditions:
-                    query = query.join(ToolImageAssociation, cls.id == ToolImageAssociation.image_id)
-                    join_conditions.append('ToolImageAssociation')
-                filter_conditions.append(ToolImageAssociation.tool_id == tool_id)
-                debug_id(f"Added tool_id filter: {tool_id}", rid)
+                tool_query = session.query(cls.id).select_from(cls)
+                if text_conditions:
+                    from sqlalchemy import and_
+                    tool_query = tool_query.filter(and_(*text_conditions))
+                tool_query = tool_query.join(ToolImageAssociation, cls.id == ToolImageAssociation.image_id)
+                tool_query = tool_query.filter(ToolImageAssociation.tool_id == tool_id)
+                tool_results = tool_query.distinct().all()
+                tool_ids = {result.id for result in tool_results}
+                all_image_ids.update(tool_ids)
+                debug_id(f"Added tool_id filter: {tool_id} - found {len(tool_ids)} images", rid)
 
             if task_id:
-                if 'ImageTaskAssociation' not in join_conditions:
-                    query = query.join(ImageTaskAssociation, cls.id == ImageTaskAssociation.image_id)
-                    join_conditions.append('ImageTaskAssociation')
-                filter_conditions.append(ImageTaskAssociation.task_id == task_id)
-                debug_id(f"Added task_id filter: {task_id}", rid)
+                task_query = session.query(cls.id).select_from(cls)
+                if text_conditions:
+                    from sqlalchemy import and_
+                    task_query = task_query.filter(and_(*text_conditions))
+                task_query = task_query.join(ImageTaskAssociation, cls.id == ImageTaskAssociation.image_id)
+                task_query = task_query.filter(ImageTaskAssociation.task_id == task_id)
+                task_results = task_query.distinct().all()
+                task_ids = {result.id for result in task_results}
+                all_image_ids.update(task_ids)
+                debug_id(f"Added task_id filter: {task_id} - found {len(task_ids)} images", rid)
 
             if problem_id:
-                if 'ImageProblemAssociation' not in join_conditions:
-                    query = query.join(ImageProblemAssociation, cls.id == ImageProblemAssociation.image_id)
-                    join_conditions.append('ImageProblemAssociation')
-                filter_conditions.append(ImageProblemAssociation.problem_id == problem_id)
-                debug_id(f"Added problem_id filter: {problem_id}", rid)
+                problem_query = session.query(cls.id).select_from(cls)
+                if text_conditions:
+                    from sqlalchemy import and_
+                    problem_query = problem_query.filter(and_(*text_conditions))
+                problem_query = problem_query.join(ImageProblemAssociation, cls.id == ImageProblemAssociation.image_id)
+                problem_query = problem_query.filter(ImageProblemAssociation.problem_id == problem_id)
+                problem_results = problem_query.distinct().all()
+                problem_ids = {result.id for result in problem_results}
+                all_image_ids.update(problem_ids)
+                debug_id(f"Added problem_id filter: {problem_id} - found {len(problem_ids)} images", rid)
 
             if completed_document_id:
-                if 'ImageCompletedDocumentAssociation' not in join_conditions:
-                    query = query.join(ImageCompletedDocumentAssociation,
-                                       cls.id == ImageCompletedDocumentAssociation.image_id)
-                    join_conditions.append('ImageCompletedDocumentAssociation')
-                filter_conditions.append(
+                cdoc_query = session.query(cls.id).select_from(cls)
+                if text_conditions:
+                    from sqlalchemy import and_
+                    cdoc_query = cdoc_query.filter(and_(*text_conditions))
+                cdoc_query = cdoc_query.join(ImageCompletedDocumentAssociation,
+                                             cls.id == ImageCompletedDocumentAssociation.image_id)
+                cdoc_query = cdoc_query.filter(
                     ImageCompletedDocumentAssociation.complete_document_id == completed_document_id)
-                debug_id(f"Added completed_document_id filter: {completed_document_id}", rid)
+                cdoc_results = cdoc_query.distinct().all()
+                cdoc_ids = {result.id for result in cdoc_results}
+                all_image_ids.update(cdoc_ids)
+                debug_id(f"Added completed_document_id filter: {completed_document_id} - found {len(cdoc_ids)} images",
+                         rid)
 
-            # Hierarchy-based searches through Position
-            hierarchy_filters = [area_id, equipment_group_id, model_id, asset_number_id, location_id,
-                                 subassembly_id, component_assembly_id, assembly_view_id, site_location_id]
-
-            if any(hierarchy_filters):
-                # Join with Position through ImagePositionAssociation if not already joined
-                if 'ImagePositionAssociation' not in join_conditions:
-                    query = query.join(ImagePositionAssociation, cls.id == ImagePositionAssociation.image_id)
-                    join_conditions.append('ImagePositionAssociation')
-                if 'Position' not in join_conditions:
-                    query = query.join(Position, ImagePositionAssociation.position_id == Position.id)
-                    join_conditions.append('Position')
-
-                # Add hierarchy filters
-                if area_id:
-                    filter_conditions.append(Position.area_id == area_id)
-                    debug_id(f"Added area_id filter: {area_id}", rid)
-                if equipment_group_id:
-                    filter_conditions.append(Position.equipment_group_id == equipment_group_id)
-                    debug_id(f"Added equipment_group_id filter: {equipment_group_id}", rid)
-                if model_id:
-                    filter_conditions.append(Position.model_id == model_id)
-                    debug_id(f"Added model_id filter: {model_id}", rid)
-                if asset_number_id:
-                    filter_conditions.append(Position.asset_number_id == asset_number_id)
-                    debug_id(f"Added asset_number_id filter: {asset_number_id}", rid)
-                if location_id:
-                    filter_conditions.append(Position.location_id == location_id)
-                    debug_id(f"Added location_id filter: {location_id}", rid)
-                if subassembly_id:
-                    filter_conditions.append(Position.subassembly_id == subassembly_id)
-                    debug_id(f"Added subassembly_id filter: {subassembly_id}", rid)
-                if component_assembly_id:
-                    filter_conditions.append(Position.component_assembly_id == component_assembly_id)
-                    debug_id(f"Added component_assembly_id filter: {component_assembly_id}", rid)
-                if assembly_view_id:
-                    filter_conditions.append(Position.assembly_view_id == assembly_view_id)
-                    debug_id(f"Added assembly_view_id filter: {assembly_view_id}", rid)
-                if site_location_id:
-                    filter_conditions.append(Position.site_location_id == site_location_id)
-                    debug_id(f"Added site_location_id filter: {site_location_id}", rid)
-
-            # Apply all filters
-            if filter_conditions:
+            # SEARCH PATH 5: Text-only search (no associations)
+            if text_conditions and not any([position_id, tool_id, task_id, problem_id, completed_document_id,
+                                            area_id, equipment_group_id, model_id, asset_number_id, location_id,
+                                            subassembly_id, component_assembly_id, assembly_view_id, site_location_id]):
                 from sqlalchemy import and_
-                query = query.filter(and_(*filter_conditions))
-                debug_id(f"Applied {len(filter_conditions)} filter conditions", rid)
-            else:
+                text_query = session.query(cls.id).filter(and_(*text_conditions))
+                text_results = text_query.distinct().limit(limit).all()
+                text_ids = {result.id for result in text_results}
+                all_image_ids.update(text_ids)
+                debug_id(f"Found {len(text_ids)} images via text-only search", rid)
+
+            # If no search criteria provided, return recent images
+            if not all_image_ids and not any(
+                    [title, description, position_id, tool_id, task_id, problem_id, completed_document_id,
+                     area_id, equipment_group_id, model_id, asset_number_id, location_id,
+                     subassembly_id, component_assembly_id, assembly_view_id, site_location_id]):
                 warning_id("No search criteria provided, returning recent images", rid)
+                recent_query = session.query(cls.id).order_by(cls.id.desc()).limit(limit)
+                recent_results = recent_query.all()
+                all_image_ids = {result.id for result in recent_results}
 
-            # FIXED: Use DISTINCT on ID only to avoid JSON comparison issues
-            query = query.distinct(cls.id)
+            # Convert to list and apply limit
+            image_ids_list = list(all_image_ids)[:limit]
 
-            # Order by ID descending to get recent images first
-            query = query.order_by(cls.id.desc())
+            info_id(f"Found {len(all_image_ids)} total unique images, returning {len(image_ids_list)} after limit", rid)
 
-            # Apply limit and execute
-            query = query.limit(limit)
-            results = query.all()
-
-            info_id(f"Found {len(results)} images matching search criteria", rid)
-
-            # FIXED: Get full image objects (including metadata) in a separate query
-            if results:
-                image_ids = [result.id for result in results]
-                full_images = session.query(cls).filter(cls.id.in_(image_ids)).all()
-
-                # Sort by the original order
-                id_to_image = {img.id: img for img in full_images}
-                ordered_images = [id_to_image[result.id] for result in results if result.id in id_to_image]
+            # Get full image objects
+            if image_ids_list:
+                full_images = session.query(cls).filter(cls.id.in_(image_ids_list)).order_by(cls.id.desc()).all()
             else:
-                ordered_images = []
+                full_images = []
 
             # Build enhanced detailed response
             images = []
-            for image in ordered_images:
+            for image in full_images:
                 try:
                     image_details = {
                         "id": image.id,
@@ -2916,7 +3083,7 @@ class Image(Base):
             error_id(f"Error in enhanced search_images: {e}", rid, exc_info=True)
             return []
         finally:
-            info_id("========== ENHANCED DYNAMIC IMAGE SEARCH COMPLETE ==========", rid)
+            info_id("========== ENHANCED DYNAMIC IMAGE SEARCH WITH ALL ASSOCIATIONS COMPLETE ==========", rid)
 
     @classmethod
     @with_request_id
@@ -2994,7 +3161,6 @@ class Image(Base):
 
         return associations
 
-
 class ImageEmbedding(Base):
     __tablename__ = 'image_embedding'
 
@@ -3005,7 +3171,20 @@ class ImageEmbedding(Base):
 
     image = relationship("Image", back_populates="image_embedding")
 
-# TODO: add Drawing type ex: Electrical, Mechanical....
+class DrawingType(Enum):
+    ELECTRICAL = "Electrical"
+    MECHANICAL = "Mechanical"
+    PIPING = "Piping"
+    INSTRUMENTATION = "Instrumentation"
+    CIVIL = "Civil"
+    STRUCTURAL = "Structural"
+    PROCESS = "Process"
+    ASSEMBLY = "Assembly"
+    DETAIL = "Detail"
+    SCHEMATIC = "Schematic"
+    LAYOUT = "Layout"
+    OTHER = "Other"
+
 class Drawing(Base):
     __tablename__ = 'drawing'
 
@@ -3015,6 +3194,7 @@ class Drawing(Base):
     drw_name = Column(String)
     drw_revision = Column(String)
     drw_spare_part_number = Column(String)
+    drw_type = Column(String, default="Other")  # New field for drawing type
     file_path = Column(String, nullable=False)
 
     drawing_position = relationship("DrawingPositionAssociation", back_populates="drawing")
@@ -3034,6 +3214,7 @@ class Drawing(Base):
                drw_name: Optional[str] = None,
                drw_revision: Optional[str] = None,
                drw_spare_part_number: Optional[str] = None,
+               drw_type: Optional[str] = None,  # New parameter for drawing type
                file_path: Optional[str] = None,
                limit: int = 100,
                request_id: Optional[str] = None,
@@ -3044,7 +3225,7 @@ class Drawing(Base):
         Args:
             search_text: Text to search for across specified fields
             fields: List of field names to search in. If None, searches in default fields
-                   (drw_number, drw_name, drw_equipment_name, drw_spare_part_number)
+                   (drw_number, drw_name, drw_equipment_name, drw_spare_part_number, drw_type)
             exact_match: If True, performs exact matching instead of partial matching
             drawing_id: Optional ID to filter by
             drw_equipment_name: Optional equipment name to filter by
@@ -3052,6 +3233,7 @@ class Drawing(Base):
             drw_name: Optional drawing name to filter by
             drw_revision: Optional revision to filter by
             drw_spare_part_number: Optional spare part number to filter by
+            drw_type: Optional drawing type to filter by (e.g., 'Electrical', 'Mechanical')
             file_path: Optional file path to filter by
             limit: Maximum number of results to return (default 100)
             request_id: Optional request ID for tracking this operation in logs
@@ -3081,6 +3263,7 @@ class Drawing(Base):
             'drw_name': drw_name,
             'drw_revision': drw_revision,
             'drw_spare_part_number': drw_spare_part_number,
+            'drw_type': drw_type,  # Include new parameter in logging
             'file_path': file_path,
             'limit': limit
         }
@@ -3099,9 +3282,10 @@ class Drawing(Base):
                 if search_text:
                     search_text = search_text.strip()
                     if search_text:
-                        # Default fields to search in if none specified
+                        # Default fields to search in if none specified (now includes drw_type)
                         if fields is None or len(fields) == 0:
-                            fields = ['drw_number', 'drw_name', 'drw_equipment_name', 'drw_spare_part_number']
+                            fields = ['drw_number', 'drw_name', 'drw_equipment_name', 'drw_spare_part_number',
+                                      'drw_type']
 
                         debug_id(f"Searching for text '{search_text}' in fields: {fields}", rid)
 
@@ -3159,6 +3343,14 @@ class Drawing(Base):
                     else:
                         filters.append(cls.drw_spare_part_number.ilike(f"%{drw_spare_part_number}%"))
 
+                # New filter for drawing type
+                if drw_type is not None:
+                    debug_id(f"Adding filter for drw_type: {drw_type}", rid)
+                    if exact_match:
+                        filters.append(cls.drw_type == drw_type)
+                    else:
+                        filters.append(cls.drw_type.ilike(f"%{drw_type}%"))
+
                 if file_path is not None:
                     debug_id(f"Adding filter for file_path: {file_path}", rid)
                     if exact_match:
@@ -3191,7 +3383,7 @@ class Drawing(Base):
     @classmethod
     @with_request_id
     def get_by_id(cls, drawing_id: int, request_id: Optional[str] = None, session: Optional[Session] = None) -> \
-    Optional['Drawing']:
+            Optional['Drawing']:
         """
         Get a drawing by its ID.
 
@@ -3234,12 +3426,13 @@ class Drawing(Base):
     @with_request_id
     def search_and_format(cls, search_text=None, fields=None, exact_match=False, drawing_id=None,
                           drw_equipment_name=None, drw_number=None, drw_name=None, drw_revision=None,
-                          drw_spare_part_number=None, file_path=None, limit=100, request_id=None, session=None):
+                          drw_spare_part_number=None, drw_type=None, file_path=None, limit=100,
+                          request_id=None, session=None):
         """
         Search for drawings and return formatted results ready for API response.
 
         Args:
-            (same parameters as the search method)
+            (same parameters as the search method, now including drw_type)
 
         Returns:
             Dictionary with entity_type and results ready for API response,
@@ -3263,6 +3456,7 @@ class Drawing(Base):
                 drw_name=drw_name,
                 drw_revision=drw_revision,
                 drw_spare_part_number=drw_spare_part_number,
+                drw_type=drw_type,  # Include new parameter
                 file_path=file_path,
                 limit=limit,
                 request_id=request_id,
@@ -3270,7 +3464,7 @@ class Drawing(Base):
             )
 
             if results:
-                # Format the results
+                # Format the results (now includes drawing type)
                 drawing_results = []
                 for drawing in results:
                     drawing_results.append({
@@ -3280,6 +3474,7 @@ class Drawing(Base):
                         'equipment_name': drawing.drw_equipment_name,
                         'revision': drawing.drw_revision,
                         'spare_part_number': drawing.drw_spare_part_number,
+                        'type': drawing.drw_type,  # Include type in results
                         'file_path': drawing.file_path,
                         'url': f"/drawings/view/{drawing.id}"
                     })
@@ -3303,6 +3498,7 @@ class Drawing(Base):
                                 'id': drawing['id'],
                                 'number': drawing['number'],
                                 'name': drawing.get('name', ''),
+                                'type': drawing.get('type', 'Unknown'),  # Handle legacy type field
                                 'url': f"/drawings/view/{drawing['id']}"
                             })
 
@@ -3388,6 +3584,33 @@ class Drawing(Base):
         finally:
             if not session_provided:
                 session.close()
+
+    @classmethod
+    def get_available_types(cls):
+        """
+        Get all available drawing types.
+
+        Returns:
+            List of available drawing type values
+        """
+        return [dtype.value for dtype in DrawingType]
+
+    @classmethod
+    @with_request_id
+    def search_by_type(cls, drawing_type: str, request_id: Optional[str] = None,
+                       session: Optional[Session] = None) -> List['Drawing']:
+        """
+        Search for drawings by their type.
+
+        Args:
+            drawing_type: The type of drawing to search for
+            request_id: Optional request ID for tracking
+            session: Optional SQLAlchemy session
+
+        Returns:
+            List of Drawing objects of the specified type
+        """
+        return cls.search(drw_type=drawing_type, request_id=request_id, session=session)
 
 class Document(Base):
     """Your existing Document model with added image association relationship."""
@@ -3555,7 +3778,7 @@ class DocumentEmbedding(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     document = relationship("Document", back_populates="embeddings")
-
+#todo: An error occurred while searching documents: type object 'CompleteDocument' has no attribute 'search_documents_enhanced'
 class CompleteDocument(Base):
     """
     Modern document model with robust PostgreSQL database handling.
