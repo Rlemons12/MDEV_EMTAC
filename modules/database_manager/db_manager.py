@@ -1109,12 +1109,6 @@ class DocumentStructureManager(PostgreSQLDocumentStructureManager):
         """Backward compatible method name."""
         return self.guided_extraction_with_postgresql(file_path, metadata, self.request_id)
 
-
-# ==========================================
-# UTILITY FUNCTIONS FOR STRUCTURE ANALYSIS
-# Add these helper functions to your db_manager.py
-# ==========================================
-
 def create_document_structure_tables(db_config: DatabaseConfig):
     """
     Create necessary tables for document structure analysis.
@@ -1162,7 +1156,6 @@ def create_document_structure_tables(db_config: DatabaseConfig):
         print(f"❌ Error creating document structure tables: {e}")
         raise
 
-
 def get_structure_analysis_stats(db_config: DatabaseConfig) -> Dict[str, Any]:
     """
     Get statistics about stored structure analyses.
@@ -1195,7 +1188,6 @@ def get_structure_analysis_stats(db_config: DatabaseConfig) -> Dict[str, Any]:
     except Exception as e:
         print(f"Error getting structure analysis stats: {e}")
         return {}
-
 
 # ==========================================
 # EXAMPLE USAGE WITH YOUR EXISTING CODE
@@ -1232,7 +1224,6 @@ def example_integration_with_existing_code():
             print(f"- Associations created: {result['associations_created']}")
 
 
-# Add this to your existing database setup
 def enhanced_database_setup():
     """
     Enhanced database setup including structure analysis tables.
