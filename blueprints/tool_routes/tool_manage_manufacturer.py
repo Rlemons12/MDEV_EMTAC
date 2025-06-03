@@ -121,13 +121,18 @@ def add_manufacturer():
 
         render_time = time.time() - start_time
         logger.debug(f"Step 26: Route '/tool_manufacturer/add' processed in {render_time:.4f} seconds.")
-
-        return render_template('tool_templates/tool_manufacturer.html',
-                               manufacturer_form=form,
-                               manufacturers=[],
-                               page=1,
-                               per_page=20,
-                               total_pages=0)
+        #todo: not returning to main page.
+        return render_template(
+            'tool_templates/tool_search_entry.html',
+            tool_form=tool_form,
+            category_form=category_form,
+            manufacturer_form=manufacturer_form,
+            position_form=position_form,
+            search_tool_form=tool_search_form,
+            manufacturers=[],
+            categories=[],
+            positions=[]
+        )
     except Exception as e:
         # Catch any unforeseen exceptions and log them
         logger.critical(f"Unhandled exception in add_manufacturer route: {str(e)}")
