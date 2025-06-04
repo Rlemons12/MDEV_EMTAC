@@ -1,16 +1,69 @@
-# tool_manage_manufacturer.py
+# tool_manage_manufacturer.py - Complete refactored version
 
 from blueprints.tool_routes import tool_blueprint_bp
 from flask import render_template, redirect, url_for, flash, request, jsonify
 from modules.configuration.config_env import DatabaseConfig
-from modules.tool_module.forms import ToolManufacturerForm
-from modules.emtacdb.emtacdb_fts import ToolManufacturer
+from modules.tool_module.forms import ToolForm, ToolCategoryForm, ToolManufacturerForm, ToolSearchForm
+from modules.emtacdb.emtacdb_fts import (Tool, ToolCategory, ToolManufacturer, ToolPositionAssociation, Position,
+                                         Area, EquipmentGroup, Model, AssetNumber, ToolImageAssociation,
+                                         Location, Subassembly, ComponentAssembly, AssemblyView, SiteLocation, Image)
 from modules.configuration.log_config import logger
+from modules.emtacdb.forms.position_form import PositionForm
 import traceback
 import time
 
 # Initialize Database Configuration
 db_config = DatabaseConfig()
+
+
+def render_tool_search_page(session, active_tab="search", manufacturer_form=None):
+    """
+    Helper function to render the tool search page with all required context.
+
+    Args:
+        session: Database session
+        active_tab: Which tab should be active (search, manufacturers, categories)
+        manufacturer_form: Optional pre-filled manufacturer form (for validation errors)
+
+    Returns:
+        Rendered template
+    """
+    # Initialize all forms
+    tool_form = ToolForm()
+    category_form = ToolCategoryForm()
+    search_tool_form = ToolSearchForm()
+    position_form = PositionForm()
+
+    # Use provided manufacturer form or create new one
+    if manufacturer_form is None:
+        manufacturer_form = ToolManufacturerForm()
+
+    # Fetch required data
+    manufacturers = session.query(ToolManufacturer).order_by(ToolManufacturer.name).all()
+    categories = session.query(ToolCategory).order_by(ToolCategory.name).all()
+
+    # Set default pagination values
+    page = 1
+    per_page = 20
+    total_pages = 1
+    tools = []
+
+    return render_template(
+        'tool_templates/tool_search_entry.html',
+        tool_form=tool_form,
+        position_form=position_form,
+        manufacturer_form=manufacturer_form,
+        category_form=category_form,
+        search_tool_form=search_tool_form,
+        tools=tools,
+        page=page,
+        per_page=per_page,
+        total_pages=total_pages,
+        manufacturers=manufacturers,
+        categories=categories,
+        active_tab=active_tab
+    )
+
 
 @tool_blueprint_bp.route('/tool_manufacturer/add', methods=['GET', 'POST'])
 def add_manufacturer():
@@ -58,8 +111,8 @@ def add_manufacturer():
                         return jsonify({'success': False, 'message': error_msg}), 400
                     else:
                         flash(error_msg, 'warning')
-                        logger.info('Step 11: Flashing warning message and redirecting for duplicate manufacturer')
-                        return redirect(url_for('tool_routes.add_manufacturer'))
+                        logger.info('Step 11: Rendering page with warning for duplicate manufacturer')
+                        return render_tool_search_page(main_session, active_tab="manufacturers", manufacturer_form=form)
 
                 # Create and add new manufacturer
                 logger.info('Step 12: Creating new ToolManufacturer instance')
@@ -84,8 +137,9 @@ def add_manufacturer():
                         return jsonify({'success': True, 'message': success_msg}), 200
                     else:
                         flash(success_msg, 'success')
-                        logger.info('Step 17: Flashing success message and redirecting after successful addition')
-                        return redirect(url_for('tool_routes.add_manufacturer'))
+                        logger.info('Step 17: Rendering page with success message')
+                        return render_tool_search_page(main_session, active_tab="manufacturers")
+
                 except Exception as e:
                     main_session.rollback()
                     error_msg = f"Exception occurred while adding manufacturer '{manufacturer_name}': {str(e)}"
@@ -97,8 +151,9 @@ def add_manufacturer():
                         return jsonify({'success': False, 'message': error_msg}), 500
                     else:
                         flash(error_msg, 'danger')
-                        logger.info('Step 20: Flashing error message and redirecting after exception')
-                        return redirect(url_for('tool_routes.add_manufacturer'))
+                        logger.info('Step 20: Rendering page with error message')
+                        return render_tool_search_page(main_session, active_tab="manufacturers", manufacturer_form=form)
+
             else:
                 # Form validation failed
                 error_details = {field: errors for field, errors in form.errors.items()}
@@ -112,8 +167,8 @@ def add_manufacturer():
                         for error in errors:
                             flash(f"Error in {getattr(form, field).label.text}: {error}", 'danger')
                             logger.debug(f"Step 23: Flashing form validation error - {error}")
-                    logger.info('Step 24: Redirecting after form validation failure')
-                    return redirect(url_for('tool_routes.add_manufacturer'))
+                    logger.info('Step 24: Rendering page with validation errors')
+                    return render_tool_search_page(main_session, active_tab="manufacturers", manufacturer_form=form)
 
         # For GET request, render the add manufacturer form
         logger.info('Step 25: Handling GET request - rendering add manufacturer form')
@@ -121,23 +176,15 @@ def add_manufacturer():
 
         render_time = time.time() - start_time
         logger.debug(f"Step 26: Route '/tool_manufacturer/add' processed in {render_time:.4f} seconds.")
-        #todo: not returning to main page.
-        return render_template(
-            'tool_templates/tool_search_entry.html',
-            tool_form=tool_form,
-            category_form=category_form,
-            manufacturer_form=manufacturer_form,
-            position_form=position_form,
-            search_tool_form=tool_search_form,
-            manufacturers=[],
-            categories=[],
-            positions=[]
-        )
+
+        return render_tool_search_page(main_session, active_tab="manufacturers")
+
     except Exception as e:
         # Catch any unforeseen exceptions and log them
         logger.critical(f"Unhandled exception in add_manufacturer route: {str(e)}")
         logger.debug(traceback.format_exc())
         return "An unexpected error occurred.", 500
+
 
 @tool_blueprint_bp.route('/tool/tool_manufacturer/edit_manufacturer', methods=['POST'])
 def edit_manufacturer():
@@ -159,7 +206,7 @@ def edit_manufacturer():
             return jsonify({'success': False, 'message': error_msg}), 400
         else:
             flash(error_msg, 'danger')
-            return redirect(url_for('tool_routes.add_manufacturer'))
+            return render_tool_search_page(main_session, active_tab="manufacturers")
 
     try:
         manufacturer = main_session.query(ToolManufacturer).get(int(manufacturer_id))
@@ -170,7 +217,7 @@ def edit_manufacturer():
                 return jsonify({'success': False, 'message': error_msg}), 404
             else:
                 flash(error_msg, 'warning')
-                return redirect(url_for('tool_routes.add_manufacturer'))
+                return render_tool_search_page(main_session, active_tab="manufacturers")
 
         form = ToolManufacturerForm(request.form)
         if form.validate():
@@ -191,7 +238,7 @@ def edit_manufacturer():
                     return jsonify({'success': False, 'message': error_msg}), 400
                 else:
                     flash(error_msg, 'warning')
-                    return redirect(url_for('tool_routes.add_manufacturer'))
+                    return render_tool_search_page(main_session, active_tab="manufacturers", manufacturer_form=form)
 
             # Update manufacturer details
             manufacturer.name = updated_name
@@ -207,7 +254,7 @@ def edit_manufacturer():
                     return jsonify({'success': True, 'message': success_msg}), 200
                 else:
                     flash(success_msg, 'success')
-                    return redirect(url_for('tool_routes.add_manufacturer'))
+                    return render_tool_search_page(main_session, active_tab="manufacturers")
             except Exception as e:
                 main_session.rollback()
                 error_msg = f"Exception occurred while updating manufacturer ID {manufacturer_id}: {str(e)}"
@@ -217,7 +264,7 @@ def edit_manufacturer():
                     return jsonify({'success': False, 'message': error_msg}), 500
                 else:
                     flash(error_msg, 'danger')
-                    return redirect(url_for('tool_routes.add_manufacturer'))
+                    return render_tool_search_page(main_session, active_tab="manufacturers", manufacturer_form=form)
         else:
             # Form validation failed
             error_details = {field: errors for field, errors in form.errors.items()}
@@ -229,7 +276,7 @@ def edit_manufacturer():
                     for error in errors:
                         flash(f"Error in {getattr(form, field).label.text}: {error}", 'danger')
                         logger.debug(f"Step 8: Flashing form validation error - {error}")
-                return redirect(url_for('tool_routes.add_manufacturer'))
+                return render_tool_search_page(main_session, active_tab="manufacturers", manufacturer_form=form)
     except Exception as e:
         logger.critical(f"Unhandled exception in edit_manufacturer route: {str(e)}")
         logger.debug(traceback.format_exc())
@@ -237,6 +284,7 @@ def edit_manufacturer():
     finally:
         render_time = time.time() - start_time
         logger.debug(f"Step 9: Route '/tool_manufacturer/edit_manufacturer' processed in {render_time:.4f} seconds.")
+
 
 @tool_blueprint_bp.route('/tool_manufacturer/delete', methods=['POST'])
 def delete_manufacturer():
@@ -257,7 +305,7 @@ def delete_manufacturer():
             return jsonify({'success': False, 'message': error_msg}), 400
         else:
             flash(error_msg, 'danger')
-            return redirect(url_for('tool_routes.add_manufacturer'))
+            return render_tool_search_page(main_session, active_tab="manufacturers")
 
     try:
         manufacturer = main_session.query(ToolManufacturer).get(int(manufacturer_id))
@@ -268,7 +316,7 @@ def delete_manufacturer():
                 return jsonify({'success': False, 'message': error_msg}), 404
             else:
                 flash(error_msg, 'warning')
-                return redirect(url_for('tool_routes.add_manufacturer'))
+                return render_tool_search_page(main_session, active_tab="manufacturers")
 
         logger.debug(f"Step 4: Attempting to delete Manufacturer ID {manufacturer_id}: '{manufacturer.name}'")
 
@@ -283,7 +331,7 @@ def delete_manufacturer():
                 return jsonify({'success': False, 'message': error_msg}), 400
             else:
                 flash(error_msg, 'warning')
-                return redirect(url_for('tool_routes.add_manufacturer'))
+                return render_tool_search_page(main_session, active_tab="manufacturers")
 
         # Proceed to delete
         logger.info(f"Step 6: Deleting Manufacturer ID {manufacturer_id}: '{manufacturer.name}'")
@@ -295,7 +343,7 @@ def delete_manufacturer():
             return jsonify({'success': True, 'message': success_msg}), 200
         else:
             flash(success_msg, 'success')
-            return redirect(url_for('tool_routes.add_manufacturer'))
+            return render_tool_search_page(main_session, active_tab="manufacturers")
 
     except ValueError:
         error_msg = f"Invalid 'manufacturer_id' provided for deletion: '{manufacturer_id}'. Must be an integer."
@@ -304,7 +352,7 @@ def delete_manufacturer():
             return jsonify({'success': False, 'message': error_msg}), 400
         else:
             flash(error_msg, 'danger')
-            return redirect(url_for('tool_routes.add_manufacturer'))
+            return render_tool_search_page(main_session, active_tab="manufacturers")
 
     except Exception as e:
         main_session.rollback()
@@ -315,16 +363,18 @@ def delete_manufacturer():
             return jsonify({'success': False, 'message': error_msg}), 500
         else:
             flash(error_msg, 'danger')
-            return redirect(url_for('tool_routes.add_manufacturer'))
+            return render_tool_search_page(main_session, active_tab="manufacturers")
 
     finally:
         render_time = time.time() - start_time
         logger.debug(f"Step 10: Route '/tool_manufacturer/delete' processed in {render_time:.4f} seconds.")
 
+
 @tool_blueprint_bp.route('/tool/tool_manufacturer/get/<int:manufacturer_id>', methods=['GET'])
 def get_manufacturer(manufacturer_id):
     """
     Route to retrieve manufacturer details for editing.
+    This route returns JSON data and doesn't need to use render_tool_search_page.
     """
     logger.info('Step 1: Start of get_manufacturer')
     main_session = db_config.get_main_session()
@@ -349,4 +399,3 @@ def get_manufacturer(manufacturer_id):
         logger.error(f"Step 4: {error_msg}")
         logger.debug(traceback.format_exc())
         return jsonify({'success': False, 'message': error_msg}), 500
-

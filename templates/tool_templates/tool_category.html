@@ -5,7 +5,7 @@
     <title>Manage Tool Categories</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <!-- Link to Bootstrap CSS (adjust path as needed) -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+
 </head>
 <body>
     <div class="container mt-5">
@@ -106,7 +106,7 @@
                 </h2>
                 <div id="collapseDeleteCategory" class="accordion-collapse collapse" aria-labelledby="headingDeleteCategory" data-bs-parent="#categoryAccordion">
                     <div class="accordion-body">
-                        <form id="delete_category_form" method="POST" action="{{ url_for('tool_routes.delete_tool_category') }}">
+                        <form id="delete_category_form" method="POST" action="">
                             {{ category_form.hidden_tag() }}
                             <!-- Hidden field for Category ID -->
                             <input type="hidden" id="delete-category-id" name="category_id">
