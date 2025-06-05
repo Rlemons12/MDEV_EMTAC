@@ -97,8 +97,8 @@ class NoImageModel(BaseImageModelHandler):
         logger.info("No image model selected, not storing image metadata.")
 
 
-class CLIPModelHandler:
-    """Optimized CLIP model handler with offline capabilities and caching."""
+class CLIPModelHandler(BaseImageModelHandler):
+    """Enhanced CLIP model handler with pgvector integration."""
 
     # Class-level cache to persist models across instances
     _model_cache = {}
@@ -183,7 +183,7 @@ class CLIPModelHandler:
         return inputs.to(self.device)
 
     def get_image_embedding(self, image):
-        """Get CLIP embedding for an image."""
+        """Get CLIP embedding for an image - returns list for pgvector compatibility."""
         try:
             if not self.model or not self.processor:
                 logger.error("CLIP model or processor not loaded")
@@ -195,9 +195,9 @@ class CLIPModelHandler:
                 # Normalize the features
                 image_features = image_features / image_features.norm(dim=-1, keepdim=True)
 
-            # Convert to numpy array for storage
-            embedding = image_features.cpu().numpy().flatten()
-            logger.info(f"Generated CLIP embedding (shape: {embedding.shape})")
+            # Convert to Python list for pgvector compatibility
+            embedding = image_features.cpu().numpy().flatten().tolist()
+            logger.info(f"Generated CLIP embedding (dimensions: {len(embedding)})")
             return embedding
 
         except Exception as e:
@@ -237,8 +237,61 @@ class CLIPModelHandler:
             logger.error(f"Image validation failed: {e}")
             return False
 
+    def store_image_metadata(self, session, title, description, file_path, embedding, model_name):
+        """
+        Updated to use pgvector-compatible ImageEmbedding creation.
+        """
+        from modules.emtacdb.emtacdb_fts import Image, ImageEmbedding
+        # Ensure file_path is relative
+        if os.path.isabs(file_path):
+            relative_file_path = os.path.relpath(file_path, BASE_DIR)
+            logger.debug(f"Converted absolute file path '{file_path}' to relative path '{relative_file_path}'.")
+        else:
+            relative_file_path = file_path
+            logger.debug(f"Using existing relative file path '{relative_file_path}'.")
+
+        # Create Image entry with relative path
+        image = Image(title=title, description=description, file_path=relative_file_path)
+        session.add(image)
+        session.commit()
+
+        # Create ImageEmbedding entry using pgvector method
+        try:
+            # Ensure embedding is a list
+            if isinstance(embedding, list):
+                embedding_list = embedding
+            elif hasattr(embedding, 'tolist'):
+                embedding_list = embedding.tolist()
+            elif isinstance(embedding, np.ndarray):
+                embedding_list = embedding.flatten().tolist()
+            else:
+                embedding_list = list(embedding)
+
+            # Use the new pgvector creation method
+            image_embedding = ImageEmbedding.create_with_pgvector(
+                image_id=image.id,
+                model_name=model_name,
+                embedding=embedding_list
+            )
+            session.add(image_embedding)
+            session.commit()
+
+            logger.info(
+                f"Stored image metadata and pgvector embedding for '{relative_file_path}' using '{model_name}'.")
+        except Exception as e:
+            logger.warning(f"Failed to store pgvector embedding, falling back to legacy format: {e}")
+            # Fallback to legacy format
+            image_embedding = ImageEmbedding.create_with_legacy(
+                image_id=image.id,
+                model_name=model_name,
+                embedding=embedding_list if 'embedding_list' in locals() else embedding
+            )
+            session.add(image_embedding)
+            session.commit()
+            logger.info(f"Stored image metadata and legacy embedding for '{relative_file_path}' using '{model_name}'.")
+
     def compare_images(self, image1_path: str, image2_path: str) -> dict:
-        """Compare two images using CLIP embeddings."""
+        """Enhanced image comparison using CLIP embeddings."""
         try:
             logger.info(f"Comparing images with CLIP: {image1_path} vs {image2_path}")
 
@@ -256,18 +309,35 @@ class CLIPModelHandler:
             image1 = Image.open(image1_path).convert('RGB')
             image2 = Image.open(image2_path).convert('RGB')
 
-            # Process both images
-            inputs = self.processor(images=[image1, image2], return_tensors="pt").to(self.device)
+            # Get embeddings for both images
+            embedding1 = self.get_image_embedding(image1)
+            embedding2 = self.get_image_embedding(image2)
 
-            with torch.no_grad():
-                image_features = self.model.get_image_features(**inputs)
-                # Normalize features
-                image_features = image_features / image_features.norm(dim=-1, keepdim=True)
+            if embedding1 is None or embedding2 is None:
+                return {
+                    "similarity": 0.0,
+                    "image1": image1_path,
+                    "image2": image2_path,
+                    "model": self.model_name,
+                    "error": "Failed to generate embeddings",
+                    "message": "Comparison failed"
+                }
 
-                # Calculate cosine similarity
-                similarity = torch.cosine_similarity(
-                    image_features[0:1], image_features[1:2], dim=1
-                ).item()
+            # Calculate cosine similarity using the embeddings
+            import math
+
+            # Calculate dot product
+            dot_product = sum(a * b for a, b in zip(embedding1, embedding2))
+
+            # Calculate norms
+            norm1 = math.sqrt(sum(a * a for a in embedding1))
+            norm2 = math.sqrt(sum(b * b for b in embedding2))
+
+            # Calculate cosine similarity
+            if norm1 == 0 or norm2 == 0:
+                similarity = 0.0
+            else:
+                similarity = dot_product / (norm1 * norm2)
 
             logger.info(f"Image comparison similarity: {similarity:.4f}")
 
@@ -289,6 +359,43 @@ class CLIPModelHandler:
                 "error": str(e),
                 "message": "Comparison failed"
             }
+
+    def search_similar_images_in_db(self, session, query_image_path: str,
+                                    limit: int = 10, similarity_threshold: float = 0.7) -> list:
+        """
+        New method to search for similar images in the database using pgvector.
+        """
+        try:
+            logger.info(f"Searching for similar images to: {query_image_path}")
+
+            # Load and process query image
+            query_image = Image.open(query_image_path).convert('RGB')
+            if not self.is_valid_image(query_image):
+                logger.warning(f"Query image is not valid: {query_image_path}")
+                return []
+
+            # Get embedding for query image
+            query_embedding = self.get_image_embedding(query_image)
+            if query_embedding is None:
+                logger.error(f"Failed to generate embedding for query image: {query_image_path}")
+                return []
+
+            # Use ImageEmbedding's search method
+            from modules.emtacdb.emtacdb_fts import ImageEmbedding
+            similar_images = ImageEmbedding.search_similar_images(
+                session=session,
+                query_embedding=query_embedding,
+                model_name=self.model_name,
+                limit=limit,
+                similarity_threshold=similarity_threshold
+            )
+
+            logger.info(f"Found {len(similar_images)} similar images")
+            return similar_images
+
+        except Exception as e:
+            logger.error(f"Error searching for similar images: {e}")
+            return []
 
     @classmethod
     def preload_model(cls) -> bool:
@@ -329,7 +436,8 @@ class CLIPModelHandler:
             "model_loaded": self.model is not None,
             "processor_loaded": self.processor is not None,
             "cache_size": len(self._model_cache),
-            "offline_mode": os.environ.get("TRANSFORMERS_OFFLINE", "0") == "1"
+            "offline_mode": os.environ.get("TRANSFORMERS_OFFLINE", "0") == "1",
+            "pgvector_compatible": True
         }
 
 
