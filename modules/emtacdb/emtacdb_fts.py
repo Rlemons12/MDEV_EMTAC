@@ -2056,18 +2056,17 @@ class Image(Base):
     # Also fix the serve_file method to handle relative paths correctly
     # =============================================================================
 
-
     @classmethod
     @with_request_id
     def _add_to_db_internal(cls, session, title, src, description, position_id=None, complete_document_id=None,
-                            metadata=None,request_id=None):
+                            metadata=None, request_id=None):
         """
-        Internal method with enhanced structure-guided association support.
+        Updated internal method with pgvector embedding support.
         """
         try:
             db_config = DatabaseConfig()
             if hasattr(db_config, 'is_postgresql') and db_config.is_postgresql:
-                debug_id("Using PostgreSQL database", request_id)
+                debug_id("Using PostgreSQL database with pgvector support", request_id)
             else:
                 debug_id("Using SQLite database", request_id)
                 try:
@@ -2099,33 +2098,56 @@ class Image(Base):
                 title=title,
                 description=description,
                 file_path=dest_rel,
-                img_metadata=img_metadata  # Store structure-guided metadata
+                img_metadata=img_metadata
             )
             session.add(new_image)
             session.flush()
             debug_id(f"Added image to session: {title}, id={new_image.id}", request_id)
 
-            # Generate embedding (existing logic)
+            # Generate embedding with pgvector support
             try:
                 model_handler = ModelsConfig.load_image_model()
                 info_id(f"Using model handler: {type(model_handler).__name__}", request_id)
                 absolute_file_path = os.path.join(DATABASE_DIR, new_image.file_path)
                 image = PILImage.open(absolute_file_path).convert("RGB")
+
                 if model_handler.is_valid_image(image):
                     model_embedding = model_handler.get_image_embedding(image)
                     model_name = type(model_handler).__name__
+
                     if model_name and model_embedding is not None:
+                        # Check for existing embedding
                         existing_embedding = session.query(ImageEmbedding).filter(
                             and_(ImageEmbedding.image_id == new_image.id, ImageEmbedding.model_name == model_name)
                         ).first()
+
                         if existing_embedding is None:
-                            image_embedding = ImageEmbedding(
-                                image_id=new_image.id,
-                                model_name=model_name,
-                                model_embedding=model_embedding.tobytes()
-                            )
-                            session.add(image_embedding)
-                            debug_id(f"Added image embedding for {title}", request_id)
+                            # Convert numpy array to list
+                            if hasattr(model_embedding, 'tolist'):
+                                embedding_list = model_embedding.tolist()
+                            elif isinstance(model_embedding, np.ndarray):
+                                embedding_list = model_embedding.flatten().tolist()
+                            else:
+                                embedding_list = list(model_embedding)
+
+                            # Try pgvector first, fallback to legacy
+                            try:
+                                image_embedding = ImageEmbedding.create_with_pgvector(
+                                    image_id=new_image.id,
+                                    model_name=model_name,
+                                    embedding=embedding_list
+                                )
+                                session.add(image_embedding)
+                                debug_id(f"Added pgvector image embedding for {title}", request_id)
+                            except Exception as pgvector_error:
+                                warning_id(f"pgvector creation failed, using legacy: {pgvector_error}", request_id)
+                                image_embedding = ImageEmbedding.create_with_legacy(
+                                    image_id=new_image.id,
+                                    model_name=model_name,
+                                    embedding=embedding_list
+                                )
+                                session.add(image_embedding)
+                                debug_id(f"Added legacy image embedding for {title}", request_id)
                 else:
                     info_id(f"Image {title} not valid for embedding", request_id)
             except Exception as e:
@@ -2145,7 +2167,7 @@ class Image(Base):
                     session.add(image_position_association)
                     debug_id(f"Added position association for {title}", request_id)
 
-            # ENHANCED: Create structure-guided document association
+            # Create structure-guided document association
             if complete_document_id:
                 cls._create_enhanced_document_association(
                     session, new_image.id, complete_document_id, metadata, request_id
@@ -2253,7 +2275,7 @@ class Image(Base):
     @with_request_id
     def generate_embedding(self, session, model_handler, request_id=None):
         """
-        Enhanced version with database compatibility.
+        Updated embedding generation with pgvector support.
         """
         rid = request_id or get_request_id()
 
@@ -2288,17 +2310,48 @@ class Image(Base):
             ).first()
 
             if existing_embedding is None:
-                # Create new embedding
+                # Create new embedding with pgvector support
                 info_id(f"Creating a new ImageEmbedding entry for image ID {self.id}", rid)
-                image_embedding = ImageEmbedding(
-                    image_id=self.id,
-                    model_name=model_name,
-                    model_embedding=model_embedding.tobytes()
-                )
-                session.add(image_embedding)
+
+                # Convert numpy array to list
+                if hasattr(model_embedding, 'tolist'):
+                    embedding_list = model_embedding.tolist()
+                elif isinstance(model_embedding, np.ndarray):
+                    embedding_list = model_embedding.flatten().tolist()
+                else:
+                    embedding_list = list(model_embedding)
+
+                # Try pgvector first, fallback to legacy
+                try:
+                    image_embedding = ImageEmbedding.create_with_pgvector(
+                        image_id=self.id,
+                        model_name=model_name,
+                        embedding=embedding_list
+                    )
+                    session.add(image_embedding)
+                    info_id(f"Created pgvector embedding for image ID {self.id}", rid)
+                except Exception as pgvector_error:
+                    warning_id(f"pgvector creation failed, using legacy: {pgvector_error}", rid)
+                    image_embedding = ImageEmbedding.create_with_legacy(
+                        image_id=self.id,
+                        model_name=model_name,
+                        embedding=embedding_list
+                    )
+                    session.add(image_embedding)
+                    info_id(f"Created legacy embedding for image ID {self.id}", rid)
 
                 # Enhanced commit with retry
                 Image.commit_with_retry(session, retries=3, delay=1, request_id=rid)
+            else:
+                # Optionally migrate existing embedding to pgvector
+                if existing_embedding.get_storage_type() == 'legacy':
+                    info_id(f"Migrating existing embedding to pgvector for image ID {self.id}", rid)
+                    if existing_embedding.migrate_to_pgvector():
+                        session.add(existing_embedding)
+                        Image.commit_with_retry(session, retries=3, delay=1, request_id=rid)
+                        info_id(f"Successfully migrated embedding to pgvector", rid)
+                    else:
+                        warning_id(f"Failed to migrate embedding to pgvector", rid)
 
             return True
 
@@ -2688,9 +2741,11 @@ class Image(Base):
     def serve_file(cls, image_id, request_id=None):
         """
         Enhanced serve_file method with proper relative path handling.
+        Fixed to work with your specific path configuration.
         """
         from flask import send_file
         from modules.configuration.config import DATABASE_DIR
+        from modules.configuration.log_config import info_id, debug_id, error_id
 
         rid = request_id or get_request_id()
         info_id(f"Attempting to retrieve image with ID: {image_id}", rid)
@@ -2709,24 +2764,61 @@ class Image(Base):
                     error_id(f"No image found in database with ID: {image_id}", rid)
                     return False, "Image not found", 404
 
-                # FIXED: Handle relative paths correctly
+                debug_id(f"Found image: {image.title}, stored path: {image.file_path}", rid)
+
+                # FIXED: Handle your specific path structure correctly
                 if os.path.isabs(image.file_path):
                     # If it's already an absolute path, use it directly
                     file_path = image.file_path
+                    debug_id(f"Using absolute path: {file_path}", rid)
                 else:
-                    # If it's a relative path (like DB_IMAGES\filename.png), join with DATABASE_DIR
+                    # For relative paths like "DB_IMAGES\filename.png"
+                    # Join with DATABASE_DIR to get the full path
                     file_path = os.path.join(DATABASE_DIR, image.file_path)
+                    debug_id(f"Constructed path from relative: {DATABASE_DIR} + {image.file_path} = {file_path}", rid)
 
-                debug_id(f"Checking file path: {file_path}", rid)
+                # Normalize the path to handle both forward and backward slashes
+                file_path = os.path.normpath(file_path)
+                debug_id(f"Normalized path: {file_path}", rid)
 
                 if not os.path.exists(file_path):
                     error_id(f"File not found on disk: {file_path}", rid)
-                    return False, "Image file not found", 404
+
+                    # Additional debugging: check if the DB_IMAGES directory exists
+                    db_images_dir = os.path.join(DATABASE_DIR, 'DB_IMAGES')
+                    debug_id(f"DB_IMAGES directory exists: {os.path.exists(db_images_dir)}", rid)
+                    if os.path.exists(db_images_dir):
+                        try:
+                            files_in_dir = os.listdir(db_images_dir)[:5]  # Show first 5 files
+                            debug_id(f"Sample files in DB_IMAGES: {files_in_dir}", rid)
+                        except Exception as list_error:
+                            debug_id(f"Error listing DB_IMAGES directory: {list_error}", rid)
+
+                    # Try alternative path constructions as fallback
+                    alternative_paths = [
+                        # Try just the filename in DB_IMAGES
+                        os.path.join(DATABASE_DIR, 'DB_IMAGES', os.path.basename(image.file_path)),
+                        # Try normalized path with forward slashes
+                        os.path.join(DATABASE_DIR, image.file_path.replace('\\', '/')),
+                        # Try normalized path with backslashes
+                        os.path.join(DATABASE_DIR, image.file_path.replace('/', '\\')),
+                    ]
+
+                    for alt_path in alternative_paths:
+                        alt_path = os.path.normpath(alt_path)
+                        debug_id(f"Trying alternative path: {alt_path}", rid)
+                        if os.path.exists(alt_path):
+                            file_path = alt_path
+                            info_id(f"Found file at alternative path: {alt_path}", rid)
+                            break
+                    else:
+                        # If none of the alternatives worked
+                        return False, "Image file not found", 404
 
                 info_id(f"Serving file: {file_path}", rid)
 
                 # Determine mimetype based on file extension
-                _, ext = os.path.splitext(file_path)
+                _, ext = os.path.splitext(file_path)  # FIXED: syntax error here
                 mimetype_map = {
                     '.jpg': 'image/jpeg',
                     '.jpeg': 'image/jpeg',
@@ -2739,8 +2831,10 @@ class Image(Base):
                     '.svg': 'image/svg+xml'
                 }
                 mimetype = mimetype_map.get(ext.lower(), 'image/jpeg')
+                debug_id(f"Using mimetype: {mimetype} for extension: {ext}", rid)
 
                 response = send_file(file_path, mimetype=mimetype, as_attachment=False)
+                info_id(f"Successfully served image {image_id}", rid)
                 return True, response, 200
 
         except Exception as e:
@@ -2757,17 +2851,31 @@ class Image(Base):
                       tool_id=None, task_id=None, problem_id=None, completed_document_id=None,
                       area_id=None, equipment_group_id=None, model_id=None, asset_number_id=None,
                       location_id=None, subassembly_id=None, component_assembly_id=None,
-                      assembly_view_id=None, site_location_id=None, limit=50, request_id=None):
+                      assembly_view_id=None, site_location_id=None,
+                      # NEW: pgvector parameters
+                      similarity_query_embedding=None, similarity_threshold=0.7,
+                      embedding_model_name="CLIPModelHandler", use_hybrid_ranking=True,
+                      enable_similarity_boost=True,
+                      limit=50, request_id=None):
         """
         Enhanced dynamic search method for Images with comprehensive filtering capabilities.
-        UPDATED: Now includes direct position, parts position, AND completed document associations.
-        FIXED: Handles JSON column properly in DISTINCT queries.
+        UPDATED: Now includes pgvector similarity search alongside existing association searches.
+
+        New Parameters:
+            similarity_query_embedding: Optional embedding vector for similarity search
+            similarity_threshold: Minimum similarity score (0.0-1.0) for pgvector results
+            embedding_model_name: Model name for embedding-based search
+            use_hybrid_ranking: Combine similarity scores with traditional relevance
+            enable_similarity_boost: Boost ranking for images with high similarity scores
+
+        Returns:
+            List of image dictionaries, optionally enhanced with similarity scores
         """
         from modules.configuration.log_config import info_id, debug_id, error_id, warning_id
 
         rid = request_id or get_request_id()
 
-        info_id("========== ENHANCED DYNAMIC IMAGE SEARCH WITH ALL ASSOCIATIONS ==========", rid)
+        info_id("========== ENHANCED DYNAMIC IMAGE SEARCH WITH PGVECTOR ==========", rid)
         debug_id(f"Search parameters: title='{title}', description='{description}', "
                  f"position_id={position_id}, tool_id={tool_id}, task_id={task_id}, "
                  f"problem_id={problem_id}, completed_document_id={completed_document_id}, "
@@ -2775,11 +2883,49 @@ class Image(Base):
                  f"model_id={model_id}, asset_number_id={asset_number_id}, "
                  f"location_id={location_id}, subassembly_id={subassembly_id}, "
                  f"component_assembly_id={component_assembly_id}, assembly_view_id={assembly_view_id}, "
-                 f"site_location_id={site_location_id}, limit={limit}", rid)
+                 f"site_location_id={site_location_id}, "
+                 f"similarity_query={'provided' if similarity_query_embedding else 'none'}, "
+                 f"use_hybrid_ranking={use_hybrid_ranking}, limit={limit}", rid)
 
         try:
             # Collect all image IDs from different search paths
             all_image_ids = set()
+            similarity_scores = {}  # Track similarity scores for ranking
+            search_path_sources = {}  # Track which search path found each image
+
+            # ======================================================================
+            # PHASE 1: PGVECTOR SIMILARITY SEARCH (NEW!)
+            # ======================================================================
+            if similarity_query_embedding is not None:
+                debug_id("=== PHASE 1: pgvector similarity search ===", rid)
+                try:
+                    # Use ImageEmbedding's search method for similarity
+                    similar_results = ImageEmbedding.search_similar_images(
+                        session=session,
+                        query_embedding=similarity_query_embedding,
+                        model_name=embedding_model_name,
+                        limit=limit * 3,  # Get more candidates for filtering
+                        similarity_threshold=similarity_threshold
+                    )
+
+                    similarity_image_ids = {result['image_id'] for result in similar_results}
+                    all_image_ids.update(similarity_image_ids)
+
+                    # Store similarity scores and source tracking
+                    for result in similar_results:
+                        image_id = result['image_id']
+                        similarity_scores[image_id] = result['similarity']
+                        search_path_sources[image_id] = search_path_sources.get(image_id, []) + ['similarity']
+
+                    debug_id(f"Found {len(similarity_image_ids)} images via pgvector similarity search", rid)
+
+                except Exception as e:
+                    error_id(f"pgvector similarity search failed: {e}", rid)
+                    # Continue with traditional search methods
+
+            # ======================================================================
+            # PHASE 2: TRADITIONAL SEARCH PATHS (Your existing logic)
+            # ======================================================================
 
             # Text-based search conditions
             text_conditions = []
@@ -2794,7 +2940,7 @@ class Image(Base):
             if position_id or any([area_id, equipment_group_id, model_id, asset_number_id, location_id,
                                    subassembly_id, component_assembly_id, assembly_view_id, site_location_id]):
 
-                debug_id("Searching via direct position associations", rid)
+                debug_id("=== SEARCH PATH 1: Direct position associations ===", rid)
 
                 # Build query for direct position associations
                 direct_query = session.query(cls.id).select_from(cls)
@@ -2849,13 +2995,18 @@ class Image(Base):
                 direct_results = direct_query.distinct().all()
                 direct_ids = {result.id for result in direct_results}
                 all_image_ids.update(direct_ids)
+
+                # Track search source
+                for img_id in direct_ids:
+                    search_path_sources[img_id] = search_path_sources.get(img_id, []) + ['direct_position']
+
                 debug_id(f"Found {len(direct_ids)} images via direct position associations", rid)
 
-            # SEARCH PATH 2: Parts Position associations (NEW!)
+            # SEARCH PATH 2: Parts Position associations
             if any([area_id, equipment_group_id, model_id, asset_number_id, location_id,
                     subassembly_id, component_assembly_id, assembly_view_id, site_location_id]):
 
-                debug_id("Searching via parts position associations", rid)
+                debug_id("=== SEARCH PATH 2: Parts position associations ===", rid)
 
                 # Build query for parts position associations
                 parts_query = session.query(cls.id).select_from(cls)
@@ -2874,31 +3025,22 @@ class Image(Base):
                 parts_hierarchy_conditions = []
                 if area_id:
                     parts_hierarchy_conditions.append(Position.area_id == area_id)
-                    debug_id(f"Added parts area_id filter: {area_id}", rid)
                 if equipment_group_id:
                     parts_hierarchy_conditions.append(Position.equipment_group_id == equipment_group_id)
-                    debug_id(f"Added parts equipment_group_id filter: {equipment_group_id}", rid)
                 if model_id:
                     parts_hierarchy_conditions.append(Position.model_id == model_id)
-                    debug_id(f"Added parts model_id filter: {model_id}", rid)
                 if asset_number_id:
                     parts_hierarchy_conditions.append(Position.asset_number_id == asset_number_id)
-                    debug_id(f"Added parts asset_number_id filter: {asset_number_id}", rid)
                 if location_id:
                     parts_hierarchy_conditions.append(Position.location_id == location_id)
-                    debug_id(f"Added parts location_id filter: {location_id}", rid)
                 if subassembly_id:
                     parts_hierarchy_conditions.append(Position.subassembly_id == subassembly_id)
-                    debug_id(f"Added parts subassembly_id filter: {subassembly_id}", rid)
                 if component_assembly_id:
                     parts_hierarchy_conditions.append(Position.component_assembly_id == component_assembly_id)
-                    debug_id(f"Added parts component_assembly_id filter: {component_assembly_id}", rid)
                 if assembly_view_id:
                     parts_hierarchy_conditions.append(Position.assembly_view_id == assembly_view_id)
-                    debug_id(f"Added parts assembly_view_id filter: {assembly_view_id}", rid)
                 if site_location_id:
                     parts_hierarchy_conditions.append(Position.site_location_id == site_location_id)
-                    debug_id(f"Added parts site_location_id filter: {site_location_id}", rid)
 
                 if parts_hierarchy_conditions:
                     from sqlalchemy import and_
@@ -2908,13 +3050,18 @@ class Image(Base):
                 parts_results = parts_query.distinct().all()
                 parts_ids = {result.id for result in parts_results}
                 all_image_ids.update(parts_ids)
+
+                # Track search source
+                for img_id in parts_ids:
+                    search_path_sources[img_id] = search_path_sources.get(img_id, []) + ['parts_position']
+
                 debug_id(f"Found {len(parts_ids)} images via parts position associations", rid)
 
             # SEARCH PATH 3: Completed document associations
             if any([area_id, equipment_group_id, model_id, asset_number_id, location_id,
                     subassembly_id, component_assembly_id, assembly_view_id, site_location_id]):
 
-                debug_id("Searching via completed document associations", rid)
+                debug_id("=== SEARCH PATH 3: Completed document associations ===", rid)
 
                 # Build query for document associations
                 doc_query = session.query(cls.id).select_from(cls)
@@ -2938,31 +3085,22 @@ class Image(Base):
                 doc_hierarchy_conditions = []
                 if area_id:
                     doc_hierarchy_conditions.append(Position.area_id == area_id)
-                    debug_id(f"Added document area_id filter: {area_id}", rid)
                 if equipment_group_id:
                     doc_hierarchy_conditions.append(Position.equipment_group_id == equipment_group_id)
-                    debug_id(f"Added document equipment_group_id filter: {equipment_group_id}", rid)
                 if model_id:
                     doc_hierarchy_conditions.append(Position.model_id == model_id)
-                    debug_id(f"Added document model_id filter: {model_id}", rid)
                 if asset_number_id:
                     doc_hierarchy_conditions.append(Position.asset_number_id == asset_number_id)
-                    debug_id(f"Added document asset_number_id filter: {asset_number_id}", rid)
                 if location_id:
                     doc_hierarchy_conditions.append(Position.location_id == location_id)
-                    debug_id(f"Added document location_id filter: {location_id}", rid)
                 if subassembly_id:
                     doc_hierarchy_conditions.append(Position.subassembly_id == subassembly_id)
-                    debug_id(f"Added document subassembly_id filter: {subassembly_id}", rid)
                 if component_assembly_id:
                     doc_hierarchy_conditions.append(Position.component_assembly_id == component_assembly_id)
-                    debug_id(f"Added document component_assembly_id filter: {component_assembly_id}", rid)
                 if assembly_view_id:
                     doc_hierarchy_conditions.append(Position.assembly_view_id == assembly_view_id)
-                    debug_id(f"Added document assembly_view_id filter: {assembly_view_id}", rid)
                 if site_location_id:
                     doc_hierarchy_conditions.append(Position.site_location_id == site_location_id)
-                    debug_id(f"Added document site_location_id filter: {site_location_id}", rid)
 
                 if doc_hierarchy_conditions:
                     from sqlalchemy import and_
@@ -2972,10 +3110,16 @@ class Image(Base):
                 doc_results = doc_query.distinct().all()
                 doc_ids = {result.id for result in doc_results}
                 all_image_ids.update(doc_ids)
+
+                # Track search source
+                for img_id in doc_ids:
+                    search_path_sources[img_id] = search_path_sources.get(img_id, []) + ['document_association']
+
                 debug_id(f"Found {len(doc_ids)} images via completed document associations", rid)
 
             # SEARCH PATH 4: Direct association searches (tools, tasks, problems, specific documents)
             if tool_id:
+                debug_id("=== SEARCH PATH 4a: Tool associations ===", rid)
                 tool_query = session.query(cls.id).select_from(cls)
                 if text_conditions:
                     from sqlalchemy import and_
@@ -2985,9 +3129,15 @@ class Image(Base):
                 tool_results = tool_query.distinct().all()
                 tool_ids = {result.id for result in tool_results}
                 all_image_ids.update(tool_ids)
+
+                # Track search source
+                for img_id in tool_ids:
+                    search_path_sources[img_id] = search_path_sources.get(img_id, []) + ['tool']
+
                 debug_id(f"Added tool_id filter: {tool_id} - found {len(tool_ids)} images", rid)
 
             if task_id:
+                debug_id("=== SEARCH PATH 4b: Task associations ===", rid)
                 task_query = session.query(cls.id).select_from(cls)
                 if text_conditions:
                     from sqlalchemy import and_
@@ -2997,9 +3147,15 @@ class Image(Base):
                 task_results = task_query.distinct().all()
                 task_ids = {result.id for result in task_results}
                 all_image_ids.update(task_ids)
+
+                # Track search source
+                for img_id in task_ids:
+                    search_path_sources[img_id] = search_path_sources.get(img_id, []) + ['task']
+
                 debug_id(f"Added task_id filter: {task_id} - found {len(task_ids)} images", rid)
 
             if problem_id:
+                debug_id("=== SEARCH PATH 4c: Problem associations ===", rid)
                 problem_query = session.query(cls.id).select_from(cls)
                 if text_conditions:
                     from sqlalchemy import and_
@@ -3009,9 +3165,15 @@ class Image(Base):
                 problem_results = problem_query.distinct().all()
                 problem_ids = {result.id for result in problem_results}
                 all_image_ids.update(problem_ids)
+
+                # Track search source
+                for img_id in problem_ids:
+                    search_path_sources[img_id] = search_path_sources.get(img_id, []) + ['problem']
+
                 debug_id(f"Added problem_id filter: {problem_id} - found {len(problem_ids)} images", rid)
 
             if completed_document_id:
+                debug_id("=== SEARCH PATH 4d: Specific document associations ===", rid)
                 cdoc_query = session.query(cls.id).select_from(cls)
                 if text_conditions:
                     from sqlalchemy import and_
@@ -3023,6 +3185,11 @@ class Image(Base):
                 cdoc_results = cdoc_query.distinct().all()
                 cdoc_ids = {result.id for result in cdoc_results}
                 all_image_ids.update(cdoc_ids)
+
+                # Track search source
+                for img_id in cdoc_ids:
+                    search_path_sources[img_id] = search_path_sources.get(img_id, []) + ['specific_document']
+
                 debug_id(f"Added completed_document_id filter: {completed_document_id} - found {len(cdoc_ids)} images",
                          rid)
 
@@ -3030,37 +3197,82 @@ class Image(Base):
             if text_conditions and not any([position_id, tool_id, task_id, problem_id, completed_document_id,
                                             area_id, equipment_group_id, model_id, asset_number_id, location_id,
                                             subassembly_id, component_assembly_id, assembly_view_id, site_location_id]):
+                debug_id("=== SEARCH PATH 5: Text-only search ===", rid)
                 from sqlalchemy import and_
                 text_query = session.query(cls.id).filter(and_(*text_conditions))
                 text_results = text_query.distinct().limit(limit).all()
                 text_ids = {result.id for result in text_results}
                 all_image_ids.update(text_ids)
+
+                # Track search source
+                for img_id in text_ids:
+                    search_path_sources[img_id] = search_path_sources.get(img_id, []) + ['text_only']
+
                 debug_id(f"Found {len(text_ids)} images via text-only search", rid)
 
             # If no search criteria provided, return recent images
             if not all_image_ids and not any(
                     [title, description, position_id, tool_id, task_id, problem_id, completed_document_id,
                      area_id, equipment_group_id, model_id, asset_number_id, location_id,
-                     subassembly_id, component_assembly_id, assembly_view_id, site_location_id]):
+                     subassembly_id, component_assembly_id, assembly_view_id, site_location_id,
+                     similarity_query_embedding]):
+                debug_id("=== FALLBACK: Recent images ===", rid)
                 warning_id("No search criteria provided, returning recent images", rid)
                 recent_query = session.query(cls.id).order_by(cls.id.desc()).limit(limit)
                 recent_results = recent_query.all()
                 all_image_ids = {result.id for result in recent_results}
 
-            # Convert to list and apply limit
-            image_ids_list = list(all_image_ids)[:limit]
+                # Track search source
+                for img_id in all_image_ids:
+                    search_path_sources[img_id] = ['recent']
 
-            info_id(f"Found {len(all_image_ids)} total unique images, returning {len(image_ids_list)} after limit", rid)
+            # ======================================================================
+            # PHASE 3: INTELLIGENT RANKING AND FILTERING
+            # ======================================================================
 
-            # Get full image objects
-            if image_ids_list:
-                full_images = session.query(cls).filter(cls.id.in_(image_ids_list)).order_by(cls.id.desc()).all()
+            debug_id("=== PHASE 3: Ranking and filtering ===", rid)
+
+            # Apply intelligent ranking
+            if use_hybrid_ranking and similarity_scores:
+                # Hybrid ranking: combine similarity with search path relevance
+                ranked_image_ids = cls._calculate_hybrid_ranking(
+                    all_image_ids, similarity_scores, search_path_sources, limit
+                )
+                debug_id("Applied hybrid ranking (similarity + relevance)", rid)
+            elif similarity_scores:
+                # Pure similarity ranking
+                ranked_image_ids = sorted(
+                    all_image_ids,
+                    key=lambda x: similarity_scores.get(x, 0),
+                    reverse=True
+                )[:limit]
+                debug_id("Applied pure similarity ranking", rid)
             else:
-                full_images = []
+                # Traditional ranking (by ID descending for recency)
+                ranked_image_ids = sorted(all_image_ids, reverse=True)[:limit]
+                debug_id("Applied traditional recency ranking", rid)
+
+            info_id(
+                f"Found {len(all_image_ids)} total unique images, returning {len(ranked_image_ids)} after ranking and limit",
+                rid)
+
+            # ======================================================================
+            # PHASE 4: BUILD ENHANCED RESPONSE
+            # ======================================================================
+
+            debug_id("=== PHASE 4: Building enhanced response ===", rid)
+
+            # Get full image objects while preserving ranking order
+            if ranked_image_ids:
+                images_query = session.query(cls).filter(cls.id.in_(ranked_image_ids))
+                images_by_id = {img.id: img for img in images_query.all()}
+                ordered_images = [images_by_id[img_id] for img_id in ranked_image_ids if img_id in images_by_id]
+            else:
+                ordered_images = []
 
             # Build enhanced detailed response
             images = []
-            for image in full_images:
+            for image in ordered_images:
                 try:
                     image_details = {
                         "id": image.id,
@@ -3069,23 +3281,132 @@ class Image(Base):
                         "file_path": image.file_path,
                         "img_metadata": image.img_metadata,
                         "view_url": f"/add_document/image/{image.id}",
-                        "associations": cls._get_enhanced_image_associations(session, image.id, rid)
+                        "associations": cls._get_enhanced_image_associations(session, image.id, rid),
+                        # NEW: Enhanced search metadata
+                        "search_metadata": {
+                            "search_paths": search_path_sources.get(image.id, []),
+                            "found_via_similarity": image.id in similarity_scores,
+                            "similarity_score": similarity_scores.get(image.id),
+                            "search_relevance": len(search_path_sources.get(image.id, [])),
+                            # Higher = found via more paths
+                            "has_pgvector_embedding": cls._has_pgvector_embedding(session, image.id,
+                                                                                  embedding_model_name)
+                        }
                     }
+
                     images.append(image_details)
-                    debug_id(f"Processed image: ID={image.id}, Title='{image.title}'", rid)
+                    debug_id(f"Processed image: ID={image.id}, Title='{image.title}', "
+                             f"Paths={search_path_sources.get(image.id, [])}, "
+                             f"Similarity={similarity_scores.get(image.id, 'N/A')}", rid)
 
                 except Exception as e:
                     error_id(f"Error processing image ID {image.id}: {e}", rid, exc_info=True)
                     continue
 
-            info_id(f"Successfully processed {len(images)} images", rid)
+            # Add search summary to response
+            search_summary = {
+                "total_found": len(all_image_ids),
+                "returned": len(images),
+                "used_similarity_search": len(similarity_scores) > 0,
+                "similarity_results": len(similarity_scores),
+                "traditional_results": len(all_image_ids) - len(similarity_scores),
+                "search_paths_used": list(set([path for paths in search_path_sources.values() for path in paths])),
+                "hybrid_ranking_applied": use_hybrid_ranking and len(similarity_scores) > 0
+            }
+
+            info_id(f"Search complete: {search_summary}", rid)
+
+            # Optionally attach search summary to first result for debugging
+            if images and len(images) > 0:
+                images[0]["_search_summary"] = search_summary
+
             return images
 
         except Exception as e:
             error_id(f"Error in enhanced search_images: {e}", rid, exc_info=True)
             return []
         finally:
-            info_id("========== ENHANCED DYNAMIC IMAGE SEARCH WITH ALL ASSOCIATIONS COMPLETE ==========", rid)
+            info_id("========== ENHANCED DYNAMIC IMAGE SEARCH WITH PGVECTOR COMPLETE ==========", rid)
+
+    @classmethod
+    def _calculate_hybrid_ranking(cls, image_ids, similarity_scores, search_path_sources, limit):
+        """
+        Calculate intelligent hybrid ranking combining similarity and relevance factors.
+
+        Args:
+            image_ids: Set of image IDs to rank
+            similarity_scores: Dict of image_id -> similarity_score
+            search_path_sources: Dict of image_id -> list of search paths that found it
+            limit: Maximum results to return
+
+        Returns:
+            List of image IDs in optimal ranking order
+        """
+
+        def calculate_composite_score(image_id):
+            # Base similarity score (0.0 to 1.0)
+            similarity = similarity_scores.get(image_id, 0.0)
+
+            # Search path relevance boost
+            search_paths = search_path_sources.get(image_id, [])
+            path_count = len(search_paths)
+
+            # Different search paths have different relevance weights
+            path_weights = {
+                'similarity': 1.0,  # Base pgvector similarity
+                'direct_position': 0.8,  # Direct position associations are very relevant
+                'tool': 0.9,  # Tool associations are highly relevant
+                'task': 0.9,  # Task associations are highly relevant
+                'problem': 0.9,  # Problem associations are highly relevant
+                'specific_document': 0.85,  # Specific document requests are relevant
+                'parts_position': 0.7,  # Parts associations are moderately relevant
+                'document_association': 0.6,  # Document associations are somewhat relevant
+                'text_only': 0.3,  # Text-only matches are less relevant
+                'recent': 0.1  # Recent fallback is least relevant
+            }
+
+            # Calculate relevance boost based on search paths
+            relevance_boost = sum(path_weights.get(path, 0.5) for path in search_paths) / max(len(search_paths), 1)
+
+            # Multiple search paths finding the same image = higher confidence
+            multi_path_boost = min(path_count * 0.1, 0.3)  # Cap at 0.3
+
+            # Combine factors with weights
+            composite_score = (
+                    similarity * 0.6 +  # 60% similarity
+                    relevance_boost * 0.3 +  # 30% search path relevance
+                    multi_path_boost * 0.1  # 10% multi-path confidence
+            )
+
+            return composite_score
+
+        # Sort by composite score and return top results
+        ranked_ids = sorted(image_ids, key=calculate_composite_score, reverse=True)
+        return ranked_ids[:limit]
+
+    @classmethod
+    def _has_pgvector_embedding(cls, session, image_id, model_name="CLIPModelHandler"):
+        """
+        Quick check if an image has a pgvector embedding available.
+
+        Args:
+            session: Database session
+            image_id: ID of the image to check
+            model_name: Embedding model name to check for
+
+        Returns:
+            bool: True if pgvector embedding exists
+        """
+        try:
+            embedding = session.query(ImageEmbedding).filter(
+                ImageEmbedding.image_id == image_id,
+                ImageEmbedding.model_name == model_name,
+                ImageEmbedding.embedding_vector.isnot(None)
+            ).first()
+
+            return embedding is not None
+        except Exception:
+            return False
 
     @classmethod
     @with_request_id
@@ -3163,6 +3484,242 @@ class Image(Base):
 
         return associations
 
+    @classmethod
+    @with_request_id
+    def search_similar_images_by_embedding(cls, session, query_embedding, model_name="CLIPModelHandler",
+                                           limit=10, similarity_threshold=0.7, request_id=None):
+        """
+        New method to search for similar images using pgvector similarity search.
+        """
+        rid = request_id or get_request_id()
+
+        try:
+            info_id(f"Searching for similar images using {model_name} with threshold {similarity_threshold}", rid)
+
+            # Convert embedding to list if necessary
+            if hasattr(query_embedding, 'tolist'):
+                embedding_list = query_embedding.tolist()
+            elif isinstance(query_embedding, np.ndarray):
+                embedding_list = query_embedding.flatten().tolist()
+            else:
+                embedding_list = list(query_embedding)
+
+            # Use the ImageEmbedding's search method
+            similar_images = ImageEmbedding.search_similar_images(
+                session=session,
+                query_embedding=embedding_list,
+                model_name=model_name,
+                limit=limit,
+                similarity_threshold=similarity_threshold
+            )
+
+            # Enhance results with full image data
+            enhanced_results = []
+            for result in similar_images:
+                image = session.query(cls).filter_by(id=result['image_id']).first()
+                if image:
+                    enhanced_result = {
+                        **result,
+                        'image': {
+                            'id': image.id,
+                            'title': image.title,
+                            'description': image.description,
+                            'file_path': image.file_path,
+                            'metadata': image.img_metadata,
+                            'view_url': f'/add_document/image/{image.id}'
+                        }
+                    }
+                    enhanced_results.append(enhanced_result)
+
+            info_id(f"Found {len(enhanced_results)} similar images", rid)
+            return enhanced_results
+
+        except Exception as e:
+            error_id(f"Error in similarity search: {e}", rid, exc_info=True)
+            return []
+
+    @classmethod
+    @with_request_id
+    def find_similar_images(cls, session, reference_image_id, model_name="CLIPModelHandler",
+                            limit=10, similarity_threshold=0.7, request_id=None):
+        """
+        New method to find images similar to a reference image using pgvector.
+        """
+        rid = request_id or get_request_id()
+
+        try:
+            info_id(f"Finding images similar to image ID {reference_image_id}", rid)
+
+            # Use the ImageEmbedding's find similar method
+            similar_images = ImageEmbedding.find_similar_to_image(
+                session=session,
+                image_id=reference_image_id,
+                model_name=model_name,
+                limit=limit,
+                exclude_self=True
+            )
+
+            # Enhance results with full image data
+            enhanced_results = []
+            for result in similar_images:
+                image = session.query(cls).filter_by(id=result['image_id']).first()
+                if image:
+                    enhanced_result = {
+                        **result,
+                        'image': {
+                            'id': image.id,
+                            'title': image.title,
+                            'description': image.description,
+                            'file_path': image.file_path,
+                            'metadata': image.img_metadata,
+                            'view_url': f'/add_document/image/{image.id}'
+                        }
+                    }
+                    enhanced_results.append(enhanced_result)
+
+            info_id(f"Found {len(enhanced_results)} images similar to reference image", rid)
+            return enhanced_results
+
+        except Exception as e:
+            error_id(f"Error finding similar images: {e}", rid, exc_info=True)
+            return []
+
+    @classmethod
+    @with_request_id
+    def migrate_all_embeddings_to_pgvector(cls, session, request_id=None):
+        """
+        Utility method to migrate all existing image embeddings to pgvector format.
+        """
+        rid = request_id or get_request_id()
+
+        try:
+            info_id("Starting migration of all image embeddings to pgvector", rid)
+
+            # Get all embeddings that are not in pgvector format
+            legacy_embeddings = session.query(ImageEmbedding).filter(
+                ImageEmbedding.embedding_vector.is_(None),
+                ImageEmbedding.model_embedding.isnot(None)
+            ).all()
+
+            total_count = len(legacy_embeddings)
+            migrated_count = 0
+            failed_count = 0
+
+            info_id(f"Found {total_count} legacy embeddings to migrate", rid)
+
+            for embedding in legacy_embeddings:
+                try:
+                    if embedding.migrate_to_pgvector():
+                        migrated_count += 1
+                        debug_id(f"Migrated embedding {embedding.id} for image {embedding.image_id}", rid)
+                    else:
+                        failed_count += 1
+                        warning_id(f"Failed to migrate embedding {embedding.id} for image {embedding.image_id}", rid)
+
+                    # Commit in batches of 50
+                    if (migrated_count + failed_count) % 50 == 0:
+                        session.commit()
+                        info_id(f"Batch commit: {migrated_count} migrated, {failed_count} failed", rid)
+
+                except Exception as e:
+                    failed_count += 1
+                    error_id(f"Error migrating embedding {embedding.id}: {e}", rid)
+
+            # Final commit
+            session.commit()
+
+            info_id(f"Migration complete: {migrated_count} successfully migrated, {failed_count} failed", rid)
+
+            return {
+                'total': total_count,
+                'migrated': migrated_count,
+                'failed': failed_count,
+                'success_rate': (migrated_count / total_count * 100) if total_count > 0 else 0
+            }
+
+        except Exception as e:
+            error_id(f"Error in bulk migration: {e}", rid, exc_info=True)
+            session.rollback()
+            return {'total': 0, 'migrated': 0, 'failed': 0, 'success_rate': 0}
+
+    @classmethod
+    @with_request_id
+    def setup_pgvector_indexes(cls, session, request_id=None):
+        """
+        Setup pgvector indexes for optimal similarity search performance.
+        """
+        rid = request_id or get_request_id()
+
+        try:
+            info_id("Setting up pgvector indexes for image embeddings", rid)
+
+            if ImageEmbedding.create_pgvector_indexes(session):
+                info_id("Successfully created pgvector indexes", rid)
+                return True
+            else:
+                warning_id("Failed to create some pgvector indexes", rid)
+                return False
+
+        except Exception as e:
+            error_id(f"Error setting up pgvector indexes: {e}", rid, exc_info=True)
+            return False
+
+    @classmethod
+    @with_request_id
+    def get_embedding_statistics(cls, session, request_id=None):
+        """
+        Get statistics about image embeddings and their storage formats.
+        """
+        rid = request_id or get_request_id()
+
+        try:
+            from sqlalchemy import func
+
+            # Total embeddings
+            total_embeddings = session.query(ImageEmbedding).count()
+
+            # pgvector embeddings
+            pgvector_embeddings = session.query(ImageEmbedding).filter(
+                ImageEmbedding.embedding_vector.isnot(None)
+            ).count()
+
+            # Legacy embeddings
+            legacy_embeddings = session.query(ImageEmbedding).filter(
+                ImageEmbedding.model_embedding.isnot(None),
+                ImageEmbedding.embedding_vector.is_(None)
+            ).count()
+
+            # Both formats
+            both_formats = session.query(ImageEmbedding).filter(
+                ImageEmbedding.embedding_vector.isnot(None),
+                ImageEmbedding.model_embedding.isnot(None)
+            ).count()
+
+            # Models breakdown
+            model_stats = session.query(
+                ImageEmbedding.model_name,
+                func.count(ImageEmbedding.id).label('count')
+            ).group_by(ImageEmbedding.model_name).all()
+
+            stats = {
+                'total_embeddings': total_embeddings,
+                'pgvector_embeddings': pgvector_embeddings,
+                'legacy_embeddings': legacy_embeddings,
+                'both_formats': both_formats,
+                'pgvector_percentage': (pgvector_embeddings / total_embeddings * 100) if total_embeddings > 0 else 0,
+                'legacy_percentage': (legacy_embeddings / total_embeddings * 100) if total_embeddings > 0 else 0,
+                'models': {model: count for model, count in model_stats}
+            }
+
+            info_id(f"Embedding statistics: {total_embeddings} total, "
+                    f"{pgvector_embeddings} pgvector ({stats['pgvector_percentage']:.1f}%), "
+                    f"{legacy_embeddings} legacy ({stats['legacy_percentage']:.1f}%)", rid)
+
+            return stats
+
+        except Exception as e:
+            error_id(f"Error getting embedding statistics: {e}", rid, exc_info=True)
+            return {}
 
 class ImageEmbedding(Base):
     """
