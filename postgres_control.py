@@ -261,33 +261,33 @@ def show_connection_info():
     print(f"   Test Connection: psql -U postgres -h localhost")
 
 
-def test_start_nonblocking():
-    """Test start with immediate return - for debugging hanging issues."""
-    print("[TEST] Testing non-blocking start...")
+def verify_start_nonblocking():
+    """Verify start with immediate return - for debugging hanging issues."""
+    print("[Verify ] Verifying non-blocking start...")
 
     # Check current status first
-    print("[TEST] Step 1: Checking current status...")
+    print("[VERIFY] Step 1: Checking current status...")
     status_result = run_pg_ctl(["status"])
     if status_result and "server is running" in status_result.stdout:
-        print("[TEST] PostgreSQL is already running!")
+        print("[VERIFY] PostgreSQL is already running!")
         return
 
-    print("[TEST] Step 2: Attempting start with 5-second timeout...")
+    print("[VERIFY] Step 2: Attempting start with 5-second timeout...")
     log_file = os.path.join(DATA_DIR, "server.log")
 
     # Very short timeout to see if it returns quickly
     result = run_pg_ctl(["-l", log_file, "start", "-w"], timeout=5)
 
     if result is None:
-        print("[TEST] Command timed out after 5 seconds - this indicates hanging")
-        print("[TEST] Try manual start: pg_ctl.exe -D DATA_DIR start")
+        print("[VERIFY] Command timed out after 5 seconds - this indicates hanging")
+        print("[VERIFY] Try manual start: pg_ctl.exe -D DATA_DIR start")
     else:
-        print(f"[TEST] Command returned with code: {result.returncode}")
-        print(f"[TEST] Output: {result.stdout.strip()}")
+        print(f"[VERIFY] Command returned with code: {result.returncode}")
+        print(f"[VERIFY] Output: {result.stdout.strip()}")
         if result.stderr.strip():
-            print(f"[TEST] Errors: {result.stderr.strip()}")
+            print(f"[VERIFY] Errors: {result.stderr.strip()}")
 
-    print("[TEST] Test completed")
+    print("[VERIFY] Test completed")
 
 
 def fix_common_issues():
