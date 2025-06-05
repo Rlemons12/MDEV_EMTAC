@@ -31,6 +31,8 @@ import openai
 import spacy
 from fuzzywuzzy import process
 from werkzeug.security import check_password_hash, generate_password_hash
+from sqlalchemy.dialects.postgresql import ARRAY, JSON
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import (DateTime, Column, ForeignKey, Integer, JSON, LargeBinary, Enum as SqlEnum, Boolean,
                         String, create_engine, text, Float, Text, UniqueConstraint, and_, Table)
 from enum import Enum as PyEnum  # Import Enum and alias it as PyEnum
@@ -3161,15 +3163,422 @@ class Image(Base):
 
         return associations
 
+
 class ImageEmbedding(Base):
+    """
+    Enhanced image embedding model supporting both legacy LargeBinary and modern pgvector storage.
+
+    This class intelligently handles both storage formats:
+    - Legacy: model_embedding (LargeBinary) for backward compatibility
+    - Modern: embedding_vector (pgvector) for better performance
+
+    The class automatically determines which storage format to use based on what's available.
+    """
     __tablename__ = 'image_embedding'
 
     id = Column(Integer, primary_key=True)
     image_id = Column(Integer, ForeignKey('image.id'))
     model_name = Column(String, nullable=False)
-    model_embedding = Column(LargeBinary, nullable=False)
 
+    # Legacy storage (keep for backward compatibility)
+    model_embedding = Column(LargeBinary, nullable=True)  # Made nullable
+
+    # Modern pgvector storage (add this column)
+    # CLIP embeddings are typically 512 dimensions, adjust as needed
+    embedding_vector = Column(Vector(512), nullable=True)  # Made nullable
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
     image = relationship("Image", back_populates="image_embedding")
+
+    def __repr__(self):
+        storage_type = self.get_storage_type()
+        return f"<ImageEmbedding(image_id={self.image_id}, model={self.model_name}, storage={storage_type})>"
+
+    @property
+    def embedding_as_list(self) -> List[float]:
+        """
+        Get embedding as Python list, automatically handling both storage formats.
+
+        Returns:
+            List[float]: Embedding vector as list of floats
+        """
+        # Try pgvector first (preferred format)
+        if self.embedding_vector is not None:
+            try:
+                # Convert pgvector to list
+                vector_str = str(self.embedding_vector)
+                if vector_str.startswith('[') and vector_str.endswith(']'):
+                    vector_str = vector_str[1:-1]  # Remove brackets
+                return [float(x.strip()) for x in vector_str.split(',') if x.strip()]
+            except Exception as e:
+                print(f"Warning: Error parsing pgvector format: {e}")
+
+        # Fallback to legacy LargeBinary format
+        if self.model_embedding is not None:
+            try:
+                # Handle numpy array stored as bytes
+                import numpy as np
+                return np.frombuffer(self.model_embedding, dtype=np.float32).tolist()
+            except Exception as e:
+                try:
+                    # Fallback to JSON format
+                    return json.loads(self.model_embedding.decode('utf-8'))
+                except Exception as e2:
+                    print(f"Warning: Error parsing legacy embedding format: {e}, {e2}")
+
+        return []
+
+    @embedding_as_list.setter
+    def embedding_as_list(self, value: List[float]):
+        """
+        Set embedding from Python list, preferring pgvector storage.
+
+        Args:
+            value: List of floats representing the embedding
+        """
+        if not isinstance(value, list) or not value:
+            raise ValueError("Embedding must be a non-empty list of floats")
+
+        # Store in pgvector format (preferred)
+        try:
+            self.embedding_vector = value
+        except Exception as e:
+            print(f"Warning: Could not store in pgvector format: {e}")
+            # Fallback to legacy format (numpy array as bytes)
+            import numpy as np
+            self.model_embedding = np.array(value, dtype=np.float32).tobytes()
+
+    def get_storage_type(self) -> str:
+        """
+        Determine which storage format is being used.
+
+        Returns:
+            str: 'pgvector', 'legacy', 'both', or 'none'
+        """
+        has_pgvector = self.embedding_vector is not None
+        has_legacy = self.model_embedding is not None
+
+        if has_pgvector and has_legacy:
+            return 'both'
+        elif has_pgvector:
+            return 'pgvector'
+        elif has_legacy:
+            return 'legacy'
+        else:
+            return 'none'
+
+    def migrate_to_pgvector(self) -> bool:
+        """
+        Migrate legacy LargeBinary embedding to pgvector format.
+        Fixed to handle numpy arrays stored as binary data.
+
+        Returns:
+            bool: True if migration successful, False otherwise
+        """
+        if self.embedding_vector is not None:
+            return True  # Already in pgvector format
+
+        if self.model_embedding is None:
+            return False  # No data to migrate
+
+        try:
+            import numpy as np
+
+            # Try to parse as numpy array first (CLIP embeddings are stored this way)
+            try:
+                legacy_data = np.frombuffer(self.model_embedding, dtype=np.float32).tolist()
+                print(f"Successfully parsed numpy array with {len(legacy_data)} dimensions")
+            except Exception as numpy_error:
+                print(f"Numpy parsing failed: {numpy_error}")
+
+                # Fallback to JSON format (for document embeddings)
+                try:
+                    legacy_data = json.loads(self.model_embedding.decode('utf-8'))
+                    print(f"Successfully parsed JSON with {len(legacy_data)} dimensions")
+                except Exception as json_error:
+                    print(f"JSON parsing also failed: {json_error}")
+                    return False
+
+            # Validate the data
+            if not isinstance(legacy_data, list) or len(legacy_data) == 0:
+                print(
+                    f"Invalid embedding data: type={type(legacy_data)}, length={len(legacy_data) if hasattr(legacy_data, '__len__') else 'N/A'}")
+                return False
+
+            # Store in pgvector format
+            self.embedding_vector = legacy_data
+
+            print(f"Successfully migrated embedding with {len(legacy_data)} dimensions to pgvector")
+            return True
+
+        except Exception as e:
+            print(f"Error migrating image embedding to pgvector: {e}")
+            return False
+
+    def get_embedding_stats(self) -> dict:
+        """
+        Get statistics about the embedding.
+
+        Returns:
+            dict: Statistics including dimensions, storage type, etc.
+        """
+        embedding = self.embedding_as_list
+
+        return {
+            'dimensions': len(embedding),
+            'storage_type': self.get_storage_type(),
+            'model_name': self.model_name,
+            'image_id': self.image_id,
+            'has_data': len(embedding) > 0,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+    @classmethod
+    def create_with_pgvector(cls, image_id: int, model_name: str, embedding: List[float], **kwargs):
+        """
+        Create a new ImageEmbedding using pgvector storage.
+
+        Args:
+            image_id: ID of the associated image
+            model_name: Name of the embedding model
+            embedding: List of floats representing the embedding
+            **kwargs: Additional keyword arguments
+
+        Returns:
+            ImageEmbedding: New instance with pgvector storage
+        """
+        instance = cls(
+            image_id=image_id,
+            model_name=model_name,
+            embedding_vector=embedding,
+            **kwargs
+        )
+        return instance
+
+    @classmethod
+    def create_with_legacy(cls, image_id: int, model_name: str, embedding: List[float], **kwargs):
+        """
+        Create a new ImageEmbedding using legacy LargeBinary storage.
+
+        Args:
+            image_id: ID of the associated image
+            model_name: Name of the embedding model
+            embedding: List of floats representing the embedding
+            **kwargs: Additional keyword arguments
+
+        Returns:
+            ImageEmbedding: New instance with legacy storage
+        """
+        import numpy as np
+        instance = cls(
+            image_id=image_id,
+            model_name=model_name,
+            model_embedding=np.array(embedding, dtype=np.float32).tobytes(),
+            **kwargs
+        )
+        return instance
+
+    def cosine_similarity(self, other_embedding: List[float]) -> Optional[float]:
+        """
+        Calculate cosine similarity with another embedding.
+
+        Args:
+            other_embedding: List of floats to compare against
+
+        Returns:
+            float: Cosine similarity score (0-1), or None if calculation fails
+        """
+        current_embedding = self.embedding_as_list
+
+        if not current_embedding or not other_embedding:
+            return None
+
+        if len(current_embedding) != len(other_embedding):
+            return None
+
+        try:
+            import math
+
+            dot_product = sum(a * b for a, b in zip(current_embedding, other_embedding))
+            norm_a = math.sqrt(sum(a * a for a in current_embedding))
+            norm_b = math.sqrt(sum(b * b for b in other_embedding))
+
+            if norm_a == 0 or norm_b == 0:
+                return 0.0
+
+            return dot_product / (norm_a * norm_b)
+        except Exception as e:
+            print(f"Error calculating cosine similarity: {e}")
+            return None
+
+    def to_dict(self) -> dict:
+        """
+        Convert embedding to dictionary for JSON serialization.
+
+        Returns:
+            dict: Dictionary representation of the embedding
+        """
+        return {
+            'id': self.id,
+            'image_id': self.image_id,
+            'model_name': self.model_name,
+            'embedding': self.embedding_as_list,
+            'storage_type': self.get_storage_type(),
+            'dimensions': len(self.embedding_as_list),
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+    @classmethod
+    def create_pgvector_indexes(cls, session):
+        """
+        Create optimized indexes for pgvector similarity search.
+
+        Args:
+            session: SQLAlchemy session
+
+        Returns:
+            bool: True if indexes created successfully
+        """
+        from sqlalchemy import text
+
+        indexes = [
+            # HNSW index for cosine similarity
+            """
+            CREATE INDEX IF NOT EXISTS idx_image_embedding_cosine 
+            ON image_embedding 
+            USING hnsw (embedding_vector vector_cosine_ops)
+            WITH (m = 16, ef_construction = 64);
+            """,
+
+            # HNSW index for L2 distance
+            """
+            CREATE INDEX IF NOT EXISTS idx_image_embedding_l2 
+            ON image_embedding 
+            USING hnsw (embedding_vector vector_l2_ops)
+            WITH (m = 16, ef_construction = 64);
+            """,
+
+            # Regular indexes
+            "CREATE INDEX IF NOT EXISTS idx_image_embedding_model ON image_embedding (model_name);",
+            "CREATE INDEX IF NOT EXISTS idx_image_embedding_image_id ON image_embedding (image_id);",
+            "CREATE INDEX IF NOT EXISTS idx_image_embedding_created ON image_embedding (created_at);"
+        ]
+
+        try:
+            for index_sql in indexes:
+                session.execute(text(index_sql))
+            session.commit()
+            print("pgvector indexes created successfully for image embeddings")
+            return True
+        except Exception as e:
+            session.rollback()
+            print(f"Error creating pgvector indexes for image embeddings: {e}")
+            return False
+
+    @classmethod
+    def search_similar_images(cls, session, query_embedding: List[float],
+                              model_name: str = None, limit: int = 10,
+                              similarity_threshold: float = 0.5) -> List[Dict]:
+        """
+        Search for images similar to the query embedding using pgvector.
+
+        Args:
+            session: Database session
+            query_embedding: Embedding vector to search for
+            model_name: Filter by specific model (optional)
+            limit: Maximum number of results
+            similarity_threshold: Minimum similarity score
+
+        Returns:
+            List of dictionaries with image info and similarity scores
+        """
+        from modules.emtacdb.emtacdb_fts import Image
+
+        try:
+            # Build query
+            query = session.query(
+                cls,
+                Image,
+                (1 - cls.embedding_vector.cosine_distance(query_embedding)).label('similarity')
+            ).join(Image, cls.image_id == Image.id)
+
+            # Filter by model if specified
+            if model_name:
+                query = query.filter(cls.model_name == model_name)
+
+            # Filter by similarity threshold and order by similarity
+            results = query.filter(
+                cls.embedding_vector.cosine_distance(query_embedding) <= (2 * (1 - similarity_threshold))
+            ).order_by(
+                cls.embedding_vector.cosine_distance(query_embedding)
+            ).limit(limit).all()
+
+            # Format results
+            formatted_results = []
+            for embedding, image, similarity in results:
+                formatted_results.append({
+                    'image_id': image.id,
+                    'image_title': image.title,
+                    'image_path': image.file_path,
+                    'similarity': float(similarity),
+                    'model_name': embedding.model_name,
+                    'embedding_id': embedding.id
+                })
+
+            return formatted_results
+
+        except Exception as e:
+            print(f"Error in image similarity search: {e}")
+            return []
+
+    @classmethod
+    def find_similar_to_image(cls, session, image_id: int, model_name: str = None,
+                              limit: int = 10, exclude_self: bool = True) -> List[Dict]:
+        """
+        Find images similar to a specific image using its stored embedding.
+
+        Args:
+            session: Database session
+            image_id: ID of the reference image
+            model_name: Embedding model to use
+            limit: Maximum number of results
+            exclude_self: Whether to exclude the reference image from results
+
+        Returns:
+            List of similar images with similarity scores
+        """
+        try:
+            # Get the reference image's embedding
+            ref_embedding = session.query(cls).filter_by(
+                image_id=image_id,
+                model_name=model_name
+            ).first()
+
+            if not ref_embedding or not ref_embedding.embedding_vector:
+                return []
+
+            # Use the existing search method
+            results = cls.search_similar_images(
+                session,
+                ref_embedding.embedding_as_list,
+                model_name,
+                limit + (1 if exclude_self else 0)
+            )
+
+            # Remove the reference image if requested
+            if exclude_self:
+                results = [r for r in results if r['image_id'] != image_id][:limit]
+
+            return results
+
+        except Exception as e:
+            print(f"Error finding similar images for image {image_id}: {e}")
+            return []
 
 class DrawingType(Enum):
     ELECTRICAL = "Electrical"
@@ -3768,17 +4177,301 @@ class Document(Base):
                 return False
 
 class DocumentEmbedding(Base):
+    """
+    Enhanced embedding model supporting both legacy LargeBinary and modern pgvector storage.
+
+    This class intelligently handles both storage formats:
+    - Legacy: model_embedding (LargeBinary) for backward compatibility
+    - Modern: embedding_vector (pgvector) for better performance
+
+    The class automatically determines which storage format to use based on what's available.
+    """
     __tablename__ = 'document_embedding'
 
     id = Column(Integer, primary_key=True)
     document_id = Column(Integer, ForeignKey('document.id'))
     model_name = Column(String, nullable=False)
-    model_embedding = Column(LargeBinary, nullable=False)
+
+    # Legacy storage (keep for backward compatibility)
+    model_embedding = Column(LargeBinary, nullable=True)  # Made nullable
+
+    # Modern pgvector storage (add this column)
+    embedding_vector = Column(Vector(1536), nullable=True)  # Made nullable
+
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # Relationships
     document = relationship("Document", back_populates="embeddings")
-#todo: An error occurred while searching documents: type object 'CompleteDocument' has no attribute 'search_documents_enhanced'
+
+    def __repr__(self):
+        storage_type = self.get_storage_type()
+        return f"<DocumentEmbedding(doc_id={self.document_id}, model={self.model_name}, storage={storage_type})>"
+
+    @property
+    def embedding_as_list(self) -> List[float]:
+        """
+        Get embedding as Python list, automatically handling both storage formats.
+        Fixed to properly handle numpy arrays.
+
+        Returns:
+            List[float]: Embedding vector as list of floats
+        """
+        # Try pgvector first (preferred format)
+        if self.embedding_vector is not None:
+            try:
+                # Convert pgvector to list
+                vector_str = str(self.embedding_vector)
+                if vector_str.startswith('[') and vector_str.endswith(']'):
+                    vector_str = vector_str[1:-1]  # Remove brackets
+                return [float(x.strip()) for x in vector_str.split(',') if x.strip()]
+            except Exception as e:
+                print(f"Warning: Error parsing pgvector format: {e}")
+
+        # Fallback to legacy LargeBinary format
+        if self.model_embedding is not None:
+            try:
+                # Try numpy array first (CLIP embeddings)
+                import numpy as np
+                return np.frombuffer(self.model_embedding, dtype=np.float32).tolist()
+            except Exception as numpy_error:
+                try:
+                    # Fallback to JSON format (document embeddings)
+                    return json.loads(self.model_embedding.decode('utf-8'))
+                except Exception as json_error:
+                    print(f"Warning: Error parsing both numpy and JSON formats: numpy={numpy_error}, json={json_error}")
+
+        return []
+
+    @embedding_as_list.setter
+    def embedding_as_list(self, value: List[float]):
+        """
+        Set embedding from Python list, preferring pgvector storage.
+
+        Args:
+            value: List of floats representing the embedding
+        """
+        if not isinstance(value, list) or not value:
+            raise ValueError("Embedding must be a non-empty list of floats")
+
+        # Store in pgvector format (preferred)
+        try:
+            self.embedding_vector = value
+        except Exception as e:
+            print(f"Warning: Could not store in pgvector format: {e}")
+            # Fallback to legacy format
+            self.model_embedding = json.dumps(value).encode('utf-8')
+
+    def get_storage_type(self) -> str:
+        """
+        Determine which storage format is being used.
+
+        Returns:
+            str: 'pgvector', 'legacy', 'both', or 'none'
+        """
+        has_pgvector = self.embedding_vector is not None
+        has_legacy = self.model_embedding is not None
+
+        if has_pgvector and has_legacy:
+            return 'both'
+        elif has_pgvector:
+            return 'pgvector'
+        elif has_legacy:
+            return 'legacy'
+        else:
+            return 'none'
+
+    def migrate_to_pgvector(self) -> bool:
+        """
+        Migrate legacy LargeBinary embedding to pgvector format.
+
+        Returns:
+            bool: True if migration successful, False otherwise
+        """
+        if self.embedding_vector is not None:
+            return True  # Already in pgvector format
+
+        if self.model_embedding is None:
+            return False  # No data to migrate
+
+        try:
+            # Parse legacy format
+            legacy_data = json.loads(self.model_embedding.decode('utf-8'))
+
+            # Store in pgvector format
+            self.embedding_vector = legacy_data
+
+            # Optionally clear legacy data to save space
+            # self.model_embedding = None  # Uncomment when confident
+
+            return True
+        except Exception as e:
+            print(f"Error migrating embedding to pgvector: {e}")
+            return False
+
+    def get_embedding_stats(self) -> dict:
+        """
+        Get statistics about the embedding.
+
+        Returns:
+            dict: Statistics including dimensions, storage type, etc.
+        """
+        embedding = self.embedding_as_list
+
+        return {
+            'dimensions': len(embedding),
+            'storage_type': self.get_storage_type(),
+            'model_name': self.model_name,
+            'document_id': self.document_id,
+            'has_data': len(embedding) > 0,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+    @classmethod
+    def create_with_pgvector(cls, document_id: int, model_name: str, embedding: List[float], **kwargs):
+        """
+        Create a new DocumentEmbedding using pgvector storage.
+
+        Args:
+            document_id: ID of the associated document
+            model_name: Name of the embedding model
+            embedding: List of floats representing the embedding
+            **kwargs: Additional keyword arguments
+
+        Returns:
+            DocumentEmbedding: New instance with pgvector storage
+        """
+        instance = cls(
+            document_id=document_id,
+            model_name=model_name,
+            embedding_vector=embedding,
+            **kwargs
+        )
+        return instance
+
+    @classmethod
+    def create_with_legacy(cls, document_id: int, model_name: str, embedding: List[float], **kwargs):
+        """
+        Create a new DocumentEmbedding using legacy LargeBinary storage.
+
+        Args:
+            document_id: ID of the associated document
+            model_name: Name of the embedding model
+            embedding: List of floats representing the embedding
+            **kwargs: Additional keyword arguments
+
+        Returns:
+            DocumentEmbedding: New instance with legacy storage
+        """
+        instance = cls(
+            document_id=document_id,
+            model_name=model_name,
+            model_embedding=json.dumps(embedding).encode('utf-8'),
+            **kwargs
+        )
+        return instance
+
+    def cosine_similarity(self, other_embedding: List[float]) -> Optional[float]:
+        """
+        Calculate cosine similarity with another embedding.
+        Uses pgvector operators if available, otherwise fallback to manual calculation.
+
+        Args:
+            other_embedding: List of floats to compare against
+
+        Returns:
+            float: Cosine similarity score (0-1), or None if calculation fails
+        """
+        current_embedding = self.embedding_as_list
+
+        if not current_embedding or not other_embedding:
+            return None
+
+        if len(current_embedding) != len(other_embedding):
+            return None
+
+        try:
+            # Manual cosine similarity calculation
+            import math
+
+            dot_product = sum(a * b for a, b in zip(current_embedding, other_embedding))
+            norm_a = math.sqrt(sum(a * a for a in current_embedding))
+            norm_b = math.sqrt(sum(b * b for b in other_embedding))
+
+            if norm_a == 0 or norm_b == 0:
+                return 0.0
+
+            return dot_product / (norm_a * norm_b)
+        except Exception as e:
+            print(f"Error calculating cosine similarity: {e}")
+            return None
+
+    def to_dict(self) -> dict:
+        """
+        Convert embedding to dictionary for JSON serialization.
+
+        Returns:
+            dict: Dictionary representation of the embedding
+        """
+        return {
+            'id': self.id,
+            'document_id': self.document_id,
+            'model_name': self.model_name,
+            'embedding': self.embedding_as_list,
+            'storage_type': self.get_storage_type(),
+            'dimensions': len(self.embedding_as_list),
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+    @classmethod
+    def create_pgvector_indexes(cls, session):
+        """
+        Create optimized indexes for pgvector similarity search.
+
+        Args:
+            session: SQLAlchemy session
+
+        Returns:
+            bool: True if indexes created successfully
+        """
+        from sqlalchemy import text
+
+        indexes = [
+            # HNSW index for cosine similarity
+            """
+            CREATE INDEX IF NOT EXISTS idx_doc_embedding_cosine 
+            ON document_embedding 
+            USING hnsw (embedding_vector vector_cosine_ops)
+            WITH (m = 16, ef_construction = 64);
+            """,
+
+            # HNSW index for L2 distance
+            """
+            CREATE INDEX IF NOT EXISTS idx_doc_embedding_l2 
+            ON document_embedding 
+            USING hnsw (embedding_vector vector_l2_ops)
+            WITH (m = 16, ef_construction = 64);
+            """,
+
+            # Regular indexes
+            "CREATE INDEX IF NOT EXISTS idx_doc_embedding_model ON document_embedding (model_name);",
+            "CREATE INDEX IF NOT EXISTS idx_doc_embedding_doc_id ON document_embedding (document_id);",
+            "CREATE INDEX IF NOT EXISTS idx_doc_embedding_created ON document_embedding (created_at);"
+        ]
+
+        try:
+            for index_sql in indexes:
+                session.execute(text(index_sql))
+            session.commit()
+            print("pgvector indexes created successfully")
+            return True
+        except Exception as e:
+            session.rollback()
+            print(f"Error creating pgvector indexes: {e}")
+            return False
+
 class CompleteDocument(Base):
     """
     Modern document model with robust PostgreSQL database handling.
@@ -4688,23 +5381,26 @@ class CompleteDocument(Base):
 
     @classmethod
     @with_request_id
-    def _generate_embeddings_for_chunks(cls, session, chunk_objects):
-        """Generate embeddings for document chunks."""
-        debug_id("Starting _generate_embeddings_for_chunks")
+    def _generate_embeddings_for_chunks(cls, session, chunk_objects, request_id=None):
+        """
+        Updated method to generate embeddings for document chunks using pgvector storage.
+        Now uses the enhanced DocumentEmbedding class with pgvector support.
+        """
+        debug_id("Starting _generate_embeddings_for_chunks with pgvector support", request_id)
 
         try:
-            # First, import the necessary modules
-            import plugins.ai_modules
+            # Import the necessary modules
             from plugins.ai_modules import generate_embedding, ModelsConfig
 
             # Get current embedding model name
             current_embedding_model = ModelsConfig.get_config_value('embedding', 'CURRENT_MODEL')
 
             if current_embedding_model == "NoEmbeddingModel":
-                debug_id("Embedding generation disabled, skipping")
+                debug_id("Embedding generation disabled, skipping", request_id)
                 return
 
-            debug_id(f"Generating embeddings for {len(chunk_objects)} chunks using {current_embedding_model}")
+            debug_id(f"Generating embeddings for {len(chunk_objects)} chunks using {current_embedding_model}",
+                     request_id)
 
             # Process each chunk
             for chunk in chunk_objects:
@@ -4713,41 +5409,295 @@ class CompleteDocument(Base):
                     embeddings = generate_embedding(chunk.content, current_embedding_model)
 
                     if embeddings:
-                        # Use explicit import for the storage function right before using it
-                        # This ensures it's in the current scope
-                        from plugins.ai_modules.ai_models import store_embedding_enhanced
+                        # Store using the enhanced DocumentEmbedding with pgvector
+                        # FIXED: Use _store_embedding instead of _store_embedding_pgvector
+                        success = cls._store_embedding(
+                            session, chunk.id, embeddings, current_embedding_model, request_id
+                        )
 
-                        # Store the embedding using the enhanced function
-                        cls._store_embedding(session, chunk.id, embeddings, current_embedding_model)
-                        debug_id(f"Generated embedding for chunk: {chunk.name}")
+                        if success:
+                            debug_id(f"Generated and stored pgvector embedding for chunk: {chunk.name}", request_id)
+                        else:
+                            debug_id(f"Failed to store embedding for chunk: {chunk.name}", request_id)
                     else:
-                        debug_id(f"No embedding generated for chunk: {chunk.name}")
+                        debug_id(f"No embedding generated for chunk: {chunk.name}", request_id)
 
                 except Exception as e:
-                    debug_id(f"Error generating embedding for chunk {chunk.name}: {e}")
+                    debug_id(f"Error generating embedding for chunk {chunk.name}: {e}", request_id)
                     import traceback
-                    debug_id(f"Traceback: {traceback.format_exc()}")
+                    debug_id(f"Traceback: {traceback.format_exc()}", request_id)
                     continue
 
         except Exception as e:
-            debug_id(f"Embedding generation for chunks skipped: {e}")
+            debug_id(f"Embedding generation for chunks failed: {e}", request_id)
             import traceback
-            debug_id(f"Traceback: {traceback.format_exc()}")
+            debug_id(f"Traceback: {traceback.format_exc()}", request_id)
 
     @classmethod
-    def _store_embedding(cls, session, document_id, embeddings, model_name):
-        """Helper method to store embeddings using direct import."""
-        try:
-            # Direct import from the module
-            from plugins.ai_modules.ai_models import store_embedding_enhanced
+    @with_request_id
+    def _store_embedding(cls, session, document_id, embeddings, model_name, request_id=None):
+        """
+        Store embeddings using the enhanced DocumentEmbedding class with pgvector support.
+        Updated to use pgvector while maintaining the original method name.
 
-            # Call the function
-            return store_embedding_enhanced(session, document_id, embeddings, model_name)
+        Args:
+            session: Database session
+            document_id: ID of the document chunk
+            embeddings: List of embedding values
+            model_name: Name of the embedding model
+            request_id: Request ID for logging
+
+        Returns:
+            bool: Success status
+        """
+        try:
+            # Import DocumentEmbedding class
+            DocumentEmbeddingClass = cls._get_document_embedding_class()
+
+            if DocumentEmbeddingClass is None:
+                error_id("DocumentEmbedding class not available", request_id)
+                return False
+
+            if embeddings is None or len(embeddings) == 0:
+                warning_id(f"No embeddings to store for document ID {document_id}", request_id)
+                return False
+
+            # Use PostgreSQL savepoint for transaction safety
+            savepoint = session.begin_nested()
+            try:
+                # Check if embedding already exists
+                existing = session.query(DocumentEmbeddingClass).filter_by(
+                    document_id=document_id,
+                    model_name=model_name
+                ).first()
+
+                if existing:
+                    # Update existing embedding using the enhanced property
+                    existing.embedding_as_list = embeddings
+                    debug_id(f"Updated existing pgvector embedding for document ID {document_id}", request_id)
+                else:
+                    # Create new embedding using the enhanced factory method
+                    document_embedding = DocumentEmbeddingClass.create_with_pgvector(
+                        document_id=document_id,
+                        model_name=model_name,
+                        embedding=embeddings
+                    )
+                    session.add(document_embedding)
+                    debug_id(f"Created new pgvector embedding for document ID {document_id}", request_id)
+
+                session.flush()  # Flush within savepoint
+                savepoint.commit()  # Commit savepoint
+                return True
+
+            except Exception as savepoint_error:
+                savepoint.rollback()  # Rollback only the savepoint
+                error_id(f"Savepoint rolled back for pgvector embedding storage: {savepoint_error}", request_id)
+                raise
+
         except Exception as e:
-            debug_id(f"Error in _store_embedding helper: {e}")
+            error_id(f"Error storing pgvector embedding for document {document_id}: {e}", request_id)
             import traceback
-            debug_id(f"Traceback: {traceback.format_exc()}")
+            debug_id(f"Traceback: {traceback.format_exc()}", request_id)
             return False
+
+    @classmethod
+    def _get_document_embedding_class(cls):
+        """Get DocumentEmbedding class from same module."""
+        return globals().get('DocumentEmbedding')
+
+    @classmethod
+    @with_request_id
+    def search_similar_by_embedding(cls, query_text, limit=10, threshold=0.7, request_id=None):
+        """
+        Enhanced similarity search using pgvector embeddings with cosine similarity.
+
+        Args:
+            query_text: Text to search for
+            limit: Maximum number of results
+            threshold: Minimum similarity threshold (0.0 to 1.0)
+            request_id: Request ID for logging
+
+        Returns:
+            List of similar documents with similarity scores
+        """
+        try:
+            from plugins.ai_modules import generate_embedding, ModelsConfig
+
+            # Generate embedding for query text
+            current_embedding_model = ModelsConfig.get_config_value('embedding', 'CURRENT_MODEL')
+
+            if current_embedding_model == "NoEmbeddingModel":
+                warning_id("Embedding search disabled - no embedding model available", request_id)
+                return []
+
+            query_embeddings = generate_embedding(query_text, current_embedding_model)
+
+            if not query_embeddings:
+                warning_id("Failed to generate embeddings for query text", request_id)
+                return []
+
+            db_config = DatabaseConfig()
+            with db_config.main_session() as session:
+                return cls._search_by_pgvector_similarity(
+                    session, query_embeddings, current_embedding_model, limit, threshold, request_id
+                )
+
+        except Exception as e:
+            error_id(f"Embedding similarity search failed: {e}", request_id)
+            return []
+
+    @classmethod
+    @with_request_id
+    def get_embedding_statistics(cls, request_id=None):
+        """
+        Get statistics about embeddings in the database.
+
+        Args:
+            request_id: Request ID for logging
+
+        Returns:
+            dict: Embedding statistics
+        """
+        try:
+            DocumentEmbeddingClass = cls._get_document_embedding_class()
+            if DocumentEmbeddingClass is None:
+                error_id("DocumentEmbedding class not available", request_id)
+                return {}
+
+            db_config = DatabaseConfig()
+            with db_config.main_session() as session:
+
+                total_embeddings = session.query(DocumentEmbeddingClass).count()
+
+                pgvector_embeddings = session.query(DocumentEmbeddingClass).filter(
+                    DocumentEmbeddingClass.embedding_vector.isnot(None)
+                ).count()
+
+                legacy_embeddings = session.query(DocumentEmbeddingClass).filter(
+                    DocumentEmbeddingClass.model_embedding.isnot(None),
+                    DocumentEmbeddingClass.embedding_vector.is_(None)
+                ).count()
+
+                # Get model distribution
+                from sqlalchemy import func
+                model_stats = session.query(
+                    DocumentEmbeddingClass.model_name,
+                    func.count(DocumentEmbeddingClass.id).label('count')
+                ).group_by(DocumentEmbeddingClass.model_name).all()
+
+                statistics = {
+                    'total_embeddings': total_embeddings,
+                    'pgvector_embeddings': pgvector_embeddings,
+                    'legacy_embeddings': legacy_embeddings,
+                    'pgvector_percentage': (
+                                pgvector_embeddings / total_embeddings * 100) if total_embeddings > 0 else 0,
+                    'models': {model: count for model, count in model_stats}
+                }
+
+                info_id(f"Embedding statistics: {pgvector_embeddings}/{total_embeddings} using pgvector", request_id)
+                return statistics
+
+        except Exception as e:
+            error_id(f"Failed to get embedding statistics: {e}", request_id)
+            return {}
+
+    @classmethod
+    @with_request_id
+    def create_pgvector_indexes(cls, request_id=None):
+        """
+        Create optimized pgvector indexes for embedding similarity search.
+
+        Args:
+            request_id: Request ID for logging
+
+        Returns:
+            bool: Success status
+        """
+        try:
+            DocumentEmbeddingClass = cls._get_document_embedding_class()
+            if DocumentEmbeddingClass is None:
+                error_id("DocumentEmbedding class not available", request_id)
+                return False
+
+            db_config = DatabaseConfig()
+            with db_config.main_session() as session:
+                success = DocumentEmbeddingClass.create_pgvector_indexes(session)
+
+                if success:
+                    info_id("pgvector indexes created successfully for DocumentEmbedding", request_id)
+                else:
+                    warning_id("Failed to create some pgvector indexes", request_id)
+
+                return success
+
+        except Exception as e:
+            error_id(f"Failed to create pgvector indexes: {e}", request_id)
+            return False
+
+    @classmethod
+    @with_request_id
+    def get_images_with_chunk_context(cls, document_id, request_id=None):
+        """
+        Get all images for a document with their associated chunk context.
+        Uses the Image class's enhanced query methods.
+        """
+        try:
+            ImageClass = cls._get_image_class()
+            if not ImageClass:
+                error_id("Image class not available", request_id)
+                return []
+
+            db_config = DatabaseConfig()
+            with db_config.main_session() as session:
+                return ImageClass.get_images_with_chunk_context(session, document_id, request_id)
+
+        except Exception as e:
+            error_id(f"Failed to get images with chunk context: {e}", request_id)
+            return []
+
+    @classmethod
+    @with_request_id
+    def search_images_by_chunk_text(cls, search_text, document_id=None, confidence_threshold=0.5, request_id=None):
+        """
+        Search for images by their associated chunk text content.
+        Uses the Image class's enhanced search methods.
+        """
+        try:
+            ImageClass = cls._get_image_class()
+            if not ImageClass:
+                error_id("Image class not available", request_id)
+                return []
+
+            db_config = DatabaseConfig()
+            with db_config.main_session() as session:
+                return ImageClass.search_by_chunk_text(
+                    session, search_text, document_id, confidence_threshold, request_id
+                )
+
+        except Exception as e:
+            error_id(f"Failed to search images by chunk text: {e}", request_id)
+            return []
+
+    @classmethod
+    @with_request_id
+    def get_association_statistics(cls, document_id, request_id=None):
+        """
+        Get statistics about image-chunk associations.
+        Uses the Image class's enhanced statistics methods.
+        """
+        try:
+            ImageClass = cls._get_image_class()
+            if not ImageClass:
+                error_id("Image class not available", request_id)
+                return {}
+
+            db_config = DatabaseConfig()
+            with db_config.main_session() as session:
+                return ImageClass.get_association_statistics(session, document_id, request_id)
+
+        except Exception as e:
+            error_id(f"Failed to get association statistics: {e}", request_id)
+            return {}
 
     # =====================================================
     # SEARCH IMPLEMENTATIONS (PostgreSQL Only)
@@ -5243,6 +6193,83 @@ class CompleteDocument(Base):
         except Exception as e:
             error_id(f"Unhandled error while serving document with ID {document_id}: {e}", rid, exc_info=True)
             return False, "Internal Server Error", 500
+
+    @classmethod
+    @with_request_id
+    def _search_by_pgvector_similarity(cls, session, query_embeddings, model_name, limit, threshold, request_id=None):
+        """
+        Perform similarity search using pgvector operators.
+
+        Args:
+            session: Database session
+            query_embeddings: Query embedding vector
+            model_name: Embedding model name
+            limit: Maximum results
+            threshold: Similarity threshold
+            request_id: Request ID for logging
+
+        Returns:
+            List of similar documents with scores
+        """
+        try:
+            from sqlalchemy import text, func
+
+            DocumentEmbeddingClass = cls._get_document_embedding_class()
+            if DocumentEmbeddingClass is None:
+                error_id("DocumentEmbedding class not available", request_id)
+                return []
+
+            # Convert query embeddings to pgvector format
+            query_vector_str = '[' + ','.join(map(str, query_embeddings)) + ']'
+
+            # Use pgvector cosine similarity operator (<=>)
+            similarity_query = text("""
+                  SELECT 
+                      cd.id,
+                      cd.title,
+                      cd.file_path,
+                      cd.rev,
+                      de.embedding_vector <=> :query_vector AS distance,
+                      1 - (de.embedding_vector <=> :query_vector) AS similarity,
+                      de.model_name,
+                      de.created_at
+                  FROM complete_document cd
+                  JOIN document d ON cd.id = d.complete_document_id
+                  JOIN document_embedding de ON d.id = de.document_id
+                  WHERE de.model_name = :model_name
+                    AND de.embedding_vector IS NOT NULL
+                    AND (1 - (de.embedding_vector <=> :query_vector)) >= :threshold
+                  ORDER BY de.embedding_vector <=> :query_vector ASC
+                  LIMIT :limit
+              """)
+
+            result = session.execute(similarity_query, {
+                'query_vector': query_vector_str,
+                'model_name': model_name,
+                'threshold': threshold,
+                'limit': limit
+            })
+
+            similar_docs = []
+            for row in result:
+                similar_docs.append({
+                    'id': row[0],
+                    'title': row[1],
+                    'file_path': row[2],
+                    'rev': row[3],
+                    'distance': float(row[4]),
+                    'similarity': float(row[5]),
+                    'model_name': row[6],
+                    'created_at': row[7].isoformat() if row[7] else None
+                })
+
+            info_id(f"pgvector similarity search found {len(similar_docs)} results above threshold {threshold}",
+                    request_id)
+            return similar_docs
+
+        except Exception as e:
+            error_id(f"pgvector similarity search failed: {e}", request_id)
+            return []
 
 class Problem(Base):
     __tablename__ = 'problem'
