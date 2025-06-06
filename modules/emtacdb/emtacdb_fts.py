@@ -1,8 +1,12 @@
 
 from dataclasses import dataclass
+from sqlalchemy.dialects.postgresql import UUID
+from pgvector.sqlalchemy import Vector
+from sqlalchemy import Index
 from typing import List, Dict, Any, Tuple, Optional
 import time
 import threading
+from sqlalchemy.dialects.postgresql import UUID
 import uuid
 import shutil
 from datetime import datetime
@@ -3327,6 +3331,58 @@ class Image(Base):
             return []
         finally:
             info_id("========== ENHANCED DYNAMIC IMAGE SEARCH WITH PGVECTOR COMPLETE ==========", rid)
+
+    @classmethod
+    @with_request_id
+    def search(cls, search_text=None, fields=None, image_id=None, title=None, description=None,
+               file_path=None, position_id=None, tool_id=None, complete_document_id=None,
+               exact_match=False, limit=20, offset=0, sort_by='id', sort_order='asc',
+               request_id=None, session=None):
+        """
+        Simple search interface that delegates to the more powerful search_images method.
+        This provides compatibility with the expected search interface.
+        """
+        try:
+            # Create session if not provided
+            local_session = None
+            if session is None:
+                db_config = DatabaseConfig()
+                local_session = db_config.get_main_session()
+                session = local_session
+
+            try:
+                # Use the existing powerful search_images method
+                results = cls.search_images(
+                    session=session,
+                    title=title,
+                    description=description,
+                    position_id=position_id,
+                    tool_id=tool_id,
+                    completed_document_id=complete_document_id,
+                    limit=limit,
+                    request_id=request_id
+                )
+
+                # Convert the rich image dictionaries back to Image objects for compatibility
+                image_objects = []
+                if results:
+                    image_ids = [result['id'] for result in results]
+                    image_objects = session.query(cls).filter(cls.id.in_(image_ids)).all()
+
+                    # Maintain the order from search_images
+                    id_to_image = {img.id: img for img in image_objects}
+                    image_objects = [id_to_image[img_id] for img_id in image_ids if img_id in id_to_image]
+
+                info_id(f"Image.search found {len(image_objects)} results (via search_images)", request_id)
+                return image_objects
+
+            finally:
+                if local_session:
+                    local_session.close()
+
+        except Exception as e:
+            error_id(f"Error in Image.search: {e}", request_id, exc_info=True)
+            return []
 
     @classmethod
     def _calculate_hybrid_ranking(cls, image_ids, similarity_scores, search_path_sources, limit):
@@ -6827,6 +6883,113 @@ class CompleteDocument(Base):
         except Exception as e:
             error_id(f"pgvector similarity search failed: {e}", request_id)
             return []
+
+    # ADD these missing methods to your CompleteDocument class in emtacdb_fts.py
+
+    # Add this method to the CompleteDocument class
+    @classmethod
+    @with_request_id
+    def search_by_text(cls, query, session=None, similarity_threshold=70, with_links=False, request_id=None):
+        """
+        Search documents by text content using PostgreSQL full-text search.
+
+        Args:
+            query: Search query string
+            session: Optional database session
+            similarity_threshold: Minimum similarity threshold (not used in FTS, kept for compatibility)
+            with_links: Whether to return HTML links or document objects
+            request_id: Request ID for logging
+
+        Returns:
+            List of matching documents or HTML links
+        """
+        try:
+            # Create session if not provided
+            local_session = None
+            if session is None:
+                db_config = DatabaseConfig()
+                local_session = db_config.get_main_session()
+                session = local_session
+
+            try:
+                # Use PostgreSQL full-text search if available
+                results = cls._search_postgresql(session, query, 50, request_id)
+
+                if results:
+                    # Convert results to document objects or links
+                    if with_links:
+                        # Return HTML links
+                        html_links = []
+                        for result in results[:10]:  # Limit to top 10
+                            title = result.get('title', 'Untitled')
+                            doc_id = result.get('id')
+                            highlight = result.get('highlight', '')
+
+                            link = f'<a href="/complete_document/{doc_id}" target="_blank">{title}</a>'
+                            if highlight:
+                                link += f'<br><small>{highlight}</small>'
+                            html_links.append(link)
+
+                        return '<br><br>'.join(html_links)
+                    else:
+                        # Return document objects
+                        doc_ids = [r['id'] for r in results]
+                        documents = session.query(cls).filter(cls.id.in_(doc_ids)).all()
+
+                        # Sort by original result order
+                        doc_dict = {doc.id: doc for doc in documents}
+                        sorted_docs = []
+                        for result in results:
+                            if result['id'] in doc_dict:
+                                sorted_docs.append(doc_dict[result['id']])
+
+                        info_id(f"Found {len(sorted_docs)} documents matching '{query}'", request_id)
+                        return sorted_docs
+                else:
+                    # Fallback to simple text search
+                    return cls._fallback_text_search(session, query, with_links, request_id)
+
+            finally:
+                if local_session:
+                    local_session.close()
+
+        except Exception as e:
+            error_id(f"Error in search_by_text: {e}", request_id, exc_info=True)
+            return [] if not with_links else "No documents found"
+
+    @classmethod
+    @with_request_id
+    def _fallback_text_search(cls, session, query, with_links=False, request_id=None):
+        """
+        Fallback text search using simple ILIKE when FTS is not available.
+        """
+        try:
+            search_term = f"%{query}%"
+
+            # Search in title and content
+            documents = session.query(cls).filter(
+                (cls.title.ilike(search_term)) |
+                (cls.content.ilike(search_term))
+            ).limit(10).all()
+
+            if with_links:
+                # Return HTML links
+                if documents:
+                    html_links = []
+                    for doc in documents:
+                        link = f'<a href="/complete_document/{doc.id}" target="_blank">{doc.title}</a>'
+                        html_links.append(link)
+                    return '<br><br>'.join(html_links)
+                else:
+                    return "No documents found"
+            else:
+                # Return document objects
+                info_id(f"Fallback search found {len(documents)} documents matching '{query}'", request_id)
+                return documents
+
+        except Exception as e:
+            error_id(f"Error in fallback text search: {e}", request_id, exc_info=True)
+            return [] if not with_links else "No documents found"
 
 class Problem(Base):
     __tablename__ = 'problem'
@@ -12320,63 +12483,116 @@ class KeywordAction(Base):
 
 class ChatSession(Base):
     __tablename__ = 'chat_sessions'
-    session_id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(String, nullable=False)
+
+    session_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(String, nullable=False, index=True)
     start_time = Column(String, nullable=False)
     last_interaction = Column(String, nullable=False)
     session_data = Column(MutableList.as_mutable(JSON), default=[])
     conversation_summary = Column(MutableList.as_mutable(JSON), default=[])
 
+    # Vector embeddings for semantic search
+    summary_embedding = Column(Vector(1536))  # OpenAI embedding dimension
+    topic_tags = Column(JSON, default=[])
+
+    # PostgreSQL specific optimizations
+    __table_args__ = (
+        Index('idx_user_last_interaction', 'user_id', 'last_interaction'),
+        Index('idx_summary_embedding_cosine', 'summary_embedding', postgresql_using='ivfflat',
+              postgresql_with={'lists': 100}, postgresql_ops={'summary_embedding': 'vector_cosine_ops'}),
+    )
+
     def __init__(self, user_id, start_time, last_interaction, session_data=None, conversation_summary=None):
         self.user_id = user_id
         self.start_time = start_time
         self.last_interaction = last_interaction
-        if session_data is None:
-            session_data = []
-        self.session_data = session_data
-        if conversation_summary is None:
-            conversation_summary = []
-        self.conversation_summary = conversation_summary
+        self.session_data = session_data or []
+        self.conversation_summary = conversation_summary or []
 
     @classmethod
-    def get_conversation_summary(cls, session_id, db_session):
+    def find_similar_conversations(cls, query_embedding, user_id=None, limit=5, similarity_threshold=0.7,
+                                   db_session=None):
         """
-        Retrieve the conversation summary for a specific session.
+        Find conversations similar to the query using vector similarity.
 
         Args:
-            session_id: The ID of the session
+            query_embedding: Vector embedding of the query
+            user_id: Optional user ID to filter by
+            limit: Maximum number of results
+            similarity_threshold: Minimum similarity score (0-1)
             db_session: SQLAlchemy session
 
         Returns:
-            List of conversation summary messages or empty list if not found
+            List of tuples (ChatSession, similarity_score)
         """
-        logger.debug(f"Retrieving conversation summary for session ID: {session_id}")
-        chat_session = db_session.query(cls).filter_by(session_id=session_id).first()
-        if chat_session and hasattr(chat_session, 'conversation_summary'):
-            logger.debug(
-                f"Found conversation summary with {len(chat_session.conversation_summary) if chat_session.conversation_summary else 0} entries")
-            return chat_session.conversation_summary or []
-        logger.debug(f"No conversation summary found for session ID {session_id}")
-        return []
+        query = db_session.query(
+            cls,
+            cls.summary_embedding.cosine_distance(query_embedding).label('distance')
+        ).filter(
+            cls.summary_embedding.is_not(None),
+            cls.summary_embedding.cosine_distance(query_embedding) < (1 - similarity_threshold)
+        )
+
+        if user_id:
+            query = query.filter(cls.user_id == user_id)
+
+        results = query.order_by(text('distance')).limit(limit).all()
+
+        # Convert distance to similarity score
+        return [(session, 1 - distance) for session, distance in results]
 
     @classmethod
-    def update_conversation_summary(cls, session_id, summary_data, db_session):
+    def update_summary_embedding(cls, session_id, embedding, db_session):
         """
-        Update the conversation summary for a specific session.
+        Update the summary embedding for a session.
 
         Args:
             session_id: The ID of the session
-            summary_data: The updated summary data
+            embedding: The embedding vector
             db_session: SQLAlchemy session
 
         Returns:
             Boolean indicating success
         """
+        try:
+            chat_session = db_session.query(cls).filter_by(session_id=session_id).first()
+            if chat_session:
+                chat_session.summary_embedding = embedding
+                db_session.commit()
+                logger.debug(f"Summary embedding updated for session ID {session_id}")
+                return True
+            else:
+                logger.error(f"No chat session found for session ID {session_id}")
+                return False
+        except Exception as e:
+            db_session.rollback()
+            logger.error(f"Error updating summary embedding for session ID {session_id}: {e}")
+            return False
+
+    @classmethod
+    def get_conversation_summary(cls, session_id, db_session):
+        """Enhanced version with better error handling and logging."""
+        logger.debug(f"Retrieving conversation summary for session ID: {session_id}")
+        try:
+            chat_session = db_session.query(cls).filter_by(session_id=session_id).first()
+            if chat_session and chat_session.conversation_summary:
+                logger.debug(f"Found conversation summary with {len(chat_session.conversation_summary)} entries")
+                return chat_session.conversation_summary
+            logger.debug(f"No conversation summary found for session ID {session_id}")
+            return []
+        except Exception as e:
+            logger.error(f"Error retrieving conversation summary: {e}")
+            return []
+
+    @classmethod
+    def update_conversation_summary(cls, session_id, summary_data, db_session):
+        """Enhanced with better transaction handling."""
         logger.debug(f"Updating conversation summary for session ID: {session_id}")
         try:
             chat_session = db_session.query(cls).filter_by(session_id=session_id).first()
             if chat_session:
                 chat_session.conversation_summary = summary_data
+                chat_session.last_interaction = datetime.utcnow().isoformat()
                 db_session.commit()
                 logger.debug(f"Conversation summary updated for session ID {session_id}")
                 return True
@@ -12390,21 +12606,13 @@ class ChatSession(Base):
 
     @classmethod
     def clear_conversation_summary(cls, session_id, db_session):
-        """
-        Clear the conversation summary for a specific session.
-
-        Args:
-            session_id: The ID of the session
-            db_session: SQLAlchemy session
-
-        Returns:
-            Boolean indicating success
-        """
+        """Enhanced with embedding cleanup."""
         logger.debug(f"Clearing conversation summary for session ID: {session_id}")
         try:
             chat_session = db_session.query(cls).filter_by(session_id=session_id).first()
             if chat_session:
-                chat_session.conversation_summary = []  # Reset to empty list
+                chat_session.conversation_summary = []
+                chat_session.summary_embedding = None  # Clear embedding too
                 db_session.commit()
                 logger.info(f"Conversation summary cleared for session ID {session_id}")
                 return True
@@ -12418,13 +12626,32 @@ class ChatSession(Base):
 
 class QandA(Base):
     __tablename__ = 'qanda'
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(String)
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(String, index=True)
     question = Column(String)
     answer = Column(String)
     comment = Column(String)
     rating = Column(String)
-    timestamp = Column(String, nullable=False)
+    timestamp = Column(String, nullable=False, index=True)
+
+    # Vector embeddings for semantic search
+    question_embedding = Column(Vector(1536))
+    answer_embedding = Column(Vector(1536))
+
+    # Additional metadata
+    question_length = Column(Integer)
+    answer_length = Column(Integer)
+    processing_time_ms = Column(Integer)
+
+    # PostgreSQL specific optimizations
+    __table_args__ = (
+        Index('idx_user_timestamp', 'user_id', 'timestamp'),
+        Index('idx_question_embedding_cosine', 'question_embedding', postgresql_using='ivfflat',
+              postgresql_with={'lists': 100}, postgresql_ops={'question_embedding': 'vector_cosine_ops'}),
+        Index('idx_answer_embedding_cosine', 'answer_embedding', postgresql_using='ivfflat',
+              postgresql_with={'lists': 100}, postgresql_ops={'answer_embedding': 'vector_cosine_ops'}),
+    )
 
     def __init__(self, user_id, question, answer, timestamp, rating=None, comment=None):
         self.user_id = user_id
@@ -12433,23 +12660,93 @@ class QandA(Base):
         self.timestamp = timestamp
         self.rating = rating
         self.comment = comment
+        self.question_length = len(question) if question else 0
+        self.answer_length = len(answer) if answer else 0
 
     @classmethod
-    def record_interaction(cls, user_id, question, answer, session):
+    def find_similar_questions(cls, query_embedding, user_id=None, limit=5, similarity_threshold=0.8, db_session=None):
         """
-        Record an interaction between user and system.
+        Find similar questions using vector similarity.
+
+        Args:
+            query_embedding: Vector embedding of the query
+            user_id: Optional user ID to filter by
+            limit: Maximum number of results
+            similarity_threshold: Minimum similarity score (0-1)
+            db_session: SQLAlchemy session
+
+        Returns:
+            List of tuples (QandA, similarity_score)
+        """
+        query = db_session.query(
+            cls,
+            cls.question_embedding.cosine_distance(query_embedding).label('distance')
+        ).filter(
+            cls.question_embedding.is_not(None),
+            cls.question_embedding.cosine_distance(query_embedding) < (1 - similarity_threshold)
+        )
+
+        if user_id:
+            query = query.filter(cls.user_id == user_id)
+
+        results = query.order_by(text('distance')).limit(limit).all()
+
+        return [(qa, 1 - distance) for qa, distance in results]
+
+    @classmethod
+    def get_user_analytics(cls, user_id, db_session):
+        """
+        Get analytics for a specific user using PostgreSQL aggregations.
+
+        Args:
+            user_id: The user ID
+            db_session: SQLAlchemy session
+
+        Returns:
+            Dictionary with user analytics
+        """
+        result = db_session.execute(text("""
+            SELECT 
+                COUNT(*) as total_questions,
+                AVG(question_length) as avg_question_length,
+                AVG(answer_length) as avg_answer_length,
+                AVG(processing_time_ms) as avg_processing_time,
+                COUNT(CASE WHEN rating IS NOT NULL THEN 1 END) as rated_answers,
+                AVG(CASE WHEN rating ~ '^[0-9]+$' THEN rating::int END) as avg_rating
+            FROM qanda 
+            WHERE user_id = :user_id
+        """), {"user_id": user_id}).first()
+
+        if result:
+            return {
+                'total_questions': result.total_questions,
+                'avg_question_length': float(result.avg_question_length or 0),
+                'avg_answer_length': float(result.avg_answer_length or 0),
+                'avg_processing_time_ms': float(result.avg_processing_time or 0),
+                'rated_answers': result.rated_answers,
+                'avg_rating': float(result.avg_rating or 0)
+            }
+        return {}
+
+    @classmethod
+    def record_interaction(cls, user_id, question, answer, session, question_embedding=None, answer_embedding=None,
+                           processing_time_ms=None):
+        """
+        Enhanced interaction recording with embeddings and metadata.
 
         Args:
             user_id: ID of the user
             question: User's question
             answer: System's answer
             session: SQLAlchemy session
+            question_embedding: Optional question embedding
+            answer_embedding: Optional answer embedding
+            processing_time_ms: Optional processing time
 
         Returns:
             The created QandA record or None if there was an error
         """
         try:
-            # Create new QandA record
             timestamp = datetime.utcnow().isoformat()
             qa_record = cls(
                 user_id=user_id,
@@ -12458,16 +12755,89 @@ class QandA(Base):
                 timestamp=timestamp
             )
 
-            # Add to session and commit
+            # Add embeddings if provided
+            if question_embedding:
+                qa_record.question_embedding = question_embedding
+            if answer_embedding:
+                qa_record.answer_embedding = answer_embedding
+            if processing_time_ms:
+                qa_record.processing_time_ms = processing_time_ms
+
             session.add(qa_record)
             session.commit()
-            logger.debug(f"Recorded interaction for user {user_id}")
+            logger.debug(f"Recorded interaction for user {user_id} with ID {qa_record.id}")
             return qa_record
 
         except Exception as e:
             session.rollback()
             logger.error(f"Error recording QandA interaction: {e}", exc_info=True)
             return None
+
+    @classmethod
+    def update_embeddings(cls, qa_id, question_embedding=None, answer_embedding=None, db_session=None):
+        """
+        Update embeddings for an existing Q&A record.
+
+        Args:
+            qa_id: The Q&A record ID
+            question_embedding: Optional question embedding
+            answer_embedding: Optional answer embedding
+            db_session: SQLAlchemy session
+
+        Returns:
+            Boolean indicating success
+        """
+        try:
+            qa_record = db_session.query(cls).filter_by(id=qa_id).first()
+            if qa_record:
+                if question_embedding is not None:
+                    qa_record.question_embedding = question_embedding
+                if answer_embedding is not None:
+                    qa_record.answer_embedding = answer_embedding
+                db_session.commit()
+                logger.debug(f"Embeddings updated for Q&A ID {qa_id}")
+                return True
+            else:
+                logger.error(f"No Q&A record found for ID {qa_id}")
+                return False
+        except Exception as e:
+            db_session.rollback()
+            logger.error(f"Error updating embeddings for Q&A ID {qa_id}: {e}")
+            return False
+
+    def _record_basic_interaction(self, session, user_id, question, answer):
+        """
+        Fallback method for basic interaction recording when enhanced columns are missing.
+        """
+        try:
+            from sqlalchemy import text
+            import uuid
+            from datetime import datetime
+
+            # Use raw SQL for basic recording
+            interaction_id = str(uuid.uuid4())
+            current_time = datetime.now()
+
+            # Try with basic columns only
+            basic_insert = text("""
+                INSERT INTO qanda (id, user_id, question, answer, timestamp)
+                VALUES (:id, :user_id, :question, :answer, :timestamp)
+            """)
+
+            session.execute(basic_insert, {
+                'id': interaction_id,
+                'user_id': user_id,
+                'question': question,
+                'answer': answer,
+                'timestamp': current_time
+            })
+
+            session.commit()
+            logger.info("Successfully recorded basic interaction")
+
+        except Exception as e:
+            logger.error(f"Failed to record even basic interaction: {e}")
+            session.rollback()
 
 class UserLevel(PyEnum):
     ADMIN = 'ADMIN'
