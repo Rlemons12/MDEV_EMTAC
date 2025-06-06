@@ -32,6 +32,9 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, scoped_session
 from modules.configuration.config import (OPENAI_API_KEY, OPENAI_MODEL_NAME, DATABASE_URL, ANTHROPIC_API_KEY)
 import requests
+import numpy
+from datetime import timedelta
+from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
