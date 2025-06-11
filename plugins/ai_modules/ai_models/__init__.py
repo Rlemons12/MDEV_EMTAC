@@ -12,6 +12,8 @@ from .ai_models import (
     OpenAIEmbeddingModel,
     NoAIModel,
     NoEmbeddingModel,
+    GPT4AllModel,           # ADD THIS LINE
+    GPT4AllEmbeddingModel,  # ADD THIS LINE
     ModelsConfig
 )
 
@@ -28,5 +30,7 @@ __all__ = [
     'OpenAIEmbeddingModel',
     'NoAIModel',
     'NoEmbeddingModel',
+    'GPT4AllModel',           # ADD THIS LINE
+    'GPT4AllEmbeddingModel',  # ADD THIS LINE
     'ModelsConfig'
 ]
