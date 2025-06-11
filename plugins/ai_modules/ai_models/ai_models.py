@@ -17,8 +17,6 @@ Key Integration Points:
 import sys
 import os
 from datetime import datetime
-
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import base64
 import logging
 import openai
@@ -32,9 +30,46 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, scoped_session
 from modules.configuration.config import (OPENAI_API_KEY, OPENAI_MODEL_NAME, DATABASE_URL, ANTHROPIC_API_KEY)
 import requests
+from modules.configuration.config import GPT4ALL_MODELS_PATH
 import numpy
 from datetime import timedelta
 from collections import defaultdict
+from modules.configuration.log_config import logger, with_request_id
+# ADD THESE MISSING IMPORTS:
+from sentence_transformers import SentenceTransformer
+import threading
+
+# Safe imports with fallbacks
+try:
+    from modules.configuration.log_config import (
+        with_request_id, debug_id, info_id, warning_id, error_id,
+        get_request_id, log_timed_operation
+    )
+    LOGGING_AVAILABLE = True
+except ImportError:
+    # Fallback if logging imports fail
+    LOGGING_AVAILABLE = False
+    def with_request_id(func): return func
+    def debug_id(msg, req_id=None): pass
+    def info_id(msg, req_id=None): pass
+    def warning_id(msg, req_id=None): pass
+    def error_id(msg, req_id=None): pass
+    def get_request_id(): return "unknown"
+    def log_timed_operation(name, req_id=None):
+        class DummyContext:
+            def __enter__(self): return self
+            def __exit__(self, *args): pass
+        return DummyContext()
+# Add fallback for SENTENCE_TRANSFORMERS_MODELS_PATH if not in your config
+try:
+    from modules.configuration.config import SENTENCE_TRANSFORMERS_MODELS_PATH
+except ImportError:
+    SENTENCE_TRANSFORMERS_MODELS_PATH = os.getenv("SENTENCE_TRANSFORMERS_MODELS_PATH", "./models/sentence_transformers")
+    print(f"Warning: SENTENCE_TRANSFORMERS_MODELS_PATH not found in config, using fallback: {SENTENCE_TRANSFORMERS_MODELS_PATH}")
+
+# Make sure directories exist
+os.makedirs(GPT4ALL_MODELS_PATH, exist_ok=True)
+os.makedirs(SENTENCE_TRANSFORMERS_MODELS_PATH, exist_ok=True)
 
 logger = logging.getLogger(__name__)
 
@@ -761,7 +796,6 @@ class NoImageModel(ImageModel):
     def generate_description(self, image_path: str) -> str:
         return "Image description is currently disabled."
 
-
 class CLIPModelHandler:  # Add (ImageModel) if you have a base class
     """Optimized CLIP model handler with offline mode and intelligent caching"""
 
@@ -1073,6 +1107,534 @@ class CLIPModelHandler:  # Add (ImageModel) if you have a base class
         return handler
 
 
+class GPT4AllModel(AIModel):
+    """GPT4All local LLM implementation with request ID tracking and timeout protection"""
+
+    def __init__(self, model_name="Meta-Llama-3-8B-Instruct.Q4_0.gguf"):
+        print(f"🚀 GPT4AllModel.__init__ called with model_name: {model_name}")
+
+        try:
+            # Log at the very start
+            if LOGGING_AVAILABLE:
+                request_id = get_request_id()
+                info_id(f"🚀 GPT4AllModel.__init__ starting with model: {model_name}", request_id)
+            else:
+                print(f"Logging not available, using print: GPT4AllModel.__init__ starting")
+
+        except Exception as e:
+            print(f"Error in init logging: {e}")
+
+        self.model_name = model_name
+        self.model = None
+        self.model_loaded = False
+        self.last_error = None
+        self.generation_timeout = 350  # in seconds timeout
+
+        print(f"🔄 About to call _initialize_model()")
+        try:
+            self._initialize_model()
+            print(f"✅ _initialize_model() completed. model_loaded: {self.model_loaded}")
+        except Exception as e:
+            print(f"❌ _initialize_model() failed: {e}")
+            import traceback
+            traceback.print_exc()
+
+    @with_request_id
+    def _initialize_model(self):
+        """Initialize GPT4All model with detailed debugging"""
+        request_id = get_request_id()
+
+        try:
+            info_id("=== GPT4All Initialization Debug ===", request_id)
+
+            # Test imports first
+            try:
+                from gpt4all import GPT4All
+                info_id("GPT4All import successful", request_id)
+            except ImportError as e:
+                error_id(f"GPT4All import failed: {e}", request_id)
+                self.model = None
+                self.last_error = f"GPT4All import failed: {e}"
+                return
+
+            # Check paths
+            info_id(f"Model name: {self.model_name}", request_id)
+            info_id(f"GPT4ALL_MODELS_PATH: {GPT4ALL_MODELS_PATH}", request_id)
+
+            model_path = os.path.join(GPT4ALL_MODELS_PATH, self.model_name)
+            info_id(f"Full model path: {model_path}", request_id)
+            info_id(f"Path exists: {os.path.exists(model_path)}", request_id)
+
+            if not os.path.exists(model_path):
+                error_id(f"Model file not found: {model_path}", request_id)
+                self.last_error = f"Model file not found: {model_path}"
+                self.model = None
+                return
+
+            # Check file size
+            file_size_gb = os.path.getsize(model_path) / (1024 ** 3)
+            info_id(f"Model file found, size: {file_size_gb:.2f} GB", request_id)
+
+            # Try model creation
+            info_id("Creating GPT4All model instance...", request_id)
+            try:
+                self.model = GPT4All(
+                    self.model_name,
+                    model_path=GPT4ALL_MODELS_PATH,
+                    allow_download=False,
+                    device='cpu',
+                    n_threads=2
+                )
+                info_id("GPT4All model instance created successfully", request_id)
+            except Exception as model_error:
+                error_id(f"Model creation failed: {model_error}", request_id)
+                self.last_error = f"Model creation failed: {model_error}"
+                self.model = None
+                return
+
+            # Test the model
+            info_id("Testing model with simple prompt...", request_id)
+            if self._test_model_quick():
+                self.model_loaded = True
+                info_id("GPT4All model loaded and tested successfully!", request_id)
+            else:
+                error_id("Model test failed", request_id)
+                self.last_error = "Model test failed"
+                self.model = None
+
+        except Exception as e:
+            error_id(f"Unexpected error in GPT4All initialization: {e}", request_id)
+            import traceback
+            error_id(f"Traceback: {traceback.format_exc()}", request_id)
+            self.last_error = str(e)
+            self.model = None
+
+    def _test_model_quick(self):
+        """Quick model test with detailed logging"""
+        request_id = get_request_id()
+
+        try:
+            info_id("Starting quick model test...", request_id)
+            result = {"success": False, "response": None, "error": None}
+
+            def test():
+                try:
+                    info_id("Creating chat session...", request_id)
+                    with self.model.chat_session():
+                        info_id("Generating test response...", request_id)
+                        response = self.model.generate("Hi", max_tokens=5, temp=0.1, streaming=False)
+                        result["response"] = response
+                        result["success"] = bool(response and len(response.strip()) > 0)
+                        info_id(f"Test response: '{response}'", request_id)
+                except Exception as e:
+                    result["error"] = str(e)
+                    error_id(f"Test generation failed: {e}", request_id)
+
+            thread = threading.Thread(target=test)
+            thread.daemon = True
+            thread.start()
+            thread.join(timeout=10)  # Increased timeout for debugging
+
+            if thread.is_alive():
+                warning_id("Model test timed out after 10 seconds", request_id)
+                return False
+
+            if result["error"]:
+                error_id(f"Model test error: {result['error']}", request_id)
+                return False
+
+            success = result["success"] and not thread.is_alive()
+            info_id(f"Test result: {'SUCCESS' if success else 'FAILED'}", request_id)
+            return success
+
+        except Exception as e:
+            error_id(f"Error during model test: {e}", request_id)
+            return False
+
+    @with_request_id
+    def get_response(self, prompt: str) -> str:
+        """Generate response with comprehensive timeout and error handling"""
+        request_id = get_request_id()
+
+        if self.model is None:
+            error_id("GPT4All model not available", request_id)
+            return "GPT4All model is not available. Please check installation and model loading."
+
+        debug_id(f"GPT4All request - Model: {self.model_name}, Prompt length: {len(prompt)}", request_id)
+        info_id("Starting GPT4All generation - this may take several minutes", request_id)
+
+        try:
+            with log_timed_operation("gpt4all_response_generation", request_id):
+                result = {"response": None, "error": None, "completed": False}
+
+                def generate():
+                    try:
+                        info_id("GPT4All processing request", request_id)
+                        with self.model.chat_session():
+                            result["response"] = self.model.generate(
+                                prompt=prompt,
+                                max_tokens=100,  # Very short for testing
+                                temp=0.5,
+                                streaming=False
+                            )
+                        result["completed"] = True
+                        info_id("GPT4All generation completed", request_id)
+                    except Exception as e:
+                        result["error"] = str(e)
+                        error_id(f"Generation error: {e}", request_id)
+
+                # Execute with timeout
+                thread = threading.Thread(target=generate, daemon=True)
+                thread.start()
+                thread.join(timeout=self.generation_timeout)
+
+                # Check results
+                if not result["completed"] and thread.is_alive():
+                    warning_id(f"GPT4All generation timed out after {self.generation_timeout}s", request_id)
+                    return "AI response timed out."
+
+                if result["error"]:
+                    error_id(f"GPT4All generation error: {result['error']}", request_id)
+                    return f"Error: {result['error']}"
+
+                if result["response"]:
+                    info_id(f"GPT4All response generated: {len(result['response'])} chars", request_id)
+                    return result["response"]
+                else:
+                    return "No response generated."
+
+        except Exception as e:
+            error_id(f"Unexpected error: {e}", request_id)
+            return f"Unexpected error: {str(e)}"
+
+    def generate_description(self, image_path: str) -> str:
+        """Image description not supported"""
+        return "Image description not supported by GPT4All text models. Use a vision model instead."
+
+    def get_model_info(self):
+        """Get model status information"""
+        return {
+            "status": "loaded" if self.model_loaded else "not_loaded",
+            "model_name": self.model_name,
+            "backend": "llama.cpp",
+            "local": True,
+            "privacy": "full - no data sent externally",
+            "timeout": f"{self.generation_timeout}s",
+            "error": self.last_error
+        }
+
+
+class GPT4AllEmbeddingModel(EmbeddingModel):
+    """Simplified embedding model - let sentence-transformers handle caching automatically"""
+
+    def __init__(self, model_name="nomic-ai/nomic-embed-text-v1"):
+        self.model_name = model_name
+        self.model = None
+        self.is_loaded = False
+        self._initialize_model()
+
+    def _initialize_model(self):
+        """Initialize the embedding model using sentence-transformers default behavior"""
+
+        logger.info(f"Loading embedding model: GPT4AllEmbeddingModel")
+
+        try:
+            from sentence_transformers import SentenceTransformer
+
+            # Set basic performance settings
+            os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+            # Try models in order of preference
+            models_to_try = [
+                "nomic-ai/nomic-embed-text-v1",  # Primary model
+                "all-MiniLM-L6-v2",  # Small, fast fallback
+                "all-mpnet-base-v2",  # High quality fallback
+                "paraphrase-MiniLM-L6-v2"  # Another small fallback
+            ]
+
+            for model_name in models_to_try:
+                if self._try_load_model(model_name):
+                    logger.info(f"✅ Successfully loaded embedding model: {self.model_name}")
+                    return
+
+            # If all models fail
+            logger.warning("❌ SentenceTransformer embedding model not available")
+            logger.warning("   All embedding models failed to load")
+            logger.warning("   Vector search will not be available")
+            self.model = None
+            self.is_loaded = False
+
+        except ImportError:
+            logger.error("❌ SentenceTransformers not installed. Install with: pip install sentence-transformers")
+            self.model = None
+            self.is_loaded = False
+        except Exception as e:
+            logger.error(f"❌ Unexpected error initializing embedding model: {e}")
+            self.model = None
+            self.is_loaded = False
+
+    def _try_load_model(self, model_name):
+        """Try to load a specific embedding model"""
+        try:
+            from sentence_transformers import SentenceTransformer
+
+            logger.info(f"Attempting to load: {model_name}")
+
+            # Let sentence-transformers handle everything automatically
+            self.model = SentenceTransformer(model_name)
+
+            # Test the model
+            logger.info("Testing embedding model...")
+            test_embedding = self.model.encode(["test sentence"], show_progress_bar=False)
+
+            if len(test_embedding) > 0 and len(test_embedding[0]) > 0:
+                logger.info(f"✅ Model test successful!")
+                logger.info(f"   - Model: {model_name}")
+                logger.info(f"   - Embedding dimensions: {len(test_embedding[0])}")
+
+                # Get cache location if available
+                if hasattr(self.model, 'cache_folder'):
+                    logger.info(f"   - Cache location: {self.model.cache_folder}")
+
+                self.model_name = model_name
+                self.is_loaded = True
+                return True
+            else:
+                logger.warning(f"Model {model_name} loaded but failed to generate test embedding")
+                return False
+
+        except Exception as e:
+            logger.debug(f"Failed to load {model_name}: {e}")
+            return False
+
+    def get_embeddings(self, text: str) -> list:
+        """Generate embeddings for the given text"""
+        if self.model is None or not self.is_loaded:
+            logger.warning("SentenceTransformer embedding model not available")
+            return []
+
+        logger.debug(f"Generating embeddings with SentenceTransformer model: {self.model_name}")
+
+        try:
+            # Handle both single text and list inputs
+            if isinstance(text, str):
+                embeddings = self.model.encode([text], show_progress_bar=False)[0]
+            elif isinstance(text, list):
+                embeddings = self.model.encode(text, show_progress_bar=False)
+                return [emb.tolist() if hasattr(emb, 'tolist') else emb for emb in embeddings]
+            else:
+                logger.error(f"Invalid text type for embeddings: {type(text)}")
+                return []
+
+            logger.debug(f"Generated embeddings: {len(embeddings)} dimensions")
+            return embeddings.tolist() if hasattr(embeddings, 'tolist') else embeddings
+
+        except Exception as e:
+            logger.error(f"Error generating embeddings with SentenceTransformer: {e}")
+            return []
+
+    def is_available(self):
+        """Check if the embedding model is available and loaded"""
+        return self.model is not None and self.is_loaded
+
+    def get_model_info(self):
+        """Get information about the loaded model"""
+        if self.is_available():
+            try:
+                test_embedding = self.model.encode(["test"], show_progress_bar=False)
+
+                # Try to get cache info
+                cache_info = "automatic"
+                if hasattr(self.model, 'cache_folder'):
+                    cache_info = self.model.cache_folder
+                elif hasattr(self.model, '_cache_folder'):
+                    cache_info = self.model._cache_folder
+
+                return {
+                    "model_name": self.model_name,
+                    "embedding_dim": len(test_embedding[0]),
+                    "cache_location": cache_info,
+                    "status": "available"
+                }
+            except Exception as e:
+                return {
+                    "model_name": self.model_name,
+                    "status": f"error: {e}"
+                }
+        else:
+            return {
+                "model_name": self.model_name,
+                "status": "not_available"
+            }
+
+
+@with_request_id
+def diagnose_models():
+    """Diagnose both GPT4All and embedding model setup"""
+    request_id = get_request_id()
+    info_id("Starting model diagnosis", request_id)
+
+    results = {
+        "gpt4all": {"status": "unknown", "details": {}},
+        "embedding": {"status": "unknown", "details": {}}
+    }
+
+    # Test GPT4All
+    try:
+        gpt4all_model = GPT4AllModel()
+        results["gpt4all"]["status"] = "loaded" if gpt4all_model.model_loaded else "failed"
+        results["gpt4all"]["details"] = gpt4all_model.get_model_info()
+        info_id(f"GPT4All test: {results['gpt4all']['status']}", request_id)
+    except Exception as e:
+        results["gpt4all"]["status"] = "error"
+        results["gpt4all"]["details"] = {"error": str(e)}
+        error_id(f"GPT4All test failed: {e}", request_id)
+
+    # Test Embedding Model
+    try:
+        embedding_model = GPT4AllEmbeddingModel()
+        if embedding_model.model is not None:
+            test_embeddings = embedding_model.get_embeddings("test")
+            results["embedding"]["status"] = "loaded" if len(test_embeddings) > 0 else "failed"
+            results["embedding"]["details"] = {
+                "model_name": embedding_model.model_name,
+                "test_embedding_dimensions": len(test_embeddings) if test_embeddings else 0
+            }
+        else:
+            results["embedding"]["status"] = "failed"
+            results["embedding"]["details"] = {"error": "Model not loaded"}
+        info_id(f"Embedding test: {results['embedding']['status']}", request_id)
+    except Exception as e:
+        results["embedding"]["status"] = "error"
+        results["embedding"]["details"] = {"error": str(e)}
+        error_id(f"Embedding test failed: {e}", request_id)
+
+    info_id("Model diagnosis completed", request_id)
+    return results
+
+
+def download_recommended_models():
+    """Download recommended models for offline use"""
+    recommended_models = {
+        "gpt4all": [
+            "Meta-Llama-3-8B-Instruct.Q4_0.gguf",  # 4.66GB, good balance
+            "mistral-7b-openorca.gguf2.Q4_0.gguf"  # Alternative model
+        ],
+        "sentence_transformer": [
+            "nomic-ai/nomic-embed-text-v1",  # Your current choice
+            "all-MiniLM-L6-v2"  # Lighter alternative
+        ]
+    }
+
+    setup_info = check_gpt4all_setup()
+    downloads = []
+
+    # Ensure directories exist
+    os.makedirs(GPT4ALL_MODELS_PATH, exist_ok=True)
+    os.makedirs(SENTENCE_TRANSFORMERS_MODELS_PATH, exist_ok=True)
+
+    # Download GPT4All models
+    if setup_info["gpt4all_installed"]:
+        try:
+            from gpt4all import GPT4All
+            for model_name in recommended_models["gpt4all"]:
+                model_path = os.path.join(GPT4ALL_MODELS_PATH, model_name)
+                if not os.path.exists(model_path):
+                    logger.info(f"📥 Downloading GPT4All model: {model_name}")
+                    try:
+                        # Download to specified directory
+                        model = GPT4All(model_name, model_path=GPT4ALL_MODELS_PATH, allow_download=True)
+                        downloads.append(f"✅ Downloaded {model_name}")
+                        logger.info(f"✅ Successfully downloaded {model_name}")
+                    except Exception as e:
+                        downloads.append(f"❌ Failed to download {model_name}: {e}")
+                        logger.error(f"Failed to download {model_name}: {e}")
+                else:
+                    downloads.append(f"⚡ {model_name} already exists")
+        except Exception as e:
+            downloads.append(f"❌ GPT4All download error: {e}")
+
+    # Download SentenceTransformer models
+    if setup_info["sentence_transformers_installed"]:
+        try:
+            from sentence_transformers import SentenceTransformer
+            for model_name in recommended_models["sentence_transformer"]:
+                local_path = os.path.join(SENTENCE_TRANSFORMERS_MODELS_PATH, model_name.split('/')[-1])
+                if not os.path.exists(local_path):
+                    logger.info(f"📥 Downloading SentenceTransformer: {model_name}")
+                    try:
+                        model = SentenceTransformer(model_name, cache_folder=SENTENCE_TRANSFORMERS_MODELS_PATH)
+                        downloads.append(f"✅ Downloaded {model_name}")
+                        logger.info(f"✅ Successfully downloaded {model_name}")
+                    except Exception as e:
+                        downloads.append(f"❌ Failed to download {model_name}: {e}")
+                        logger.error(f"Failed to download {model_name}: {e}")
+                else:
+                    downloads.append(f"⚡ {model_name} already exists")
+        except Exception as e:
+            downloads.append(f"❌ SentenceTransformer download error: {e}")
+
+    return downloads
+
+
+def get_available_local_models():
+    """Get list of locally available models for configuration"""
+    local_models = {
+        "gpt4all": [],
+        "sentence_transformer": []
+    }
+
+    # Scan GPT4All models
+    if os.path.exists(GPT4ALL_MODELS_PATH):
+        for file in os.listdir(GPT4ALL_MODELS_PATH):
+            if file.endswith('.gguf') or file.endswith('.bin'):
+                model_path = os.path.join(GPT4ALL_MODELS_PATH, file)
+                local_models["gpt4all"].append({
+                    "name": file,
+                    "display_name": file.replace('.gguf', '').replace('.bin', ''),
+                    "path": model_path,
+                    "size_gb": round(os.path.getsize(model_path) / (1024 ** 3), 2),
+                    "enabled": True
+                })
+
+    # Scan SentenceTransformer models
+    if os.path.exists(SENTENCE_TRANSFORMERS_MODELS_PATH):
+        for dir_name in os.listdir(SENTENCE_TRANSFORMERS_MODELS_PATH):
+            model_path = os.path.join(SENTENCE_TRANSFORMERS_MODELS_PATH, dir_name)
+            if os.path.isdir(model_path) and os.path.exists(os.path.join(model_path, "config.json")):
+                local_models["sentence_transformer"].append({
+                    "name": dir_name,
+                    "display_name": dir_name.replace('-', ' ').title(),
+                    "path": model_path,
+                    "enabled": True
+                })
+
+    return local_models
+
+
+def switch_to_local_models():
+    """Switch to local models for complete offline operation"""
+    try:
+        # Set GPT4All as current AI model
+        local_models = get_available_local_models()
+
+        if local_models["gpt4all"]:
+            best_gpt4all = local_models["gpt4all"][0]["name"]  # Use first available
+            ModelsConfig.set_config_value('ai', 'GPT4ALL_MODEL_FILE', best_gpt4all)
+            ModelsConfig.set_current_ai_model('GPT4AllModel')
+            logger.info(f"✅ Switched to local GPT4All model: {best_gpt4all}")
+
+        if local_models["sentence_transformer"]:
+            best_st = local_models["sentence_transformer"][0]["name"]
+            ModelsConfig.set_config_value('embedding', 'SENTENCE_TRANSFORMER_MODEL', best_st)
+            ModelsConfig.set_current_embedding_model('GPT4AllEmbeddingModel')
+            logger.info(f"✅ Switched to local SentenceTransformer: {best_st}")
+
+        return True
+    except Exception as e:
+        logger.error(f"Error switching to local models: {e}")
+        return False
+
 # Configuration management functions
 def initialize_models_config():
     """
@@ -1113,23 +1675,25 @@ def initialize_models_config():
 def register_default_models():
     """Register the default models in the database using DatabaseConfig."""
     default_configs = [
-        # AI models
+        # AI models - including GPT4All as just another option
         {"model_type": "ai", "key": "available_models", "value": json.dumps([
             {"name": "NoAIModel", "display_name": "Disabled", "enabled": True},
             {"name": "OpenAIModel", "display_name": "OpenAI GPT", "enabled": True},
             {"name": "Llama3Model", "display_name": "Meta Llama 3", "enabled": True},
-            {"name": "AnthropicModel", "display_name": "Anthropic Claude", "enabled": True}
+            {"name": "AnthropicModel", "display_name": "Anthropic Claude", "enabled": True},
+            {"name": "GPT4AllModel", "display_name": "GPT4All (Local)", "enabled": True}
         ])},
         {"model_type": "ai", "key": "CURRENT_MODEL", "value": "OpenAIModel"},
 
-        # Embedding models
+        # Embedding models - including GPT4All embedding as just another option
         {"model_type": "embedding", "key": "available_models", "value": json.dumps([
             {"name": "NoEmbeddingModel", "display_name": "Disabled", "enabled": True},
-            {"name": "OpenAIEmbeddingModel", "display_name": "OpenAI Embedding", "enabled": True}
+            {"name": "OpenAIEmbeddingModel", "display_name": "OpenAI Embedding", "enabled": True},
+            {"name": "GPT4AllEmbeddingModel", "display_name": "Local Embeddings", "enabled": True}
         ])},
         {"model_type": "embedding", "key": "CURRENT_MODEL", "value": "OpenAIEmbeddingModel"},
 
-        # Image models
+        # Image models (unchanged)
         {"model_type": "image", "key": "available_models", "value": json.dumps([
             {"name": "NoImageModel", "display_name": "Disabled", "enabled": True},
             {"name": "CLIPModelHandler", "display_name": "CLIP Model Handler", "enabled": True}
@@ -1147,7 +1711,6 @@ def register_default_models():
 
     try:
         for config in default_configs:
-            # Check if config already exists
             existing = session.query(ModelsConfig).filter_by(
                 model_type=config["model_type"],
                 key=config["key"]
@@ -1157,6 +1720,30 @@ def register_default_models():
                 config_entry = ModelsConfig(**config)
                 session.add(config_entry)
                 logger.info(f"Registered config: {config['model_type']}.{config['key']}")
+            else:
+                # Update existing available_models to include GPT4All if missing
+                if config["key"] == "available_models":
+                    try:
+                        existing_models = json.loads(existing.value)
+                        new_models = json.loads(config["value"])
+
+                        # Get existing model names
+                        existing_names = {model["name"] for model in existing_models}
+
+                        # Add any missing models (like GPT4All)
+                        for new_model in new_models:
+                            if new_model["name"] not in existing_names:
+                                existing_models.append(new_model)
+                                logger.info(f"Added missing model: {new_model['name']}")
+
+                        # Update the database
+                        existing.value = json.dumps(existing_models)
+                        existing.updated_at = datetime.utcnow()
+
+                    except json.JSONDecodeError:
+                        logger.error(f"Error parsing existing models, replacing with defaults")
+                        existing.value = config["value"]
+                        existing.updated_at = datetime.utcnow()
 
         session.commit()
         logger.info("Default configurations registered successfully")
