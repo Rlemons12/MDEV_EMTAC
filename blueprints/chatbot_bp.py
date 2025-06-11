@@ -5,6 +5,7 @@ import time
 import re
 import uuid
 from modules.emtacdb.AI_Steward.aist import AistManager
+
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from flask import Blueprint, request, jsonify, current_app, url_for, redirect
@@ -16,18 +17,39 @@ from modules.configuration.config_env import DatabaseConfig
 from modules.configuration.log_config import (logger, with_request_id, log_timed_operation, debug_id,
                                               info_id, error_id, warning_id)
 
-# Initialize AI model at module level
-ai_model = None
+# Global AistManager instance for reuse across requests
+global_aist_manager = None
 
 # Create blueprint
 chatbot_bp = Blueprint('chatbot_bp', __name__)
 
 
+def get_or_create_aist_manager():
+    """
+    Get or create a global AistManager instance.
+    This allows reusing the same manager across requests for better performance.
+    """
+    global global_aist_manager
+
+    if global_aist_manager is None:
+        try:
+            # Load AI model using ModelsConfig
+            ai_model = ModelsConfig.load_ai_model()
+            global_aist_manager = AistManager(ai_model=ai_model)
+            logger.info("Global AistManager created successfully")
+        except Exception as e:
+            logger.error(f"Error creating global AistManager: {e}", exc_info=True)
+            # Create without AI model as fallback
+            global_aist_manager = AistManager()
+
+    return global_aist_manager
+
+
 @chatbot_bp.route('/update_qanda', methods=['POST'])
-def update_qanda():
+@with_request_id
+def update_qanda(request_id=None):
     """Update Q&A entries with ratings and comments."""
     start_time = time.time()
-    request_id = str(uuid.uuid4())[:8]  # Generate shorter request ID
 
     info_id(f"Received request to update Q&A", request_id)
 
@@ -54,29 +76,44 @@ def update_qanda():
                 debug_id(f"Database session created for Q&A update", request_id)
 
             with log_timed_operation("update_qa_entry", request_id):
-                last_qanda_entry = local_session.query(QandA).order_by(QandA.id.desc()).first()
-                debug_id(f"Retrieved last Q&A entry (ID: {last_qanda_entry.id if last_qanda_entry else 'None'})",
-                         request_id)
-
-                if last_qanda_entry and last_qanda_entry.rating is None and last_qanda_entry.comment is None:
-                    debug_id(f"Updating existing Q&A entry (ID: {last_qanda_entry.id})", request_id)
-                    last_qanda_entry.rating = rating
-                    last_qanda_entry.comment = comment
-                else:
-                    debug_id(f"Creating new Q&A entry", request_id)
-                    new_qanda = QandA(
+                # Check if QandA has the update_or_create_feedback method
+                if hasattr(QandA, 'update_or_create_feedback'):
+                    success = QandA.update_or_create_feedback(
                         user_id=user_id,
                         question=question,
                         answer=answer,
                         rating=rating,
                         comment=comment,
-                        timestamp=datetime.now().isoformat()
+                        session=local_session
                     )
-                    local_session.add(new_qanda)
+                else:
+                    # Fallback to manual update if method doesn't exist
+                    last_qanda_entry = local_session.query(QandA).order_by(QandA.id.desc()).first()
 
-                local_session.commit()
-                info_id(f"Q&A updated successfully in {time.time() - start_time:.3f}s", request_id)
-                return jsonify({'message': 'Q&A updated successfully'})
+                    if last_qanda_entry and last_qanda_entry.rating is None and last_qanda_entry.comment is None:
+                        last_qanda_entry.rating = rating
+                        last_qanda_entry.comment = comment
+                        success = True
+                    else:
+                        new_qanda = QandA(
+                            user_id=user_id,
+                            question=question,
+                            answer=answer,
+                            rating=rating,
+                            comment=comment,
+                            timestamp=datetime.now().isoformat()
+                        )
+                        local_session.add(new_qanda)
+                        success = True
+
+                if success:
+                    local_session.commit()
+                    info_id(f"Q&A updated successfully in {time.time() - start_time:.3f}s", request_id)
+                    return jsonify({'message': 'Q&A updated successfully'})
+                else:
+                    local_session.rollback()
+                    warning_id(f"Failed to update Q&A entry", request_id)
+                    return jsonify({'error': 'Failed to update Q&A entry'}), 400
 
         except SQLAlchemyError as e:
             if local_session:
@@ -94,211 +131,699 @@ def update_qanda():
 
 
 @chatbot_bp.route('/ask', methods=['POST'])
-def ask():
-    """Process questions and return answers using AistManager."""
-    start_time = time.time()
+@with_request_id
+def ask(request_id=None):
+    """Process questions and return answers using AistManager with detailed performance monitoring."""
+    # Performance tracking dictionary
+    performance_metrics = {
+        'request_start': time.time(),
+        'steps': {},
+        'total_time': 0,
+        'step_count': 0
+    }
+
+    def track_step(step_name, step_start_time, end_time=None):
+        """Helper function to track individual step performance."""
+        if end_time is None:
+            end_time = time.time()
+        duration = end_time - step_start_time
+        performance_metrics['steps'][step_name] = {
+            'duration': duration,
+            'start_offset': step_start_time - performance_metrics['request_start']
+        }
+        performance_metrics['step_count'] += 1
+
+        # Log performance for steps taking longer than thresholds
+        if duration > 1.0:
+            warning_id(f"Slow step '{step_name}': {duration:.3f}s", request_id)
+        elif duration > 0.5:
+            info_id(f"Step '{step_name}' took {duration:.3f}s", request_id)
+        else:
+            debug_id(f"Step '{step_name}' completed in {duration:.3f}s", request_id)
+
+        return duration
+
     local_session = None
-    request_id = str(uuid.uuid4())[:8]  # Generate shorter request ID for logs
     db_config = None
 
     info_id(f"New chat request received", request_id)
 
     try:
-        # Parse request data
+        # Step 1: Parse and validate input
+        step_start = time.time()
         data = request.json
-        debug_id(f"Request data: {data}", request_id)
+        debug_id(f"Request data keys: {list(data.keys()) if data else 'None'}", request_id)
 
         user_id = data.get('userId', 'anonymous')
         question = data.get('question', '').strip()
         client_type = data.get('clientType', 'web')
         rating = data.get('rating')
         comment = data.get('comment')
+        track_step('input_parsing', step_start)
 
         info_id(f"Processing question from user {user_id}: '{question[:100]}{'...' if len(question) > 100 else ''}'",
                 request_id)
-        debug_id(f"Client type: {client_type}, Rating: {rating}, Comment length: {len(str(comment)) if comment else 0}",
-                 request_id)
+        debug_id(f"Client type: {client_type}, Rating: {rating}, Comment present: {bool(comment)}", request_id)
 
         # Input validation
         if not question or len(question) < 3:
             warning_id(f"Question too short: '{question}'", request_id)
+            performance_metrics['total_time'] = time.time() - performance_metrics['request_start']
             return jsonify({
-                'answer': "Please provide a more detailed question so I can help you better."
+                'answer': "Please provide a more detailed question so I can help you better.",
+                'status': 'invalid_input',
+                'performance': performance_metrics
             })
 
         # Check for direct session end request
         if question.lower() == "end session please":
             info_id(f"User {user_id} requested to end the session", request_id)
-            return redirect(url_for('logout_bp.logout'))
+            performance_metrics['total_time'] = time.time() - performance_metrics['request_start']
+            return jsonify({
+                'answer': "Session ended. Thank you for using the chatbot!",
+                'status': 'session_ended',
+                'redirect': url_for('logout_bp.logout'),
+                'performance': performance_metrics
+            })
 
-        # Ensure AI model is loaded with better error handling
-        global ai_model
-        model_name = None
-        with log_timed_operation("load_ai_model", request_id):
-            try:
-                if ai_model is None:
-                    # Get current model name from ModelsConfig
-                    model_name = ModelsConfig.get_current_ai_model_name()
-                    info_id(f"Loading AI model: {model_name}...", request_id)
+        # Step 2: Initialize AistManager
+        step_start = time.time()
+        try:
+            aist_manager = get_or_create_aist_manager()
+            debug_id(f"AistManager obtained", request_id)
+            track_step('aist_manager_init', step_start)
+        except Exception as manager_err:
+            track_step('aist_manager_init_failed', step_start)
+            error_id(f"Failed to get AistManager: {manager_err}", request_id, exc_info=True)
+            performance_metrics['total_time'] = time.time() - performance_metrics['request_start']
+            return jsonify({
+                'answer': "I'm having trouble initializing the AI system. Please try again.",
+                'status': 'manager_error',
+                'performance': performance_metrics
+            }), 500
 
-                    # Load the model using ModelsConfig
-                    ai_model = ModelsConfig.load_ai_model()
-                    info_id(f"AI model loaded successfully: {type(ai_model).__name__}", request_id)
-                else:
-                    debug_id(f"Using existing AI model: {type(ai_model).__name__}", request_id)
-                    # Store model name for existing model
-                    model_name = type(ai_model).__name__
-            except Exception as model_err:
-                error_id(f"Error loading AI model: {model_err}", request_id, exc_info=True)
-                try:
-                    # Try explicit fallback to NoAIModel
-                    warning_id(f"Attempting fallback to NoAIModel", request_id)
-                    ai_model = ModelsConfig.load_ai_model('NoAIModel')
-                    model_name = 'NoAIModel'
-                    info_id(f"Successfully loaded fallback model: NoAIModel", request_id)
-                except Exception as fallback_err:
-                    error_id(f"Error loading fallback model: {fallback_err}", request_id, exc_info=True)
-                    # Continue with None model - AistManager should handle this gracefully
-
-        # Create database session using DatabaseConfig
-        with log_timed_operation("create_db_session", request_id):
+        # Step 3: Create database session
+        step_start = time.time()
+        try:
             db_config = DatabaseConfig()
             local_session = db_config.get_main_session()
             debug_id(f"Database session created", request_id)
 
+            # Set the session on the manager for this request
+            aist_manager.db_session = local_session
+            track_step('database_session_creation', step_start)
+        except Exception as db_err:
+            track_step('database_session_creation_failed', step_start)
+            error_id(f"Failed to create database session: {db_err}", request_id, exc_info=True)
+            performance_metrics['total_time'] = time.time() - performance_metrics['request_start']
+            return jsonify({
+                'answer': "I'm having trouble accessing the database. Please try again.",
+                'status': 'database_error',
+                'performance': performance_metrics
+            }), 500
+
         try:
-            # Initialize AistManager with all necessary components
-            with log_timed_operation("initialize_ai_steward", request_id):
-                ai_steward = AistManager(ai_model=ai_model, db_session=local_session)
-                debug_id(f"AistManager initialized", request_id)
+            # Step 4: Initialize request timing in AistManager
+            step_start = time.time()
+            aist_manager.begin_request()
+            track_step('aist_manager_begin_request', step_start)
 
-            # Process question through AistManager
-            with log_timed_operation("process_question", request_id):
-                info_id(f"Sending question to AistManager for processing", request_id)
-                result = ai_steward.answer_question(user_id, question, client_type)
-                debug_id(f"AistManager result status: {result.get('status')}", request_id)
+            # Step 5: Process question through AistManager
+            step_start = time.time()
+            info_id(f"Sending question to AistManager for processing", request_id)
+            result = aist_manager.answer_question(user_id, question, client_type)
+            processing_time = track_step('aist_manager_processing', step_start)
 
-            # Check for special response types
+            debug_id(f"AistManager result status: {result.get('status')}", request_id)
+
+            # Step 6: Handle response and format output
+            step_start = time.time()
+
+            # Handle different response types from AistManager
             if result.get('status') == 'end_session':
                 info_id(f"AistManager requested session end", request_id)
-                return redirect(url_for('logout_bp.logout'))
+                track_step('response_formatting', step_start)
+                performance_metrics['total_time'] = time.time() - performance_metrics['request_start']
+                return jsonify({
+                    'answer': "Session ended as requested.",
+                    'status': 'session_ended',
+                    'redirect': url_for('logout_bp.logout'),
+                    'performance': performance_metrics
+                })
 
-            # Process successful responses
-            if result.get('status') == 'success':
+            elif result.get('status') == 'success':
                 answer = result.get('answer', '')
                 method = result.get('method', 'unknown')
                 answer_length = len(answer)
 
                 info_id(f"Question answered using '{method}' strategy, answer length: {answer_length}", request_id)
 
-                if answer_length > 200:
-                    debug_id(f"Answer preview: {answer[:200]}...", request_id)
+                # Calculate total response time
+                total_response_time = time.time() - performance_metrics['request_start']
+                performance_metrics['total_time'] = total_response_time
 
-                # Record the Q&A interaction with model tracking
-                with log_timed_operation("record_qa_interaction", request_id):
-                    try:
-                        # Determine if QandA has model_name field
-                        has_model_field = hasattr(QandA, 'model_name')
+                # Add performance metrics to answer if response was slow or if requested
+                performance_summary = f"Processing time: {processing_time:.2f}s, Total time: {total_response_time:.2f}s"
 
-                        if hasattr(QandA, 'record_interaction'):
-                            try:
-                                # Check if record_interaction accepts model_name parameter
-                                param_count = QandA.record_interaction.__code__.co_argcount
+                if total_response_time > 2.0 or client_type == 'debug':
+                    debug_id(f"Adding performance summary for response: {performance_summary}", request_id)
 
-                                if param_count >= 5:  # class method + 4 regular params
-                                    debug_id(f"Recording Q&A using class method with model tracking", request_id)
-                                    QandA.record_interaction(user_id, question, answer, local_session, model_name)
-                                else:
-                                    debug_id(f"Recording Q&A using class method without model tracking", request_id)
-                                    QandA.record_interaction(user_id, question, answer, local_session)
+                    # Create detailed performance breakdown
+                    perf_breakdown = []
+                    for step_name, step_data in performance_metrics['steps'].items():
+                        if step_data['duration'] > 0.1:  # Only show steps taking > 100ms
+                            perf_breakdown.append(f"{step_name}: {step_data['duration']:.2f}s")
 
-                                debug_id(f"Successfully recorded Q&A interaction for user {user_id}", request_id)
-                            except Exception as qa_err:
-                                error_id(f"Error in record_interaction: {qa_err}", request_id, exc_info=True)
-                                # Continue processing - Q&A recording is not critical for the user response
-                        else:
-                            # Fallback to direct record creation if no class method exists
-                            try:
-                                debug_id(f"Recording Q&A using direct record creation", request_id)
-                                qa_data = {
-                                    'user_id': user_id,
-                                    'question': question,
-                                    'answer': answer,
-                                    'timestamp': datetime.now().isoformat()
-                                }
+                    if perf_breakdown and '<div class="performance-note">' not in answer:
+                        perf_details = ", ".join(perf_breakdown)
+                        answer += (f"<div class='performance-note'><small>"
+                                   f"Performance: {performance_summary}<br>"
+                                   f"Breakdown: {perf_details}</small></div>")
 
-                                # Add model_name if the field exists
-                                if hasattr(QandA, 'model_name'):
-                                    qa_data['model_name'] = model_name
+                track_step('response_formatting', step_start)
 
-                                new_qanda = QandA(**qa_data)
-                                local_session.add(new_qanda)
-                                local_session.commit()
-                                debug_id(f"Successfully created Q&A record for user {user_id}", request_id)
-                            except Exception as direct_qa_err:
-                                error_id(f"Error creating Q&A record: {direct_qa_err}", request_id, exc_info=True)
-                                local_session.rollback()
+                # The AistManager should have already recorded the Q&A interaction
+                info_id(f"Request completed successfully in {total_response_time:.2f}s using {method}", request_id)
 
-                        local_session.commit()
-                        info_id(f"Recorded Q&A interaction for user {user_id}", request_id)
-                    except Exception as qa_err:
-                        error_id(f"Error recording Q&A: {qa_err}", request_id, exc_info=True)
-                        local_session.rollback()
-                        # Continue processing - this is not critical to the response
+                return jsonify({
+                    'answer': answer,
+                    'status': 'success',
+                    'method': method,
+                    'response_time': total_response_time,
+                    'performance': performance_metrics if client_type == 'debug' else {
+                        'total_time': total_response_time,
+                        'processing_time': processing_time,
+                        'method': method
+                    }
+                })
 
-                # Add performance metrics if needed and not already included
-                response_time = time.time() - start_time
-                if response_time > 2.0 and '<div class="performance-note">' not in answer:
-                    debug_id(f"Adding performance note for slow response ({response_time:.2f}s)", request_id)
-                    answer += f"<div class='performance-note'><small>Response time: {response_time:.2f}s</small></div>"
-
-                info_id(f"Request completed successfully in {response_time:.2f}s", request_id)
-                return jsonify({'answer': answer})
-            else:
+            elif result.get('status') == 'error':
                 # Handle error case from AistManager
-                error_message = result.get('error',
-                                           "I encountered an issue while processing your question. Please try again.")
-                error_id(f"AistManager failed to provide a successful response: {result}", request_id)
+                error_message = result.get('error', "I encountered an issue while processing your question.")
+                error_id(f"AistManager returned error: {error_message}", request_id)
 
-                # Add a small delay to ensure a consistent user experience
-                if time.time() - start_time < 1.0:
-                    delay_time = 1.0 - (time.time() - start_time)
-                    debug_id(f"Adding delay of {delay_time:.2f}s for consistent UX", request_id)
-                    time.sleep(delay_time)
+                track_step('error_handling', step_start)
+                performance_metrics['total_time'] = time.time() - performance_metrics['request_start']
+                info_id(f"Request completed with error in {performance_metrics['total_time']:.2f}s", request_id)
 
-                total_time = time.time() - start_time
-                info_id(f"Request completed with error in {total_time:.2f}s", request_id)
-                return jsonify({'answer': error_message}), 500
+                return jsonify({
+                    'answer': error_message,
+                    'status': 'error',
+                    'response_time': performance_metrics['total_time'],
+                    'performance': performance_metrics
+                }), 500
 
-        except Exception as e:
+            else:
+                # Unknown status from AistManager
+                warning_id(f"Unknown status from AistManager: {result.get('status')}", request_id)
+                track_step('unknown_response_handling', step_start)
+                performance_metrics['total_time'] = time.time() - performance_metrics['request_start']
+                return jsonify({
+                    'answer': "I received an unexpected response format. Please try again.",
+                    'status': 'unknown_response',
+                    'performance': performance_metrics
+                }), 500
+
+        except Exception as processing_err:
             if local_session:
                 local_session.rollback()
-            error_id(f"Error in AI steward processing: {e}", request_id, exc_info=True)
-            error_message = "I encountered an unexpected issue. Please try rephrasing your question."
+            error_id(f"Error during AistManager processing: {processing_err}", request_id, exc_info=True)
 
-            # Add a small delay to ensure a consistent user experience
-            if time.time() - start_time < 1.0:
-                delay_time = 1.0 - (time.time() - start_time)
-                debug_id(f"Adding delay of {delay_time:.2f}s for consistent UX", request_id)
-                time.sleep(delay_time)
+            performance_metrics['total_time'] = time.time() - performance_metrics['request_start']
+            return jsonify({
+                'answer': "I encountered an unexpected issue while processing your question. Please try again.",
+                'status': 'processing_error',
+                'response_time': performance_metrics['total_time'],
+                'performance': performance_metrics
+            }), 500
 
-            total_time = time.time() - start_time
-            info_id(f"Request completed with exception in {total_time:.2f}s", request_id)
-            return jsonify({'answer': error_message}), 500
         finally:
+            # Step 7: Cleanup
+            cleanup_start = time.time()
+            if aist_manager:
+                aist_manager.db_session = None
             if local_session:
                 local_session.close()
                 debug_id(f"Database session closed", request_id)
+            track_step('cleanup', cleanup_start)
 
     except SQLAlchemyError as e:
         error_id(f"Database error: {e}", request_id, exc_info=True)
-        error_message = "I'm having trouble accessing the information you need right now. Please try again in a moment."
-        total_time = time.time() - start_time
-        info_id(f"Request completed with database error in {total_time:.2f}s", request_id)
-        return jsonify({'answer': error_message}), 500
+        performance_metrics['total_time'] = time.time() - performance_metrics['request_start']
+        return jsonify({
+            'answer': "I'm having trouble accessing the information you need right now. Please try again in a moment.",
+            'status': 'database_error',
+            'response_time': performance_metrics['total_time'],
+            'performance': performance_metrics
+        }), 500
+
     except Exception as e:
-        error_id(f"Unexpected error: {e}", request_id, exc_info=True)
-        error_message = "I encountered an unexpected issue. Please try rephrasing your question."
+        error_id(f"Unexpected error in ask route: {e}", request_id, exc_info=True)
+        performance_metrics['total_time'] = time.time() - performance_metrics['request_start']
+        return jsonify({
+            'answer': "I encountered an unexpected issue. Please try rephrasing your question.",
+            'status': 'unexpected_error',
+            'response_time': performance_metrics['total_time'],
+            'performance': performance_metrics
+        }), 500
+
+
+@chatbot_bp.route('/health', methods=['GET'])
+@with_request_id
+def health_check(request_id=None):
+    """Health check endpoint for the chatbot service."""
+    try:
+        # Check if AistManager can be created
+        aist_manager = get_or_create_aist_manager()
+
+        # Check database connectivity
+        db_config = DatabaseConfig()
+        session = db_config.get_main_session()
+        session.execute("SELECT 1")
+        session.close()
+
+        # Check AI model status
+        ai_model_name = ModelsConfig.get_current_ai_model_name()
+
+        info_id(f"Health check passed", request_id)
+        return jsonify({
+            'status': 'healthy',
+            'aist_manager': 'available',
+            'database': 'connected',
+            'ai_model': ai_model_name,
+            'timestamp': datetime.now().isoformat()
+        })
+
+    except Exception as e:
+        error_id(f"Health check failed: {e}", request_id, exc_info=True)
+        return jsonify({
+            'status': 'unhealthy',
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
+
+@chatbot_bp.route('/reset_session', methods=['POST'])
+@with_request_id
+def reset_session(request_id=None):
+    """Reset the chat session for a user."""
+    try:
+        data = request.json
+        user_id = data.get('userId', 'anonymous')
+
+        info_id(f"Resetting session for user {user_id}", request_id)
+
+        # Get AistManager and handle session reset
+        aist_manager = get_or_create_aist_manager()
+
+        # Create temporary session for the reset operation
+        db_config = DatabaseConfig()
+        local_session = db_config.get_main_session()
+
+        try:
+            aist_manager.db_session = local_session
+
+            # Process reset through AistManager
+            result = aist_manager.answer_question(user_id, "reset context", 'api')
+
+            if result.get('status') == 'success':
+                info_id(f"Session reset successfully for user {user_id}", request_id)
+                return jsonify({
+                    'message': 'Session reset successfully',
+                    'status': 'success'
+                })
+            else:
+                warning_id(f"Session reset failed for user {user_id}", request_id)
+                return jsonify({
+                    'message': 'Failed to reset session',
+                    'status': 'failed'
+                }), 500
+
+        finally:
+            aist_manager.db_session = None
+            local_session.close()
+
+    except Exception as e:
+        error_id(f"Error resetting session: {e}", request_id, exc_info=True)
+        return jsonify({
+            'error': 'Failed to reset session',
+            'status': 'error'
+        }), 500
+
+
+@chatbot_bp.route('/performance', methods=['GET'])
+@with_request_id
+def performance_stats(request_id=None):
+    """Get performance statistics for the chatbot service."""
+    try:
+        # Get performance data from the global AistManager
+        aist_manager = get_or_create_aist_manager()
+
+        # Basic system performance check
+        start_time = time.time()
+
+        # Database performance test
+        db_start = time.time()
+        db_config = DatabaseConfig()
+        session = db_config.get_main_session()
+        session.execute("SELECT 1")
+        session.close()
+        db_time = time.time() - db_start
+
+        # AI model performance test (if available)
+        ai_start = time.time()
+        ai_model_name = "Not Available"
+        ai_response_time = 0
+        try:
+            if aist_manager.ai_model:
+                ai_model_name = type(aist_manager.ai_model).__name__
+                # Quick test response
+                test_response = aist_manager.ai_model.get_response("Test")
+                ai_response_time = time.time() - ai_start
+        except Exception as ai_err:
+            debug_id(f"AI model test failed: {ai_err}", request_id)
+            ai_response_time = -1
+
         total_time = time.time() - start_time
-        info_id(f"Request completed with unexpected error in {total_time:.2f}s", request_id)
-        return jsonify({'answer': error_message}), 500
+
+        performance_data = {
+            'timestamp': datetime.now().isoformat(),
+            'database': {
+                'response_time': db_time,
+                'status': 'healthy' if db_time < 0.5 else 'slow' if db_time < 2.0 else 'unhealthy'
+            },
+            'ai_model': {
+                'name': ai_model_name,
+                'response_time': ai_response_time,
+                'status': 'healthy' if 0 < ai_response_time < 2.0 else 'slow' if ai_response_time < 5.0 else 'unhealthy'
+            },
+            'system': {
+                'total_check_time': total_time,
+                'aist_manager_status': 'available' if aist_manager else 'unavailable'
+            },
+            'thresholds': {
+                'database_warning': 0.5,
+                'database_critical': 2.0,
+                'ai_model_warning': 2.0,
+                'ai_model_critical': 5.0
+            }
+        }
+
+        info_id(f"Performance check completed in {total_time:.3f}s", request_id)
+        return jsonify(performance_data)
+
+    except Exception as e:
+        error_id(f"Performance check failed: {e}", request_id, exc_info=True)
+        return jsonify({
+            'status': 'error',
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
+
+@chatbot_bp.route('/metrics', methods=['GET'])
+@with_request_id
+def metrics(request_id=None):
+    """Get detailed metrics about recent chatbot performance."""
+    try:
+        # Get recent Q&A entries for performance analysis
+        db_config = DatabaseConfig()
+        session = db_config.get_main_session()
+
+        try:
+            # Get recent Q&A entries (last 100)
+            recent_qas = session.query(QandA).order_by(QandA.id.desc()).limit(100).all()
+
+            if not recent_qas:
+                return jsonify({
+                    'message': 'No recent Q&A data available',
+                    'metrics': {},
+                    'timestamp': datetime.now().isoformat()
+                })
+
+            # Calculate performance metrics
+            total_interactions = len(recent_qas)
+            rated_interactions = len([qa for qa in recent_qas if qa.rating is not None])
+            avg_rating = sum(qa.rating for qa in recent_qas if
+                             qa.rating is not None) / rated_interactions if rated_interactions > 0 else 0
+
+            # Question length analysis
+            avg_question_length = sum(len(qa.question) for qa in recent_qas) / total_interactions
+            avg_answer_length = sum(len(qa.answer) for qa in recent_qas) / total_interactions
+
+            # Model usage statistics (if model_name field exists)
+            model_usage = {}
+            if hasattr(QandA, 'model_name'):
+                for qa in recent_qas:
+                    model = getattr(qa, 'model_name', 'Unknown')
+                    model_usage[model] = model_usage.get(model, 0) + 1
+
+            metrics_data = {
+                'timestamp': datetime.now().isoformat(),
+                'sample_size': total_interactions,
+                'interactions': {
+                    'total': total_interactions,
+                    'rated': rated_interactions,
+                    'rating_percentage': (
+                                rated_interactions / total_interactions * 100) if total_interactions > 0 else 0
+                },
+                'quality': {
+                    'average_rating': round(avg_rating, 2),
+                    'rating_distribution': {
+                        '1': len([qa for qa in recent_qas if qa.rating == 1]),
+                        '2': len([qa for qa in recent_qas if qa.rating == 2]),
+                        '3': len([qa for qa in recent_qas if qa.rating == 3]),
+                        '4': len([qa for qa in recent_qas if qa.rating == 4]),
+                        '5': len([qa for qa in recent_qas if qa.rating == 5])
+                    }
+                },
+                'content': {
+                    'avg_question_length': round(avg_question_length, 1),
+                    'avg_answer_length': round(avg_answer_length, 1)
+                },
+                'models': model_usage
+            }
+
+            info_id(f"Metrics calculated for {total_interactions} interactions", request_id)
+            return jsonify(metrics_data)
+
+        finally:
+            session.close()
+
+    except Exception as e:
+        error_id(f"Metrics calculation failed: {e}", request_id, exc_info=True)
+        return jsonify({
+            'status': 'error',
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
+
+@chatbot_bp.route('/performance/recommendations', methods=['GET'])
+@with_request_id
+def performance_recommendations(request_id=None):
+    """Get performance recommendations based on recent analytics."""
+    try:
+        aist_manager = get_or_create_aist_manager()
+
+        # Check if the manager has the get_performance_analytics method
+        if not hasattr(aist_manager, 'get_performance_analytics'):
+            return jsonify({
+                'message': 'Performance analytics not available - method not implemented',
+                'recommendations': [],
+                'timestamp': datetime.now().isoformat()
+            })
+
+        # Get analytics for the last 24 hours
+        analytics = aist_manager.get_performance_analytics(hours=24)
+
+        if not analytics or analytics.get('total_requests', 0) == 0:
+            return jsonify({
+                'message': 'No recent performance data available for analysis',
+                'recommendations': [],
+                'timestamp': datetime.now().isoformat()
+            })
+
+        recommendations = []
+
+        # Check overall response time
+        avg_time = analytics.get('avg_response_time', 0)
+        if avg_time > 3.0:
+            recommendations.append({
+                'priority': 'high',
+                'category': 'response_time',
+                'message': f'Average response time is {avg_time:.2f}s, consider optimizing search strategies',
+                'current_value': avg_time,
+                'target_value': 2.0
+            })
+
+        # Check step performance
+        step_perf = analytics.get('step_performance', {})
+
+        if 'ai_response' in step_perf and step_perf['ai_response']['avg_time'] > 2.0:
+            recommendations.append({
+                'priority': 'medium',
+                'category': 'ai_model',
+                'message': f'AI model responses averaging {step_perf["ai_response"]["avg_time"]:.2f}s, consider model optimization',
+                'current_value': step_perf['ai_response']['avg_time'],
+                'target_value': 2.0
+            })
+
+        if 'vector_search' in step_perf and step_perf['vector_search']['avg_time'] > 1.5:
+            recommendations.append({
+                'priority': 'medium',
+                'category': 'vector_search',
+                'message': f'Vector search averaging {step_perf["vector_search"]["avg_time"]:.2f}s, consider index optimization',
+                'current_value': step_perf['vector_search']['avg_time'],
+                'target_value': 1.0
+            })
+
+        if 'fulltext_search' in step_perf and step_perf['fulltext_search']['avg_time'] > 1.0:
+            recommendations.append({
+                'priority': 'low',
+                'category': 'fulltext_search',
+                'message': f'Full-text search averaging {step_perf["fulltext_search"]["avg_time"]:.2f}s, consider database indexing',
+                'current_value': step_perf['fulltext_search']['avg_time'],
+                'target_value': 0.5
+            })
+
+        # Check performance distribution
+        perf_dist = analytics.get('performance_distribution', {})
+        total_requests = analytics['total_requests']
+        poor_performance_ratio = (perf_dist.get('poor', 0) + perf_dist.get('very_poor', 0)) / total_requests
+
+        if poor_performance_ratio > 0.2:  # More than 20% poor performance
+            recommendations.append({
+                'priority': 'high',
+                'category': 'overall',
+                'message': f'{poor_performance_ratio * 100:.1f}% of requests have poor performance, investigate bottlenecks',
+                'current_value': poor_performance_ratio * 100,
+                'target_value': 10.0
+            })
+
+        # Check method efficiency
+        method_perf = analytics.get('method_performance', {})
+        for method, stats in method_perf.items():
+            if stats['avg_time'] > 4.0 and stats['count'] > 5:  # Only if we have enough samples
+                recommendations.append({
+                    'priority': 'medium',
+                    'category': 'method_optimization',
+                    'message': f'Method "{method}" averaging {stats["avg_time"]:.2f}s over {stats["count"]} requests',
+                    'current_value': stats['avg_time'],
+                    'target_value': 3.0
+                })
+
+        # Sort recommendations by priority
+        priority_order = {'high': 1, 'medium': 2, 'low': 3}
+        recommendations.sort(key=lambda x: priority_order.get(x['priority'], 4))
+
+        response_data = {
+            'timestamp': datetime.now().isoformat(),
+            'analysis_period_hours': 24,
+            'total_requests_analyzed': total_requests,
+            'overall_performance_score': analytics.get('avg_performance_score', 0),
+            'recommendations': recommendations,
+            'summary': {
+                'total_recommendations': len(recommendations),
+                'high_priority': len([r for r in recommendations if r['priority'] == 'high']),
+                'medium_priority': len([r for r in recommendations if r['priority'] == 'medium']),
+                'low_priority': len([r for r in recommendations if r['priority'] == 'low'])
+            }
+        }
+
+        info_id(f"Generated {len(recommendations)} performance recommendations", request_id)
+        return jsonify(response_data)
+
+    except Exception as e:
+        error_id(f"Performance recommendations failed: {e}", request_id, exc_info=True)
+        return jsonify({
+            'status': 'error',
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
+
+@chatbot_bp.route('/performance/dashboard', methods=['GET'])
+@with_request_id
+def performance_dashboard(request_id=None):
+    """Get comprehensive performance dashboard data."""
+    try:
+        aist_manager = get_or_create_aist_manager()
+        hours = request.args.get('hours', 24, type=int)
+
+        # Initialize performance_data to handle missing method
+        performance_data = {
+            'total_requests': 0,
+            'avg_response_time': 0,
+            'avg_performance_score': 0
+        }
+
+        # Get current performance stats if method exists
+        perf_start = time.time()
+        if hasattr(aist_manager, 'get_performance_analytics'):
+            try:
+                performance_data = aist_manager.get_performance_analytics(hours=hours)
+            except Exception as perf_err:
+                debug_id(f"Performance analytics failed: {perf_err}", request_id)
+
+        perf_check_time = time.time() - perf_start
+
+        # Get system health
+        health_start = time.time()
+        db_config = DatabaseConfig()
+        session = db_config.get_main_session()
+        session.execute("SELECT 1")
+        session.close()
+        db_check_time = time.time() - health_start
+
+        # AI model check
+        ai_start = time.time()
+        ai_status = "available" if aist_manager.ai_model else "unavailable"
+        ai_model_name = type(aist_manager.ai_model).__name__ if aist_manager.ai_model else "None"
+        ai_check_time = time.time() - ai_start
+
+        dashboard_data = {
+            'timestamp': datetime.now().isoformat(),
+            'analysis_period_hours': hours,
+            'system_health': {
+                'database': {
+                    'status': 'healthy' if db_check_time < 0.5 else 'slow',
+                    'response_time': db_check_time
+                },
+                'ai_model': {
+                    'status': ai_status,
+                    'name': ai_model_name,
+                    'check_time': ai_check_time
+                },
+                'aist_manager': {
+                    'status': 'available' if aist_manager else 'unavailable',
+                    'performance_check_time': perf_check_time
+                }
+            },
+            'performance_analytics': performance_data,
+            'quick_stats': {
+                'total_requests': performance_data.get('total_requests', 0),
+                'avg_response_time': performance_data.get('avg_response_time', 0),
+                'performance_score': performance_data.get('avg_performance_score', 0)
+            }
+        }
+
+        info_id(f"Performance dashboard generated for {hours}h period", request_id)
+        return jsonify(dashboard_data)
+
+    except Exception as e:
+        error_id(f"Performance dashboard failed: {e}", request_id, exc_info=True)
+        return jsonify({
+            'status': 'error',
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
+
+# Initialize the global AistManager when the module is loaded
+try:
+    global_aist_manager = get_or_create_aist_manager()
+    logger.info("Chatbot blueprint initialized with AistManager")
+except Exception as init_err:
+    logger.error(f"Failed to initialize AistManager during module load: {init_err}", exc_info=True)
+    global_aist_manager = None

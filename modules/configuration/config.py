@@ -53,7 +53,10 @@ UTILITIES = os.path.join(BASE_DIR,'utilities')
 OPENAI_MODEL_NAME = "text-embedding-3-small"
 NUM_VERSIONS_TO_KEEP = 3
 ADMIN_CREATION_PASSWORD= "12345"
-
+# Base directory for all local AI models
+GPT4ALL_MODELS_PATH = os.path.join(BASE_DIR, 'plugins', 'ai_modules', 'gpt4all')
+# Add this line too
+SENTENCE_TRANSFORMERS_MODELS_PATH = os.path.join(BASE_DIR, 'plugins', 'huggingface')
 CURRENT_AI_MODEL="OpenAIModel"
 CURRENT_EMBEDDING_MODEL="OpenAIEmbeddingModel"
 
