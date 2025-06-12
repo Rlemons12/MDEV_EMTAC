@@ -43,10 +43,10 @@ try:
     from .UnifiedSearchMixin import UnifiedSearchMixin
 
     _COMPONENTS_AVAILABLE['unified_search'] = True
-    logger.debug("✅ UnifiedSearchMixin imported successfully")
+    logger.debug("UnifiedSearchMixin imported successfully")
 except ImportError as e:
     _IMPORT_ERRORS['unified_search'] = str(e)
-    logger.warning(f"⚠️ UnifiedSearchMixin not available: {e}")
+    logger.warning(f"⚠UnifiedSearchMixin not available: {e}")
 
 
     # Create placeholder class
@@ -77,10 +77,10 @@ try:
     )
 
     _COMPONENTS_AVAILABLE['nlp_search'] = True
-    logger.debug("✅ NLP search components imported successfully")
+    logger.debug("NLP search components imported successfully")
 except ImportError as e:
     _IMPORT_ERRORS['nlp_search'] = str(e)
-    logger.warning(f"⚠️ NLP search components not available: {e}")
+    logger.warning(f"⚠NLP search components not available: {e}")
 
 
     # Create placeholder classes
@@ -115,10 +115,10 @@ try:
     from .aggregate_search import AggregateSearch
 
     _COMPONENTS_AVAILABLE['aggregate_search'] = True
-    logger.debug("✅ AggregateSearch imported successfully")
+    logger.debug("AggregateSearch imported successfully")
 except ImportError as e:
     _IMPORT_ERRORS['aggregate_search'] = str(e)
-    logger.warning(f"⚠️ AggregateSearch not available: {e}")
+    logger.warning(f"⚠AggregateSearch not available: {e}")
 
 
     class AggregateSearch:
@@ -133,10 +133,10 @@ try:
     from .pattern_manager import SearchPatternManager
 
     _COMPONENTS_AVAILABLE['pattern_manager'] = True
-    logger.debug("✅ SearchPatternManager imported successfully")
+    logger.debug("SearchPatternManager imported successfully")
 except ImportError as e:
     _IMPORT_ERRORS['pattern_manager'] = str(e)
-    logger.warning(f"⚠️ SearchPatternManager not available: {e}")
+    logger.warning(f"⚠SearchPatternManager not available: {e}")
 
 
     class SearchPatternManager:
@@ -172,10 +172,10 @@ try:
     )
 
     _COMPONENTS_AVAILABLE['search_models'] = True
-    logger.debug("✅ Search models imported successfully")
+    logger.debug("Search models imported successfully")
 except ImportError as e:
     _IMPORT_ERRORS['search_models'] = str(e)
-    logger.warning(f"⚠️ Search models not available: {e}")
+    logger.warning(f"⚠Search models not available: {e}")
 
     # Create placeholder classes and functions
     MODELS_AVAILABLE = False
@@ -249,10 +249,10 @@ try:
     )
 
     _COMPONENTS_AVAILABLE['utils'] = True
-    logger.debug("✅ Search utilities imported successfully")
+    logger.debug("Search utilities imported successfully")
 except ImportError as e:
     _IMPORT_ERRORS['utils'] = str(e)
-    logger.warning(f"⚠️ Search utilities not available: {e}")
+    logger.warning(f"⚠Search utilities not available: {e}")
 
 
     # Create placeholder functions
@@ -332,7 +332,7 @@ try:
     )
 
     _COMPONENTS_AVAILABLE['tracking_models'] = True
-    logger.debug("✅ Enhanced NLP models imported successfully")
+    logger.debug("Enhanced NLP models imported successfully")
 except ImportError as e:
     _IMPORT_ERRORS['tracking_models'] = str(e)
     logger.debug(f"Enhanced NLP models not available: {e}")
@@ -625,7 +625,7 @@ def create_unified_search_system(session=None, user_context=None, nlp_instance=N
                 )
                 if enhanced_search:
                     search_system.unified_search_system = enhanced_search
-                    logger.info("✅ Unified search system created with NLP enhancement")
+                    logger.info("Unified search system created with NLP enhancement")
             except Exception as e:
                 logger.warning(f"NLP enhancement failed, using basic search: {e}")
 
@@ -676,15 +676,15 @@ def initialize_search_module():
     """Initialize the search module and log status."""
     status = get_search_system_status()
 
-    logger.info(f"🔍 Search module initialized - Status: {status['operational_level']}")
-    logger.info(f"📊 Components: {status['available_count']}/{status['total_components']} available "
+    logger.info(f"Search module initialized - Status: {status['operational_level']}")
+    logger.info(f"Components: {status['available_count']}/{status['total_components']} available "
                 f"({status['health_score']:.1f}% health)")
 
     if status['available_components']:
-        logger.info(f"✅ Available: {', '.join(status['available_components'])}")
+        logger.info(f"Available: {', '.join(status['available_components'])}")
 
     if status['unavailable_components']:
-        logger.warning(f"⚠️ Unavailable: {', '.join(status['unavailable_components'])}")
+        logger.warning(f"⚠Unavailable: {', '.join(status['unavailable_components'])}")
 
     if status['recommendations']:
         logger.info("💡 Recommendations:")
