@@ -8,6 +8,7 @@ comprehensive contextual search results across all database entities.
 import json
 import re
 import logging
+from modules.configuration.log_config import logger,with_request_id,get_request_id,debug_id
 from fuzzywuzzy import fuzz, process
 from typing import List, Tuple, Dict, Any, Optional
 from modules.configuration.config_env import DatabaseConfig
@@ -433,14 +434,23 @@ class AggregateSearch:
                 'search_type': 'comprehensive'
             }
 
+        #====== Part Search======
+
+    #====================Part Search===========================
+
     def comprehensive_part_search(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """
-        FIXED: Direct part table search instead of position-based search
+        ULTIMATE: Complete part search combining all best practices
 
-        This replaces your existing comprehensive_part_search method to force
-        direct Part.search() calls with description text.
+        Features:
+        - Enhanced dual part number detection (company vs manufacturer)
+        - Fuzzy search fallback for typos/variations
+        - Robust SQL fallback for database errors
+        - Comprehensive result formatting with relationships
+        - Parameter enhancement and validation
+        - Logs successful queries for analytics
         """
-        logger.debug(f"🔍 Starting direct part search with params: {params}")
+        logger.debug(f"Starting ultimate part search with params: {params}")
 
         if not MODELS_AVAILABLE:
             return {
@@ -449,7 +459,6 @@ class AggregateSearch:
             }
 
         try:
-            # Clean session state
             if self.session:
                 try:
                     self.session.rollback()
@@ -457,83 +466,142 @@ class AggregateSearch:
                 except Exception:
                     pass
 
-            # Import Part model
             from modules.emtacdb.emtacdb_fts import Part
+            from modules.search.utils import extract_search_terms
 
             search_kwargs = {}
             search_method = "unknown"
+            detection_results = {}
+            fuzzy_results = []
+            confidence = 0
 
-            # STRATEGY 1: Description-based search (your main use case)
             if 'search_text' in params and params['search_text']:
-                search_text = params['search_text']
-                logger.info(f"🎯 DIRECT PART SEARCH for description: '{search_text}'")
+                original_search_text = params['search_text']
+                logger.info(f"ENHANCED DUAL SEARCH for: '{original_search_text}'")
 
-                search_kwargs = {
-                    'search_text': search_text,
-                    'fields': ['name', 'part_number', 'oem_mfg', 'model', 'notes'],
-                    'limit': int(params.get('limit', 20))
-                }
-                search_method = "description_search"
+                search_result = self.enhanced_search_with_fuzzy_fallback(
+                    original_search_text, self.session
+                )
 
-            # STRATEGY 2: Direct part number search
+                search_strategy = search_result['search_strategy']
+                detection_type = search_result['detection_type']
+                confidence = search_result['confidence']
+                detection_results = search_result.get('detected_categories', {})
+                fuzzy_results = search_result.get('fuzzy_results', [])
+
+                logger.info(f"Strategy: {search_strategy} ({detection_type}, confidence: {confidence})")
+
+                if search_strategy.startswith('company_part:'):
+                    part_number = search_strategy.replace('company_part:', '').strip()
+                    search_kwargs = {
+                        'part_number': part_number,
+                        'exact_match': True,
+                        'limit': int(params.get('limit', 20))
+                    }
+                    search_method = "company_part_number"
+
+                elif search_strategy.startswith('mfg_part:'):
+                    model = search_strategy.replace('mfg_part:', '').strip()
+                    search_kwargs = {
+                        'model': model,
+                        'exact_match': False,
+                        'limit': int(params.get('limit', 20))
+                    }
+                    search_method = "manufacturer_part_number"
+
+                elif search_strategy.startswith('manufacturer:') and 'equipment:' in search_strategy:
+                    parts = search_strategy.split(' equipment:')
+                    manufacturer = parts[0].replace('manufacturer:', '').strip()
+                    equipment = parts[1].strip()
+
+                    search_kwargs = {
+                        'oem_mfg': manufacturer,
+                        'search_text': equipment,
+                        'fields': ['name', 'notes', 'documentation', 'class_flag', 'type'],
+                        'exact_match': False,
+                        'limit': int(params.get('limit', 20))
+                    }
+                    search_method = "manufacturer_plus_equipment"
+
+                elif search_strategy.startswith('manufacturer:'):
+                    manufacturer = search_strategy.replace('manufacturer:', '').strip()
+                    search_kwargs = {
+                        'oem_mfg': manufacturer,
+                        'exact_match': False,
+                        'limit': int(params.get('limit', 20))
+                    }
+                    search_method = "manufacturer_only"
+
+                elif search_strategy.startswith('equipment:'):
+                    equipment = search_strategy.replace('equipment:', '').strip()
+                    search_kwargs = {
+                        'search_text': equipment,
+                        'fields': ['name', 'notes', 'documentation', 'class_flag', 'type'],
+                        'exact_match': False,
+                        'limit': int(params.get('limit', 20))
+                    }
+                    search_method = "equipment_only"
+
+                else:
+                    enhanced_params = self.enhance_comprehensive_part_search_parameters(params, params)
+                    search_kwargs = enhanced_params
+                    search_method = "enhanced_general_search"
+
             elif 'part_number' in params:
-                logger.info(f"🎯 DIRECT PART SEARCH for part number: '{params['part_number']}'")
+                logger.info(f" DIRECT PART SEARCH for part number: '{params['part_number']}'")
                 search_kwargs = {
                     'part_number': params['part_number'],
+                    'exact_match': True,
                     'limit': int(params.get('limit', 20))
                 }
-                search_method = "part_number_search"
+                search_method = "direct_part_number_search"
+                confidence = 95
 
-            # STRATEGY 3: ID-based search
             elif 'extracted_id' in params:
-                logger.info(f"🎯 DIRECT PART SEARCH for ID: {params['extracted_id']}")
+                logger.info(f" DIRECT PART SEARCH for ID: {params['extracted_id']}")
                 search_kwargs = {
                     'part_id': params['extracted_id'],
                     'limit': 1
                 }
                 search_method = "id_search"
+                confidence = 100
 
             else:
-                logger.warning("❌ No valid search parameters for direct part search")
+                logger.warning("No valid search parameters for part search")
                 return {
                     'status': 'error',
                     'message': 'No valid search parameters (need search_text, part_number, or extracted_id)',
                     'params_received': params
                 }
 
-            # EXECUTE DIRECT PART SEARCH
-            logger.debug(f"🔍 Executing Part.search with kwargs: {search_kwargs}")
+            logger.debug(f"Executing Part.search with kwargs: {search_kwargs}")
 
+            parts = []
             try:
-                parts = Part.search(session=self.session, **search_kwargs)
-                logger.info(f"✅ Part.search found {len(parts)} parts using {search_method}")
+                search_kwargs['session'] = self.session
+                if params.get('request_id'):
+                    search_kwargs['request_id'] = params['request_id']
+
+                parts = Part.search(**search_kwargs)
+                logger.info(f"Part.search found {len(parts)} parts using {search_method}")
 
             except Exception as search_error:
-                logger.warning(f"⚠️ Part.search failed: {search_error}")
-                # Fallback to SQL search
+                logger.warning(f"Part.search failed: {search_error}")
                 parts = self._fallback_sql_part_search(search_kwargs)
                 search_method += "_sql_fallback"
 
-            # FORMAT RESULTS AS PROPER PART OBJECTS
             comprehensive_results = []
 
             for i, part in enumerate(parts):
                 try:
-                    # Handle SQLAlchemy Part objects
                     if hasattr(part, 'part_number'):
-                        part_result = {
-                            'id': getattr(part, 'id', None),
-                            'part_number': getattr(part, 'part_number', f'Unknown-{i + 1}'),
-                            'name': getattr(part, 'name', 'Unknown Part'),
-                            'oem_mfg': getattr(part, 'oem_mfg', 'Unknown'),
-                            'model': getattr(part, 'model', 'Unknown'),
-                            'notes': getattr(part, 'notes', ''),
-                            'type': 'part',
-                            'entity_type': 'part',  # Critical for classification
-                            'search_method': search_method
-                        }
-
-                    # Handle dictionary results
+                        part_result = self._enhance_part_result(part)
+                        part_result.update({
+                            'search_method': search_method,
+                            'confidence': confidence,
+                            'detection_type': detection_results.get('detection_type', search_method),
+                            'entity_type': 'part'
+                        })
                     elif isinstance(part, dict):
                         part_result = {
                             'id': part.get('id'),
@@ -541,70 +609,213 @@ class AggregateSearch:
                             'name': part.get('name', 'Unknown Part'),
                             'oem_mfg': part.get('oem_mfg', 'Unknown'),
                             'model': part.get('model', 'Unknown'),
+                            'class_flag': part.get('class_flag', ''),
+                            'ud6': part.get('ud6', ''),
+                            'type': part.get('type', ''),
                             'notes': part.get('notes', ''),
-                            'type': 'part',
+                            'documentation': part.get('documentation', ''),
                             'entity_type': 'part',
-                            'search_method': search_method
+                            'search_method': search_method,
+                            'confidence': confidence,
+                            'positions': [],
+                            'position_count': 0,
+                            'images': [],
+                            'image_count': 0,
+                            'usage_locations': [],
+                            'equipment_types': []
                         }
-
                     else:
-                        # Unknown object type fallback
                         part_result = {
-                            'id': getattr(part, 'id', None) if hasattr(part, 'id') else i + 1,
+                            'id': getattr(part, 'id', None) or i + 1,
                             'part_number': str(part) if part else f'Object-{i + 1}',
                             'name': 'Unknown Part',
-                            'type': 'part',
                             'entity_type': 'part',
-                            'search_method': search_method + "_object"
+                            'search_method': search_method + "_object",
+                            'confidence': 30,
+                            'positions': [],
+                            'position_count': 0,
+                            'images': [],
+                            'image_count': 0,
+                            'usage_locations': [],
+                            'equipment_types': []
                         }
 
                     comprehensive_results.append(part_result)
-                    logger.debug(f"✅ Formatted part {i + 1}: {part_result['part_number']}")
+                    logger.debug(f" Enhanced part {i + 1}: {part_result['part_number']}")
 
                 except Exception as format_error:
-                    logger.warning(f"⚠️ Failed to format part {i + 1}: {format_error}")
-                    # Add minimal part info so search doesn't fail completely
+                    logger.warning(f"Failed to format part {i + 1}: {format_error}")
                     comprehensive_results.append({
                         'id': i + 1,
                         'part_number': f'Error-{i + 1}',
                         'name': 'Formatting Error',
-                        'type': 'part',
                         'entity_type': 'part',
-                        'search_method': search_method + "_error"
+                        'search_method': search_method + "_error",
+                        'confidence': 0,
+                        'positions': [],
+                        'position_count': 0,
+                        'images': [],
+                        'image_count': 0,
+                        'usage_locations': [],
+                        'equipment_types': []
                     })
 
-            # RETURN SUCCESS RESULT
             result = {
                 'status': 'success',
                 'count': len(comprehensive_results),
                 'results': comprehensive_results,
                 'entity_type': 'part',
-                'search_type': 'direct_part_search',
+                'search_type': 'ultimate_comprehensive_part_search',
                 'search_method': search_method,
+                'confidence': confidence,
                 'search_parameters': search_kwargs,
-                'note': f'Searched parts table directly with {search_method}'
+                'detection_results': detection_results,
+                'fuzzy_results': fuzzy_results,
+                'enhancement_stats': {
+                    'total_positions': sum(r.get('position_count', 0) for r in comprehensive_results),
+                    'total_images': sum(r.get('image_count', 0) for r in comprehensive_results),
+                    'unique_locations': len(
+                        set(loc for r in comprehensive_results for loc in r.get('usage_locations', []))),
+                    'unique_equipment': len(
+                        set(eq for r in comprehensive_results for eq in r.get('equipment_types', [])))
+                },
+                'note': f'Ultimate comprehensive search using {search_method} with relationship enhancement'
             }
 
-            logger.info(f"🎉 Direct part search SUCCESS: {len(comprehensive_results)} parts found")
+            if params.get("user_id"):
+                try:
+                    from modules.search.query_tracker import SearchQueryTracker
+                    tracker = SearchQueryTracker(session=self.session)
+                    query_id = tracker.track_search_query(
+                        user_id=params["user_id"],
+                        query_text=params.get("search_text", params.get("raw_input", "unknown")),
+                        intent_name="FIND_PART",
+                        detected_entities={"part_numbers": [r["part_number"] for r in comprehensive_results]},
+                        result_count=len(comprehensive_results),
+                        metadata={
+                            "confidence": confidence,
+                            "search_method": search_method,
+                            "timestamp": datetime.utcnow().isoformat()
+                        }
+                    )
+                    result["query_id"] = query_id
+                    logger.debug(f"[tracking] SearchQuery logged with ID: {query_id}")
+                except Exception as e:
+                    logger.warning(f"[tracking] Failed to log SearchQuery: {e}")
+
+            logger.info(f" Ultimate part search SUCCESS: {len(comprehensive_results)} enhanced parts found")
             return result
 
         except Exception as e:
-            logger.error(f"❌ Direct part search ERROR: {e}", exc_info=True)
-
-            # Rollback session on error
+            logger.error(f"Ultimate part search ERROR: {e}", exc_info=True)
             if self.session:
                 try:
                     self.session.rollback()
                 except Exception:
                     pass
-
             return {
                 'status': 'error',
-                'message': f"Direct part search failed: {str(e)}",
+                'message': f"Ultimate part search failed: {str(e)}",
                 'entity_type': 'part',
                 'search_parameters': params,
-                'error_type': 'direct_part_search_error'
+                'error_type': 'ultimate_part_search_error'
             }
+
+    def enhanced_search_with_fuzzy_fallback(self, query: str, session) -> Dict[str, Any]:
+        """
+        Enhanced search with intelligent dual part detection + fuzzy fallback
+
+        Flow:
+        1. Try exact enhanced detection
+        2. If no results, try fuzzy matching
+        3. Return best results with confidence scores
+        """
+        from modules.search.utils import extract_search_terms
+
+        # Extract terms from query
+        terms = [term.strip() for term in query.upper().split() if term.strip()]
+        logger.debug(f"Analyzing terms: {terms}")
+
+        # STEP 1: Try exact enhanced detection first
+        detected = self.detect_part_numbers_and_manufacturers(terms, session)
+
+        # Check if we found exact matches
+        exact_matches_found = any([
+            detected['company_part_numbers'],
+            detected['mfg_part_numbers'],
+            detected['manufacturers']
+        ])
+
+        if exact_matches_found:
+            # Use exact detection
+            enhanced_query = self.enhanced_search_with_dual_part_detection(query, session)
+            return {
+                'search_strategy': enhanced_query,
+                'detection_type': 'exact_database_match',
+                'confidence': 95,
+                'detected_categories': detected
+            }
+
+        # STEP 2: No exact matches - try fuzzy search
+        logger.info(f"No exact matches found, trying fuzzy search for: {query}")
+
+        # Extract potential part candidates from the query
+        part_candidates = self._extract_part_candidates(query)
+
+        # Add all terms as potential part numbers if no specific candidates found
+        if not part_candidates:
+            part_candidates.extend(terms)
+
+            # Add combinations for multi-word part numbers
+            if len(terms) >= 2:
+                part_candidates.append(''.join(terms))  # "ABC 123" → "ABC123"
+                part_candidates.append('-'.join(terms))  # "ABC 123" → "ABC-123"
+                part_candidates.append('_'.join(terms))  # "ABC 123" → "ABC_123"
+
+        logger.debug(f"Fuzzy search candidates: {part_candidates}")
+
+        # Perform fuzzy search
+        fuzzy_results = self._fuzzy_part_search(part_candidates, threshold=70)
+
+        if fuzzy_results:
+            # Get best fuzzy match
+            best_part, best_score = fuzzy_results[0]
+
+            logger.info(f"Best fuzzy match: {best_part.part_number} (score: {best_score})")
+
+            # Determine what type of match this was
+            if best_score >= 90:
+                search_strategy = f"company_part:{best_part.part_number}"  # High confidence
+                detection_type = 'fuzzy_exact'
+            elif best_part.model and any(term in best_part.model.upper() for term in terms):
+                search_strategy = f"mfg_part:{best_part.model}"
+                detection_type = 'fuzzy_manufacturer_part'
+            elif best_part.oem_mfg and any(term in best_part.oem_mfg.upper() for term in terms):
+                search_strategy = f"manufacturer:{best_part.oem_mfg}"
+                detection_type = 'fuzzy_manufacturer'
+            else:
+                search_strategy = f"company_part:{best_part.part_number}"
+                detection_type = 'fuzzy_general'
+
+            return {
+                'search_strategy': search_strategy,
+                'detection_type': detection_type,
+                'confidence': best_score,
+                'fuzzy_results': fuzzy_results[:3],  # Top 3 matches
+                'detected_categories': {
+                    'fuzzy_matches': [f"{p.part_number} ({s})" for p, s in fuzzy_results[:3]]
+                }
+            }
+
+        # STEP 3: No fuzzy matches either - fall back to equipment search
+        logger.info(f"No fuzzy matches, falling back to equipment search")
+
+        return {
+            'search_strategy': f"equipment:{' '.join(terms)}",
+            'detection_type': 'equipment_fallback',
+            'confidence': 30,
+            'detected_categories': {'equipment': terms}
+        }
 
     def _fallback_sql_part_search(self, search_kwargs: Dict) -> List:
         """
@@ -614,29 +825,55 @@ class AggregateSearch:
             from sqlalchemy import text
 
             search_text = search_kwargs.get('search_text', '')
-            if not search_text:
-                logger.warning("No search_text for SQL fallback")
+            part_number = search_kwargs.get('part_number', '')
+            oem_mfg = search_kwargs.get('oem_mfg', '')
+            model = search_kwargs.get('model', '')
+
+            if not any([search_text, part_number, oem_mfg, model]):
+                logger.warning("No search criteria for SQL fallback")
                 return []
 
-            logger.info(f"🔄 Trying SQL fallback for: '{search_text}'")
+            logger.info(
+                f"Trying SQL fallback with: text='{search_text}', part='{part_number}', mfg='{oem_mfg}', model='{model}'")
 
-            # Use raw SQL search
-            sql_query = text("""
-                SELECT id, part_number, name, oem_mfg, model, notes
-                FROM part 
-                WHERE 
+            # Build dynamic SQL based on available parameters
+            conditions = []
+            params = {}
+
+            if search_text:
+                conditions.append("""(
                     LOWER(name) LIKE LOWER(:search_term) OR
                     LOWER(part_number) LIKE LOWER(:search_term) OR  
                     LOWER(oem_mfg) LIKE LOWER(:search_term) OR
                     LOWER(model) LIKE LOWER(:search_term) OR
                     LOWER(notes) LIKE LOWER(:search_term)
+                )""")
+                params['search_term'] = f'%{search_text}%'
+
+            if part_number:
+                conditions.append("LOWER(part_number) LIKE LOWER(:part_number)")
+                params['part_number'] = f'%{part_number}%'
+
+            if oem_mfg:
+                conditions.append("LOWER(oem_mfg) LIKE LOWER(:oem_mfg)")
+                params['oem_mfg'] = f'%{oem_mfg}%'
+
+            if model:
+                conditions.append("LOWER(model) LIKE LOWER(:model)")
+                params['model'] = f'%{model}%'
+
+            where_clause = " AND ".join(conditions) if conditions else "1=1"
+
+            sql_query = text(f"""
+                SELECT id, part_number, name, oem_mfg, model, class_flag, ud6, type, notes, documentation
+                FROM part 
+                WHERE {where_clause}
                 LIMIT :limit
             """)
 
-            result = self.session.execute(sql_query, {
-                'search_term': f'%{search_text}%',
-                'limit': search_kwargs.get('limit', 20)
-            })
+            params['limit'] = search_kwargs.get('limit', 20)
+
+            result = self.session.execute(sql_query, params)
 
             parts = []
             for row in result:
@@ -646,14 +883,18 @@ class AggregateSearch:
                     'name': row[2] or 'Unknown Part',
                     'oem_mfg': row[3] or 'Unknown',
                     'model': row[4] or 'Unknown',
-                    'notes': row[5] or ''
+                    'class_flag': row[5] or '',
+                    'ud6': row[6] or '',
+                    'type': row[7] or '',
+                    'notes': row[8] or '',
+                    'documentation': row[9] or ''
                 })
 
-            logger.info(f"✅ SQL fallback found {len(parts)} parts")
+            logger.info(f"SQL fallback found {len(parts)} parts")
             return parts
 
         except Exception as e:
-            logger.error(f"❌ SQL fallback also failed: {e}")
+            logger.error(f"SQL fallback also failed: {e}")
             return []
 
     def _fallback_part_search(self, search_kwargs: Dict) -> List:
@@ -696,13 +937,15 @@ class AggregateSearch:
                     'notes': row[5]
                 })
 
-            logger.info(f"🔄 Fallback SQL search found {len(parts)} parts")
+            logger.info(f" Fallback SQL search found {len(parts)} parts")
             return parts
 
         except Exception as e:
-            logger.error(f"❌ Fallback part search also failed: {e}")
+            logger.error(f" Fallback part search also failed: {e}")
             return []
 
+    @classmethod
+    @with_request_id
     def _extract_part_candidates(self, text: str) -> List[str]:
         """Extract potential part numbers from text using multiple patterns."""
         import re
@@ -710,8 +953,6 @@ class AggregateSearch:
 
         if not text:
             return candidates
-
-        # FIXED: Better patterns that handle part descriptions vs part numbers
 
         # Pattern 1: Look for explicit part number requests first
         part_description_patterns = [
@@ -795,7 +1036,12 @@ class AggregateSearch:
 
     def _fuzzy_part_search(self, part_candidates: List[str], threshold: int = 70) -> List[Tuple[Any, int]]:
         """
-        Perform fuzzy search for parts using multiple strategies.
+        ENHANCED: Perform fuzzy search for parts using multiple strategies with dual part number support.
+
+        Now searches both:
+        - Company part numbers (part.part_number)
+        - Manufacturer part numbers (part.model)
+        - Manufacturer names (part.oem_mfg)
 
         Returns:
             List of (part_object, confidence_score) tuples
@@ -803,44 +1049,95 @@ class AggregateSearch:
         try:
             from fuzzywuzzy import fuzz, process
         except ImportError:
+            logger.warning("fuzzywuzzy not available for fuzzy search")
             return []
 
         if not part_candidates:
             return []
 
         # Get all parts from database
+        from modules.emtacdb.emtacdb_fts import Part
         all_parts = self.session.query(Part).all()
         if not all_parts:
             return []
 
         results = []
 
+        logger.debug(f"Starting fuzzy search with {len(part_candidates)} candidates against {len(all_parts)} parts")
+
         for candidate in part_candidates:
-            # Strategy 1: Exact fuzzy match on part_number
-            part_numbers = [p.part_number for p in all_parts if p.part_number]
-            if part_numbers:
-                fuzzy_matches = process.extract(candidate, part_numbers, limit=5, scorer=fuzz.ratio)
+            if not candidate or len(candidate) < 2:
+                continue
+
+            candidate_upper = candidate.upper()
+
+            # STRATEGY 1: Company part numbers (part.part_number) - HIGHEST PRIORITY
+            company_part_numbers = [p.part_number for p in all_parts if p.part_number]
+            if company_part_numbers:
+                fuzzy_matches = process.extract(candidate, company_part_numbers, limit=5, scorer=fuzz.ratio)
 
                 for match_text, score in fuzzy_matches:
                     if score >= threshold:
                         part = next((p for p in all_parts if p.part_number == match_text), None)
                         if part:
-                            results.append((part, score))
+                            # Boost score for company parts (highest priority)
+                            boosted_score = min(100, score + 5)
+                            results.append((part, boosted_score))
+                            logger.debug(f" Company part fuzzy match: {candidate} → {match_text} ({boosted_score})")
 
-            # Strategy 2: Partial ratio for embedded matches
+            # STRATEGY 2: Manufacturer part numbers (part.model)
+            mfg_part_numbers = [p.model for p in all_parts if p.model]
+            if mfg_part_numbers:
+                fuzzy_matches = process.extract(candidate, mfg_part_numbers, limit=5, scorer=fuzz.ratio)
+
+                for match_text, score in fuzzy_matches:
+                    if score >= threshold:
+                        part = next((p for p in all_parts if p.model == match_text), None)
+                        if part:
+                            results.append((part, score))
+                            logger.debug(f"Manufacturer part fuzzy match: {candidate} → {match_text} ({score})")
+
+            # STRATEGY 3: Manufacturer names (part.oem_mfg)
+            manufacturers = [p.oem_mfg for p in all_parts if p.oem_mfg]
+            if manufacturers:
+                # Remove duplicates
+                unique_manufacturers = list(set(manufacturers))
+                fuzzy_matches = process.extract(candidate, unique_manufacturers, limit=3, scorer=fuzz.ratio)
+
+                for match_text, score in fuzzy_matches:
+                    if score >= threshold:
+                        # Find all parts from this manufacturer
+                        manufacturer_parts = [p for p in all_parts if p.oem_mfg == match_text]
+                        for part in manufacturer_parts[:3]:  # Limit to top 3 parts per manufacturer
+                            results.append((part, score - 10))  # Slightly lower priority
+                            logger.debug(f"Manufacturer fuzzy match: {candidate} → {match_text} ({score - 10})")
+
+            # STRATEGY 4: Partial ratio for embedded matches in company parts
             for part in all_parts:
                 if part.part_number:
-                    partial_score = fuzz.partial_ratio(candidate.upper(), part.part_number.upper())
+                    partial_score = fuzz.partial_ratio(candidate_upper, part.part_number.upper())
                     if partial_score >= threshold + 10:  # Higher threshold for partial
-                        results.append((part, partial_score))
+                        results.append((part, partial_score - 5))
+                        logger.debug(
+                            f" Company part partial match: {candidate} → {part.part_number} ({partial_score - 5})")
 
-            # Strategy 3: Token set ratio for flexible matching
+            # STRATEGY 5: Partial ratio for embedded matches in manufacturer parts
+            for part in all_parts:
+                if part.model:
+                    partial_score = fuzz.partial_ratio(candidate_upper, part.model.upper())
+                    if partial_score >= threshold + 10:  # Higher threshold for partial
+                        results.append((part, partial_score - 10))
+                        logger.debug(
+                            f"Manufacturer part partial match: {candidate} → {part.model} ({partial_score - 10})")
+
+            # STRATEGY 6: Token set ratio for flexible matching (company part + name)
             for part in all_parts:
                 if part.part_number and part.name:
                     combined_text = f"{part.part_number} {part.name}"
                     token_score = fuzz.token_set_ratio(candidate, combined_text)
                     if token_score >= threshold:
-                        results.append((part, token_score))
+                        results.append((part, token_score - 15))
+                        logger.debug(f"🔤 Token set match: {candidate} → {combined_text} ({token_score - 15})")
 
         # Remove duplicates and sort by confidence
         unique_results = {}
@@ -849,7 +1146,15 @@ class AggregateSearch:
             if part_id not in unique_results or score > unique_results[part_id][1]:
                 unique_results[part_id] = (part, score)
 
-        return sorted(unique_results.values(), key=lambda x: x[1], reverse=True)
+        # Sort by score (highest first)
+        sorted_results = sorted(unique_results.values(), key=lambda x: x[1], reverse=True)
+
+        # Log top results
+        logger.info(f"Fuzzy search found {len(sorted_results)} unique matches")
+        for i, (part, score) in enumerate(sorted_results[:3]):
+            logger.info(f"  {i + 1}. {part.part_number} | {part.oem_mfg} {part.model} ({score})")
+
+        return sorted_results
 
     def comprehensive_position_search(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -1015,6 +1320,490 @@ class AggregateSearch:
                 'entity_type': 'image',
                 'search_type': 'similarity'
             }
+
+    def _enhance_part_result(self, part) -> Dict[str, Any]:
+        """Enhance part result with related positions and images."""
+        part_data = {
+            'id': part.id,
+            'part_number': getattr(part, 'part_number', 'Unknown'),
+            'name': getattr(part, 'name', 'Unknown'),
+            'oem_mfg': getattr(part, 'oem_mfg', 'Unknown'),
+            'model': getattr(part, 'model', 'Unknown'),
+            'class_flag': getattr(part, 'class_flag', None),
+            'notes': getattr(part, 'notes', None),
+            'type': 'part'
+        }
+
+        try:
+            # Try to find associations, but don't fail if there's an error
+            positions_data = []
+            images_data = []
+
+            # Use a separate try block for association queries
+            try:
+                part_positions = PartsPositionImageAssociation.search(
+                    session=self.session,
+                    part_id=part.id
+                )
+
+                for assoc in part_positions:
+                    # Add position information
+                    if assoc.position:
+                        pos_data = {
+                            'id': assoc.position.id,
+                            'area': assoc.position.area.name if assoc.position.area else None,
+                            'equipment_group': assoc.position.equipment_group.name if assoc.position.equipment_group else None,
+                            'model': assoc.position.model.name if assoc.position.model else None,
+                            'location': assoc.position.location.name if assoc.position.location else None,
+                        }
+                        if pos_data not in positions_data:
+                            positions_data.append(pos_data)
+
+                    # Add image information
+                    if assoc.image:
+                        img_data = {
+                            'id': assoc.image.id,
+                            'title': getattr(assoc.image, 'title', 'Untitled'),
+                            'description': getattr(assoc.image, 'description', ''),
+                            'file_path': getattr(assoc.image, 'file_path', ''),
+                            'url': f"/serve_image/{assoc.image.id}"
+                        }
+                        if img_data not in images_data:
+                            images_data.append(img_data)
+            except Exception as assoc_error:
+                logger.debug(f"Could not retrieve associations for part {part.id}: {assoc_error}")
+
+            # Add related information to part data
+            part_data.update({
+                'positions': positions_data,
+                'position_count': len(positions_data),
+                'images': images_data,
+                'image_count': len(images_data),
+                'usage_locations': list(set([pos['area'] for pos in positions_data if pos['area']])),
+                'equipment_types': list(
+                    set([pos['equipment_group'] for pos in positions_data if pos['equipment_group']]))
+            })
+
+        except Exception as e:
+            logger.warning(f"Could not enhance part result {part.id}: {e}")
+            # Return basic part data even if enhancement fails
+            part_data.update({
+                'positions': [],
+                'position_count': 0,
+                'images': [],
+                'image_count': 0,
+                'usage_locations': [],
+                'equipment_types': []
+            })
+
+        return part_data
+
+    def _enhance_position_result(self, position) -> Dict[str, Any]:
+        """Enhanced position result with proper null checking."""
+        # FIXED: Proper null checking for position object
+        if not position:
+            logger.warning("Position object is None")
+            return {
+                'id': None,
+                'area': None,
+                'equipment_group': None,
+                'model': None,
+                'location': None,
+                'parts': [],
+                'images': [],
+                'part_count': 0,
+                'image_count': 0
+            }
+
+        position_data = {
+            'id': getattr(position, 'id', None),
+            'area': getattr(position.area, 'name', None) if hasattr(position, 'area') and position.area else None,
+            'equipment_group': getattr(position.equipment_group, 'name', None) if hasattr(position,
+                                                                                          'equipment_group') and position.equipment_group else None,
+            'model': getattr(position.model, 'name', None) if hasattr(position, 'model') and position.model else None,
+            'location': getattr(position.location, 'name', None) if hasattr(position,
+                                                                            'location') and position.location else None,
+            'area_id': getattr(position, 'area_id', None),
+            'equipment_group_id': getattr(position, 'equipment_group_id', None),
+            'model_id': getattr(position, 'model_id', None),
+            'asset_number_id': getattr(position, 'asset_number_id', None),
+            'location_id': getattr(position, 'location_id', None)
+        }
+
+        try:
+            # Find all parts and images at this position
+            position_associations = PartsPositionImageAssociation.search(
+                session=self.session,
+                position_id=position.id
+            )
+
+            parts_data = []
+            images_data = []
+
+            for assoc in position_associations:
+                # Add part information
+                if assoc.part:
+                    part_data = {
+                        'id': getattr(assoc.part, 'id', None),
+                        'part_number': getattr(assoc.part, 'part_number', None),
+                        'name': getattr(assoc.part, 'name', None),
+                        'oem_mfg': getattr(assoc.part, 'oem_mfg', None),
+                        'model': getattr(assoc.part, 'model', None)
+                    }
+                    if part_data not in parts_data:
+                        parts_data.append(part_data)
+
+                # Add image information
+                if assoc.image:
+                    img_data = {
+                        'id': getattr(assoc.image, 'id', None),
+                        'title': getattr(assoc.image, 'title', None),
+                        'description': getattr(assoc.image, 'description', None),
+                        'file_path': getattr(assoc.image, 'file_path', None),
+                        'url': f"/serve_image/{assoc.image.id}" if assoc.image.id else None
+                    }
+                    if img_data not in images_data:
+                        images_data.append(img_data)
+
+            # Add related information
+            position_data.update({
+                'parts': parts_data,
+                'part_count': len(parts_data),
+                'images': images_data,
+                'image_count': len(images_data)
+            })
+
+        except Exception as e:
+            logger.warning(f"Could not enhance position result {getattr(position, 'id', 'unknown')}: {e}")
+            # Ensure we still return a valid structure
+            position_data.update({
+                'parts': [],
+                'part_count': 0,
+                'images': [],
+                'image_count': 0
+            })
+
+        return position_data
+
+    def enhance_comprehensive_part_search_parameters(self, analysis_params, original_params):
+        """
+        Convert analysis parameters to proper Part.search parameters.
+        Add this method to your AggregateSearch class.
+        """
+        # Start with the analysis parameters
+        part_search_params = {}
+
+        # Direct field mappings
+        field_mappings = {
+            'name': 'name',
+            'part_number': 'part_number',
+            'oem_mfg': 'oem_mfg',
+            'model': 'model',
+            'search_text': 'search_text',
+            'fields': 'fields'
+        }
+
+        for analysis_key, part_key in field_mappings.items():
+            if analysis_key in analysis_params:
+                part_search_params[part_key] = analysis_params[analysis_key]
+                print(f" Mapped {analysis_key} -> {part_key}: {analysis_params[analysis_key]}")
+
+        # Handle extracted_id as part_id
+        if 'extracted_id' in analysis_params:
+            part_search_params['part_id'] = analysis_params['extracted_id']
+            print(f" Mapped extracted_id -> part_id: {analysis_params['extracted_id']}")
+
+        # Set defaults
+        part_search_params['limit'] = original_params.get('limit', 20)
+        part_search_params['exact_match'] = False
+
+        return part_search_params
+
+    @classmethod
+    @with_request_id
+    def detect_part_numbers_and_manufacturers(cls, terms: List[str], session, request_id: Optional[str] = None) -> Dict[
+        str, List[str]]:
+        """
+        FIXED: Detect which terms are company part numbers, manufacturer part numbers,
+        manufacturers, or equipment types with proper filtering.
+        """
+        # Get or use the provided request_id
+        rid = request_id or get_request_id()
+
+        from modules.emtacdb.emtacdb_fts import Part
+
+        company_part_numbers = []
+        mfg_part_numbers = []
+        manufacturers = []
+        equipment = []
+
+        # CRITICAL: Filter out common English words that shouldn't be part numbers
+        common_words = {
+            'what', 'is', 'the', 'part', 'number', 'for', 'a', 'an', 'and', 'or', 'but',
+            'in', 'on', 'at', 'to', 'from', 'with', 'by', 'of', 'as', 'this', 'that',
+            'these', 'those', 'do', 'does', 'did', 'will', 'would', 'could', 'should',
+            'can', 'may', 'might', 'must', 'have', 'has', 'had', 'be', 'am', 'are',
+            'was', 'were', 'being', 'been', 'get', 'got', 'give', 'gave', 'take',
+            'took', 'make', 'made', 'come', 'came', 'go', 'went', 'see', 'saw',
+            'know', 'knew', 'think', 'thought', 'say', 'said', 'tell', 'told',
+            'find', 'found', 'show', 'need', 'want', 'like', 'use', 'work'
+        }
+
+        debug_id(f"Starting detection for {len(terms)} terms: {terms}", rid)
+
+        for term in terms:
+            if len(term) < 2:
+                continue
+
+            term_lower = term.lower()
+            term_upper = term.upper()
+
+            # SKIP common English words entirely
+            if term_lower in common_words:
+                debug_id(f"Skipping common word: '{term}'", rid)
+                continue
+
+            # SKIP very short terms (likely noise)
+            if len(term) < 3:
+                debug_id(f"Skipping short term: '{term}'", rid)
+                continue
+
+            found_category = False
+
+            try:
+                # Check if term is a company part number (part.part_number)
+                # Use more specific matching to avoid false positives
+                company_part_result = session.query(Part.part_number).filter(
+                    Part.part_number.ilike(f'{term}%')  # Starts with term (more specific)
+                ).first()
+
+                if not company_part_result:
+                    # Try exact match
+                    company_part_result = session.query(Part.part_number).filter(
+                        Part.part_number.ilike(term)
+                    ).first()
+
+                if company_part_result:
+                    company_part_numbers.append(term)
+                    found_category = True
+                    debug_id(f" '{term}' detected as company part number", rid)
+                    continue
+
+                # Check if term is a manufacturer part number (part.model)
+                # More specific matching for manufacturer parts
+                mfg_part_result = session.query(Part.model).filter(
+                    Part.model.ilike(f'{term}%')  # Starts with term
+                ).first()
+
+                if not mfg_part_result:
+                    # Try exact match
+                    mfg_part_result = session.query(Part.model).filter(
+                        Part.model.ilike(term)
+                    ).first()
+
+                if mfg_part_result:
+                    # Additional validation: must look like a part number
+                    if cls._looks_like_part_number(term):
+                        mfg_part_numbers.append(term)
+                        found_category = True
+                        debug_id(f"'{term}' detected as manufacturer part number", rid)
+                        continue
+                    else:
+                        debug_id(f"🚫 '{term}' found in model column but doesn't look like part number", rid)
+
+                # Check if term is a manufacturer name (part.oem_mfg)
+                # More specific matching for manufacturers
+                manufacturer_result = session.query(Part.oem_mfg).filter(
+                    Part.oem_mfg.ilike(f'{term}%')  # Starts with term
+                ).first()
+
+                if not manufacturer_result:
+                    # Try exact match
+                    manufacturer_result = session.query(Part.oem_mfg).filter(
+                        Part.oem_mfg.ilike(term)
+                    ).first()
+
+                if manufacturer_result:
+                    # Additional validation: must look like a manufacturer name
+                    if cls._looks_like_manufacturer(term):
+                        manufacturers.append(term)
+                        found_category = True
+                        debug_id(f"'{term}' detected as manufacturer", rid)
+                        continue
+                    else:
+                        debug_id(f"🚫 '{term}' found in oem_mfg column but doesn't look like manufacturer", rid)
+
+            except Exception as e:
+                error_id(f"Error checking term '{term}': {e}", rid)
+                continue
+
+            # If not found in any part-related column, classify as equipment
+            if not found_category:
+                # Check against equipment keywords
+                equipment_keywords = {
+                    'sensor', 'sensors', 'motor', 'motors', 'pump', 'pumps',
+                    'valve', 'valves', 'bearing', 'bearings', 'filter', 'filters',
+                    'switch', 'switches', 'relay', 'relays', 'belt', 'belts',
+                    'seal', 'seals', 'gasket', 'gaskets', 'coupling', 'gear', 'gears',
+                    'hydraulic', 'pneumatic', 'electrical', 'mechanical', 'bypass'
+                }
+
+                if term_lower in equipment_keywords:
+                    equipment.append(term)
+                    debug_id(f"'{term}' detected as equipment", rid)
+                else:
+                    # Only add if it looks like it could be equipment/part related
+                    if cls._could_be_equipment(term):
+                        equipment.append(term)
+                        debug_id(f"❓ '{term}' classified as potential equipment", rid)
+                    else:
+                        debug_id(f"Skipping unlikely term: '{term}'", rid)
+
+        result = {
+            'company_part_numbers': company_part_numbers,
+            'mfg_part_numbers': mfg_part_numbers,
+            'manufacturers': manufacturers,
+            'equipment': equipment
+        }
+
+        debug_id(f"Detection complete: {result}", rid)
+        return result
+
+    @classmethod
+    def _looks_like_part_number(cls, term: str) -> bool:
+        """Check if term looks like a part number (not just common words)."""
+        import re
+
+        # Must have some alphanumeric pattern
+        if not re.search(r'[A-Z0-9]', term.upper()):
+            return False
+
+        # Must be longer than 2 characters
+        if len(term) < 3:
+            return False
+
+        # Should contain numbers or be mostly uppercase
+        has_numbers = re.search(r'\d', term)
+        mostly_upper = term.isupper() and len(term) > 3
+        has_dash_or_underscore = '-' in term or '_' in term
+
+        return has_numbers or mostly_upper or has_dash_or_underscore
+
+    @classmethod
+    def _looks_like_manufacturer(cls, term: str) -> bool:
+        """Check if term looks like a manufacturer name."""
+        # Manufacturer names are usually:
+        # - All caps (BANNER, DOLLINGER)
+        # - Or proper case (Banner, Dollinger)
+        # - At least 3 characters
+        # - Not common English words
+
+        if len(term) < 3:
+            return False
+
+        # All caps and not a common word
+        if term.isupper() and len(term) >= 4:
+            return True
+
+        # Proper case (first letter capital)
+        if term[0].isupper() and term[1:].islower() and len(term) >= 4:
+            return True
+
+        return False
+
+    @classmethod
+    def _could_be_equipment(cls, term: str) -> bool:
+        """Check if term could reasonably be equipment-related."""
+        # Equipment terms usually:
+        # - Are at least 4 characters
+        # - Don't contain weird punctuation
+        # - Might have numbers/dashes for specifications
+
+        if len(term) < 4:
+            return False
+
+        # Contains voltage patterns (110V, 120V, etc.)
+        if re.search(r'\d+[-]?\d*V', term):
+            return True
+
+        # Contains size patterns (1-1/2", 3/4", etc.)
+        if re.search(r'\d+[-/]\d+', term):
+            return True
+
+        # Reasonable length without too much punctuation
+        punctuation_count = sum(1 for c in term if c in '!"#$%&\'()*+,.:;<=>?@[\\]^`{|}~')
+        if punctuation_count <= 2:  # Allow some punctuation for specs
+            return True
+
+        return False
+
+    @classmethod
+    @with_request_id
+    def enhanced_search_with_dual_part_detection(self, query: str, session) -> str:
+        """
+        Enhanced search that automatically detects:
+        1. Company part numbers (part.part_number column)
+        2. Manufacturer part numbers (part.model column)
+        3. Manufacturer names (part.oem_mfg column)
+        4. Equipment types (filters, sensors, etc.)
+
+        Prioritizes searches based on specificity:
+        Company part number > Manufacturer part number > Manufacturer + Equipment > Manufacturer > Equipment
+        """
+        from modules.search.utils import extract_search_terms
+
+        # Extract terms from query
+        terms = [term.strip() for term in query.upper().split() if term.strip()]
+        logger.debug(f"Analyzing terms: {terms}")
+
+        # Detect what each term represents
+        detected = self.detect_part_numbers_and_manufacturers(terms, session)
+
+        # Build search strategy based on what was detected
+        search_components = []
+
+        # Priority 1: Company part numbers (highest priority - your internal system)
+        if detected['company_part_numbers']:
+            company_parts = ' '.join(detected['company_part_numbers'])
+            search_components.append(f"company_part:{company_parts}")
+            logger.info(f" Priority 1: Company part number detected: {company_parts}")
+
+        # Priority 2: Manufacturer part numbers (specific manufacturer models)
+        if detected['mfg_part_numbers']:
+            mfg_parts = ' '.join(detected['mfg_part_numbers'])
+            search_components.append(f"mfg_part:{mfg_parts}")
+            logger.info(f"Priority 2: Manufacturer part number detected: {mfg_parts}")
+
+        # Priority 3: Manufacturer + Equipment combination
+        if detected['manufacturers'] and detected['equipment']:
+            manufacturer = detected['manufacturers'][0]  # Use first manufacturer
+            equipment = ' '.join(detected['equipment'])
+            search_components.append(f"manufacturer:{manufacturer} equipment:{equipment}")
+            logger.info(f"Priority 3: Manufacturer+Equipment: {manufacturer} + {equipment}")
+
+        # Priority 4: Manufacturer only
+        elif detected['manufacturers']:
+            manufacturer = ' '.join(detected['manufacturers'])
+            search_components.append(f"manufacturer:{manufacturer}")
+            logger.info(f"Priority 4: Manufacturer-only: {manufacturer}")
+
+        # Priority 5: Equipment only
+        elif detected['equipment']:
+            equipment = ' '.join(detected['equipment'])
+            search_components.append(f"equipment:{equipment}")
+            logger.info(f"Priority 5: Equipment-only: {equipment}")
+
+        # If nothing specific detected, use original query
+        if not search_components:
+            logger.info(f"No specific detection, using original query: {query}")
+            return query
+
+        # Return the highest priority search component
+        selected_strategy = search_components[0]
+        logger.info(f"Selected search strategy: {selected_strategy}")
+        return selected_strategy
+
+    #=======End of Part Search==========
 
     # ======== Enhancement Methods for Results ========
 
@@ -1391,200 +2180,4 @@ class AggregateSearch:
 
         return result
 
-    def _enhance_part_result(self, part) -> Dict[str, Any]:
-        """Enhance part result with related positions and images."""
-        part_data = {
-            'id': part.id,
-            'part_number': getattr(part, 'part_number', 'Unknown'),
-            'name': getattr(part, 'name', 'Unknown'),
-            'oem_mfg': getattr(part, 'oem_mfg', 'Unknown'),
-            'model': getattr(part, 'model', 'Unknown'),
-            'class_flag': getattr(part, 'class_flag', None),
-            'notes': getattr(part, 'notes', None),
-            'type': 'part'
-        }
 
-        try:
-            # Try to find associations, but don't fail if there's an error
-            positions_data = []
-            images_data = []
-
-            # Use a separate try block for association queries
-            try:
-                part_positions = PartsPositionImageAssociation.search(
-                    session=self.session,
-                    part_id=part.id
-                )
-
-                for assoc in part_positions:
-                    # Add position information
-                    if assoc.position:
-                        pos_data = {
-                            'id': assoc.position.id,
-                            'area': assoc.position.area.name if assoc.position.area else None,
-                            'equipment_group': assoc.position.equipment_group.name if assoc.position.equipment_group else None,
-                            'model': assoc.position.model.name if assoc.position.model else None,
-                            'location': assoc.position.location.name if assoc.position.location else None,
-                        }
-                        if pos_data not in positions_data:
-                            positions_data.append(pos_data)
-
-                    # Add image information
-                    if assoc.image:
-                        img_data = {
-                            'id': assoc.image.id,
-                            'title': getattr(assoc.image, 'title', 'Untitled'),
-                            'description': getattr(assoc.image, 'description', ''),
-                            'file_path': getattr(assoc.image, 'file_path', ''),
-                            'url': f"/serve_image/{assoc.image.id}"
-                        }
-                        if img_data not in images_data:
-                            images_data.append(img_data)
-            except Exception as assoc_error:
-                logger.debug(f"Could not retrieve associations for part {part.id}: {assoc_error}")
-
-            # Add related information to part data
-            part_data.update({
-                'positions': positions_data,
-                'position_count': len(positions_data),
-                'images': images_data,
-                'image_count': len(images_data),
-                'usage_locations': list(set([pos['area'] for pos in positions_data if pos['area']])),
-                'equipment_types': list(
-                    set([pos['equipment_group'] for pos in positions_data if pos['equipment_group']]))
-            })
-
-        except Exception as e:
-            logger.warning(f"Could not enhance part result {part.id}: {e}")
-            # Return basic part data even if enhancement fails
-            part_data.update({
-                'positions': [],
-                'position_count': 0,
-                'images': [],
-                'image_count': 0,
-                'usage_locations': [],
-                'equipment_types': []
-            })
-
-        return part_data
-
-    def _enhance_position_result(self, position) -> Dict[str, Any]:
-        """Enhanced position result with proper null checking."""
-        # FIXED: Proper null checking for position object
-        if not position:
-            logger.warning("Position object is None")
-            return {
-                'id': None,
-                'area': None,
-                'equipment_group': None,
-                'model': None,
-                'location': None,
-                'parts': [],
-                'images': [],
-                'part_count': 0,
-                'image_count': 0
-            }
-
-        position_data = {
-            'id': getattr(position, 'id', None),
-            'area': getattr(position.area, 'name', None) if hasattr(position, 'area') and position.area else None,
-            'equipment_group': getattr(position.equipment_group, 'name', None) if hasattr(position,
-                                                                                          'equipment_group') and position.equipment_group else None,
-            'model': getattr(position.model, 'name', None) if hasattr(position, 'model') and position.model else None,
-            'location': getattr(position.location, 'name', None) if hasattr(position,
-                                                                            'location') and position.location else None,
-            'area_id': getattr(position, 'area_id', None),
-            'equipment_group_id': getattr(position, 'equipment_group_id', None),
-            'model_id': getattr(position, 'model_id', None),
-            'asset_number_id': getattr(position, 'asset_number_id', None),
-            'location_id': getattr(position, 'location_id', None)
-        }
-
-        try:
-            # Find all parts and images at this position
-            position_associations = PartsPositionImageAssociation.search(
-                session=self.session,
-                position_id=position.id
-            )
-
-            parts_data = []
-            images_data = []
-
-            for assoc in position_associations:
-                # Add part information
-                if assoc.part:
-                    part_data = {
-                        'id': getattr(assoc.part, 'id', None),
-                        'part_number': getattr(assoc.part, 'part_number', None),
-                        'name': getattr(assoc.part, 'name', None),
-                        'oem_mfg': getattr(assoc.part, 'oem_mfg', None),
-                        'model': getattr(assoc.part, 'model', None)
-                    }
-                    if part_data not in parts_data:
-                        parts_data.append(part_data)
-
-                # Add image information
-                if assoc.image:
-                    img_data = {
-                        'id': getattr(assoc.image, 'id', None),
-                        'title': getattr(assoc.image, 'title', None),
-                        'description': getattr(assoc.image, 'description', None),
-                        'file_path': getattr(assoc.image, 'file_path', None),
-                        'url': f"/serve_image/{assoc.image.id}" if assoc.image.id else None
-                    }
-                    if img_data not in images_data:
-                        images_data.append(img_data)
-
-            # Add related information
-            position_data.update({
-                'parts': parts_data,
-                'part_count': len(parts_data),
-                'images': images_data,
-                'image_count': len(images_data)
-            })
-
-        except Exception as e:
-            logger.warning(f"Could not enhance position result {getattr(position, 'id', 'unknown')}: {e}")
-            # Ensure we still return a valid structure
-            position_data.update({
-                'parts': [],
-                'part_count': 0,
-                'images': [],
-                'image_count': 0
-            })
-
-        return position_data
-
-    def enhance_comprehensive_part_search_parameters(self, analysis_params, original_params):
-        """
-        Convert analysis parameters to proper Part.search parameters.
-        Add this method to your AggregateSearch class.
-        """
-        # Start with the analysis parameters
-        part_search_params = {}
-
-        # Direct field mappings
-        field_mappings = {
-            'name': 'name',
-            'part_number': 'part_number',
-            'oem_mfg': 'oem_mfg',
-            'model': 'model',
-            'search_text': 'search_text',
-            'fields': 'fields'
-        }
-
-        for analysis_key, part_key in field_mappings.items():
-            if analysis_key in analysis_params:
-                part_search_params[part_key] = analysis_params[analysis_key]
-                print(f"✅ Mapped {analysis_key} -> {part_key}: {analysis_params[analysis_key]}")
-
-        # Handle extracted_id as part_id
-        if 'extracted_id' in analysis_params:
-            part_search_params['part_id'] = analysis_params['extracted_id']
-            print(f"✅ Mapped extracted_id -> part_id: {analysis_params['extracted_id']}")
-
-        # Set defaults
-        part_search_params['limit'] = original_params.get('limit', 20)
-        part_search_params['exact_match'] = False
-
-        return part_search_params
