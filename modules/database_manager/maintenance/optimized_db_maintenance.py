@@ -547,7 +547,7 @@ def associate_images_fast(export_report, report_dir):
     """Associate all parts with matching images using optimized vectorized operations."""
     result = maintenance.associate_all_parts_with_images_vectorized(export_report, report_dir)
 
-    click.echo("\n🚀 OPTIMIZED Part-Image Association Summary:")
+    click.echo("\nOPTIMIZED Part-Image Association Summary:")
     click.echo(f"- Parts processed: {result['stats']['total_parts_processed']:,}")
     click.echo(f"- Parts with matching images: {result['stats']['parts_with_matching_images']:,}")
     click.echo(f"- Parts with no matches: {result['stats']['parts_with_no_matches']:,}")
@@ -565,7 +565,7 @@ def associate_images_fast(export_report, report_dir):
             click.echo("💡 No parts found in database")
 
     if export_report and 'error' not in result:
-        click.echo("\n📊 Reports exported to:")
+        click.echo("\nReports exported to:")
         for report_type, file_path in result.get('report_files', {}).items():
             if file_path and os.path.exists(file_path):
                 click.echo(f"- {report_type.capitalize()}: {file_path}")
@@ -578,7 +578,7 @@ def associate_drawings_fast(export_report, report_dir):
     """Associate all drawings with matching parts using optimized vectorized operations."""
     result = maintenance.associate_all_drawings_with_parts_vectorized(export_report, report_dir)
 
-    click.echo("\n🚀 OPTIMIZED Drawing-Part Association Summary:")
+    click.echo("\nOPTIMIZED Drawing-Part Association Summary:")
     click.echo(f"- Drawings processed: {result['stats']['total_drawings_processed']:,}")
     click.echo(f"- Drawings with matching parts: {result['stats']['drawings_with_matching_parts']:,}")
     click.echo(f"- Drawings with no matches: {result['stats']['drawings_with_no_matches']:,}")
@@ -597,7 +597,7 @@ def associate_drawings_fast(export_report, report_dir):
             click.echo("💡 No drawings with spare part numbers found")
 
     if export_report and 'error' not in result:
-        click.echo("\n📊 Reports exported to:")
+        click.echo("\nReports exported to:")
         for report_type, file_path in result.get('report_files', {}).items():
             if file_path and os.path.exists(file_path):
                 click.echo(f"- {report_type.capitalize()}: {file_path}")
@@ -608,7 +608,7 @@ def associate_drawings_fast(export_report, report_dir):
 @click.option('--report-dir', default=None, help='Directory to save the reports')
 def run_all_fast(export_report, report_dir):
     """Run all optimized maintenance operations."""
-    click.echo("🚀 Starting ALL optimized database maintenance operations...\n")
+    click.echo("Starting ALL optimized database maintenance operations...\n")
 
     total_start_time = time.time()
 
@@ -619,7 +619,7 @@ def run_all_fast(export_report, report_dir):
     img_time = time.time() - img_start
 
     click.echo(
-        f"   ✅ Created {img_result['stats']['total_associations_created']:,} part-image associations in {img_time:.2f}s")
+        f"   Created {img_result['stats']['total_associations_created']:,} part-image associations in {img_time:.2f}s")
 
     if img_result['stats']['total_associations_created'] == 0:
         if img_result['stats']['total_parts_processed'] > 0:
@@ -634,7 +634,7 @@ def run_all_fast(export_report, report_dir):
     drw_time = time.time() - drw_start
 
     click.echo(
-        f"   ✅ Created {drw_result['stats']['total_associations_created']:,} drawing-part associations in {drw_time:.2f}s")
+        f"   Created {drw_result['stats']['total_associations_created']:,} drawing-part associations in {drw_time:.2f}s")
 
     if drw_result['stats']['total_associations_created'] == 0:
         if drw_result['stats']['total_drawings_processed'] > 0:
@@ -648,8 +648,8 @@ def run_all_fast(export_report, report_dir):
     total_time = time.time() - total_start_time
 
     click.echo(f"\n🎉 ALL OPTIMIZED MAINTENANCE COMPLETE!")
-    click.echo(f"📊 Total associations created: {total_associations:,}")
-    click.echo(f"⏱️  Total time: {total_time:.2f} seconds")
+    click.echo(f"Total associations created: {total_associations:,}")
+    click.echo(f"⏱ Total time: {total_time:.2f} seconds")
 
     # Overall guidance
     if total_associations == 0:
@@ -659,7 +659,7 @@ def run_all_fast(export_report, report_dir):
         click.echo(f"   • Check that your data is properly loaded in the database")
 
     if export_report and 'error' not in img_result and 'error' not in drw_result:
-        click.echo("\n📊 Reports exported to:")
+        click.echo("\nReports exported to:")
         for result in [img_result, drw_result]:
             for report_type, file_path in result.get('report_files', {}).items():
                 if file_path and os.path.exists(file_path):
