@@ -1999,7 +1999,7 @@ class Image(Base):
             image = cls(
                 title=title,
                 description=description,
-                file_path=destination_relative_path,  # ✅ Store relative path like: DB_IMAGES\filename.png
+                file_path=destination_relative_path,  #  Store relative path like: DB_IMAGES\filename.png
                 img_metadata=metadata if metadata else {}
             )
             session.add(image)
@@ -4781,12 +4781,12 @@ class Document(Base):
                 """))
                 session.commit()
 
-                print("✅ Enhanced PostgreSQL FTS table created with image-chunk support")
+                print(" Enhanced PostgreSQL FTS table created with image-chunk support")
                 return True
 
             except Exception as e:
                 session.rollback()
-                print(f"❌ Failed to create enhanced FTS table: {e}")
+                print(f" Failed to create enhanced FTS table: {e}")
                 return False
 
 class DocumentEmbedding(Base):
@@ -15338,15 +15338,15 @@ def initialize_database_tables():
 
     if not _database_initialized:
         try:
-            print("🗄️  Initializing database tables...")
+            print("🗄  Initializing database tables...")
             Base.metadata.create_all(engine, checkfirst=True)
             _database_initialized = True
-            print("✅ Database tables initialized successfully")
+            print(" Database tables initialized successfully")
         except Exception as e:
-            print(f"❌ Failed to initialize database tables: {e}")
+            print(f" Failed to initialize database tables: {e}")
             raise
     else:
-        print("✅ Database tables already initialized")
+        print(" Database tables already initialized")
 
 # Ask for API key if it's empty
 if not OPENAI_API_KEY:
