@@ -24,25 +24,64 @@ global_aist_manager = None
 chatbot_bp = Blueprint('chatbot_bp', __name__)
 
 
+# Complete corrected function:
 def get_or_create_aist_manager():
     """
-    Get or create a global AistManager instance.
-    This allows reusing the same manager across requests for better performance.
+    FIXED: Get or create a global AistManager instance WITH database session for tracking.
     """
     global global_aist_manager
 
     if global_aist_manager is None:
         try:
-            # Load AI model using ModelsConfig
-            ai_model = ModelsConfig.load_ai_model()
-            global_aist_manager = AistManager(ai_model=ai_model)
-            logger.info("Global AistManager created successfully")
+            logger.info("🔧 Creating AistManager with tracking support...")
+
+            # CRITICAL FIX: Get database session for tracking
+            db_config = DatabaseConfig()
+            db_session = db_config.get_main_session()  #  FIXED: Use get_main_session()
+
+            if not db_session:
+                logger.error(" Could not get database session")
+                # Create without session as fallback
+                ai_model = ModelsConfig.load_ai_model()
+                global_aist_manager = AistManager(ai_model=ai_model)
+            else:
+                logger.info(" Database session obtained")
+
+                # Load AI model using ModelsConfig
+                ai_model = ModelsConfig.load_ai_model()
+
+                # FIXED: Create AistManager with database session
+                global_aist_manager = AistManager(
+                    ai_model=ai_model,
+                    db_session=db_session  # CRITICAL: Pass database session during initialization
+                )
+
+            logger.info(" Global AistManager created successfully")
+
+            # Test tracking initialization
+            if hasattr(global_aist_manager, 'check_tracking_status'):
+                tracking_status = global_aist_manager.check_tracking_status()
+                if tracking_status.get('tracking_enabled', False):
+                    logger.info(" Search tracking is fully operational")
+                else:
+                    logger.warning(" Search tracking is not operational")
+                    logger.info(f" Tracking status: {tracking_status}")
+            else:
+                logger.warning(" No tracking status check method available")
+
         except Exception as e:
-            logger.error(f"Error creating global AistManager: {e}", exc_info=True)
-            # Create without AI model as fallback
-            global_aist_manager = AistManager()
+            logger.error(f" Failed to create AistManager with tracking: {e}")
+            # Fallback without session
+            try:
+                ai_model = ModelsConfig.load_ai_model()
+                global_aist_manager = AistManager(ai_model=ai_model)
+                logger.info(" Created fallback AistManager without tracking")
+            except Exception as fallback_error:
+                logger.error(f" Fallback AistManager creation failed: {fallback_error}")
+                global_aist_manager = AistManager()
 
     return global_aist_manager
+
 
 
 @chatbot_bp.route('/update_qanda', methods=['POST'])
@@ -245,14 +284,30 @@ def ask(request_id=None):
         try:
             # Step 4: Initialize request timing in AistManager
             step_start = time.time()
-            aist_manager.begin_request()
+            aist_manager.begin_request(request_id)
             track_step('aist_manager_begin_request', step_start)
 
             # Step 5: Process question through AistManager
             step_start = time.time()
             info_id(f"Sending question to AistManager for processing", request_id)
-            result = aist_manager.answer_question(user_id, question, client_type)
+
+            # FIXED: Use correct parameter order and ensure dictionary return
+            result = aist_manager.answer_question(
+                question=question,
+                user_id=user_id,
+                request_id=request_id,
+                client_type=client_type
+            )
             processing_time = track_step('aist_manager_processing', step_start)
+
+            # Ensure result is a dictionary
+            if not isinstance(result, dict):
+                error_id(f"AistManager returned invalid format: {type(result)}", request_id)
+                result = {
+                    'status': 'error',
+                    'answer': 'Invalid response format from search system',
+                    'method': 'error_recovery'
+                }
 
             debug_id(f"AistManager result status: {result.get('status')}", request_id)
 
@@ -272,7 +327,7 @@ def ask(request_id=None):
                 })
 
             elif result.get('status') == 'success':
-                answer = result.get('answer', '')
+                answer = result.get('answer', 'No answer provided')
                 method = result.get('method', 'unknown')
                 answer_length = len(answer)
 
@@ -305,7 +360,8 @@ def ask(request_id=None):
                 # The AistManager should have already recorded the Q&A interaction
                 info_id(f"Request completed successfully in {total_response_time:.2f}s using {method}", request_id)
 
-                return jsonify({
+                # Prepare response with tracking info if available
+                response_data = {
                     'answer': answer,
                     'status': 'success',
                     'method': method,
@@ -315,11 +371,20 @@ def ask(request_id=None):
                         'processing_time': processing_time,
                         'method': method
                     }
-                })
+                }
+
+                # Add tracking info if present
+                if 'tracking_info' in result:
+                    response_data['tracking_info'] = result['tracking_info']
+                    debug_id(f"Added tracking info to response: query_id={result['tracking_info'].get('query_id')}",
+                             request_id)
+
+                return jsonify(response_data)
 
             elif result.get('status') == 'error':
                 # Handle error case from AistManager
-                error_message = result.get('error', "I encountered an issue while processing your question.")
+                error_message = result.get('answer', result.get('message',
+                                                                "I encountered an issue while processing your question."))
                 error_id(f"AistManager returned error: {error_message}", request_id)
 
                 track_step('error_handling', step_start)
@@ -338,21 +403,31 @@ def ask(request_id=None):
                 warning_id(f"Unknown status from AistManager: {result.get('status')}", request_id)
                 track_step('unknown_response_handling', step_start)
                 performance_metrics['total_time'] = time.time() - performance_metrics['request_start']
+
+                # Try to get answer from result anyway
+                fallback_answer = result.get('answer', "I received an unexpected response format. Please try again.")
+
                 return jsonify({
-                    'answer': "I received an unexpected response format. Please try again.",
-                    'status': 'unknown_response',
+                    'answer': fallback_answer,
+                    'status': result.get('status', 'unknown_response'),
+                    'method': result.get('method', 'unknown'),
+                    'response_time': performance_metrics['total_time'],
                     'performance': performance_metrics
-                }), 500
+                }), 200  # Changed to 200 since we're providing an answer
 
         except Exception as processing_err:
-            if local_session:
-                local_session.rollback()
+            if 'local_session' in locals() and local_session:
+                try:
+                    local_session.rollback()
+                except:
+                    pass
             error_id(f"Error during AistManager processing: {processing_err}", request_id, exc_info=True)
 
             performance_metrics['total_time'] = time.time() - performance_metrics['request_start']
             return jsonify({
                 'answer': "I encountered an unexpected issue while processing your question. Please try again.",
                 'status': 'processing_error',
+                'error_type': type(processing_err).__name__,
                 'response_time': performance_metrics['total_time'],
                 'performance': performance_metrics
             }), 500
@@ -360,11 +435,14 @@ def ask(request_id=None):
         finally:
             # Step 7: Cleanup
             cleanup_start = time.time()
-            if aist_manager:
-                aist_manager.db_session = None
-            if local_session:
-                local_session.close()
-                debug_id(f"Database session closed", request_id)
+            try:
+                if 'aist_manager' in locals() and aist_manager:
+                    aist_manager.db_session = None
+                if 'local_session' in locals() and local_session:
+                    local_session.close()
+                    debug_id(f"Database session closed", request_id)
+            except Exception as cleanup_err:
+                error_id(f"Error during cleanup: {cleanup_err}", request_id)
             track_step('cleanup', cleanup_start)
 
     except SQLAlchemyError as e:
