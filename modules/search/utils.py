@@ -131,6 +131,7 @@ def extract_part_numbers(text: str) -> List[str]:
 def extract_search_terms(text: str) -> List[str]:
     """
     Extract meaningful search terms from text by removing stop words and noise.
+    Enhanced to better handle equipment/parts search queries.
 
     Args:
         text: Input text
@@ -141,28 +142,96 @@ def extract_search_terms(text: str) -> List[str]:
     if not text:
         return []
 
-    # Common stop words to filter out
+    # Expanded stop words including query-specific terms
     stop_words = {
+        # Basic stop words
         'a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'for', 'from',
         'has', 'he', 'in', 'is', 'it', 'its', 'of', 'on', 'that', 'the',
         'to', 'was', 'will', 'with', 'what', 'where', 'when', 'how', 'why',
-        'can', 'could', 'should', 'would', 'do', 'does', 'did', 'have', 'had'
+        'can', 'could', 'should', 'would', 'do', 'does', 'did', 'have', 'had',
+
+        # Query-specific stop words for equipment searches
+        'show', 'me', 'find', 'get', 'list', 'display', 'give', 'tell',
+        'search', 'look', 'see', 'view', 'all', 'any', 'some', 'our',
+        'we', 'us', 'i', 'my', 'your', 'this', 'these', 'those', 'there',
+        'here', 'now', 'then', 'about', 'into', 'through', 'during',
+        'before', 'after', 'above', 'below', 'up', 'down', 'out', 'off',
+        'over', 'under', 'again', 'further', 'then', 'once', 'also',
+        'need', 'want', 'like', 'just', 'only', 'know', 'think', 'take',
+        'come', 'its', 'than', 'or', 'but', 'if', 'because', 'while',
+        'so', 'no', 'not', 'more', 'very', 'own', 'other', 'such', 'new',
+        'first', 'last', 'long', 'great', 'little', 'old', 'right', 'big',
+        'high', 'different', 'small', 'large', 'next', 'early', 'young',
+        'important', 'few', 'public', 'bad', 'same', 'able'
+    }
+
+    # Equipment-specific terms that should be preserved
+    equipment_terms = {
+        'sensor', 'motor', 'pump', 'valve', 'bearing', 'filter', 'switch',
+        'relay', 'cable', 'belt', 'seal', 'gasket', 'coupling', 'gear',
+        'spring', 'bracket', 'mount', 'guard', 'cylinder', 'piston',
+        'compressor', 'fan', 'blower', 'conveyor', 'gearbox', 'impeller',
+        'rotor', 'stator', 'shaft', 'housing', 'casing', 'frame', 'chain',
+        'tube', 'pipe', 'hose', 'fitting', 'connector', 'controller',
+        'display', 'gauge', 'indicator', 'transmitter', 'transducer',
+        'detector', 'alarm', 'actuator', 'solenoid', 'manifold',
+        'thermostat', 'heater', 'cooler', 'exchanger', 'radiator'
+    }
+
+    # Manufacturer names that should be preserved
+    manufacturer_terms = {
+        'banner', 'allen', 'bradley', 'schneider', 'siemens', 'omron',
+        'keyence', 'pepperl', 'fuchs', 'turck', 'sick', 'ifm', 'balluff',
+        'baumer', 'leuze', 'wenglor', 'contrinex', 'eaton', 'parker',
+        'festo', 'smc', 'norgren', 'asco', 'numatics', 'bimba',
+        'honeywell', 'emerson', 'yokogawa', 'endress', 'hauser',
+        'rosemount', 'fisher', 'masoneilan', 'kitz', 'velan'
     }
 
     # Split text into words and clean
-    words = re.findall(r'\b[a-zA-Z]{2,}\b', text.lower())
+    words = re.findall(r'\b[a-zA-Z0-9]{2,}\b', text.lower())
 
-    # Filter out stop words and short words
-    search_terms = [
-        word for word in words
-        if word not in stop_words and len(word) >= 2
-    ]
+    # Filter terms with enhanced logic
+    search_terms = []
+    for word in words:
+        # Always keep equipment terms and manufacturer names
+        if word in equipment_terms or word in manufacturer_terms:
+            search_terms.append(word)
+        # Keep other terms that aren't stop words and are meaningful length
+        elif word not in stop_words and len(word) >= 3:
+            search_terms.append(word)
+        # Keep 2-letter terms if they look like abbreviations (all caps in original)
+        elif len(word) == 2 and word.upper() in text:
+            search_terms.append(word)
 
     # Remove duplicates while preserving order
     unique_terms = []
     for term in search_terms:
         if term not in unique_terms:
             unique_terms.append(term)
+
+    # Additional processing: extract part numbers separately
+    part_number_patterns = [
+        r'\b([A-Z0-9]{2,}[-\.][A-Z0-9]+)\b',  # ABC-123, ABC.123
+        r'\b([A-Z]{2,}\d{3,})\b',  # ABC123
+        r'\b(\d{4,}[-\.][A-Z0-9]+)\b',  # 1234-ABC
+    ]
+
+    original_text_upper = text.upper()
+    for pattern in part_number_patterns:
+        matches = re.findall(pattern, original_text_upper)
+        for match in matches:
+            # Normalize and add part numbers
+            normalized = match.replace(' ', '').replace('_', '-')
+            if normalized.lower() not in unique_terms:
+                unique_terms.append(normalized.lower())
+
+    # If no meaningful terms found, return the original cleaned text as single term
+    if not unique_terms and text.strip():
+        cleaned = re.sub(r'[^\w\s-]', ' ', text.strip())
+        cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+        if cleaned and len(cleaned) >= 2:
+            unique_terms = [cleaned.lower()]
 
     return unique_terms
 

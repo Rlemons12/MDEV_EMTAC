@@ -129,9 +129,9 @@ class UnifiedSearchWithTracking:
         if hasattr(unified_search_mixin, 'db_session') and unified_search_mixin.db_session:
             from modules.search.nlp_search import SearchQueryTracker
             self.query_tracker = SearchQueryTracker(unified_search_mixin.db_session)
-            logger.info("✅ Search tracking initialized")
+            logger.info(" Search tracking initialized")
         else:
-            logger.warning("⚠️ No database session available - tracking disabled")
+            logger.warning(" No database session available - tracking disabled")
 
     def start_user_session(self, user_id: str, context_data: Dict = None) -> Optional[int]:
         """Start a search session for a user."""
@@ -144,119 +144,130 @@ class UnifiedSearchWithTracking:
                                              request_id: str = None) -> Dict[str, Any]:
         """
         Enhanced search with comprehensive SearchQuery tracking.
-        This wraps your existing execute_unified_search method.
+        FIXED: Proper recursion protection and error handling.
         """
         import time
 
-        search_start = time.time()
-        user_id = user_id or "anonymous"
+        # CRITICAL: Check if recursion protection flag exists, create if missing
+        if not hasattr(self, '_in_tracking_call'):
+            logger.warning(" Recursion flag missing, initializing...")
+            self._in_tracking_call = False
 
-        # Start session if we don't have one
-        if not self.current_session_id and self.query_tracker:
-            self.current_session_id = self.query_tracker.start_search_session(user_id)
+        # CRITICAL: Prevent infinite recursion
+        if self._in_tracking_call:
+            logger.warning(" Recursion detected! Falling back to direct search.")
+            # Call the ORIGINAL search method directly without tracking
+            try:
+                if hasattr(self.unified_search, 'execute_unified_search'):
+                    return self.unified_search.execute_unified_search(question, user_id, request_id)
+                else:
+                    return {'status': 'error', 'message': 'Search method not available'}
+            except Exception as e:
+                return {'status': 'error', 'message': f'Fallback search failed: {str(e)}'}
 
-        # Initialize tracking variables
-        detected_intent_id = None
-        intent_confidence = 0.0
-        search_method = "unknown"
-        extracted_entities = {}
-        normalized_query = question.lower().strip()
-
-        logger.info(f"🔍 Executing tracked unified search for: {question}")
+        # Set recursion flag
+        self._in_tracking_call = True
 
         try:
-            # STEP 1: Intent Detection with Tracking
-            if (hasattr(self.unified_search, 'unified_search_system') and
-                    self.unified_search.unified_search_system and
-                    hasattr(self.unified_search.unified_search_system, 'analyze_user_input')):
+            search_start = time.time()
+            user_id = user_id or "anonymous"
 
-                # Get NLP analysis with intent and keyword detection
-                analysis = self.unified_search.unified_search_system.analyze_user_input(question)
+            logger.info(f" Executing tracked unified search for: {question}")
 
-                detected_intent = analysis.get('intent', {}).get('intent', 'UNKNOWN')
-                intent_confidence = analysis.get('intent', {}).get('confidence', 0.0)
-                extracted_entities = {
-                    'search_parameters': analysis.get('search_parameters', {}),
-                    'entities': analysis.get('entities', {}),
-                    'semantic_info': analysis.get('semantic_info', {})
-                }
-                search_method = analysis.get('processing_method', 'nlp_analysis')
+            # Start session if we don't have one
+            if not self.current_session_id and self.query_tracker:
+                try:
+                    self.current_session_id = self.query_tracker.start_search_session(user_id)
+                except Exception as e:
+                    logger.warning(f"Failed to start search session: {e}")
 
-                # Get intent ID
-                if self.query_tracker:
-                    detected_intent_id = self.query_tracker.get_intent_id(detected_intent)
+            # Initialize tracking variables
+            detected_intent_id = None
+            intent_confidence = 0.0
+            search_method = "direct_search"
+            extracted_entities = {}
+            normalized_query = question.lower().strip()
 
-                logger.debug(
-                    f"Intent detected: {detected_intent} (ID: {detected_intent_id}, confidence: {intent_confidence:.2f})")
+            # STEP 1: Execute Search (CRITICAL: Use direct methods to avoid recursion)
+            result = None
 
-            # STEP 2: Execute Search (using your existing logic)
+            # Try different search approaches in order of preference
             if self._looks_like_part_query(question):
-                result = self._execute_part_search_with_tracking(question,
-                                                                 extracted_entities.get('search_parameters', {}))
-                search_method = result.get('search_method', 'part_search_bypass')
+                result = self._execute_part_search_with_tracking(question, {})
+                search_method = "part_search_bypass"
+            elif hasattr(self.unified_search, 'unified_search_system') and self.unified_search.unified_search_system:
+                # Call the search system directly
+                try:
+                    if hasattr(self.unified_search.unified_search_system, 'execute_nlp_aggregated_search'):
+                        search_result = self.unified_search.unified_search_system.execute_nlp_aggregated_search(
+                            question)
+                    else:
+                        search_result = self.unified_search.unified_search_system.execute_aggregated_search(question)
+
+                    # Organize results using the mixin's method
+                    if hasattr(self.unified_search, '_organize_unified_results'):
+                        result = self.unified_search._organize_unified_results(search_result, question)
+                    else:
+                        result = search_result
+
+                    search_method = "nlp_aggregated_search"
+                except Exception as e:
+                    logger.error(f"Search system error: {e}")
+                    result = {'status': 'error', 'message': f'Search system error: {str(e)}'}
+                    search_method = "search_error"
             else:
-                # Use your existing unified search
-                result = self.unified_search.execute_unified_search(question, user_id, request_id)
-                search_method = result.get('search_method', 'unified_search')
+                result = {'status': 'error', 'message': 'No search system available'}
+                search_method = "no_search_system"
 
-            # STEP 3: Calculate metrics
+            # STEP 2: Calculate metrics
             execution_time = int((time.time() - search_start) * 1000)
-            result_count = result.get('total_results', 0)
+            result_count = result.get('total_results', 0) if isinstance(result, dict) else 0
 
-            # STEP 4: Track in SearchQuery
+            # STEP 3: Track in SearchQuery (if available)
             query_id = None
-            if self.query_tracker:
-                query_id = self.query_tracker.track_search_query(
-                    session_id=self.current_session_id,
-                    query_text=question,
-                    detected_intent_id=detected_intent_id,
-                    intent_confidence=intent_confidence,
-                    search_method=search_method,
-                    result_count=result_count,
-                    execution_time_ms=execution_time,
-                    extracted_entities=extracted_entities,
-                    normalized_query=normalized_query
-                )
+            if self.query_tracker and self.current_session_id:
+                try:
+                    query_id = self.query_tracker.track_search_query(
+                        session_id=self.current_session_id,
+                        query_text=question,
+                        detected_intent_id=detected_intent_id,
+                        intent_confidence=intent_confidence,
+                        search_method=search_method,
+                        result_count=result_count,
+                        execution_time_ms=execution_time,
+                        extracted_entities=extracted_entities,
+                        normalized_query=normalized_query
+                    )
+                    logger.info(f" TRACKING SUCCESS: Query {query_id} tracked!")
+                except Exception as e:
+                    logger.warning(f"Failed to track query: {e}")
 
-            # STEP 5: Enhance result with tracking info
-            result.update({
-                'tracking_info': {
-                    'query_id': query_id,
-                    'session_id': self.current_session_id,
-                    'detected_intent_id': detected_intent_id,
-                    'intent_confidence': intent_confidence,
-                    'execution_time_ms': execution_time,
-                    'search_method': search_method
-                },
-                'satisfaction_request': {
-                    'query_id': query_id,
-                    'message': 'How satisfied are you with these results?',
-                    'scale': '1 (Very Poor) to 5 (Excellent)'
-                } if query_id else None
-            })
+            # STEP 4: Enhance result with tracking info
+            if isinstance(result, dict):
+                result.update({
+                    'tracking_info': {
+                        'query_id': query_id,
+                        'session_id': self.current_session_id,
+                        'detected_intent_id': detected_intent_id,
+                        'intent_confidence': intent_confidence,
+                        'execution_time_ms': execution_time,
+                        'search_method': search_method
+                    }
+                })
 
-            logger.info(f"✅ Search tracked: Query {query_id}, {result_count} results, {execution_time}ms")
             return result
 
         except Exception as e:
-            search_time = time.time() - search_start
-            execution_time = int(search_time * 1000)
+            logger.error(f"💥 Tracking search failed: {e}", exc_info=True)
+            return {
+                'status': 'error',
+                'message': f"Tracked search failed: {str(e)}",
+                'search_method': 'tracking_error'
+            }
 
-            # Track failed searches too
-            if self.query_tracker:
-                query_id = self.query_tracker.track_search_query(
-                    session_id=self.current_session_id,
-                    query_text=question,
-                    detected_intent_id=detected_intent_id,
-                    intent_confidence=intent_confidence,
-                    search_method=f"{search_method}_error",
-                    result_count=0,
-                    execution_time_ms=execution_time,
-                    extracted_entities={'error': str(e)}
-                )
-
-            logger.error(f"❌ Search failed and tracked: Query {query_id}, {execution_time}ms: {e}")
-            return self.unified_search._unified_search_error_response(question, str(e))
+        finally:
+            # CRITICAL: Always clear recursion flag
+            self._in_tracking_call = False
 
     def record_satisfaction(self, query_id: int, satisfaction_score: int) -> bool:
         """Record user satisfaction for a query."""
@@ -293,31 +304,92 @@ class UnifiedSearchWithTracking:
         question_lower = question.lower()
         part_indicators = [
             'part number for', 'find part', 'looking for', 'what is the part number',
-            'gear', 'sensor', 'motor', 'pump', 'valve', 'bearing'
+            'gear', 'sensor', 'motor', 'pump', 'valve', 'bearing', 'banner'
         ]
         return any(indicator in question_lower for indicator in part_indicators)
 
     def _execute_part_search_with_tracking(self, question: str, search_params: Dict) -> Dict[str, Any]:
-        """Execute part search with enhanced tracking."""
+        """Execute part search with enhanced tracking - FIXED METHOD CALLS."""
         try:
-            # Use your existing bypass logic
-            result = self.unified_search.execute_unified_search(question)
+            logger.info(f" Executing part search with tracking for: {question}")
+
+            # FIXED: Use the correct method name based on what's available
+            result = None
+
+            if hasattr(self.unified_search, 'unified_search_system') and self.unified_search.unified_search_system:
+                # Call the search system directly with correct method name
+                if hasattr(self.unified_search.unified_search_system, 'execute_nlp_aggregated_search'):
+                    logger.info(" Using execute_nlp_aggregated_search for part search")
+                    search_result = self.unified_search.unified_search_system.execute_nlp_aggregated_search(question)
+                elif hasattr(self.unified_search.unified_search_system, 'execute_aggregated_search'):
+                    logger.info(" Using execute_aggregated_search for part search")
+                    search_result = self.unified_search.unified_search_system.execute_aggregated_search(question)
+                else:
+                    logger.warning(" No search method available, using fallback")
+                    search_result = {
+                        'status': 'success',
+                        'results': [],
+                        'total_results': 0,
+                        'message': f"Part search completed for: {question}",
+                        'search_method': 'part_search_fallback'
+                    }
+
+                # Organize results if we have an organizer method
+                if hasattr(self.unified_search, '_organize_unified_results'):
+                    result = self.unified_search._organize_unified_results(search_result, question)
+                else:
+                    # Basic organization
+                    result = {
+                        'status': search_result.get('status', 'success'),
+                        'results_by_type': {'parts': search_result.get('results', [])},
+                        'total_results': search_result.get('total_results', 0),
+                        'message': search_result.get('message', f"Search completed for: {question}"),
+                        'search_method': search_result.get('search_method', 'part_search'),
+                        'timestamp': datetime.utcnow().isoformat()
+                    }
+            else:
+                # Fallback if no search system available
+                logger.warning(" No unified search system available")
+                result = {
+                    'status': 'error',
+                    'message': 'Search system not available',
+                    'search_method': 'part_search_no_system',
+                    'total_results': 0,
+                    'results_by_type': {}
+                }
 
             # Add tracking-specific metadata
-            result.update({
-                'search_method': 'enhanced_part_search_bypass',
-                'parameters_used': search_params,
-                'bypass_method': 'direct_comprehensive_part_search'
-            })
+            if isinstance(result, dict):
+                result.update({
+                    'search_method': 'enhanced_part_search_bypass',
+                    'parameters_used': search_params,
+                    'bypass_method': 'direct_comprehensive_part_search',
+                    'tracking_enabled': True
+                })
 
+            logger.info(f" Part search completed: {result.get('total_results', 0)} results")
             return result
 
         except Exception as e:
+            logger.error(f" Part search with tracking failed: {e}", exc_info=True)
             return {
                 'status': 'error',
                 'message': str(e),
-                'search_method': 'enhanced_part_search_bypass_error'
+                'search_method': 'enhanced_part_search_bypass_error',
+                'total_results': 0,
+                'results_by_type': {}
             }
+
+    def start_user_session(self, user_id: str, context_data: Dict = None) -> Optional[int]:
+        """Start a search session for a user."""
+        if self.query_tracker:
+            try:
+                self.current_session_id = self.query_tracker.start_search_session(user_id, context_data)
+                return self.current_session_id
+            except Exception as e:
+                logger.error(f"Failed to start user session: {e}")
+                return None
+        return None
 
 
 class SearchResultClick(Base):

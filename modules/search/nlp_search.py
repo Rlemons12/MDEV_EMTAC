@@ -21,7 +21,7 @@ from modules.search.models import SearchQuery, SearchSession,SearchResultClick
 from sqlalchemy import Column, Integer, String, Text, Boolean, Float, DateTime, ForeignKey, JSON, ARRAY, \
     UniqueConstraint, select, func, text
 from sqlalchemy.orm import Session, relationship
-
+from modules.configuration.log_config import logger,with_request_id
 # Import core search functionality with error handling
 try:
     from modules.search.aggregate_search import AggregateSearch
@@ -211,6 +211,7 @@ class SearchQueryTracker:
         self.session = session
         self._active_sessions = {}  # Cache for active sessions
 
+    @with_request_id
     def start_search_session(self, user_id: str, context_data: Dict = None) -> Optional[int]:
         """Start a new search session for a user."""
         try:
@@ -231,11 +232,11 @@ class SearchQueryTracker:
             # Cache the session
             self._active_sessions[user_id] = search_session.id
 
-            logger.info(f"✅ Started search session {search_session.id} for user {user_id}")
+            logger.info(f" Started search session {search_session.id} for user {user_id}")
             return search_session.id
 
         except Exception as e:
-            logger.error(f"❌ Failed to start search session for {user_id}: {e}")
+            logger.error(f" Failed to start search session for {user_id}: {e}")
             if self.session:
                 try:
                     self.session.rollback()
@@ -243,6 +244,7 @@ class SearchQueryTracker:
                     pass
             return None
 
+    @with_request_id
     def track_search_query(self, session_id: Optional[int], query_text: str,
                            detected_intent_id: Optional[int] = None,
                            intent_confidence: float = 0.0,
@@ -278,11 +280,11 @@ class SearchQueryTracker:
             if session_id:
                 self._update_session_stats(session_id, was_successful)
 
-            logger.debug(f"📊 Tracked query {search_query.id}: '{query_text}' -> {result_count} results")
+            logger.debug(f" Tracked query {search_query.id}: '{query_text}' -> {result_count} results")
             return search_query.id
 
         except Exception as e:
-            logger.error(f"❌ Failed to track search query '{query_text}': {e}")
+            logger.error(f" Failed to track search query '{query_text}': {e}")
             if self.session:
                 try:
                     self.session.rollback()
@@ -290,6 +292,7 @@ class SearchQueryTracker:
                     pass
             return None
 
+    @with_request_id
     def record_user_satisfaction(self, query_id: int, satisfaction_score: int) -> bool:
         """Record user satisfaction rating for a query (1-5 scale)."""
         try:
@@ -302,14 +305,14 @@ class SearchQueryTracker:
                 query.user_satisfaction_score = satisfaction_score
                 self.session.commit()
 
-                logger.debug(f"📊 Recorded satisfaction {satisfaction_score}/5 for query {query_id}")
+                logger.debug(f" Recorded satisfaction {satisfaction_score}/5 for query {query_id}")
                 return True
             else:
                 logger.warning(f"Query {query_id} not found for satisfaction recording")
                 return False
 
         except Exception as e:
-            logger.error(f"❌ Failed to record satisfaction for query {query_id}: {e}")
+            logger.error(f" Failed to record satisfaction for query {query_id}: {e}")
             if self.session:
                 try:
                     self.session.rollback()
@@ -317,6 +320,7 @@ class SearchQueryTracker:
                     pass
             return False
 
+    @with_request_id
     def track_result_click(self, query_id: int, result_type: str, result_id: int,
                            click_position: int, action_taken: str = "view") -> bool:
         """Track when a user clicks on a search result."""
@@ -333,11 +337,11 @@ class SearchQueryTracker:
             self.session.add(click_record)
             self.session.commit()
 
-            logger.debug(f"📊 Tracked click on {result_type} {result_id} at position {click_position}")
+            logger.debug(f" Tracked click on {result_type} {result_id} at position {click_position}")
             return True
 
         except Exception as e:
-            logger.error(f"❌ Failed to track result click: {e}")
+            logger.error(f" Failed to track result click: {e}")
             if self.session:
                 try:
                     self.session.rollback()
@@ -345,6 +349,7 @@ class SearchQueryTracker:
                     pass
             return False
 
+    @with_request_id
     def get_intent_id(self, intent_name: str) -> Optional[int]:
         """Get intent ID from intent name (integrates with your search_intent table)."""
         try:
@@ -362,6 +367,7 @@ class SearchQueryTracker:
             logger.warning(f"Failed to get intent ID for '{intent_name}': {e}")
             return None
 
+    @with_request_id
     def _update_session_stats(self, session_id: int, was_successful: bool):
         """Update session statistics."""
         try:
@@ -375,6 +381,7 @@ class SearchQueryTracker:
         except Exception as e:
             logger.warning(f"Failed to update session stats: {e}")
 
+    @with_request_id
     def end_search_session(self, session_id: int) -> bool:
         """End a search session."""
         try:
@@ -390,14 +397,15 @@ class SearchQueryTracker:
                         del self._active_sessions[user_id]
                         break
 
-                logger.info(f"✅ Ended search session {session_id}")
+                logger.info(f" Ended search session {session_id}")
                 return True
             return False
 
         except Exception as e:
-            logger.error(f"❌ Failed to end search session {session_id}: {e}")
+            logger.error(f" Failed to end search session {session_id}: {e}")
             return False
 
+    @with_request_id
     def get_search_performance_report(self, days: int = 7) -> Dict[str, Any]:
         """Generate comprehensive search performance report."""
         try:
@@ -482,11 +490,11 @@ class SearchQueryTracker:
                 ]
             }
 
-            logger.info(f"📊 Generated performance report: {success_rate:.1f}% success rate over {days} days")
+            logger.info(f" Generated performance report: {success_rate:.1f}% success rate over {days} days")
             return report
 
         except Exception as e:
-            logger.error(f"❌ Failed to generate performance report: {e}")
+            logger.error(f" Failed to generate performance report: {e}")
             return {
                 'error': str(e),
                 'period_days': days,
@@ -818,11 +826,11 @@ class DatabasePatternIntegrationMixin:
             self._database_patterns = patterns_by_intent
             self._pattern_cache_timestamp = current_time
 
-            logger.info(f"✅ Loaded {total_patterns} database patterns for {len(patterns_by_intent)} intents")
+            logger.info(f" Loaded {total_patterns} database patterns for {len(patterns_by_intent)} intents")
             return patterns_by_intent
 
         except Exception as e:
-            logger.error(f"⚠️ Error loading database patterns: {e}")
+            logger.error(f" Error loading database patterns: {e}")
             # Always rollback on error
             if self._session:
                 try:
@@ -996,13 +1004,13 @@ class DatabasePatternIntegrationMixin:
                 self._session.commit()
 
                 logger.debug(
-                    f"✅ Updated pattern usage: {matched_pattern} (success: {success}, results: {result_count})")
+                    f" Updated pattern usage: {matched_pattern} (success: {success}, results: {result_count})")
 
                 # Invalidate cache to reload updated statistics
                 self._pattern_cache_timestamp = None
 
             except Exception as e:
-                logger.warning(f"⚠️ Could not update pattern statistics: {e}")
+                logger.warning(f" Could not update pattern statistics: {e}")
                 if self._session:
                     try:
                         self._session.rollback()
@@ -1046,11 +1054,11 @@ class DatabasePatternIntegrationMixin:
                     "confidence": confidence_score
                 }
 
-            logger.debug(f"✅ Loaded {len(results)} entity synonyms for {len(synonyms)} entity types")
+            logger.debug(f" Loaded {len(results)} entity synonyms for {len(synonyms)} entity types")
             return synonyms
 
         except Exception as e:
-            logger.error(f"⚠️ Error loading entity synonyms: {e}")
+            logger.error(f" Error loading entity synonyms: {e}")
             # Always rollback on error
             if self._session:
                 try:
@@ -1132,7 +1140,7 @@ class SpaCyEnhancedAggregateSearch(DatabasePatternIntegrationMixin):
         # Load entity synonyms with fixed method
         self.entity_synonyms = self._load_entity_synonyms_fixed()
 
-        logger.info(f"🚀 Enhanced SpaCy search initialized with database integration")
+        logger.info(f" Enhanced SpaCy search initialized with database integration")
 
     def _load_entity_synonyms(self) -> Dict[str, Dict[str, str]]:
         """ENHANCED: Load entity synonyms from the database (calls fixed version)."""
@@ -1236,7 +1244,7 @@ class SpaCyEnhancedAggregateSearch(DatabasePatternIntegrationMixin):
                             spacy_pattern_count += len(spacy_patterns)
 
                     logger.info(
-                        f"✅ Loaded {spacy_pattern_count} spaCy patterns from database for {len(database_patterns)} intents")
+                        f" Loaded {spacy_pattern_count} spaCy patterns from database for {len(database_patterns)} intents")
 
                 except Exception as e:
                     logger.warning(f"Could not load database patterns for spaCy: {e}")
@@ -1461,7 +1469,7 @@ class SpaCyEnhancedAggregateSearch(DatabasePatternIntegrationMixin):
         database_result = self._classify_intent_with_database(doc.text)
         if database_result['confidence'] > 0.6:  # Lower threshold for database patterns
             logger.debug(
-                f"🎯 Database pattern matched: {database_result['intent']} (confidence: {database_result['confidence']:.2f})")
+                f" Database pattern matched: {database_result['intent']} (confidence: {database_result['confidence']:.2f})")
             return database_result
 
         # Fall back to spaCy pattern matching
@@ -1469,7 +1477,7 @@ class SpaCyEnhancedAggregateSearch(DatabasePatternIntegrationMixin):
             spacy_result = self._classify_intent_with_spacy(doc)
             if spacy_result['confidence'] > database_result['confidence']:
                 logger.debug(
-                    f"🔍 SpaCy pattern matched: {spacy_result['intent']} (confidence: {spacy_result['confidence']:.2f})")
+                    f" SpaCy pattern matched: {spacy_result['intent']} (confidence: {spacy_result['confidence']:.2f})")
                 return spacy_result
 
         # Final fallback
@@ -1586,7 +1594,7 @@ class SpaCyEnhancedAggregateSearch(DatabasePatternIntegrationMixin):
             params.update(extracted_params)
 
             if extracted_params:
-                logger.debug(f"✅ Database pattern extracted: {extracted_params}")
+                logger.debug(f" Database pattern extracted: {extracted_params}")
                 return params
 
         # Fall back to enhanced extraction logic
@@ -1625,7 +1633,7 @@ class SpaCyEnhancedAggregateSearch(DatabasePatternIntegrationMixin):
                             "fields": ['name', 'part_number', 'oem_mfg', 'model', 'notes'],
                             "extraction_method": "enhanced_regex_description"
                         })
-                        logger.debug(f"✅ Extracted description search: '{description}'")
+                        logger.debug(f" Extracted description search: '{description}'")
                         break
 
                 elif i <= 7:  # Direct part number patterns (3-7)
@@ -1639,7 +1647,7 @@ class SpaCyEnhancedAggregateSearch(DatabasePatternIntegrationMixin):
                             "entity_type": "part",
                             "extraction_method": "enhanced_regex_direct"
                         })
-                        logger.debug(f"✅ Extracted part number: {extracted.upper()}")
+                        logger.debug(f" Extracted part number: {extracted.upper()}")
                         break
 
         # Extract other entities (areas, equipment, numbers) - unchanged
@@ -1680,9 +1688,9 @@ class SpaCyEnhancedAggregateSearch(DatabasePatternIntegrationMixin):
                     break
 
         if "entity_type" not in params:
-            params["entity_type"] = "unknown"
+            params["entity_type"] = "part"
 
-        logger.debug(f"🔍 Final search parameters: {params}")
+        logger.debug(f" Final search parameters: {params}")
         return params
 
     def _fallback_search(self, analysis: Dict[str, Any]) -> Dict[str, Any]:
@@ -1777,7 +1785,7 @@ class SpaCyEnhancedAggregateSearch(DatabasePatternIntegrationMixin):
                 )
 
                 if extracted_params:
-                    logger.debug("✅ Database fallback extraction successful")
+                    logger.debug(" Database fallback extraction successful")
                     return {
                         "original_text": user_input,
                         "entities": {"extracted_from_db": True},
@@ -2389,7 +2397,7 @@ def create_enhanced_search_system(session, user_context=None, nlp_instance=None)
         user_context=user_context or {}
     )
 
-    logger.info("🚀 Enhanced search system created with database integration")
+    logger.info(" Enhanced search system created with database integration")
     return enhanced_search
 
 
@@ -2425,26 +2433,26 @@ if __name__ == "__main__":
     Example usage of the complete enhanced search system.
     """
 
-    print("🚀 Complete Enhanced NLP Search System")
+    print(" Complete Enhanced NLP Search System")
     print("=" * 60)
 
     print("""
-✅ This is a COMPLETE replacement for nlp_search.py that includes:
+ This is a COMPLETE replacement for nlp_search.py that includes:
 
 ORIGINAL FUNCTIONALITY:
-✅ All original SpaCy NLP features
-✅ Intent classification and entity extraction  
-✅ Pattern matching and synonym support
-✅ Session management and ML capabilities
-✅ Feedback learning and analytics
+ All original SpaCy NLP features
+ Intent classification and entity extraction  
+ Pattern matching and synonym support
+ Session management and ML capabilities
+ Feedback learning and analytics
 
 ENHANCED FEATURES:
-🎯 Database pattern integration (155+ patterns)
-📊 Automatic pattern learning and statistics
+ Database pattern integration (155+ patterns)
+ Automatic pattern learning and statistics
 🔧 Enhanced parameter extraction using proven regex
-🔄 Fixed synonym loading with transaction handling
-📈 Performance monitoring and optimization
-🚀 Self-improving search intelligence
+ Fixed synonym loading with transaction handling
+ Performance monitoring and optimization
+ Self-improving search intelligence
 
 USAGE:
 from modules.search.nlp_search import SpaCyEnhancedAggregateSearch
@@ -2468,5 +2476,5 @@ optimizations = search.optimize_patterns()
 """)
 
     print("\n" + "=" * 60)
-    print("✅ Complete enhanced nlp_search.py ready!")
-    print("🚀 Your 155+ database patterns are now active and learning!")
+    print(" Complete enhanced nlp_search.py ready!")
+    print(" Your 155+ database patterns are now active and learning!")
