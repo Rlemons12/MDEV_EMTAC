@@ -823,7 +823,7 @@ class CLIPModelHandler:  # Add (ImageModel) if you have a base class
         if hasattr(self.model, 'to'):
             self.model.to(self.device)
 
-        logger.info(f"✅ CLIP model ready on {self.device}")
+        logger.info(f"CLIP model ready on {self.device}")
 
     def _configure_offline_mode(self):
         """Configure environment to disable online checks - MAJOR SPEEDUP!"""
@@ -838,7 +838,7 @@ class CLIPModelHandler:  # Add (ImageModel) if you have a base class
         for key, value in offline_env_vars.items():
             os.environ[key] = value
 
-        logger.info("🚀 Configured offline mode - network checks disabled")
+        logger.info("Configured offline mode - network checks disabled")
 
     def _load_or_get_cached_model(self):
         """Load model with intelligent caching - avoids repeated loading"""
@@ -849,7 +849,7 @@ class CLIPModelHandler:  # Add (ImageModel) if you have a base class
             logger.info("⚡ Using cached CLIP model (instant load)")
             return self._model_cache[cache_key], self._processor_cache[cache_key]
 
-        logger.info("🔄 Loading CLIP model for first time...")
+        logger.info("Loading CLIP model for first time...")
         start_time = time.time()
 
         try:
@@ -864,7 +864,7 @@ class CLIPModelHandler:  # Add (ImageModel) if you have a base class
                 local_files_only=True,
                 cache_dir="./model_cache"
             )
-            logger.info("✅ Loaded CLIP model from local cache (offline)")
+            logger.info("Loaded CLIP model from local cache (offline)")
 
         except Exception as offline_error:
             logger.warning(f"Offline loading failed: {offline_error}")
@@ -902,7 +902,7 @@ class CLIPModelHandler:  # Add (ImageModel) if you have a base class
         self._processor_cache[cache_key] = processor
 
         load_time = time.time() - start_time
-        logger.info(f"✅ CLIP model loaded and cached in {load_time:.2f}s")
+        logger.info(f"CLIP model loaded and cached in {load_time:.2f}s")
 
         return model, processor
 
@@ -1096,14 +1096,14 @@ class CLIPModelHandler:  # Add (ImageModel) if you have a base class
         cls._model_cache.clear()
         cls._processor_cache.clear()
         cls._cache_initialized = False
-        logger.info("🗑️ Cleared CLIP model cache")
+        logger.info("🗑Cleared CLIP model cache")
 
     @classmethod
     def preload_model(cls, model_name="openai/clip-vit-base-patch32"):
         """Preload model at application startup for fastest first access"""
-        logger.info("🚀 Preloading CLIP model...")
+        logger.info("Preloading CLIP model...")
         handler = cls()  # This will load and cache the model
-        logger.info("✅ CLIP model preloaded and cached")
+        logger.info("CLIP model preloaded and cached")
         return handler
 
 
@@ -1111,13 +1111,13 @@ class GPT4AllModel(AIModel):
     """GPT4All local LLM implementation with request ID tracking and timeout protection"""
 
     def __init__(self, model_name="Meta-Llama-3-8B-Instruct.Q4_0.gguf"):
-        print(f"🚀 GPT4AllModel.__init__ called with model_name: {model_name}")
+        print(f"GPT4AllModel.__init__ called with model_name: {model_name}")
 
         try:
             # Log at the very start
             if LOGGING_AVAILABLE:
                 request_id = get_request_id()
-                info_id(f"🚀 GPT4AllModel.__init__ starting with model: {model_name}", request_id)
+                info_id(f"GPT4AllModel.__init__ starting with model: {model_name}", request_id)
             else:
                 print(f"Logging not available, using print: GPT4AllModel.__init__ starting")
 
@@ -1130,12 +1130,12 @@ class GPT4AllModel(AIModel):
         self.last_error = None
         self.generation_timeout = 350  # in seconds timeout
 
-        print(f"🔄 About to call _initialize_model()")
+        print(f"About to call _initialize_model()")
         try:
             self._initialize_model()
-            print(f"✅ _initialize_model() completed. model_loaded: {self.model_loaded}")
+            print(f"_initialize_model() completed. model_loaded: {self.model_loaded}")
         except Exception as e:
-            print(f"❌ _initialize_model() failed: {e}")
+            print(f"_initialize_model() failed: {e}")
             import traceback
             traceback.print_exc()
 
@@ -1354,22 +1354,22 @@ class GPT4AllEmbeddingModel(EmbeddingModel):
 
             for model_name in models_to_try:
                 if self._try_load_model(model_name):
-                    logger.info(f"✅ Successfully loaded embedding model: {self.model_name}")
+                    logger.info(f"Successfully loaded embedding model: {self.model_name}")
                     return
 
             # If all models fail
-            logger.warning("❌ SentenceTransformer embedding model not available")
+            logger.warning("SentenceTransformer embedding model not available")
             logger.warning("   All embedding models failed to load")
             logger.warning("   Vector search will not be available")
             self.model = None
             self.is_loaded = False
 
         except ImportError:
-            logger.error("❌ SentenceTransformers not installed. Install with: pip install sentence-transformers")
+            logger.error("SentenceTransformers not installed. Install with: pip install sentence-transformers")
             self.model = None
             self.is_loaded = False
         except Exception as e:
-            logger.error(f"❌ Unexpected error initializing embedding model: {e}")
+            logger.error(f"Unexpected error initializing embedding model: {e}")
             self.model = None
             self.is_loaded = False
 
@@ -1388,7 +1388,7 @@ class GPT4AllEmbeddingModel(EmbeddingModel):
             test_embedding = self.model.encode(["test sentence"], show_progress_bar=False)
 
             if len(test_embedding) > 0 and len(test_embedding[0]) > 0:
-                logger.info(f"✅ Model test successful!")
+                logger.info(f"Model test successful!")
                 logger.info(f"   - Model: {model_name}")
                 logger.info(f"   - Embedding dimensions: {len(test_embedding[0])}")
 
@@ -1468,6 +1468,523 @@ class GPT4AllEmbeddingModel(EmbeddingModel):
             }
 
 
+class TinyLlamaModel(AIModel):
+    """TinyLlama local LLM implementation with optimized loading and caching"""
+
+    # Class-level cache to avoid reloading models across instances
+    _model_cache = {}
+    _tokenizer_cache = {}
+    _cache_initialized = False
+
+    def __init__(self, model_path=None):
+        """
+        Initialize TinyLlama model
+
+        Args:
+            model_path: Path to the TinyLlama model directory. If None, uses default path.
+        """
+        if LOGGING_AVAILABLE:
+            request_id = get_request_id()
+            info_id("TinyLlamaModel.__init__ starting", request_id)
+        else:
+            print("TinyLlamaModel.__init__ starting")
+
+        # Set default model path if not provided
+        if model_path is None:
+            self.model_path = r"C:\Users\10169062\Desktop\AU_IndusMaintdb\plugins\ai_modules\TinyLlama_1_1B"
+        else:
+            self.model_path = model_path
+
+        self.model_name = "TinyLlama-1.1B-Chat-v1.0"
+        self.model = None
+        self.tokenizer = None
+        self.model_loaded = False
+        self.last_error = None
+        self.generation_timeout = 120  # 2 minutes timeout for TinyLlama
+
+        # Configure offline mode for faster loading
+        if not self._cache_initialized:
+            self._configure_offline_mode()
+            TinyLlamaModel._cache_initialized = True
+
+        self._initialize_model()
+
+    def _configure_offline_mode(self):
+        """Configure environment to disable online checks for faster loading"""
+        offline_env_vars = {
+            "TRANSFORMERS_OFFLINE": "1",
+            "HF_HUB_OFFLINE": "1",
+            "HF_DATASETS_OFFLINE": "1",
+            "TOKENIZERS_PARALLELISM": "false"
+        }
+
+        for key, value in offline_env_vars.items():
+            os.environ[key] = value
+
+        if LOGGING_AVAILABLE:
+            info_id("Configured offline mode for TinyLlama", get_request_id())
+        else:
+            print("Configured offline mode for TinyLlama")
+
+    @with_request_id
+    def _initialize_model(self):
+        """Initialize TinyLlama model with intelligent caching"""
+        request_id = get_request_id()
+
+        try:
+            info_id("=== TinyLlama Initialization ===", request_id)
+            info_id(f"Model path: {self.model_path}", request_id)
+            info_id(f"Path exists: {os.path.exists(self.model_path)}", request_id)
+
+            # Check if model directory exists
+            if not os.path.exists(self.model_path):
+                error_id(f"TinyLlama model directory not found: {self.model_path}", request_id)
+                self.last_error = f"Model directory not found: {self.model_path}"
+                return
+
+            # Check for required files
+            config_path = os.path.join(self.model_path, "config.json")
+            if not os.path.exists(config_path):
+                error_id(f"config.json not found in {self.model_path}", request_id)
+                self.last_error = f"config.json not found in {self.model_path}"
+                return
+
+            # Load model and tokenizer with caching
+            cache_key = self.model_path
+
+            if cache_key in self._model_cache:
+                info_id("⚡ Using cached TinyLlama model (instant load)", request_id)
+                self.model = self._model_cache[cache_key]
+                self.tokenizer = self._tokenizer_cache[cache_key]
+            else:
+                info_id("Loading TinyLlama model for first time...", request_id)
+
+                try:
+                    # Import transformers components
+                    from transformers import AutoTokenizer, AutoModelForCausalLM
+                    import torch
+
+                    # Load tokenizer
+                    info_id("Loading tokenizer...", request_id)
+                    self.tokenizer = AutoTokenizer.from_pretrained(
+                        self.model_path,
+                        local_files_only=True,
+                        trust_remote_code=True
+                    )
+
+                    # Load model
+                    info_id("Loading model...", request_id)
+                    self.model = AutoModelForCausalLM.from_pretrained(
+                        self.model_path,
+                        local_files_only=True,
+                        torch_dtype=torch.bfloat16,
+                        device_map="auto",
+                        trust_remote_code=True
+                    )
+
+                    # Cache the loaded models
+                    self._model_cache[cache_key] = self.model
+                    self._tokenizer_cache[cache_key] = self.tokenizer
+
+                    info_id("TinyLlama model loaded and cached", request_id)
+
+                except Exception as load_error:
+                    error_id(f"Model loading failed: {load_error}", request_id)
+                    self.last_error = f"Model loading failed: {load_error}"
+                    return
+
+            # Test the model
+            if self._test_model_quick():
+                self.model_loaded = True
+                info_id("TinyLlama model loaded and tested successfully!", request_id)
+            else:
+                error_id("TinyLlama model test failed", request_id)
+                self.last_error = "Model test failed"
+
+        except Exception as e:
+            error_id(f"Unexpected error in TinyLlama initialization: {e}", request_id)
+            self.last_error = str(e)
+
+    def _test_model_quick(self):
+        """Quick model test with timeout protection"""
+        if LOGGING_AVAILABLE:
+            request_id = get_request_id()
+            info_id("Testing TinyLlama model...", request_id)
+
+        try:
+            if self.model is None or self.tokenizer is None:
+                return False
+
+            # Simple test generation
+            test_messages = [
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": "Hi"}
+            ]
+
+            # Apply chat template
+            prompt = self.tokenizer.apply_chat_template(
+                test_messages,
+                tokenize=False,
+                add_generation_prompt=True
+            )
+
+            # Tokenize
+            inputs = self.tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512)
+
+            # Generate with minimal tokens for test
+            with torch.no_grad():
+                outputs = self.model.generate(
+                    **inputs,
+                    max_new_tokens=5,
+                    do_sample=True,
+                    temperature=0.7,
+                    pad_token_id=self.tokenizer.eos_token_id
+                )
+
+            # Decode response
+            response = self.tokenizer.decode(outputs[0][inputs['input_ids'].shape[-1]:], skip_special_tokens=True)
+
+            success = len(response.strip()) > 0
+            if LOGGING_AVAILABLE:
+                info_id(f"Test result: {'SUCCESS' if success else 'FAILED'} - Response: '{response[:50]}'", request_id)
+
+            return success
+
+        except Exception as e:
+            if LOGGING_AVAILABLE:
+                error_id(f"Model test error: {e}", request_id)
+            return False
+
+    @with_request_id
+    def get_response(self, prompt: str) -> str:
+        """Generate response using TinyLlama with timeout protection"""
+        request_id = get_request_id()
+
+        if not self.model_loaded or self.model is None or self.tokenizer is None:
+            error_id("TinyLlama model not available", request_id)
+            return "TinyLlama model is not available. Please check installation and model loading."
+
+        debug_id(f"TinyLlama request - Prompt length: {len(prompt)}", request_id)
+        info_id("Starting TinyLlama generation...", request_id)
+
+        try:
+            with log_timed_operation("tinyllama_response_generation", request_id):
+                result = {"response": None, "error": None, "completed": False}
+
+                def generate():
+                    try:
+                        # Prepare messages for chat format
+                        messages = [
+                            {"role": "system", "content": "You are a helpful AI assistant."},
+                            {"role": "user", "content": prompt}
+                        ]
+
+                        # Apply chat template
+                        formatted_prompt = self.tokenizer.apply_chat_template(
+                            messages,
+                            tokenize=False,
+                            add_generation_prompt=True
+                        )
+
+                        # Tokenize input
+                        inputs = self.tokenizer(
+                            formatted_prompt,
+                            return_tensors="pt",
+                            truncation=True,
+                            max_length=1024  # Reasonable context length
+                        )
+
+                        # Generate response
+                        with torch.no_grad():
+                            outputs = self.model.generate(
+                                **inputs,
+                                max_new_tokens=256,
+                                do_sample=True,
+                                temperature=0.7,
+                                top_k=50,
+                                top_p=0.95,
+                                pad_token_id=self.tokenizer.eos_token_id,
+                                eos_token_id=self.tokenizer.eos_token_id
+                            )
+
+                        # Decode response (only the new tokens)
+                        response_tokens = outputs[0][inputs['input_ids'].shape[-1]:]
+                        response = self.tokenizer.decode(response_tokens, skip_special_tokens=True)
+
+                        result["response"] = response.strip()
+                        result["completed"] = True
+
+                        info_id("TinyLlama generation completed", request_id)
+
+                    except Exception as e:
+                        result["error"] = str(e)
+                        error_id(f"Generation error: {e}", request_id)
+
+                # Execute with timeout
+                import threading
+                thread = threading.Thread(target=generate, daemon=True)
+                thread.start()
+                thread.join(timeout=self.generation_timeout)
+
+                # Check results
+                if not result["completed"] and thread.is_alive():
+                    warning_id(f"TinyLlama generation timed out after {self.generation_timeout}s", request_id)
+                    return "AI response timed out. TinyLlama took too long to respond."
+
+                if result["error"]:
+                    error_id(f"TinyLlama generation error: {result['error']}", request_id)
+                    return f"Error generating response: {result['error']}"
+
+                if result["response"]:
+                    info_id(f"TinyLlama response generated: {len(result['response'])} chars", request_id)
+                    return result["response"]
+                else:
+                    return "No response generated by TinyLlama."
+
+        except Exception as e:
+            error_id(f"Unexpected error in TinyLlama generation: {e}", request_id)
+            return f"Unexpected error: {str(e)}"
+
+    def generate_description(self, image_path: str) -> str:
+        """Image description not supported by TinyLlama text model"""
+        return "Image description not supported by TinyLlama text model. Use a vision-capable model instead."
+
+    def get_model_info(self):
+        """Get model status information"""
+        return {
+            "status": "loaded" if self.model_loaded else "not_loaded",
+            "model_name": self.model_name,
+            "model_path": self.model_path,
+            "backend": "transformers",
+            "local": True,
+            "privacy": "full - no data sent externally",
+            "timeout": f"{self.generation_timeout}s",
+            "parameters": "1.1B",
+            "architecture": "Llama",
+            "error": self.last_error
+        }
+
+    @classmethod
+    def get_cache_stats(cls):
+        """Get information about model cache status"""
+        return {
+            "models_cached": len(cls._model_cache),
+            "cache_initialized": cls._cache_initialized,
+            "cached_model_paths": list(cls._model_cache.keys())
+        }
+
+    @classmethod
+    def clear_cache(cls):
+        """Clear the model cache to free memory"""
+        cls._model_cache.clear()
+        cls._tokenizer_cache.clear()
+        cls._cache_initialized = False
+        if LOGGING_AVAILABLE:
+            info_id("🗑Cleared TinyLlama model cache", get_request_id())
+        else:
+            print("Cleared TinyLlama model cache")
+
+    @classmethod
+    def preload_model(cls, model_path=None):
+        """Preload model at application startup for fastest first access"""
+        if LOGGING_AVAILABLE:
+            info_id("Preloading TinyLlama model...", get_request_id())
+        else:
+            print("Preloading TinyLlama model...")
+
+        handler = cls(model_path)
+
+        if LOGGING_AVAILABLE:
+            if handler.model_loaded:
+                info_id("TinyLlama model preloaded and cached", get_request_id())
+            else:
+                error_id("TinyLlama model preload failed", get_request_id())
+        else:
+            print("TinyLlama model preloaded" if handler.model_loaded else "TinyLlama preload failed")
+
+        return handler
+
+
+# Update the register_default_models function to include TinyLlama
+def register_default_models_with_tinyllama():
+    """Register the default models including TinyLlama in the database using DatabaseConfig."""
+    default_configs = [
+        # AI models - including TinyLlama
+        {"model_type": "ai", "key": "available_models", "value": json.dumps([
+            {"name": "NoAIModel", "display_name": "Disabled", "enabled": True},
+            {"name": "OpenAIModel", "display_name": "OpenAI GPT", "enabled": True},
+            {"name": "Llama3Model", "display_name": "Meta Llama 3", "enabled": True},
+            {"name": "AnthropicModel", "display_name": "Anthropic Claude", "enabled": True},
+            {"name": "GPT4AllModel", "display_name": "GPT4All (Local)", "enabled": True},
+            {"name": "TinyLlamaModel", "display_name": "TinyLlama 1.1B (Local)", "enabled": True}  # NEW
+        ])},
+        {"model_type": "ai", "key": "CURRENT_MODEL", "value": "OpenAIModel"},
+
+        # Embedding models (unchanged)
+        {"model_type": "embedding", "key": "available_models", "value": json.dumps([
+            {"name": "NoEmbeddingModel", "display_name": "Disabled", "enabled": True},
+            {"name": "OpenAIEmbeddingModel", "display_name": "OpenAI Embedding", "enabled": True},
+            {"name": "GPT4AllEmbeddingModel", "display_name": "Local Embeddings", "enabled": True}
+        ])},
+        {"model_type": "embedding", "key": "CURRENT_MODEL", "value": "OpenAIEmbeddingModel"},
+
+        # Image models (unchanged)
+        {"model_type": "image", "key": "available_models", "value": json.dumps([
+            {"name": "NoImageModel", "display_name": "Disabled", "enabled": True},
+            {"name": "CLIPModelHandler", "display_name": "CLIP Model Handler", "enabled": True}
+        ])},
+        {"model_type": "image", "key": "CURRENT_MODEL", "value": "CLIPModelHandler"}
+    ]
+
+    try:
+        from modules.configuration.config_env import DatabaseConfig
+        db_config = DatabaseConfig()
+        session = db_config.get_main_session()
+    except ImportError:
+        logger.warning("DatabaseConfig not available, using fallback session")
+        session = Session()
+
+    try:
+        for config in default_configs:
+            existing = session.query(ModelsConfig).filter_by(
+                model_type=config["model_type"],
+                key=config["key"]
+            ).first()
+
+            if not existing:
+                config_entry = ModelsConfig(**config)
+                session.add(config_entry)
+                logger.info(f"Registered config: {config['model_type']}.{config['key']}")
+            else:
+                # Update existing available_models to include TinyLlama if missing
+                if config["key"] == "available_models":
+                    try:
+                        existing_models = json.loads(existing.value)
+                        new_models = json.loads(config["value"])
+
+                        # Get existing model names
+                        existing_names = {model["name"] for model in existing_models}
+
+                        # Add any missing models (like TinyLlama)
+                        for new_model in new_models:
+                            if new_model["name"] not in existing_names:
+                                existing_models.append(new_model)
+                                logger.info(f"Added missing model: {new_model['name']}")
+
+                        # Update the database
+                        existing.value = json.dumps(existing_models)
+                        existing.updated_at = datetime.utcnow()
+
+                    except json.JSONDecodeError:
+                        logger.error(f"Error parsing existing models, replacing with defaults")
+                        existing.value = config["value"]
+                        existing.updated_at = datetime.utcnow()
+
+        session.commit()
+        logger.info("Default configurations with TinyLlama registered successfully")
+        return True
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Error registering default configurations: {e}")
+        return False
+    finally:
+        session.close()
+
+
+# Add diagnostic function for TinyLlama
+@with_request_id
+def diagnose_tinyllama():
+    """Diagnose TinyLlama model setup specifically"""
+    request_id = get_request_id()
+    info_id("Starting TinyLlama diagnosis", request_id)
+
+    result = {
+        "status": "unknown",
+        "details": {},
+        "requirements": {
+            "transformers": False,
+            "torch": False,
+            "model_files": False
+        }
+    }
+
+    # Check requirements
+    try:
+        import transformers
+        result["requirements"]["transformers"] = True
+        info_id("transformers library available", request_id)
+    except ImportError:
+        result["requirements"]["transformers"] = False
+        error_id("transformers library not available", request_id)
+
+    try:
+        import torch
+        result["requirements"]["torch"] = True
+        info_id("torch library available", request_id)
+    except ImportError:
+        result["requirements"]["torch"] = False
+        error_id("torch library not available", request_id)
+
+    # Check model files
+    model_path = r"C:\Users\10169062\Desktop\AU_IndusMaintdb\plugins\ai_modules\TinyLlama_1_1B"
+    config_path = os.path.join(model_path, "config.json")
+
+    if os.path.exists(config_path):
+        result["requirements"]["model_files"] = True
+        info_id("TinyLlama model files found", request_id)
+    else:
+        result["requirements"]["model_files"] = False
+        error_id(f"TinyLlama model files not found at {model_path}", request_id)
+
+    # Test TinyLlama model if requirements are met
+    if all(result["requirements"].values()):
+        try:
+            tinyllama_model = TinyLlamaModel()
+            result["status"] = "loaded" if tinyllama_model.model_loaded else "failed"
+            result["details"] = tinyllama_model.get_model_info()
+            info_id(f"TinyLlama test: {result['status']}", request_id)
+        except Exception as e:
+            result["status"] = "error"
+            result["details"] = {"error": str(e)}
+            error_id(f"TinyLlama test failed: {e}", request_id)
+    else:
+        result["status"] = "requirements_not_met"
+        result["details"] = {"missing_requirements": [k for k, v in result["requirements"].items() if not v]}
+
+    info_id("TinyLlama diagnosis completed", request_id)
+    return result
+
+
+# Add test function for TinyLlama
+def test_tinyllama_functionality():
+    """Test function to verify TinyLlama is working properly"""
+    logger.info("Testing TinyLlama functionality...")
+
+    try:
+        # Test model loading
+        tinyllama = TinyLlamaModel()
+
+        if not tinyllama.model_loaded:
+            logger.error("TinyLlama model loading test failed")
+            return False
+
+        logger.info("TinyLlama model loading test passed")
+
+        # Test response generation
+        test_prompt = "Hello! Can you tell me a fun fact?"
+        response = tinyllama.get_response(test_prompt)
+
+        if response and len(response.strip()) > 0 and not response.startswith("Error"):
+            logger.info(f"TinyLlama response test passed: '{response[:50]}...'")
+            return True
+        else:
+            logger.error(f"TinyLlama response test failed: '{response}'")
+            return False
+
+    except Exception as e:
+        logger.error(f"TinyLlama functionality test failed: {e}")
+        return False
+
 @with_request_id
 def diagnose_models():
     """Diagnose both GPT4All and embedding model setup"""
@@ -1544,15 +2061,15 @@ def download_recommended_models():
                     try:
                         # Download to specified directory
                         model = GPT4All(model_name, model_path=GPT4ALL_MODELS_PATH, allow_download=True)
-                        downloads.append(f"✅ Downloaded {model_name}")
-                        logger.info(f"✅ Successfully downloaded {model_name}")
+                        downloads.append(f"Downloaded {model_name}")
+                        logger.info(f"Successfully downloaded {model_name}")
                     except Exception as e:
-                        downloads.append(f"❌ Failed to download {model_name}: {e}")
+                        downloads.append(f"Failed to download {model_name}: {e}")
                         logger.error(f"Failed to download {model_name}: {e}")
                 else:
                     downloads.append(f"⚡ {model_name} already exists")
         except Exception as e:
-            downloads.append(f"❌ GPT4All download error: {e}")
+            downloads.append(f"GPT4All download error: {e}")
 
     # Download SentenceTransformer models
     if setup_info["sentence_transformers_installed"]:
@@ -1564,15 +2081,15 @@ def download_recommended_models():
                     logger.info(f"📥 Downloading SentenceTransformer: {model_name}")
                     try:
                         model = SentenceTransformer(model_name, cache_folder=SENTENCE_TRANSFORMERS_MODELS_PATH)
-                        downloads.append(f"✅ Downloaded {model_name}")
-                        logger.info(f"✅ Successfully downloaded {model_name}")
+                        downloads.append(f"Downloaded {model_name}")
+                        logger.info(f"Successfully downloaded {model_name}")
                     except Exception as e:
-                        downloads.append(f"❌ Failed to download {model_name}: {e}")
+                        downloads.append(f"Failed to download {model_name}: {e}")
                         logger.error(f"Failed to download {model_name}: {e}")
                 else:
                     downloads.append(f"⚡ {model_name} already exists")
         except Exception as e:
-            downloads.append(f"❌ SentenceTransformer download error: {e}")
+            downloads.append(f"SentenceTransformer download error: {e}")
 
     return downloads
 
@@ -1622,13 +2139,13 @@ def switch_to_local_models():
             best_gpt4all = local_models["gpt4all"][0]["name"]  # Use first available
             ModelsConfig.set_config_value('ai', 'GPT4ALL_MODEL_FILE', best_gpt4all)
             ModelsConfig.set_current_ai_model('GPT4AllModel')
-            logger.info(f"✅ Switched to local GPT4All model: {best_gpt4all}")
+            logger.info(f"Switched to local GPT4All model: {best_gpt4all}")
 
         if local_models["sentence_transformer"]:
             best_st = local_models["sentence_transformer"][0]["name"]
             ModelsConfig.set_config_value('embedding', 'SENTENCE_TRANSFORMER_MODEL', best_st)
             ModelsConfig.set_current_embedding_model('GPT4AllEmbeddingModel')
-            logger.info(f"✅ Switched to local SentenceTransformer: {best_st}")
+            logger.info(f"Switched to local SentenceTransformer: {best_st}")
 
         return True
     except Exception as e:
@@ -1657,7 +2174,7 @@ def initialize_models_config():
                 logger.error(f"Error creating ModelsConfig table: {str(e)}")
                 return False
 
-        # Initialize with default configurations
+        # Initialize with default configurations including TinyLlama
         success = register_default_models()
         if success:
             logger.info("Default model configurations registered successfully")
@@ -1673,15 +2190,16 @@ def initialize_models_config():
 
 
 def register_default_models():
-    """Register the default models in the database using DatabaseConfig."""
+    """Register the default models in the database using DatabaseConfig, including TinyLlama."""
     default_configs = [
-        # AI models - including GPT4All as just another option
+        # AI models - including GPT4All and TinyLlama as local options
         {"model_type": "ai", "key": "available_models", "value": json.dumps([
             {"name": "NoAIModel", "display_name": "Disabled", "enabled": True},
             {"name": "OpenAIModel", "display_name": "OpenAI GPT", "enabled": True},
             {"name": "Llama3Model", "display_name": "Meta Llama 3", "enabled": True},
             {"name": "AnthropicModel", "display_name": "Anthropic Claude", "enabled": True},
-            {"name": "GPT4AllModel", "display_name": "GPT4All (Local)", "enabled": True}
+            {"name": "GPT4AllModel", "display_name": "GPT4All (Local)", "enabled": True},
+            {"name": "TinyLlamaModel", "display_name": "TinyLlama 1.1B (Local)", "enabled": True}
         ])},
         {"model_type": "ai", "key": "CURRENT_MODEL", "value": "OpenAIModel"},
 
@@ -1698,7 +2216,13 @@ def register_default_models():
             {"name": "NoImageModel", "display_name": "Disabled", "enabled": True},
             {"name": "CLIPModelHandler", "display_name": "CLIP Model Handler", "enabled": True}
         ])},
-        {"model_type": "image", "key": "CURRENT_MODEL", "value": "CLIPModelHandler"}
+        {"model_type": "image", "key": "CURRENT_MODEL", "value": "CLIPModelHandler"},
+
+        # TinyLlama specific configuration
+        {"model_type": "ai", "key": "TINYLLAMA_MODEL_PATH",
+         "value": r"C:\Users\10169062\Desktop\AU_IndusMaintdb\plugins\ai_modules\TinyLlama_1_1B"},
+        {"model_type": "ai", "key": "TINYLLAMA_TIMEOUT", "value": "120"},
+        {"model_type": "ai", "key": "TINYLLAMA_MAX_TOKENS", "value": "256"}
     ]
 
     try:
@@ -1721,7 +2245,7 @@ def register_default_models():
                 session.add(config_entry)
                 logger.info(f"Registered config: {config['model_type']}.{config['key']}")
             else:
-                # Update existing available_models to include GPT4All if missing
+                # Update existing available_models to include new models if missing
                 if config["key"] == "available_models":
                     try:
                         existing_models = json.loads(existing.value)
@@ -1730,23 +2254,34 @@ def register_default_models():
                         # Get existing model names
                         existing_names = {model["name"] for model in existing_models}
 
-                        # Add any missing models (like GPT4All)
+                        # Add any missing models (like TinyLlama)
+                        models_added = False
                         for new_model in new_models:
                             if new_model["name"] not in existing_names:
                                 existing_models.append(new_model)
                                 logger.info(f"Added missing model: {new_model['name']}")
+                                models_added = True
 
-                        # Update the database
-                        existing.value = json.dumps(existing_models)
-                        existing.updated_at = datetime.utcnow()
+                        # Update the database if models were added
+                        if models_added:
+                            existing.value = json.dumps(existing_models)
+                            existing.updated_at = datetime.utcnow()
 
                     except json.JSONDecodeError:
-                        logger.error(f"Error parsing existing models, replacing with defaults")
+                        logger.error(
+                            f"Error parsing existing models for {config['model_type']}, replacing with defaults")
+                        existing.value = config["value"]
+                        existing.updated_at = datetime.utcnow()
+
+                # Update other configuration values if they don't exist or are different
+                elif config["key"] in ["TINYLLAMA_MODEL_PATH", "TINYLLAMA_TIMEOUT", "TINYLLAMA_MAX_TOKENS"]:
+                    if existing.value != config["value"]:
+                        logger.info(f"Updating config: {config['model_type']}.{config['key']} = {config['value']}")
                         existing.value = config["value"]
                         existing.updated_at = datetime.utcnow()
 
         session.commit()
-        logger.info("Default configurations registered successfully")
+        logger.info("Default configurations with TinyLlama registered successfully")
         return True
     except Exception as e:
         session.rollback()
@@ -1754,6 +2289,270 @@ def register_default_models():
         return False
     finally:
         session.close()
+
+
+def get_tinyllama_config():
+    """Get TinyLlama-specific configuration values."""
+    try:
+        model_path = ModelsConfig.get_config_value('ai', 'TINYLLAMA_MODEL_PATH',
+                                                   r"C:\Users\10169062\Desktop\AU_IndusMaintdb\plugins\ai_modules\TinyLlama_1_1B")
+        timeout = int(ModelsConfig.get_config_value('ai', 'TINYLLAMA_TIMEOUT', '120'))
+        max_tokens = int(ModelsConfig.get_config_value('ai', 'TINYLLAMA_MAX_TOKENS', '256'))
+
+        return {
+            'model_path': model_path,
+            'timeout': timeout,
+            'max_tokens': max_tokens
+        }
+    except Exception as e:
+        logger.error(f"Error getting TinyLlama config: {e}")
+        return {
+            'model_path': r"C:\Users\10169062\Desktop\AU_IndusMaintdb\plugins\ai_modules\TinyLlama_1_1B",
+            'timeout': 120,
+            'max_tokens': 256
+        }
+
+
+def update_tinyllama_config(model_path=None, timeout=None, max_tokens=None):
+    """Update TinyLlama-specific configuration values."""
+    try:
+        updated = False
+
+        if model_path is not None:
+            success = ModelsConfig.set_config_value('ai', 'TINYLLAMA_MODEL_PATH', model_path)
+            if success:
+                logger.info(f"Updated TinyLlama model path: {model_path}")
+                updated = True
+
+        if timeout is not None:
+            success = ModelsConfig.set_config_value('ai', 'TINYLLAMA_TIMEOUT', str(timeout))
+            if success:
+                logger.info(f"Updated TinyLlama timeout: {timeout}s")
+                updated = True
+
+        if max_tokens is not None:
+            success = ModelsConfig.set_config_value('ai', 'TINYLLAMA_MAX_TOKENS', str(max_tokens))
+            if success:
+                logger.info(f"Updated TinyLlama max tokens: {max_tokens}")
+                updated = True
+
+        return updated
+    except Exception as e:
+        logger.error(f"Error updating TinyLlama config: {e}")
+        return False
+
+
+def check_model_availability():
+    """Check which models are actually available on the system."""
+    availability = {
+        "ai_models": {},
+        "embedding_models": {},
+        "image_models": {}
+    }
+
+    # Check AI models
+    ai_models = [
+        ("NoAIModel", "Always available"),
+        ("OpenAIModel", "Requires OPENAI_API_KEY"),
+        ("AnthropicModel", "Requires ANTHROPIC_API_KEY"),
+        ("Llama3Model", "Requires transformers and model files"),
+        ("GPT4AllModel", "Requires gpt4all and model files"),
+        ("TinyLlamaModel", "Requires transformers and model files")
+    ]
+
+    for model_name, requirement in ai_models:
+        try:
+            if model_name == "NoAIModel":
+                availability["ai_models"][model_name] = {"available": True, "status": "Always available"}
+            elif model_name == "OpenAIModel":
+                from modules.configuration.config import OPENAI_API_KEY
+                available = bool(OPENAI_API_KEY and OPENAI_API_KEY.strip())
+                availability["ai_models"][model_name] = {
+                    "available": available,
+                    "status": "API key configured" if available else "API key missing"
+                }
+            elif model_name == "AnthropicModel":
+                from modules.configuration.config import ANTHROPIC_API_KEY
+                available = bool(ANTHROPIC_API_KEY and ANTHROPIC_API_KEY.strip())
+                availability["ai_models"][model_name] = {
+                    "available": available,
+                    "status": "API key configured" if available else "API key missing"
+                }
+            elif model_name == "TinyLlamaModel":
+                config = get_tinyllama_config()
+                model_exists = os.path.exists(os.path.join(config['model_path'], 'config.json'))
+                try:
+                    import transformers
+                    import torch
+                    transformers_available = True
+                except ImportError:
+                    transformers_available = False
+
+                available = model_exists and transformers_available
+                if available:
+                    status = "Ready"
+                elif not transformers_available:
+                    status = "Missing transformers/torch"
+                else:
+                    status = f"Model files not found at {config['model_path']}"
+
+                availability["ai_models"][model_name] = {"available": available, "status": status}
+            elif model_name == "GPT4AllModel":
+                try:
+                    import gpt4all
+                    from modules.configuration.config import GPT4ALL_MODELS_PATH
+                    model_files = [f for f in os.listdir(GPT4ALL_MODELS_PATH) if f.endswith('.gguf')] if os.path.exists(
+                        GPT4ALL_MODELS_PATH) else []
+                    available = len(model_files) > 0
+                    status = f"Ready ({len(model_files)} models)" if available else "No model files found"
+                except ImportError:
+                    available = False
+                    status = "gpt4all not installed"
+                except Exception:
+                    available = False
+                    status = "Configuration error"
+
+                availability["ai_models"][model_name] = {"available": available, "status": status}
+            elif model_name == "Llama3Model":
+                try:
+                    import transformers
+                    import torch
+                    # This would need actual model check, simplified for now
+                    availability["ai_models"][model_name] = {"available": True, "status": "Dependencies available"}
+                except ImportError:
+                    availability["ai_models"][model_name] = {"available": False, "status": "Missing dependencies"}
+
+        except Exception as e:
+            availability["ai_models"][model_name] = {"available": False, "status": f"Error: {str(e)}"}
+
+    # Check embedding models
+    embedding_models = [
+        ("NoEmbeddingModel", "Always available"),
+        ("OpenAIEmbeddingModel", "Requires OPENAI_API_KEY"),
+        ("GPT4AllEmbeddingModel", "Requires sentence-transformers")
+    ]
+
+    for model_name, requirement in embedding_models:
+        try:
+            if model_name == "NoEmbeddingModel":
+                availability["embedding_models"][model_name] = {"available": True, "status": "Always available"}
+            elif model_name == "OpenAIEmbeddingModel":
+                from modules.configuration.config import OPENAI_API_KEY
+                available = bool(OPENAI_API_KEY and OPENAI_API_KEY.strip())
+                availability["embedding_models"][model_name] = {
+                    "available": available,
+                    "status": "API key configured" if available else "API key missing"
+                }
+            elif model_name == "GPT4AllEmbeddingModel":
+                try:
+                    from sentence_transformers import SentenceTransformer
+                    availability["embedding_models"][model_name] = {"available": True, "status": "Ready"}
+                except ImportError:
+                    availability["embedding_models"][model_name] = {"available": False,
+                                                                    "status": "sentence-transformers not installed"}
+        except Exception as e:
+            availability["embedding_models"][model_name] = {"available": False, "status": f"Error: {str(e)}"}
+
+    # Check image models
+    image_models = [
+        ("NoImageModel", "Always available"),
+        ("CLIPModelHandler", "Requires transformers and PIL")
+    ]
+
+    for model_name, requirement in image_models:
+        try:
+            if model_name == "NoImageModel":
+                availability["image_models"][model_name] = {"available": True, "status": "Always available"}
+            elif model_name == "CLIPModelHandler":
+                try:
+                    from transformers import CLIPModel, CLIPProcessor
+                    from PIL import Image
+                    availability["image_models"][model_name] = {"available": True, "status": "Ready"}
+                except ImportError:
+                    availability["image_models"][model_name] = {"available": False, "status": "Missing dependencies"}
+        except Exception as e:
+            availability["image_models"][model_name] = {"available": False, "status": f"Error: {str(e)}"}
+
+    return availability
+
+
+def get_recommended_model_setup():
+    """Get recommendations for model setup based on system capabilities."""
+    availability = check_model_availability()
+    recommendations = {
+        "ai_model": None,
+        "embedding_model": None,
+        "image_model": None,
+        "reasoning": {}
+    }
+
+    # AI model recommendations
+    if availability["ai_models"].get("TinyLlamaModel", {}).get("available", False):
+        recommendations["ai_model"] = "TinyLlamaModel"
+        recommendations["reasoning"]["ai"] = "TinyLlama is available and provides local, private AI without API costs"
+    elif availability["ai_models"].get("GPT4AllModel", {}).get("available", False):
+        recommendations["ai_model"] = "GPT4AllModel"
+        recommendations["reasoning"]["ai"] = "GPT4All is available for local AI processing"
+    elif availability["ai_models"].get("OpenAIModel", {}).get("available", False):
+        recommendations["ai_model"] = "OpenAIModel"
+        recommendations["reasoning"]["ai"] = "OpenAI API is configured and provides high-quality responses"
+    elif availability["ai_models"].get("AnthropicModel", {}).get("available", False):
+        recommendations["ai_model"] = "AnthropicModel"
+        recommendations["reasoning"]["ai"] = "Anthropic API is configured and provides excellent AI capabilities"
+    else:
+        recommendations["ai_model"] = "NoAIModel"
+        recommendations["reasoning"]["ai"] = "No AI models are properly configured"
+
+    # Embedding model recommendations
+    if availability["embedding_models"].get("GPT4AllEmbeddingModel", {}).get("available", False):
+        recommendations["embedding_model"] = "GPT4AllEmbeddingModel"
+        recommendations["reasoning"]["embedding"] = "Local embeddings are available for privacy and no API costs"
+    elif availability["embedding_models"].get("OpenAIEmbeddingModel", {}).get("available", False):
+        recommendations["embedding_model"] = "OpenAIEmbeddingModel"
+        recommendations["reasoning"]["embedding"] = "OpenAI embeddings provide high-quality vector representations"
+    else:
+        recommendations["embedding_model"] = "NoEmbeddingModel"
+        recommendations["reasoning"]["embedding"] = "No embedding models are properly configured"
+
+    # Image model recommendations
+    if availability["image_models"].get("CLIPModelHandler", {}).get("available", False):
+        recommendations["image_model"] = "CLIPModelHandler"
+        recommendations["reasoning"]["image"] = "CLIP provides excellent image processing capabilities"
+    else:
+        recommendations["image_model"] = "NoImageModel"
+        recommendations["reasoning"]["image"] = "No image models are properly configured"
+
+    return recommendations
+
+
+def apply_recommended_models():
+    """Apply the recommended model configuration based on system availability."""
+    recommendations = get_recommended_model_setup()
+
+    try:
+        success_count = 0
+
+        if recommendations["ai_model"]:
+            if ModelsConfig.set_current_ai_model(recommendations["ai_model"]):
+                logger.info(f"Set AI model to: {recommendations['ai_model']}")
+                success_count += 1
+
+        if recommendations["embedding_model"]:
+            if ModelsConfig.set_current_embedding_model(recommendations["embedding_model"]):
+                logger.info(f"Set embedding model to: {recommendations['embedding_model']}")
+                success_count += 1
+
+        if recommendations["image_model"]:
+            if ModelsConfig.set_current_image_model(recommendations["image_model"]):
+                logger.info(f"Set image model to: {recommendations['image_model']}")
+                success_count += 1
+
+        logger.info(f"Successfully applied {success_count}/3 recommended model configurations")
+        return success_count == 3
+
+    except Exception as e:
+        logger.error(f"Error applying recommended models: {e}")
+        return False
 
 
 # Enhanced embedding generation and storage functions
@@ -2004,13 +2803,13 @@ def example_completeDocument_integration():
 
         success = generate_and_store_embedding(session, document_id, content)
         if success:
-            print("✅ Embedding generated and stored successfully")
+            print("Embedding generated and stored successfully")
 
         # Example 2: Store pre-generated embeddings
         embeddings = [0.1, 0.2, 0.3, 0.4, 0.5]  # Example embedding vector
         success = store_embedding_enhanced(session, document_id, embeddings, "OpenAIEmbeddingModel")
         if success:
-            print("✅ Pre-generated embedding stored successfully")
+            print("Pre-generated embedding stored successfully")
 
         # Example 3: Query stored embeddings
         embedding_record = session.query(DocumentEmbedding).filter_by(
@@ -2020,7 +2819,7 @@ def example_completeDocument_integration():
 
         if embedding_record:
             stored_embeddings = embedding_record.embedding_vector  # Uses property method
-            print(f"✅ Retrieved {len(stored_embeddings)} dimension embedding")
+            print(f"Retrieved {len(stored_embeddings)} dimension embedding")
 
 
 def example_model_configuration():
@@ -2043,16 +2842,16 @@ def example_model_configuration():
 
     # Test functionality
     if test_embedding_functionality():
-        print("✅ Embedding system working correctly")
+        print("Embedding system working correctly")
     else:
-        print("❌ Embedding system needs attention")
+        print("Embedding system needs attention")
 
     # Test image model
     try:
         result = image_model.process_image("test_image.jpg")
-        print(f"✅ Image model working: {result}")
+        print(f"Image model working: {result}")
     except Exception as e:
-        print(f"❌ Image model error: {e}")
+        print(f"Image model error: {e}")
 
 
 def search_similar_embeddings(session, query_embeddings, model_name=None, limit=10, threshold=0.7):
@@ -2300,13 +3099,13 @@ def example_completeDocument_integration():
 
         success = generate_and_store_embedding(session, document_id, content)
         if success:
-            print("✅ pgvector embedding generated and stored successfully")
+            print("pgvector embedding generated and stored successfully")
 
         # Example 2: Store pre-generated embeddings using pgvector
         embeddings = [0.1, 0.2, 0.3, 0.4, 0.5] * 307  # 1536 dimensions for OpenAI
         success = store_embedding_enhanced(session, document_id, embeddings, "OpenAIEmbeddingModel")
         if success:
-            print("✅ Pre-generated pgvector embedding stored successfully")
+            print("Pre-generated pgvector embedding stored successfully")
 
         # Example 3: Query stored pgvector embeddings
         embedding_record = session.query(DocumentEmbedding).filter_by(
@@ -2317,18 +3116,18 @@ def example_completeDocument_integration():
         if embedding_record:
             stored_embeddings = embedding_record.embedding_as_list  # Uses pgvector property
             storage_type = embedding_record.get_storage_type()
-            print(f"✅ Retrieved {len(stored_embeddings)} dimension embedding using {storage_type}")
+            print(f"Retrieved {len(stored_embeddings)} dimension embedding using {storage_type}")
 
         # Example 4: Perform similarity search with pgvector
         query_embeddings = [0.1, 0.2, 0.3, 0.4, 0.5] * 307  # Query vector
         similar_docs = search_similar_embeddings(
             session, query_embeddings, "OpenAIEmbeddingModel", limit=5, threshold=0.8
         )
-        print(f"✅ Found {len(similar_docs)} similar documents using pgvector")
+        print(f"Found {len(similar_docs)} similar documents using pgvector")
 
         # Example 5: Get embedding statistics
         stats = get_pgvector_statistics()
-        print(f"✅ pgvector usage: {stats.get('pgvector_percentage', 0):.1f}% of embeddings")
+        print(f"pgvector usage: {stats.get('pgvector_percentage', 0):.1f}% of embeddings")
 
 # ==========================================
 # INTEGRATION NOTES FOR COMPLETEDOCUMENT CLASS
