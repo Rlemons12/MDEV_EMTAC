@@ -1,5 +1,6 @@
 # modules/ai/ai_steward.py
 import time
+from sqlalchemy import text
 import re
 import json
 from typing import Dict, List, Any, Optional, Union, Tuple
@@ -183,7 +184,8 @@ class VectorSearchClient:
 
         return dot_product / norm_product
 
-class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
+
+class AistManager(UnifiedSearchMixin):
     """
     AI Steward manages the search strategies and response generation process.
     It orchestrates keyword search, full-text search, vector similarity search,
@@ -194,7 +196,7 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
 
     def __init__(self, ai_model=None, db_session=None):
         """Initialize with optional AI model and database session."""
-        # Initialize existing AistManager functionality
+        # Basic initialization
         self.ai_model = ai_model
         self.db_session = db_session
         self.start_time = None
@@ -210,6 +212,14 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
             'total_request': 5.0,
         }
 
+        # ALWAYS initialize tracking attributes (even if tracking fails)
+        self.tracked_search = None
+        self.current_user_id = None
+        self.current_session_id = None
+        self.query_tracker = None
+
+        logger.info("=== AIST MANAGER INITIALIZATION STARTING ===")
+
         # Initialize vector search client
         try:
             self.vector_search_client = VectorSearchClient()
@@ -218,57 +228,114 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
             logger.warning(f"Failed to initialize vector search client: {e}")
             self.vector_search_client = None
 
-        # Initialize unified search capabilities FIRST
-        UnifiedSearchMixin.__init__(self)
-
-        # ===== NEW: Initialize Search Tracking System =====
-        self.tracked_search = None
-        self.current_user_id = None
-        self.current_session_id = None
-        self._init_search_tracking()
-
-        logger.debug("AistManager with unified search and tracking capabilities initialized")
-
-    def _init_search_tracking(self):
-        """Initialize the search tracking system."""
+        # FIXED: Initialize unified search capabilities properly
+        logger.info("Initializing UnifiedSearchMixin...")
         try:
-            # Import the tracking system
+            # Call parent __init__ with no arguments (mixin pattern)
+            UnifiedSearchMixin.__init__(self)
+            logger.info("✅ UnifiedSearchMixin initialized")
+        except Exception as e:
+            logger.error(f"❌ UnifiedSearchMixin initialization failed: {e}")
+            # Set basic attributes to prevent further errors
+            self.unified_search_system = None
+            self.search_pattern_manager = None
+
+        # Try to initialize tracking (simple, single attempt)
+        self._init_tracking_simple()
+
+        logger.info("=== AIST MANAGER INITIALIZATION COMPLETE ===")
+
+        # Final status
+        has_tracking = (self.query_tracker is not None and
+                        self.tracked_search is not None and
+                        hasattr(self.tracked_search, 'execute_unified_search_with_tracking'))
+        logger.info(f"🎯 Tracking enabled: {has_tracking}")
+
+    def _init_tracking_simple(self):
+        """Simple, single tracking initialization method - FIXED IMPORTS."""
+        if not self.db_session:
+            logger.warning(" No database session - tracking disabled")
+            self.query_tracker = None
+            self.tracked_search = None
+            return
+
+        try:
+            logger.info("🔧 Initializing search tracking...")
+
+            # FIXED: Correct import paths
+            from modules.search.nlp_search import SearchQueryTracker
             from modules.search.models.search_models import UnifiedSearchWithTracking
 
-            # Initialize tracking wrapper around this instance
-            self.tracked_search = UnifiedSearchWithTracking(self)
-            logger.info("✅ Search tracking system initialized")
+            # Initialize tracker
+            self.query_tracker = SearchQueryTracker(self.db_session)
+            logger.info(" SearchQueryTracker initialized")
 
-            # Try to create database tables if they don't exist
-            self._ensure_tracking_tables()
+            # Initialize tracking wrapper  
+            self.tracked_search = UnifiedSearchWithTracking(self)
+            self.tracked_search.query_tracker = self.query_tracker
+            logger.info(" UnifiedSearchWithTracking initialized")
+
+            # Verify it works
+            if hasattr(self.tracked_search, 'execute_unified_search_with_tracking'):
+                logger.info(" Tracking initialization successful")
+            else:
+                logger.error(" Tracking method not available")
+                self.query_tracker = None
+                self.tracked_search = None
 
         except ImportError as e:
-            logger.warning(f"⚠️ Search tracking not available - missing models: {e}")
+            logger.warning(f"📦 Tracking modules not available: {e}")
+            self.query_tracker = None
             self.tracked_search = None
         except Exception as e:
-            logger.error(f"❌ Failed to initialize search tracking: {e}")
+            logger.error(f" Tracking initialization failed: {e}")
+            self.query_tracker = None
             self.tracked_search = None
 
-    def _ensure_tracking_tables(self):
-        """Ensure tracking tables exist in the database."""
+    def check_tracking_status(self):
+        """Simple tracking status check."""
         try:
-            if self.db_session:
-                from modules.search.models.search_models import (
-                    SearchSession, SearchQuery, SearchResultClick
-                )
-                from modules.configuration.base import Base
+            has_tracking = (getattr(self, 'query_tracker', None) is not None and
+                            getattr(self, 'tracked_search', None) is not None and
+                            hasattr(getattr(self, 'tracked_search', None), 'execute_unified_search_with_tracking'))
 
-                # Create tables if they don't exist
-                engine = self.db_session.bind
-                Base.metadata.create_all(engine, tables=[
-                    SearchSession.__table__,
-                    SearchQuery.__table__,
-                    SearchResultClick.__table__
-                ])
-                logger.debug("✅ Search tracking tables verified/created")
+            status = {
+                'tracking_enabled': has_tracking,
+                'db_session_exists': self.db_session is not None,
+                'query_tracker_exists': getattr(self, 'query_tracker', None) is not None,
+                'tracked_search_exists': getattr(self, 'tracked_search', None) is not None,
+                'has_tracking_method': has_tracking,
+                'current_session_id': getattr(self, 'current_session_id', None)
+            }
+
+            logger.info(f"=== TRACKING STATUS: {' ENABLED' if has_tracking else ' DISABLED'} ===")
+            return status
 
         except Exception as e:
-            logger.warning(f"⚠️ Could not ensure tracking tables: {e}")
+            logger.error(f"Error checking tracking status: {e}")
+            return {'tracking_enabled': False, 'error': str(e)}
+
+    def verify_search_tables(self):
+        """Verify that search tracking tables exist and are accessible."""
+        try:
+            if not self.db_session:
+                logger.error("No database session available")
+                return False
+
+            from modules.search.models.search_models import SearchSession, SearchQuery, SearchResultClick
+
+            # Test if we can query the tables
+            session_count = self.db_session.query(SearchSession).count()
+            query_count = self.db_session.query(SearchQuery).count()
+            click_count = self.db_session.query(SearchResultClick).count()
+
+            logger.info(
+                f"Search tables verified: {session_count} sessions, {query_count} queries, {click_count} clicks")
+            return True
+
+        except Exception as e:
+            logger.error(f"Search table verification failed: {e}")
+            return False
 
     # ===== USER SESSION MANAGEMENT =====
 
@@ -295,14 +362,14 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
                         'session_started_at': datetime.utcnow().isoformat()
                     }
                 )
-                logger.info(f"👤 Started tracking session {self.current_session_id} for user {user_id}")
+                logger.info(f" Started tracking session {self.current_session_id} for user {user_id}")
                 return True
             else:
                 logger.debug(f"👤 Set current user {user_id} (tracking disabled)")
                 return False
 
         except Exception as e:
-            logger.error(f"❌ Failed to set current user {user_id}: {e}")
+            logger.error(f" Failed to set current user {user_id}: {e}")
             return False
 
     def end_user_session(self) -> bool:
@@ -311,15 +378,217 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
             if self.tracked_search and self.current_session_id:
                 success = self.tracked_search.end_session()
                 if success:
-                    logger.info(f"👋 Ended tracking session {self.current_session_id}")
+                    logger.info(f" Ended tracking session {self.current_session_id}")
                     self.current_session_id = None
                     self.current_user_id = None
                 return success
             return False
 
         except Exception as e:
-            logger.error(f"❌ Failed to end user session: {e}")
+            logger.error(f" Failed to end user session: {e}")
             return False
+
+    @with_request_id
+    def format_search_results(self, result):
+        """
+        Format search results into a user-friendly answer.
+        This method properly handles the search results structure from unified search.
+        """
+        try:
+            logger.debug(f"Formatting search results: {type(result)}")
+            logger.debug(f"Result keys: {list(result.keys()) if isinstance(result, dict) else 'Not a dict'}")
+
+            if not result or not isinstance(result, dict):
+                return "I couldn't find relevant information for your query."
+
+            # Check result status
+            if result.get('status') != 'success':
+                error_msg = result.get('message', 'Search failed')
+                return f"Search error: {error_msg}"
+
+            total_results = result.get('total_results', 0)
+            if total_results == 0:
+                return "No results found for your query."
+
+            # Check for organized results structure (from unified search)
+            if 'organized_results' in result:
+                return self._format_organized_results(result['organized_results'], total_results)
+
+            # Check for results_by_type structure
+            elif 'results_by_type' in result:
+                return self._format_results_by_type(result['results_by_type'], total_results)
+
+            # Check for direct results list (fallback for aggregate search)
+            elif 'results' in result and isinstance(result['results'], list):
+                return self._format_direct_results(result['results'], total_results)
+
+            # Handle the case where parts are in the main result structure
+            # This seems to be what's happening based on the logs
+            elif total_results > 0:
+                return self._format_main_result_structure(result, total_results)
+
+            # Final fallback
+            return f"Found {total_results} results for your query."
+
+        except Exception as e:
+            logger.error(f"Error formatting search results: {e}", exc_info=True)
+            return "Found some results, but had trouble formatting them."
+
+    def _format_organized_results(self, organized_results, total_results):
+        """Format organized results structure."""
+        parts = []
+
+        # Format parts
+        if 'parts' in organized_results and organized_results['parts']:
+            parts_list = organized_results['parts'][:10]  # Show up to 10 parts
+            parts.append(f"Found {len(parts_list)} Banner sensor{'s' if len(parts_list) != 1 else ''}:")
+
+            for i, part in enumerate(parts_list, 1):
+                part_info = f"{i}. {part.get('part_number', 'Unknown')}"
+                if part.get('name'):
+                    part_info += f" - {part.get('name')}"
+                if part.get('oem_mfg'):
+                    part_info += f" (Manufacturer: {part['oem_mfg']})"
+                parts.append(part_info)
+
+        # Format images
+        if 'images' in organized_results and organized_results['images']:
+            image_count = len(organized_results['images'])
+            parts.append(f"\nFound {image_count} related image{'s' if image_count != 1 else ''}.")
+
+        # Format positions
+        if 'positions' in organized_results and organized_results['positions']:
+            position_count = len(organized_results['positions'])
+            parts.append(f"\nFound {position_count} installation location{'s' if position_count != 1 else ''}.")
+
+        if parts:
+            return "\n".join(parts)
+        else:
+            return f"Found {total_results} results for your query."
+
+    def _format_results_by_type(self, results_by_type, total_results):
+        """Format results_by_type structure."""
+        response_parts = []
+
+        # Handle parts
+        if 'parts' in results_by_type and results_by_type['parts']:
+            parts_list = results_by_type['parts'][:10]
+            response_parts.append(f"Found {len(parts_list)} part{'s' if len(parts_list) != 1 else ''}:")
+
+            for i, part in enumerate(parts_list, 1):
+                part_info = f"{i}. {part.get('part_number', 'Unknown')}"
+                if part.get('name'):
+                    part_info += f" - {part.get('name')}"
+                if part.get('oem_mfg'):
+                    part_info += f" (Manufacturer: {part['oem_mfg']})"
+                response_parts.append(part_info)
+
+        # Handle images
+        if 'images' in results_by_type and results_by_type['images']:
+            if response_parts:
+                response_parts.append("")  # Add spacing
+
+            images_list = results_by_type['images'][:5]
+            response_parts.append(f"Found {len(images_list)} image{'s' if len(images_list) != 1 else ''}:")
+
+            for i, image in enumerate(images_list, 1):
+                image_info = f"{i}. {image.get('title', 'Untitled Image')}"
+                if image.get('description'):
+                    image_info += f" - {image['description']}"
+                response_parts.append(image_info)
+
+        # Handle other types
+        for result_type, results in results_by_type.items():
+            if result_type in ['parts', 'images'] or not results:
+                continue
+
+            if response_parts:
+                response_parts.append("")  # Add spacing
+
+            type_name = result_type.replace('_', ' ').title()
+            response_parts.append(f"Found {len(results)} {type_name}:")
+
+            for i, item in enumerate(results[:5], 1):
+                item_info = f"{i}. {item.get('title', item.get('name', 'Unknown'))}"
+                response_parts.append(item_info)
+
+        return "\n".join(response_parts) if response_parts else f"Found {total_results} results."
+
+    def _format_main_result_structure(self, result, total_results):
+        """
+        Handle the case where the search system returns results in the main structure.
+        This appears to be what's happening based on the logs.
+        """
+        logger.debug("Attempting to format main result structure")
+
+        # Look for common result indicators
+        response_parts = []
+
+        # Check if there's a summary
+        if 'summary' in result:
+            response_parts.append(result['summary'])
+
+        # Check for various possible result structures
+        found_results = False
+
+        # Try to find parts in various possible locations
+        for key in ['parts', 'results', 'data', 'items']:
+            if key in result and isinstance(result[key], list) and result[key]:
+                found_results = True
+                parts_list = result[key][:10]
+
+                if not response_parts:
+                    response_parts.append(f"Found {len(parts_list)} result{'s' if len(parts_list) != 1 else ''}:")
+
+                for i, item in enumerate(parts_list, 1):
+                    if isinstance(item, dict):
+                        if 'part_number' in item:
+                            part_info = f"{i}. {item.get('part_number', 'Unknown')}"
+                            if item.get('name'):
+                                part_info += f" - {item.get('name')}"
+                            if item.get('oem_mfg'):
+                                part_info += f" (Manufacturer: {item['oem_mfg']})"
+                            response_parts.append(part_info)
+                        else:
+                            # Generic item
+                            name = item.get('name', item.get('title', item.get('id', 'Unknown')))
+                            response_parts.append(f"{i}. {name}")
+                    else:
+                        response_parts.append(f"{i}. {str(item)}")
+                break
+
+        if not found_results:
+            # Last resort - just mention the count
+            response_parts.append(f"Found {total_results} results for your query.")
+
+        return "\n".join(response_parts) if response_parts else f"Found {total_results} results."
+
+    def _format_direct_results(self, results, total_results):
+        """Format direct results list."""
+        if not results:
+            return "No results found."
+
+        response_parts = [f"Found {len(results)} result{'s' if len(results) != 1 else ''}:"]
+
+        for i, result in enumerate(results[:10], 1):
+            # Try to determine what type of result this is
+            if 'part_number' in result:
+                # It's a part
+                part_info = f"{i}. {result.get('part_number', 'Unknown')}"
+                if result.get('name'):
+                    part_info += f" - {result.get('name')}"
+                if result.get('oem_mfg'):
+                    part_info += f" (Manufacturer: {result['oem_mfg']})"
+                response_parts.append(part_info)
+            elif 'title' in result:
+                # It's likely an image or document
+                response_parts.append(f"{i}. {result['title']}")
+            else:
+                # Generic result
+                name = result.get('name', result.get('id', 'Unknown'))
+                response_parts.append(f"{i}. {name}")
+
+        return "\n".join(response_parts)
 
     # ===== ENHANCED SEARCH METHODS =====
 
@@ -338,7 +607,7 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
         search_start = time.time()
         self.current_request_id = request_id or str(uuid.uuid4())
 
-        logger.info(f"🔍 Execute search with analytics: '{question}' (Request: {self.current_request_id})")
+        logger.info(f" Execute search with analytics: '{question}' (Request: {self.current_request_id})")
 
         try:
             # Use tracking system if available
@@ -361,7 +630,7 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
                 })
 
                 logger.info(
-                    f"✅ Tracked search completed: {result.get('status')} with {result.get('total_results', 0)} results")
+                    f" Tracked search completed: {result.get('status')} with {result.get('total_results', 0)} results")
                 return result
 
             else:
@@ -384,12 +653,12 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
                 })
 
                 logger.info(
-                    f"✅ Untracked search completed: {result.get('status')} with {result.get('total_results', 0)} results")
+                    f" Untracked search completed: {result.get('status')} with {result.get('total_results', 0)} results")
                 return result
 
         except Exception as e:
             search_time = time.time() - search_start
-            logger.error(f"❌ Search failed after {search_time:.3f}s: {e}")
+            logger.error(f" Search failed after {search_time:.3f}s: {e}")
 
             return {
                 'status': 'error',
@@ -420,7 +689,7 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
             if self.tracked_search:
                 success = self.tracked_search.record_satisfaction(query_id, rating)
                 if success:
-                    logger.info(f"📊 Recorded satisfaction {rating}/5 for query {query_id}")
+                    logger.info(f" Recorded satisfaction {rating}/5 for query {query_id}")
 
                     # TODO: Store additional feedback if provided
                     if feedback:
@@ -428,11 +697,11 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
 
                 return success
             else:
-                logger.warning(f"⚠️ Cannot record satisfaction - tracking disabled")
+                logger.warning(f" Cannot record satisfaction - tracking disabled")
                 return False
 
         except Exception as e:
-            logger.error(f"❌ Failed to record satisfaction for query {query_id}: {e}")
+            logger.error(f" Failed to record satisfaction for query {query_id}: {e}")
             return False
 
     def track_result_interaction(self, query_id: int, result_type: str, result_id: int,
@@ -465,11 +734,11 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
 
                 return success
             else:
-                logger.debug(f"⚠️ Cannot track interaction - tracking disabled")
+                logger.debug(f" Cannot track interaction - tracking disabled")
                 return False
 
         except Exception as e:
-            logger.error(f"❌ Failed to track interaction: {e}")
+            logger.error(f" Failed to track interaction: {e}")
             return False
 
     def get_search_analytics(self, days: int = 7) -> Dict[str, Any]:
@@ -496,7 +765,7 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
                     'report_type': 'comprehensive_search_analytics'
                 })
 
-                logger.info(f"📊 Generated {days}-day analytics report")
+                logger.info(f" Generated {days}-day analytics report")
                 return analytics
 
             else:
@@ -508,7 +777,7 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
                 }
 
         except Exception as e:
-            logger.error(f"❌ Failed to generate analytics: {e}")
+            logger.error(f" Failed to generate analytics: {e}")
             return {
                 'status': 'error',
                 'message': str(e),
@@ -591,7 +860,7 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
             }
 
         except Exception as e:
-            logger.error(f"❌ Intent analysis failed: {e}")
+            logger.error(f" Intent analysis failed: {e}")
             return {
                 'status': 'error',
                 'message': str(e),
@@ -605,7 +874,7 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
         Backward-compatible search method.
         Redirects to the new analytics-enabled search.
         """
-        logger.debug("🔄 Redirecting legacy search to analytics-enabled search")
+        logger.debug(" Redirecting legacy search to analytics-enabled search")
 
         # Set user if provided
         if user_id and user_id != self.current_user_id:
@@ -630,7 +899,7 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
             logger.debug("🧹 Session cleanup completed")
 
         except Exception as e:
-            logger.error(f"❌ Session cleanup failed: {e}")
+            logger.error(f" Session cleanup failed: {e}")
 
     def __enter__(self):
         """Context manager entry."""
@@ -646,7 +915,7 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
                 try:
                     self.unified_search_system.close_session()
                 except Exception as e:
-                    logger.error(f"❌ Failed to close unified search session: {e}")
+                    logger.error(f" Failed to close unified search session: {e}")
 
     def get_tracking_info(self) -> Dict[str, Any]:
         """Get current tracking system information."""
@@ -928,305 +1197,165 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
                 local_session.close()
 
     @with_request_id
-    def answer_question(self, user_id, question, client_type=None, request_id=None):
-        """
-        Enhanced answer_question with unified search and Windows-compatible timeouts.
-        NOW WITH SYNONYM INTELLIGENCE!
+    def answer_question(self, user_id, question, client_type='web', request_id=None):
+        """Simplified answer_question with basic tracking."""
+        self.start_time = time.time()
+        self.current_request_id = request_id or get_request_id()
 
-        Now automatically routes between:
-        - Unified Search: For specific queries like "What's in room 2312?" (with synonym expansion)
-        - Conversational AI: For general questions and explanations
-        """
-        # Call the updated begin_request method
-        try:
-            self.begin_request(request_id)
-        except TypeError:
-            # Fallback for compatibility
-            self.begin_request()
-
-        logger.debug(f"Processing question for user {user_id}: {question}")
-        local_session = None
-        session_id = None
-        combined_context = ""
-        method_used = "unknown"
-
-        # Set maximum response time
-        max_response_time = 400.0  # 5 seconds max
-        start_time = time.time()
-
-        # Check for session end request
-        if question.lower() == "end session please":
-            logger.info("User requested to end the session")
-            return {"status": "end_session"}
-
-        # Define reset phrases that will clear the conversation context
-        reset_phrases = [
-            "clear context", "reset context", "clear conversation", "reset conversation",
-            "forget previous context", "start fresh", "start over", "clear chat history",
-            "reset chat", "forget what i said"
-        ]
-
-        # Check if the question contains any reset phrases
-        is_reset_request = any(phrase in question.lower() for phrase in reset_phrases)
+        logger.info(f"Processing question: {question}")
 
         try:
-            # Set up session management
-            if not self.db_session:
-                db_config = DatabaseConfig()
-                local_session = db_config.get_main_session()
-                session = local_session
-            else:
-                session = self.db_session
+            # Check if tracking is available
+            has_tracking = (self.query_tracker is not None and
+                            self.tracked_search is not None and
+                            hasattr(self.tracked_search, 'execute_unified_search_with_tracking'))
 
-            # ADD SESSION ROLLBACK: Ensure clean session state
-            try:
-                if session:
-                    session.rollback()  # Clear any pending state
-                    logger.debug("Session state cleared for new request")
-            except Exception as e:
-                logger.debug(f"Session rollback note: {e}")
+            # Execute search
+            if has_tracking:
+                logger.info(" Using TRACKED search")
 
-            # Get or create user session for conversation history
-            latest_session = self.get_session(user_id, session)
-            if latest_session:
-                session_id = latest_session.session_id
-                session_data = latest_session.session_data if latest_session.session_data else []
-                session_data.append(question)
-                logger.debug(f"Using existing session {session_id} with {len(session_data)} messages")
-            else:
-                session_id = self.create_session(user_id, question, session)
-                session_data = [question]
-                logger.debug(f"Created new session {session_id} for user {user_id}")
-
-            # Handle reset request if detected
-            if is_reset_request and session_id:
-                logger.info(f"Reset request detected: '{question}'")
-                success = ChatSession.clear_conversation_summary(session_id, session)
-                reset_response = "Context has been reset. I've cleared our conversation history."
-                self.update_session(session_id, session_data, reset_response, session)
-                formatted_answer = self.format_response(reset_response, client_type)
-                method_used = "reset_context"
-                return {"status": "success", "answer": formatted_answer, "method": method_used}
-
-            # ================================================================
-            # NEW: ENHANCED UNIFIED SEARCH WITH SYNONYM INTELLIGENCE
-            # ================================================================
-            if hasattr(self, 'is_unified_search_query') and self.is_unified_search_query(question):
-                logger.info(f"Detected unified search query: {question}")
-
-                # STEP 1: Try original unified search first
-                search_result = self.execute_unified_search(question, user_id, request_id)
-
-                # STEP 2: If no results, try with synonym expansion
-                if not search_result or search_result.get('status') != 'success' or search_result.get('total_results',
-                                                                                                      0) == 0:
-                    logger.info("Original search found no results, trying with synonym expansion...")
-                    search_result = self._execute_unified_search_with_synonyms(question, user_id, request_id, session)
-
-                # STEP 3: Process successful results
-                if search_result and search_result.get('status') == 'success' and search_result.get('total_results',
-                                                                                                    0) > 0:
-                    # Format unified search results
-                    formatted_response = self._format_unified_search_response(search_result, client_type)
-
-                    # Record the interaction
-                    self.record_interaction(user_id, question, formatted_response)
-                    self.update_session(session_id, session_data, formatted_response, session)
-
-                    # Update conversation summary
-                    summarized_data = session_data[-3:] if len(session_data) > 3 else session_data
-                    ChatSession.update_conversation_summary(session_id, summarized_data, session)
-
-                    total_time = time.time() - start_time
-                    search_method = "unified_search_with_synonyms" if search_result.get(
-                        'synonym_enhanced') else "unified_search"
-                    logger.info(
-                        f"Question answered using {search_method} in {total_time:.3f}s with {search_result.get('total_results', 0)} results")
-
-                    return {
-                        "status": "success",
-                        "answer": formatted_response,
-                        "method": search_method,
-                        "search_results": search_result,
-                        "is_structured_data": True,
-                        "synonym_enhanced": search_result.get('synonym_enhanced', False)
-                    }
-                else:
-                    # Unified search failed completely, log and fall back to conversational AI
-                    logger.warning(
-                        f"Unified search with synonyms failed, falling back to AI: {search_result.get('message', 'Unknown error') if search_result else 'No search result'}")
-
-            # ================================================================
-            # EXISTING CONVERSATIONAL AI LOGIC (when unified search doesn't apply or fails)
-            # ================================================================
-            logger.debug("Processing as conversational AI query")
-
-            # OPTIMIZATION: Check remaining time before each expensive operation
-            elapsed_time = time.time() - start_time
-
-            # Strategy 1: Try keyword search first (fastest)
-            if elapsed_time < max_response_time - 4:  # Leave 4 seconds for other operations
-                with log_timed_operation("keyword_search"):
-                    keyword_result = self.try_keyword_search(question)
-                    if keyword_result.get('success'):
-                        answer = self.format_response(keyword_result['answer'], client_type,
-                                                      keyword_result.get('results', []))
-                        self.record_interaction(user_id, question, keyword_result['answer'])
-                        self.update_session(session_id, session_data, answer, session)
-
-                        # Update conversation summary
-                        summarized_data = session_data[-3:] if len(session_data) > 3 else session_data
-                        ChatSession.update_conversation_summary(session_id, summarized_data, session)
-
-                        method_used = "keyword"
-                        return {"status": "success", "answer": answer, "method": method_used}
-
-            # Strategy 2: Try full-text search (medium speed)
-            elapsed_time = time.time() - start_time
-            if elapsed_time < max_response_time - 2:  # Leave 2 seconds for AI response
-                fulltext_content = ""
-                with log_timed_operation("fulltext_search"):
+                # Initialize user session if needed
+                if not self.current_session_id:
                     try:
-                        if session:
-                            # ADD SESSION ROLLBACK: Clear state before fulltext search
-                            try:
-                                session.rollback()
-                            except Exception:
-                                pass
-
-                            fts_documents = CompleteDocument.search_by_text(
-                                question,
-                                session=session,
-                                similarity_threshold=50,
-                                with_links=False
-                            )
-
-                            if fts_documents and isinstance(fts_documents, list) and len(fts_documents) > 0:
-                                fulltext_content += "\n\nFULL-TEXT SEARCH RESULTS:\n"
-                                for i, doc in enumerate(fts_documents[:3], 1):
-                                    title = getattr(doc, 'title', f"Document #{getattr(doc, 'id', i)}")
-                                    content = getattr(doc, 'content', '')
-                                    snippet = content[:300] + "..." if content and len(content) > 300 else content
-                                    fulltext_content += f"{i}. {title}: {snippet}\n\n"
-
-                                logger.info(
-                                    f"Added {len(fts_documents[:3])} documents from full-text search to context")
-                                combined_context += fulltext_content
+                        self.set_current_user(user_id or "anonymous", {'client_type': client_type})
                     except Exception as e:
-                        logger.error(f"Error collecting full-text search results: {e}", exc_info=True)
-                        # ADD SESSION ROLLBACK: Clear state if fulltext search failed
-                        try:
-                            if session:
-                                session.rollback()
-                        except Exception:
-                            pass
+                        logger.warning(f"Failed to set user session: {e}")
 
-            # Strategy 3: Try vector search (slowest, with timeout)
-            most_relevant_doc = None
-            elapsed_time = time.time() - start_time
-            if elapsed_time < max_response_time - 1.5:  # Leave 1.5 seconds for AI response
-                with log_timed_operation("find_relevant_document"):
-                    # ADD SESSION ROLLBACK: Clear state before vector search
-                    try:
-                        if session:
-                            session.rollback()
-                    except Exception:
-                        pass
-
-                    most_relevant_doc = self.find_most_relevant_document(question, session)
-                    if most_relevant_doc:
-                        logger.info(f"Found most relevant document with ID {most_relevant_doc.id}")
-                        doc_content = most_relevant_doc.content
-                        doc_snippet = doc_content[:1000] + "..." if len(doc_content) > 1000 else doc_content
-                        combined_context += f"\n\nMOST RELEVANT DOCUMENT:\n{doc_snippet}\n\n"
-
-            # Strategy 4: Generate AI response (always try this)
-            ai_model = self._ensure_ai_model()
-            if not ai_model:
-                logger.error("Failed to load AI model")
-                return {"status": "error", "error": "Failed to load AI model"}
-
-            # Get conversation history for context
-            try:
-                # ADD SESSION ROLLBACK: Clear state before getting conversation summary
-                if session:
-                    session.rollback()
-            except Exception:
-                pass
-
-            conversation_summary = ChatSession.get_conversation_summary(session_id, session)
-            conversation_context = ""
-            if conversation_summary:
-                recent_msgs = conversation_summary[-5:] if len(conversation_summary) > 5 else conversation_summary
-                conversation_context = "\n".join([f"User: {msg}" if i % 2 == 0 else f"Assistant: {msg}"
-                                                  for i, msg in enumerate(recent_msgs)])
-
-            # Create optimized prompt (shorter for faster processing)
-            if combined_context:
-                # Use context if available
-                comprehensive_prompt = (
-                    "Answer based on this information:\n"
-                    f"{combined_context[:1500]}...\n\n"  # Limit context size
-                    f"Question: {question}\n"
-                    "Provide a concise answer:"
+                result = self.tracked_search.execute_unified_search_with_tracking(
+                    question=question,
+                    user_id=user_id or "anonymous",
+                    request_id=self.current_request_id
                 )
-                method_used = "ai_with_context"
             else:
-                # Fallback to direct AI response
-                comprehensive_prompt = f"Please answer this question: {question}"
-                method_used = "ai_direct"
+                logger.info(" Using UNTRACKED search")
+                result = self.execute_unified_search(question, user_id, self.current_request_id)
 
-            # Get AI response with Windows-compatible timeout
-            with log_timed_operation("ai_comprehensive_response"):
-                def ai_operation():
-                    return ai_model.get_response(comprehensive_prompt)
+            # Format response
+            if result.get('status') == 'success':
+                answer = self.format_search_results(result)
+            else:
+                answer = result.get('message', 'Search failed')
 
-                remaining_time = max_response_time - (time.time() - start_time)
-                ai_answer, error = self._execute_with_timeout(
-                    ai_operation,
-                    max(300.0, remaining_time)  # At least 1 second for AI
-                )
+            # Record interaction
+            try:
+                interaction = self.record_interaction(user_id or "anonymous", question, answer)
+                if interaction:
+                    logger.info(f"Recorded interaction: {interaction.id}")
+            except Exception as e:
+                logger.warning(f"Failed to record interaction: {e}")
 
-                if error:
-                    logger.warning("AI response timed out, using fallback")
-                    ai_answer = "I'm processing your question but it's taking longer than expected. Could you please rephrase or try again?"
-                    method_used = "ai_timeout_fallback"
-
-            # Format and record response
-            formatted_answer = self.format_response(ai_answer, client_type)
-            self.record_interaction(user_id, question, ai_answer)
-
-            # Update session with the interaction
-            self.update_session(session_id, session_data, ai_answer, session)
-
-            # Update conversation summary
-            summarized_session_data = session_data[-3:] if len(session_data) > 3 else session_data
-            summarized_session_data.append(question)
-            summarized_session_data.append(ai_answer)
-            ChatSession.update_conversation_summary(session_id, summarized_session_data, session)
-
-            total_time = time.time() - start_time
-            logger.info(f"Question answered using '{method_used}' in {total_time:.3f}s")
-
-            return {"status": "success", "answer": formatted_answer, "method": method_used}
+            return {
+                'status': result.get('status', 'success'),
+                'answer': answer,
+                'method': result.get('search_method', 'unified_search'),
+                'total_results': result.get('total_results', 0),
+                'tracking_info': result.get('tracking_info', {}),
+                'request_id': self.current_request_id
+            }
 
         except Exception as e:
-            total_time = time.time() - start_time
-            logger.error(f"Error in answer_question after {total_time:.3f}s: {e}", exc_info=True)
+            logger.error(f"Error in answer_question: {e}", exc_info=True)
+            error_msg = f"I encountered an error: {str(e)}"
 
-            # ADD SESSION ROLLBACK: Clear state if there was an error
+            return {
+                'status': 'error',
+                'answer': error_msg,
+                'message': str(e),
+                'method': 'error_fallback',
+                'total_results': 0,
+                'request_id': self.current_request_id
+            }
+
+    def get_or_create_aist_manager():
+        """
+        FIXED: Get or create a global AistManager instance WITH database session for tracking.
+        This allows tracking to work properly by providing the database session during initialization.
+        """
+        global global_aist_manager
+
+        if global_aist_manager is None:
             try:
-                if session:
-                    session.rollback()
-                    logger.debug("Session rolled back due to error in answer_question")
-            except Exception:
-                pass
+                logger.info("🔧 Creating AistManager with tracking support...")
 
-            return {"status": "error", "error": str(e)}
-        finally:
-            if local_session:
-                local_session.close()
-                logger.debug("Local database session closed")
+                # CRITICAL FIX: Get database session for tracking
+                db_config = DatabaseConfig()
+                db_session = db_config.get_session()
+
+                if not db_session:
+                    logger.error(" Could not get database session")
+                    # Create without session as fallback
+                    global_aist_manager = AistManager()
+                else:
+                    logger.info(" Database session obtained")
+
+                    # Load AI model using ModelsConfig
+                    ai_model = ModelsConfig.load_ai_model()
+
+                    # FIXED: Create AistManager with database session
+                    global_aist_manager = AistManager(
+                        ai_model=ai_model,
+                        db_session=db_session  # CRITICAL: Pass database session during initialization
+                    )
+
+                logger.info(" Global AistManager created successfully")
+
+                # Test tracking initialization
+                if hasattr(global_aist_manager, 'check_tracking_status'):
+                    tracking_status = global_aist_manager.check_tracking_status()
+                    if tracking_status.get('tracking_enabled', False):
+                        logger.info(" Search tracking is fully operational")
+                    else:
+                        logger.warning(" Search tracking is not operational")
+                        logger.info(f" Tracking status: {tracking_status}")
+                else:
+                    logger.warning(" No tracking status check method available")
+
+            except Exception as e:
+                logger.error(f" Failed to create AistManager with tracking: {e}")
+                # Fallback without session
+                try:
+                    ai_model = ModelsConfig.load_ai_model()
+                    global_aist_manager = AistManager(ai_model=ai_model)
+                    logger.info(" Created fallback AistManager without tracking")
+                except Exception as fallback_error:
+                    logger.error(f" Fallback AistManager creation failed: {fallback_error}")
+                    global_aist_manager = AistManager()
+
+        return global_aist_manager
+
+    @with_request_id
+    def debug_search_results_structure(self, result):
+        """
+        Debug method to understand the exact structure of search results.
+        Add this temporarily to see what's being returned.
+        """
+        logger.info("=== DEBUGGING SEARCH RESULTS STRUCTURE ===")
+        logger.info(f"Result type: {type(result)}")
+
+        if isinstance(result, dict):
+            logger.info(f"Result keys: {list(result.keys())}")
+
+            for key, value in result.items():
+                logger.info(f"Key '{key}': type={type(value)}")
+
+                if isinstance(value, list) and value:
+                    logger.info(f"  List contains {len(value)} items")
+                    if value:
+                        logger.info(f"  First item type: {type(value[0])}")
+                        if isinstance(value[0], dict):
+                            logger.info(f"  First item keys: {list(value[0].keys())}")
+                            # Log first few items for parts
+                            for i, item in enumerate(value[:3]):
+                                if 'part_number' in item:
+                                    logger.info(f"  Item {i}: {item.get('part_number')} - {item.get('name')}")
+
+                elif isinstance(value, dict) and value:
+                    logger.info(f"  Dict keys: {list(value.keys())}")
+
+                elif isinstance(value, (str, int, float, bool)):
+                    logger.info(f"  Value: {value}")
+
+        logger.info("=== END DEBUG ===")
 
     # ================================================================
     # NEW SYNONYM-ENHANCED SEARCH METHOD
@@ -1254,7 +1383,7 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
             # Step 2: Get synonyms for each key term
             expanded_terms = {}
             for term in key_terms:
-                synonyms = self._get_synonyms_for_term(term, session)
+                synonyms = self._get_synonyms_for_term(term)
                 if synonyms:
                     expanded_terms[term] = synonyms
                     logger.debug(f"Found synonyms for '{term}': {synonyms}")
@@ -1287,7 +1416,8 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
 
                             # If we found good results, we can stop
                             if result_score >= 5:  # Good enough threshold
-                                logger.info(f"Found sufficient results ({result_score}) with query: {query_variant}")
+                                logger.info(
+                                    f"Found sufficient results ({result_score}) with query: {query_variant}")
                                 break
 
                 except Exception as e:
@@ -1317,29 +1447,17 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
                 'total_results': 0
             }
 
-    # Fixed SQL query for _get_synonyms_for_term method
-    # Replace the SQL query section in your method with this:
-
-    def _get_synonyms_for_term(self, term: str, session) -> List[str]:
-        """Get synonyms for a specific term with comprehensive error handling and transaction management"""
-
-        # CRITICAL FIX: Always ensure clean transaction state before any database operations
+    def _get_synonyms_for_term(self, term: str) -> List[str]:
+        """
+        Get synonyms for a term with proper SQL and rollback handling.
+        """
         try:
-            if session.in_transaction():
-                session.rollback()
-                logger.debug(f"🔄 Rolled back existing transaction before synonym lookup for '{term}'")
-        except Exception as rollback_error:
-            logger.warning(f"⚠️ Could not rollback transaction: {rollback_error}")
-            # If we can't rollback, skip database lookup entirely
-            return self._get_fallback_synonyms(term)
+            if hasattr(self, 'db_session') and self.db_session.in_transaction():
+                self.db_session.rollback()
+                logger.debug("Rolled back transaction for synonym lookup")
 
-        # Try Method 1: Fixed PostgreSQL query (removed ORDER BY to avoid DISTINCT issues)
-        try:
-            from sqlalchemy import text
-
-            # FIXED: Removed ORDER BY to avoid PostgreSQL DISTINCT error
             sql_query = text("""
-                SELECT es.canonical_value, es.synonym_value
+                SELECT es.canonical_value, es.synonym_value, es.confidence_score
                 FROM entity_synonym es
                 JOIN entity_type et ON es.entity_type_id = et.id
                 WHERE (
@@ -1348,12 +1466,12 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
                 )
                 AND et.name = 'EQUIPMENT_TYPE'
                 AND es.confidence_score > 0.5
+                ORDER BY es.confidence_score DESC
                 LIMIT 10
             """)
 
-            result = session.execute(sql_query, {'term': f'%{term.lower()}%'})
+            result = self.session.execute(sql_query, {'term': f'%{term.lower()}%'})
 
-            # Collect all related terms
             related_terms = set()
             for row in result:
                 canonical = row[0].lower() if row[0] else ''
@@ -1365,81 +1483,59 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
                     related_terms.add(synonym)
 
             synonyms_list = list(related_terms)[:5]
+            logger.debug(f"Synonyms for '{term}': {synonyms_list if synonyms_list else 'none'}")
 
-            if synonyms_list:
-                logger.debug(f"✅ Database synonyms for '{term}': {synonyms_list}")
-                return synonyms_list
-            else:
-                logger.debug(f"ℹ️ No database synonyms found for '{term}'")
+            return synonyms_list
 
         except Exception as e:
-            logger.debug(f"⚠️ Database synonym lookup failed for '{term}': {e}")
-
-            # CRITICAL: Always rollback on database error to prevent failed transaction state
+            logger.warning(f"Database synonym lookup failed for '{term}': {e}")
             try:
-                session.rollback()
-                logger.debug(f"🔄 Rolled back failed transaction for '{term}'")
+                if hasattr(self, 'session'):
+                    self.session.rollback()
             except Exception as rollback_error:
-                logger.warning(f"⚠️ Failed to rollback after error: {rollback_error}")
+                logger.warning(f"Failed to rollback after synonym error: {rollback_error}")
 
-        # Try Method 2: Alternative SQLAlchemy Core approach (if Method 1 fails)
-        try:
-            if session.in_transaction():
-                session.rollback()
+            return self._get_synonyms_fallback(term)
 
-            from sqlalchemy import MetaData, Table, select, and_, or_
+    def _get_synonyms_fallback(self, term: str) -> List[str]:
+        """
+        Fallback method when database lookup fails.
+        Add this method if it doesn't exist already.
+        """
+        logger.debug(f"Using fallback synonyms for '{term}'")
 
-            # Reflect the tables
-            metadata = MetaData()
-            entity_synonym = Table('entity_synonym', metadata, autoload_with=session.bind)
-            entity_type = Table('entity_type', metadata, autoload_with=session.bind)
+        # Enhanced fallback synonyms
+        fallback_synonyms = {
+            'sensor': ['sensors', 'temperature sensor', 'pressure sensor', 'level sensor'],
+            'sensors': ['sensor', 'temperature sensor', 'pressure sensor', 'level sensor'],
+            'banner': ['banner engineering', 'banner corp', 'banner sensors'],
+            'valve': ['valves', 'control valve', 'ball valve', 'gate valve'],
+            'bearing': ['bearings', 'ball bearing', 'roller bearing'],
+            'switch': ['switches', 'limit switch', 'pressure switch'],
+            'motor': ['motors', 'electric motor', 'ac motor'],
+            'pump': ['pumps', 'centrifugal pump', 'hydraulic pump'],
+            'cable': ['cables', 'power cable', 'control cable'],
+            'seal': ['seals', 'oil seal', 'shaft seal'],
+            'belt': ['belts', 'drive belt', 'v-belt'],
+        }
 
-            # Build query without ORDER BY
-            query = select(
-                entity_synonym.c.canonical_value,
-                entity_synonym.c.synonym_value
-            ).select_from(
-                entity_synonym.join(entity_type, entity_synonym.c.entity_type_id == entity_type.c.id)
-            ).where(
-                and_(
-                    or_(
-                        entity_synonym.c.canonical_value.ilike(f'%{term}%'),
-                        entity_synonym.c.synonym_value.ilike(f'%{term}%')
-                    ),
-                    entity_type.c.name == 'EQUIPMENT_TYPE'
-                )
-            ).limit(5)
+        term_lower = term.lower()
 
-            result = session.execute(query)
+        # Exact match
+        if term_lower in fallback_synonyms:
+            synonyms = fallback_synonyms[term_lower][:4]
+            logger.debug(f"Fallback exact match for '{term}': {synonyms}")
+            return synonyms
 
-            # Collect related terms
-            related_terms = set()
-            for row in result:
-                canonical = row[0].lower() if row[0] else ''
-                synonym = row[1].lower() if row[1] else ''
+        # Partial match
+        for key, values in fallback_synonyms.items():
+            if key in term_lower or term_lower in key:
+                synonyms = values[:3]
+                logger.debug(f"Fallback partial match for '{term}' (matched '{key}'): {synonyms}")
+                return synonyms
 
-                if canonical and canonical != term.lower():
-                    related_terms.add(canonical)
-                if synonym and synonym != term.lower():
-                    related_terms.add(synonym)
-
-            synonyms_list = list(related_terms)[:3]
-
-            if synonyms_list:
-                logger.debug(f"✅ SQLAlchemy Core synonyms for '{term}': {synonyms_list}")
-                return synonyms_list
-
-        except Exception as e:
-            logger.debug(f"⚠️ SQLAlchemy Core synonym lookup failed for '{term}': {e}")
-
-            # Rollback on error
-            try:
-                session.rollback()
-            except:
-                pass
-
-        # Method 3: Fallback to hardcoded synonyms
-        return self._get_fallback_synonyms(term)
+        logger.debug(f"No fallback synonyms found for '{term}'")
+        return []
 
     # Alternative Method 2: Using SQLAlchemy Core (if Method 1 doesn't work)
     def _get_synonyms_for_term_alternative(self, term: str, session) -> List[str]:
@@ -1536,86 +1632,6 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
 
         return synonyms
 
-    # UPDATED: Complete _get_synonyms_for_term method with all fallbacks
-    def _get_synonyms_for_term(self, term: str, session) -> List[str]:
-        """Get synonyms for a specific term with multiple fallback methods"""
-
-        # Try Method 1: Raw SQL query (most reliable)
-        try:
-            from sqlalchemy import text
-
-            sql_query = text("""
-                SELECT DISTINCT 
-                    es.canonical_value,
-                    es.synonym_value
-                FROM entity_synonym es
-                JOIN entity_type et ON es.entity_type_id = et.id
-                WHERE (
-                    LOWER(es.canonical_value) LIKE :term OR 
-                    LOWER(es.synonym_value) LIKE :term
-                )
-                AND et.name = 'EQUIPMENT_TYPE'
-                ORDER BY es.confidence_score DESC
-                LIMIT 10
-            """)
-
-            result = session.execute(sql_query, {'term': f'%{term.lower()}%'})
-
-            # Collect all related terms
-            related_terms = set()
-            for row in result:
-                canonical = row[0].lower() if row[0] else ''
-                synonym = row[1].lower() if row[1] else ''
-
-                if canonical and canonical != term.lower():
-                    related_terms.add(canonical)
-                if synonym and synonym != term.lower():
-                    related_terms.add(synonym)
-
-            synonyms_list = list(related_terms)[:5]
-
-            if synonyms_list:
-                logger.debug(f"Database synonyms for '{term}': {synonyms_list}")
-                return synonyms_list
-
-        except Exception as e:
-            logger.debug(f"Database synonym lookup failed for {term}: {e}, trying fallback...")
-
-        # Fallback: Use hardcoded synonyms based on your database
-        fallback_synonyms = {
-            'valve': ['valves', 'control valve', 'ball valve', 'gate valve', 'check valve'],
-            'bearing': ['bearings', 'ball bearing', 'roller bearing', 'thrust bearing'],
-            'switch': ['switches', 'limit switch', 'pressure switch', 'safety switch'],
-            'motor': ['motors', 'electric motor', 'servo motor', 'ac motor'],
-            'belt': ['belts', 'drive belt', 'v-belt', 'timing belt'],
-            'cable': ['cables', 'power cable', 'control cable'],
-            'sensor': ['sensors', 'temperature sensor', 'pressure sensor'],
-            'seal': ['seals', 'oil seal', 'hydraulic seal'],
-            'relay': ['relays', 'control relay', 'power relay'],
-            'pump': ['pumps', 'centrifugal pump', 'hydraulic pump'],
-            'spring': ['springs'], 'filter': ['filters'], 'gear': ['gears'],
-            'tube': ['tubes'], 'hose': ['hoses'], 'wire': ['wires'], 'fan': ['fans']
-        }
-
-        term_lower = term.lower()
-
-        # Exact match
-        if term_lower in fallback_synonyms:
-            synonyms = fallback_synonyms[term_lower][:4]
-            logger.debug(f"Fallback synonyms for '{term}': {synonyms}")
-            return synonyms
-
-        # Partial match for compound terms
-        for key, values in fallback_synonyms.items():
-            if key in term_lower or term_lower in key:
-                synonyms = values[:3]
-                logger.debug(f"Partial fallback synonyms for '{term}' (matched '{key}'): {synonyms}")
-                return synonyms
-
-        # No synonyms found
-        logger.debug(f"No synonyms found for '{term}'")
-        return []
-
     def _create_enhanced_queries(self, original_query: str, expanded_terms: Dict[str, List[str]]) -> List[str]:
         """Create query variations using synonyms"""
         queries = [original_query]
@@ -1675,7 +1691,7 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
                     desc_part = f" - {desc}" if desc else ""
                     response_parts.append(f"{i}. {title}{desc_part}")
                     if result.get('full_url'):
-                        response_parts.append(f"   🖼️ [View Image]({result['full_url']})")
+                        response_parts.append(f"   🖼 [View Image]({result['full_url']})")
 
                 elif result_type == 'documents':
                     title = result.get('title', f'Document {i}')
@@ -1702,7 +1718,7 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
                     # Add related images count
                     img_count = len(result.get('related_images', []))
                     if img_count > 0:
-                        response_parts.append(f"   🖼️ {img_count} related image{'s' if img_count > 1 else ''}")
+                        response_parts.append(f"   🖼 {img_count} related image{'s' if img_count > 1 else ''}")
 
 
                 elif result_type == 'positions':
@@ -1770,7 +1786,7 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
                         details.append(f"Status: {status}")
 
                     if details:
-                        response_parts.append(f"   ⚙️ {', '.join(details)}")
+                        response_parts.append(f"    {', '.join(details)}")
 
                 elif result_type == 'procedures':
                     name = result.get('name', f'Procedure {i}')
@@ -1900,7 +1916,8 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
             elif action.startswith("SEARCH:"):
                 search_type = action[7:].strip()  # Remove "SEARCH:" prefix
                 if search_type == "KEYWORD":
-                    return {"entity_type": "search", "results": self.perform_advanced_keyword_search(original_question)}
+                    return {"entity_type": "search",
+                            "results": self.perform_advanced_keyword_search(original_question)}
                 elif search_type == "FTS":
                     # Use the CompleteDocument class method directly
                     local_session = None
@@ -2428,7 +2445,8 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
                 elif "_area" in action:
                     return self.search_images_by_area(search_params.get('area', ''), search_params)
                 elif "_equipment_group" in action:
-                    return self.search_images_by_equipment_group(search_params.get('equipment_group', ''), search_params)
+                    return self.search_images_by_equipment_group(search_params.get('equipment_group', ''),
+                                                                 search_params)
                 elif "_model" in action:
                     return self.search_images_by_model(search_params.get('model', ''), search_params)
                 elif "_asset_number" in action:
@@ -2444,11 +2462,13 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
                 elif "_area" in action:
                     return self.search_documents_by_area(search_params.get('area', ''), search_params)
                 elif "_equipment_group" in action:
-                    return self.search_documents_by_equipment_group(search_params.get('equipment_group', ''), search_params)
+                    return self.search_documents_by_equipment_group(search_params.get('equipment_group', ''),
+                                                                    search_params)
                 elif "_model" in action:
                     return self.search_documents_by_model(search_params.get('model', ''), search_params)
                 elif "_asset_number" in action:
-                    return self.search_documents_by_asset_number(search_params.get('asset_number', ''), search_params)
+                    return self.search_documents_by_asset_number(search_params.get('asset_number', ''),
+                                                                 search_params)
                 else:
                     # Default document search
                     return self.search_documents(search_params)
@@ -2460,11 +2480,13 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
                 elif "_area" in action:
                     return self.search_powerpoints_by_area(search_params.get('area', ''), search_params)
                 elif "_equipment_group" in action:
-                    return self.search_powerpoints_by_equipment_group(search_params.get('equipment_group', ''), search_params)
+                    return self.search_powerpoints_by_equipment_group(search_params.get('equipment_group', ''),
+                                                                      search_params)
                 elif "_model" in action:
                     return self.search_powerpoints_by_model(search_params.get('model', ''), search_params)
                 elif "_asset_number" in action:
-                    return self.search_powerpoints_by_asset_number(search_params.get('asset_number', ''), search_params)
+                    return self.search_powerpoints_by_asset_number(search_params.get('asset_number', ''),
+                                                                   search_params)
                 else:
                     # Default powerpoint search
                     return self.search_powerpoints(search_params)
@@ -2483,7 +2505,8 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
 
         except Exception as e:
             logger.error(f"Error executing keyword action: {e}", exc_info=True)
-            return {"entity_type": "error", "results": [{"text": "I encountered an error processing your request."}]}
+            return {"entity_type": "error",
+                    "results": [{"text": "I encountered an error processing your request."}]}
 
     @with_request_id
     def extract_search_params(self, query):
@@ -2929,7 +2952,7 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
         params['rev'] = rev
         return self.search_documents(params, request_id=request_id)
 
-#region Review: Powerpoint
+    # region Review: Powerpoint
     # # POWERPOINT SEARCH METHODS
     #
     #     def search_powerpoints(self, params):
@@ -3248,12 +3271,12 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
                     all_results.append(drw)
 
             # Try PowerPoint search
-#            pp_results = self.search_powerpoints(search_params, request_id=request_id)
-#            if pp_results.get('entity_type') == 'powerpoint' and 'results' in pp_results:
-                # Add the top 3 PowerPoint results
-#                for pp in pp_results['results'][:3]:
-#                    pp['type'] = 'powerpoint'
-#                    all_results.append(pp)
+            #            pp_results = self.search_powerpoints(search_params, request_id=request_id)
+            #            if pp_results.get('entity_type') == 'powerpoint' and 'results' in pp_results:
+            # Add the top 3 PowerPoint results
+            #                for pp in pp_results['results'][:3]:
+            #                    pp['type'] = 'powerpoint'
+            #                    all_results.append(pp)
 
             # Format the combined results
             return {
@@ -3494,27 +3517,31 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
         return formatted_answer
 
     def record_interaction(self, user_id, question, answer):
-        """
-        Simple wrapper that calls QandA.record_interaction.
-        Handles session management and calculates processing time.
-        """
+        """Enhanced interaction recording with debugging."""
         try:
+            logger.debug(f"Recording interaction for user: {user_id}")
+            logger.debug(f"Question length: {len(question)} chars")
+            logger.debug(f"Answer length: {len(answer)} chars")
+
             local_session = None
 
-            # Get an appropriate session
+            # Get session
             if not self.db_session:
                 local_session = self.db_config.get_main_session()
                 session = local_session
+                logger.debug("Using local session for recording")
             else:
                 session = self.db_session
+                logger.debug("Using existing session for recording")
 
             try:
-                # Calculate processing time if available
+                # Calculate processing time
                 processing_time = None
                 if hasattr(self, 'start_time') and self.start_time:
                     processing_time = int((time.time() - self.start_time) * 1000)
+                    logger.debug(f"Processing time: {processing_time}ms")
 
-                # Call the QandA class method to record the interaction
+                # Record interaction
                 interaction = QandA.record_interaction(
                     user_id=user_id,
                     question=question,
@@ -3524,21 +3551,19 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
                 )
 
                 if interaction:
-                    logger.debug(f"Successfully recorded interaction for user {user_id}")
+                    logger.info(f"Successfully recorded interaction {interaction.id} for user {user_id}")
                     return interaction
                 else:
-                    logger.warning("QandA.record_interaction returned None")
+                    logger.error("QandA.record_interaction returned None")
                     return None
 
             finally:
-                # Only close the session if we created it locally
                 if local_session:
                     local_session.close()
+                    logger.debug("Local session closed")
 
         except Exception as e:
-            logger.error(f"Error in AistManager.record_interaction: {e}", exc_info=True)
-            # Don't let recording errors break the main application flow
-            # Just log the error and continue
+            logger.error(f"Error in record_interaction: {e}", exc_info=True)
             return None
 
     def _ensure_ai_model(self):
@@ -3778,7 +3803,7 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
     def _get_fallback_synonyms(self, term: str) -> List[str]:
         """Enhanced fallback synonyms with better coverage"""
 
-        logger.debug(f"🔄 Using fallback synonyms for '{term}'")
+        logger.debug(f" Using fallback synonyms for '{term}'")
 
         # Enhanced fallback synonyms based on your database structure
         fallback_synonyms = {
@@ -3836,14 +3861,14 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
         # Exact match
         if term_lower in fallback_synonyms:
             synonyms = fallback_synonyms[term_lower][:4]
-            logger.debug(f"✅ Fallback exact match synonyms for '{term}': {synonyms}")
+            logger.debug(f" Fallback exact match synonyms for '{term}': {synonyms}")
             return synonyms
 
         # Partial match for compound terms
         for key, values in fallback_synonyms.items():
             if key in term_lower or term_lower in key:
                 synonyms = values[:3]
-                logger.debug(f"✅ Fallback partial match synonyms for '{term}' (matched '{key}'): {synonyms}")
+                logger.debug(f" Fallback partial match synonyms for '{term}' (matched '{key}'): {synonyms}")
                 return synonyms
 
         # Stem-based matching (basic)
@@ -3870,11 +3895,11 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
             if stem in term_lower and full_term in fallback_synonyms:
                 synonyms = fallback_synonyms[full_term][:2]
                 logger.debug(
-                    f"✅ Fallback stem match synonyms for '{term}' (stem '{stem}' -> '{full_term}'): {synonyms}")
+                    f" Fallback stem match synonyms for '{term}' (stem '{stem}' -> '{full_term}'): {synonyms}")
                 return synonyms
 
         # No synonyms found
-        logger.debug(f"ℹ️ No fallback synonyms found for '{term}'")
+        logger.debug(f"ℹ No fallback synonyms found for '{term}'")
         return []
 
     # Helper function to test database connectivity before synonym lookup
@@ -3891,11 +3916,11 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
             result = session.execute(test_query)
             count = result.scalar()
 
-            logger.debug(f"✅ Synonym database connectivity test passed (found {count} synonyms)")
+            logger.debug(f" Synonym database connectivity test passed (found {count} synonyms)")
             return True
 
         except Exception as e:
-            logger.warning(f"⚠️ Synonym database connectivity test failed: {e}")
+            logger.warning(f" Synonym database connectivity test failed: {e}")
             try:
                 session.rollback()
             except:
@@ -3908,13 +3933,14 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
 
         # Test database connectivity first
         if not test_synonym_database_connectivity(self.session):
-            logger.warning("⚠️ Synonym database unavailable, using fallback only")
+            logger.warning(" Synonym database unavailable, using fallback only")
             return self._expand_query_with_fallback_only(query_text)
 
         import re
 
         # Remove common search words and extract key terms
-        stop_words = {'search', 'find', 'show', 'get', 'locate', 'display', 'for', 'the', 'a', 'an', 'part', 'number'}
+        stop_words = {'search', 'find', 'show', 'get', 'locate', 'display', 'for', 'the', 'a', 'an', 'part',
+                      'number'}
         words = re.findall(r'\b\w+\b', query_text.lower())
         key_terms = [word for word in words if word not in stop_words and len(word) > 2]
 
@@ -3926,7 +3952,7 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
             if synonyms:
                 expanded_terms[term] = synonyms
 
-        logger.debug(f"🔍 Expanded terms for '{query_text}': {expanded_terms}")
+        logger.debug(f" Expanded terms for '{query_text}': {expanded_terms}")
         return expanded_terms
 
     def _expand_query_with_fallback_only(self, query_text: str) -> Dict[str, List[str]]:
@@ -3934,7 +3960,8 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
 
         import re
 
-        stop_words = {'search', 'find', 'show', 'get', 'locate', 'display', 'for', 'the', 'a', 'an', 'part', 'number'}
+        stop_words = {'search', 'find', 'show', 'get', 'locate', 'display', 'for', 'the', 'a', 'an', 'part',
+                      'number'}
         words = re.findall(r'\b\w+\b', query_text.lower())
         key_terms = [word for word in words if word not in stop_words and len(word) > 2]
 
@@ -3945,5 +3972,318 @@ class AistManager(UnifiedSearchMixin):  # ← Inherit from UnifiedSearchMixin
             if synonyms:
                 expanded_terms[term] = synonyms
 
-        logger.debug(f"🔄 Fallback-only expanded terms for '{query_text}': {expanded_terms}")
+        logger.debug(f" Fallback-only expanded terms for '{query_text}': {expanded_terms}")
         return expanded_terms
+
+    def _detect_search_intent(self, question: str) -> Dict[str, Any]:
+        """
+        Detect search intent using database patterns with proper error handling.
+        This method was missing and causing the AttributeError.
+
+        Args:
+            question: User's search query
+
+        Returns:
+            Dictionary with intent information
+        """
+        try:
+            # Clean the question
+            question_lower = question.lower().strip()
+
+            # Try database patterns first if available
+            if hasattr(self, 'db_session') and self.db_session:
+                try:
+                    database_result = self._query_intent_patterns_safe(question_lower)
+                    if database_result.get('is_search_query', False):
+                        return {
+                            'intent': database_result.get('intent_name', 'UNKNOWN'),
+                            'confidence': database_result.get('confidence', 0.0),
+                            'search_method': database_result.get('search_method', 'database'),
+                            'method': 'database_patterns',
+                            'intent_id': database_result.get('intent_id'),
+                            'pattern_details': {
+                                'matched_pattern': database_result.get('matched_pattern'),
+                                'priority': database_result.get('priority'),
+                                'success_rate': database_result.get('success_rate')
+                            }
+                        }
+                except Exception as db_error:
+                    logger.warning(f"Database intent detection failed: {db_error}")
+
+            # Fallback to pattern-based detection
+            return self._fallback_intent_detection(question_lower)
+
+        except Exception as e:
+            logger.error(f"Error in _detect_search_intent: {e}", exc_info=True)
+            return {
+                'intent': 'UNKNOWN',
+                'confidence': 0.0,
+                'search_method': 'error',
+                'method': 'error_fallback',
+                'error': str(e)
+            }
+
+    def _query_intent_patterns_safe(self, question_lower: str) -> Dict[str, Any]:
+        """
+        Safe query of intent patterns from database with proper transaction handling.
+        """
+        try:
+            # Import search models
+            from modules.search.models.search_models import SearchIntent, IntentPattern, IntentKeyword
+
+            # Ensure clean transaction state
+            if self.db_session.in_transaction():
+                self.db_session.rollback()
+
+            # Get active intents
+            active_intents = self.db_session.query(SearchIntent).filter(
+                SearchIntent.is_active == True
+            ).order_by(SearchIntent.priority.desc()).all()
+
+            logger.debug(f" Testing against {len(active_intents)} active search intents")
+
+            best_match = None
+            best_confidence = 0.0
+
+            for intent in active_intents:
+                try:
+                    # Test patterns for this intent
+                    pattern_confidence = self._test_regex_patterns_safe(question_lower, intent)
+
+                    # Test keywords for this intent
+                    keyword_confidence = self._test_keyword_matches_safe(question_lower, intent)
+
+                    # Combined confidence
+                    combined_confidence = max(pattern_confidence, keyword_confidence * 0.8)
+
+                    if combined_confidence > best_confidence:
+                        best_confidence = combined_confidence
+                        best_match = {
+                            'intent': intent,
+                            'confidence': combined_confidence,
+                            'pattern_confidence': pattern_confidence,
+                            'keyword_confidence': keyword_confidence
+                        }
+
+                    logger.debug(
+                        f"Intent '{intent.name}': pattern={pattern_confidence:.2f}, keyword={keyword_confidence:.2f}, combined={combined_confidence:.2f}")
+
+                except Exception as intent_error:
+                    logger.warning(f" Error testing intent {intent.name}: {intent_error}")
+                    continue
+
+            # Determine result
+            threshold = 0.6
+
+            if best_match and best_confidence >= threshold:
+                intent = best_match['intent']
+                return {
+                    'is_search_query': True,
+                    'intent_name': intent.name,
+                    'intent_id': intent.id,
+                    'confidence': best_confidence,
+                    'search_method': getattr(intent, 'search_method', 'unknown'),
+                    'database_available': True,
+                    'method': 'database_intent_detection_safe'
+                }
+            else:
+                return {
+                    'is_search_query': False,
+                    'best_confidence': best_confidence,
+                    'threshold': threshold,
+                    'database_available': True,
+                    'tested_intents': len(active_intents)
+                }
+
+        except Exception as e:
+            logger.error(f" Database intent detection failed: {e}")
+            # Always rollback on error
+            try:
+                if self.db_session:
+                    self.db_session.rollback()
+            except:
+                pass
+
+            return {
+                'is_search_query': False,
+                'database_available': False,
+                'error': str(e)
+            }
+
+    def _test_regex_patterns_safe(self, question_lower: str, intent) -> float:
+        """Test regex patterns for an intent with proper error handling."""
+        max_confidence = 0.0
+
+        try:
+            # Ensure fresh transaction state
+            try:
+                self.db_session.rollback()
+            except:
+                pass
+
+            # Access patterns with error handling
+            patterns = []
+            try:
+                patterns = list(intent.patterns)  # Convert to list to avoid lazy loading issues
+            except Exception as pattern_load_error:
+                logger.warning(f"[WARN] Could not load patterns for intent {intent.name}: {pattern_load_error}")
+                return 0.0
+
+            for pattern in patterns:
+                try:
+                    if not getattr(pattern, 'is_active', True):
+                        continue
+
+                    pattern_text = getattr(pattern, 'pattern_text', '')
+                    if not pattern_text:
+                        continue
+
+                    # Test the regex pattern
+                    match = re.search(pattern_text, question_lower, re.IGNORECASE)
+
+                    if match:
+                        # Calculate confidence
+                        success_rate = getattr(pattern, 'success_rate', 0.8)
+                        base_confidence = success_rate if success_rate > 0 else 0.8
+                        usage_count = getattr(pattern, 'usage_count', 0)
+                        usage_boost = min(0.1, usage_count / 1000)
+
+                        pattern_confidence = min(1.0, base_confidence + usage_boost)
+
+                        if pattern_confidence > max_confidence:
+                            max_confidence = pattern_confidence
+
+                        logger.debug(
+                            f"[MATCH] Pattern '{pattern_text[:50]}...' matched with confidence {pattern_confidence:.2f}")
+
+                except re.error as regex_error:
+                    logger.warning(f"[WARN] Invalid regex pattern: {regex_error}")
+                    continue
+                except Exception as pattern_error:
+                    logger.warning(f"[WARN] Error testing pattern: {pattern_error}")
+                    continue
+
+        except Exception as e:
+            logger.warning(f"[WARN] Error testing regex patterns for intent {intent.name}: {e}")
+
+        return max_confidence
+
+    def _test_keyword_matches_safe(self, question_lower: str, intent) -> float:
+        """Test keyword matches for an intent with proper error handling."""
+        try:
+            # Ensure fresh transaction state
+            try:
+                self.db_session.rollback()
+            except:
+                pass
+
+            total_weight = 0.0
+            matched_weight = 0.0
+
+            # Access keywords with error handling
+            keywords = []
+            try:
+                keywords = list(intent.keywords)  # Convert to list to avoid lazy loading
+            except Exception as keyword_load_error:
+                logger.warning(f"[WARN] Could not load keywords for intent {intent.name}: {keyword_load_error}")
+                return 0.0
+
+            for keyword in keywords:
+                try:
+                    if not getattr(keyword, 'is_active', True):
+                        continue
+
+                    weight = getattr(keyword, 'weight', 1.0)
+                    keyword_text = getattr(keyword, 'keyword_text', '')
+
+                    if not keyword_text:
+                        continue
+
+                    total_weight += weight
+                    keyword_text_lower = keyword_text.lower()
+
+                    # Handle missing is_exact_match column
+                    is_exact_match = getattr(keyword, 'is_exact_match', False)  # Default to False
+
+                    if is_exact_match:
+                        # Word boundary match
+                        if re.search(r'\b' + re.escape(keyword_text_lower) + r'\b', question_lower):
+                            matched_weight += weight
+                            logger.debug(f"[MATCH] Exact keyword match: '{keyword_text}' (weight: {weight})")
+                    else:
+                        # Partial match
+                        if keyword_text_lower in question_lower:
+                            matched_weight += weight
+                            logger.debug(f"[MATCH] Partial keyword match: '{keyword_text}' (weight: {weight})")
+
+                except Exception as keyword_error:
+                    logger.warning(f"[WARN] Error testing keyword: {keyword_error}")
+                    continue
+
+            # Calculate confidence
+            confidence = matched_weight / total_weight if total_weight > 0 else 0.0
+
+            if confidence > 0:
+                logger.debug(
+                    f"[RESULT] Keyword confidence for intent '{intent.name}': {matched_weight}/{total_weight} = {confidence:.2f}")
+
+            return confidence
+
+        except Exception as e:
+            logger.warning(f"[WARN] Error testing keywords for intent {intent.name}: {e}")
+            return 0.0
+
+    def _fallback_intent_detection(self, question_lower: str) -> Dict[str, Any]:
+        """
+        Fallback intent detection using basic patterns when database is unavailable.
+        """
+        logger.debug("[INFO] Using fallback intent detection")
+
+        # Essential search patterns
+        intent_patterns = {
+            'FIND_PART': [
+                r'part\s+number\s+for',  # "part number for"
+                r'find\s+part',  # "find part"
+                r'what\s+does\s+part',  # "what does part"
+                r'show\s+me.*part',  # "show me part"
+                r'([A-Za-z]+)\s+(sensors?|motors?|valves?|pumps?|bearings?|switches?)',  # "Banner sensors"
+                r'[A-Z]\d{5,}',  # A115957 style part numbers
+                r'\d{6,}',  # 6+ digit numbers
+            ],
+            'SHOW_IMAGES': [
+                r'show.*images',  # "show images"
+                r'pictures\s+of',  # "pictures of"
+                r'images\s+of',  # "images of"
+            ],
+            'LOCATION_SEARCH': [
+                r'what.*in\s+room',  # "what's in room"
+                r'show.*in\s+(room|area|zone)',  # "show in room"
+            ],
+            'FIND_SENSOR': [
+                r'([A-Za-z]+)\s+sensors?',  # "Banner sensors"
+                r'show\s+me\s+([A-Za-z]+)\s+sensors?',  # "show me Banner sensors"
+            ]
+        }
+
+        best_intent = 'UNKNOWN'
+        best_confidence = 0.0
+
+        for intent, patterns in intent_patterns.items():
+            for pattern in patterns:
+                try:
+                    if re.search(pattern, question_lower, re.IGNORECASE):
+                        confidence = 0.7  # Reasonable confidence for fallback
+                        if confidence > best_confidence:
+                            best_confidence = confidence
+                            best_intent = intent
+                            logger.debug(f"[MATCH] Fallback pattern matched: {pattern} -> {intent}")
+                            break
+                except re.error:
+                    continue
+
+        return {
+            'intent': best_intent,
+            'confidence': best_confidence,
+            'search_method': 'fallback',
+            'method': 'pattern_fallback'
+        }
