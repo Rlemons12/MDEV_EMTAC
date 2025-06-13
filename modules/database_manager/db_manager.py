@@ -1150,10 +1150,10 @@ def create_document_structure_tables(db_config: DatabaseConfig):
             """))
 
             session.commit()
-            print("✅ Document structure analysis tables created successfully")
+            print("Document structure analysis tables created successfully")
 
     except Exception as e:
-        print(f"❌ Error creating document structure tables: {e}")
+        print(f"Error creating document structure tables: {e}")
         raise
 
 def get_structure_analysis_stats(db_config: DatabaseConfig) -> Dict[str, Any]:
@@ -2598,10 +2598,10 @@ def ensure_database_service_running(env_file='.env', max_wait_seconds=30):
                         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
 
                         if result.returncode == 0:
-                            _log("✅ PostgreSQL started successfully using pg_ctl")
+                            _log("PostgreSQL started successfully using pg_ctl")
                             return True
                         elif "already running" in result.stderr.lower() or "already running" in result.stdout.lower():
-                            _log("✅ PostgreSQL was already running")
+                            _log("PostgreSQL was already running")
                             return True
                         else:
                             _log(f"pg_ctl failed: {result.stderr}", "WARNING")
@@ -2628,7 +2628,7 @@ def ensure_database_service_running(env_file='.env', max_wait_seconds=30):
                     _log(f"Trying Windows command: {' '.join(cmd)}")
                     result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, shell=True)
                     if result.returncode == 0:
-                        _log(f"✅ PostgreSQL started using: {' '.join(cmd)}")
+                        _log(f"PostgreSQL started using: {' '.join(cmd)}")
                         return True
                     elif "already" in result.stdout.lower() or "already" in result.stderr.lower():
                         _log("PostgreSQL service was already running")
@@ -2638,7 +2638,7 @@ def ensure_database_service_running(env_file='.env', max_wait_seconds=30):
                     continue
 
             # If all attempts fail, provide helpful advice
-            _log("❌ Could not start PostgreSQL on Windows", "ERROR")
+            _log("Could not start PostgreSQL on Windows", "ERROR")
             _log("💡 Manual steps to try:", "INFO")
             _log("   1. Run this command manually:", "INFO")
             _log('      cd "C:\\Users\\10169062\\Desktop\\AU_IndusMaintdb\\Database\\postgreSQL\\pgsql\\bin"', "INFO")
@@ -2661,12 +2661,12 @@ def ensure_database_service_running(env_file='.env', max_wait_seconds=30):
                 try:
                     result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
                     if result.returncode == 0:
-                        _log(f"✅ PostgreSQL started using: {' '.join(cmd)}")
+                        _log(f"PostgreSQL started using: {' '.join(cmd)}")
                         return True
                 except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
                     continue
 
-            _log("❌ Could not start PostgreSQL - no suitable service manager found", "ERROR")
+            _log("Could not start PostgreSQL - no suitable service manager found", "ERROR")
             return False
 
     def _test_database_connection():
@@ -2724,12 +2724,12 @@ def ensure_database_service_running(env_file='.env', max_wait_seconds=30):
 
     # Check if PostgreSQL is already running
     if _is_postgres_running():
-        _log("✅ PostgreSQL service is already running")
+        _log("PostgreSQL service is already running")
     else:
-        _log("❌ PostgreSQL service is not running")
+        _log("PostgreSQL service is not running")
 
         if not _start_postgres():
-            _log("❌ Failed to start PostgreSQL service", "ERROR")
+            _log("Failed to start PostgreSQL service", "ERROR")
 
             # Provide platform-specific troubleshooting advice
             import platform
@@ -2757,19 +2757,19 @@ def ensure_database_service_running(env_file='.env', max_wait_seconds=30):
 
         while time.time() - start_time < max_wait_seconds:
             if _is_postgres_running():
-                _log("✅ PostgreSQL service started successfully")
+                _log("PostgreSQL service started successfully")
                 break
             time.sleep(1)
         else:
-            _log("❌ PostgreSQL service failed to start within timeout", "ERROR")
+            _log("PostgreSQL service failed to start within timeout", "ERROR")
             return False
 
     # Test database connectivity
     if _test_database_connection():
-        _log("✅ Database service is ready for connections")
+        _log("Database service is ready for connections")
         return True
     else:
-        _log("⚠️  PostgreSQL service is running but database connection failed", "WARNING")
+        _log("PostgreSQL service is running but database connection failed", "WARNING")
         _log("🔧 Connection Troubleshooting:", "INFO")
         _log("   1. Check your .env file database credentials", "INFO")
         _log("   2. Verify database exists (create it if needed)", "INFO")
