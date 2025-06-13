@@ -6,6 +6,9 @@
 /maint_task/
 /logs/
 /modules/configuration/api_config.py
+/plugins/huggingface
+/plugins/ai_modules/gpt4all
+/plugins/ai_modules/TinyLlama_1_1B
 
 # Ignore everything in /Database/ except the specified folders
 /Database/*
