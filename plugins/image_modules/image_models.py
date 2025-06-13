@@ -148,7 +148,7 @@ class CLIPModelHandler(BaseImageModelHandler):
             self._processor_cache[cache_key] = self.processor
 
             load_time = time.time() - start_time
-            logger.info(f"✅ Successfully loaded and cached CLIP model in {load_time:.2f}s")
+            logger.info(f"Successfully loaded and cached CLIP model in {load_time:.2f}s")
 
         except Exception as e:
             logger.error(f"Error loading CLIP model: {e}")
@@ -401,18 +401,18 @@ class CLIPModelHandler(BaseImageModelHandler):
     def preload_model(cls) -> bool:
         """Class method to preload model during application startup."""
         try:
-            logger.info("🚀 Preloading CLIP model for faster subsequent access...")
+            logger.info("Preloading CLIP model for faster subsequent access...")
             start_time = time.time()
 
             # Create temporary instance to trigger model loading
             temp_handler = cls()
 
             preload_time = time.time() - start_time
-            logger.info(f"✅ CLIP model preloaded successfully in {preload_time:.2f}s")
+            logger.info(f"CLIP model preloaded successfully in {preload_time:.2f}s")
             return True
 
         except Exception as e:
-            logger.error(f"❌ Failed to preload CLIP model: {e}")
+            logger.error(f"Failed to preload CLIP model: {e}")
             return False
 
     def get_cache_stats(self) -> Dict[str, Any]:
