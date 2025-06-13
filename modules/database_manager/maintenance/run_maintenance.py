@@ -18,7 +18,7 @@ def get_script_path():
 def print_banner():
     """Print a nice banner for the maintenance tool."""
     print("=" * 60)
-    print("🚀 OPTIMIZED DATABASE MAINTENANCE TOOL")
+    print("OPTIMIZED DATABASE MAINTENANCE TOOL")
     print("=" * 60)
     print(f"📅 Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print()
@@ -40,7 +40,7 @@ def run_maintenance_task(task, report_dir=None, export_report=True):
     maintenance_script = get_script_path()
 
     if not os.path.exists(maintenance_script):
-        print(f"❌ Error: Optimized maintenance script not found at {maintenance_script}")
+        print(f"Error: Optimized maintenance script not found at {maintenance_script}")
         print("💡 Make sure optimized_db_maintenance.py exists in the same directory")
         return 1
 
@@ -59,12 +59,12 @@ def run_maintenance_task(task, report_dir=None, export_report=True):
     # Show what we're running
     print(f"🔧 Running: {task}")
     print(f"📁 Report directory: {report_dir or 'default (db_maint_logs)'}")
-    print(f"📊 Export reports: {'Yes' if export_report else 'No'}")
+    print(f"Export reports: {'Yes' if export_report else 'No'}")
     print()
 
     # Execute the command
     start_time = time.time()
-    print(f"▶️  Executing: {' '.join(cmd)}")
+    print(f"▶ Executing: {' '.join(cmd)}")
     print("-" * 50)
 
     result = subprocess.run(cmd)
@@ -73,10 +73,10 @@ def run_maintenance_task(task, report_dir=None, export_report=True):
     duration = time.time() - start_time
 
     if result.returncode == 0:
-        print(f"✅ Task '{task}' completed successfully in {duration:.2f} seconds!")
+        print(f"Task '{task}' completed successfully in {duration:.2f} seconds!")
     else:
-        print(f"❌ Task '{task}' failed with exit code {result.returncode}")
-        print(f"⏱️  Duration: {duration:.2f} seconds")
+        print(f"Task '{task}' failed with exit code {result.returncode}")
+        print(f"⏱ Duration: {duration:.2f} seconds")
 
     return result.returncode
 
@@ -90,9 +90,9 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Available Tasks:
-  associate-images     🖼️  Associate parts with matching images (FAST)
+  associate-images     🖼 Associate parts with matching images (FAST)
   associate-drawings   📋 Associate drawings with matching parts (FAST) 
-  run-all             🚀 Run ALL maintenance operations (FASTEST)
+  run-all             Run ALL maintenance operations (FASTEST)
 
 Examples:
   python run_maintenance.py --task associate-images
@@ -132,7 +132,7 @@ Examples:
     args = parser.parse_args()
 
     if not args.quick:
-        print(f"🎯 Selected task: {args.task}")
+        print(f"Selected task: {args.task}")
         if args.task == 'run-all':
             print("   This will run ALL optimized maintenance operations!")
         print()
@@ -162,11 +162,11 @@ Examples:
 
             if export_report:
                 report_dir = args.report_dir or "db_maint_logs"
-                print(f"📊 Reports saved to: {os.path.abspath(report_dir)}")
+                print(f"Reports saved to: {os.path.abspath(report_dir)}")
 
         else:
             print()
-            print("⚠️  MAINTENANCE COMPLETED WITH ERRORS")
+            print("⚠ MAINTENANCE COMPLETED WITH ERRORS")
             print("=" * 60)
             print("💡 Check the output above for error details")
 
@@ -176,7 +176,7 @@ Examples:
         print("\n🛑 Maintenance interrupted by user")
         return 1
     except Exception as e:
-        print(f"\n❌ Unexpected error: {str(e)}")
+        print(f"\nUnexpected error: {str(e)}")
         return 1
 
 
