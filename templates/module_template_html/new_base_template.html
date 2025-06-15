@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Efficient Maintenance and Technical Assistance Chatbot</title>
+    <style>
+        /* Red Banner Styles */
+        .banner {
+            width: 100%;
+            background-color: red;
+            color: white;
+            text-align: center;
+            padding: 10px 0;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 1002;
+            font-weight: bold;
+            font-size: 1.5em;
+            text-transform: uppercase;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Ensure the rest of the content is below the banner */
+        body {
+            padding-top: 0;
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background-color: #1a1a1a;
+            color: white;
+            overflow: hidden; /* Prevent any scrolling on the body */
+            height: 100vh; /* Full viewport height */
+        }
+
+        /* Main Container */
+        .main-container {
+            display: flex;
+            flex-direction: row;
+            height: calc(100vh - 80px); /* Full viewport minus banner */
+            width: 100vw; /* Full viewport width */
+            transition: margin-left 0.5s ease, width 0.5s ease;
+            margin-top: 80px; /* Account for banner */
+            overflow: hidden; /* Prevent any overflow on main container */
+        }
+
+        /* Sidebar Styling */
+        .sidebar {
+            height: calc(100vh - 80px);
+            background-color: rgba(0, 0, 0, 0.8);
+            overflow-x: hidden;
+            overflow-y: auto; /* Allow vertical scrolling */
+            transition: width 0.5s ease;
+            position: fixed;
+            top: 80px;
+            left: 0;
+            width: 300px;
+            padding-top: 20px;
+            font-size: 18px;
+            color: yellow;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Sidebar Header */
+        .sidebar-header {
+            padding: 0 15px 20px 15px;
+            border-bottom: 1px solid #333;
+            margin-bottom: 20px;
+            flex-shrink: 0; /* Don't shrink */
+        }
+
+        .sidebar-header h1 {
+            margin: 0 0 10px 0;
+            color: #39FF14;
+            font-size: 24px;
+        }
+
+        .user-level {
+            margin: 5px 0;
+            color: #ccc;
+        }
+
+        .welcome-message {
+            margin: 10px 0 0 0;
+            color: white;
+            font-size: 16px;
+        }
+
+        /* Navigation Container - Scrollable */
+        .sidebar-nav {
+            flex: 1; /* Take available space */
+            overflow-y: auto; /* Scroll if content exceeds */
+            padding: 0 15px;
+            margin-bottom: 20px;
+        }
+
+        .sidebar a,
+        .sidebar button {
+            padding: 10px 15px;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+            transition: 0.3s;
+            background: none;
+            border: none;
+            text-align: left;
+            cursor: pointer;
+            font-size: inherit;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .sidebar a:hover,
+        .sidebar button:hover {
+            color: #39FF14;
+            background-color: rgba(57, 255, 20, 0.1);
+        }
+
+        .nav-link.highlight {
+            background-color: rgba(255, 255, 0, 0.1);
+            border-left: 3px solid yellow;
+        }
+
+        /* Voice Controls Container */
+        .voice-controls-container {
+            background-color: rgba(255, 255, 255, 0.05);
+            margin: 10px 15px;
+            border-radius: 4px;
+            border: 1px solid #333;
+            flex-shrink: 0;
+        }
+
+        .voice-controls-container h4 {
+            margin: 0;
+            color: #39FF14;
+            font-size: 14px;
+            text-transform: uppercase;
+            padding: 10px;
+            cursor: pointer;
+            background-color: rgba(0, 0, 0, 0.3);
+            border-radius: 4px 4px 0 0;
+            user-select: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .voice-controls-container h4:hover {
+            background-color: rgba(57, 255, 20, 0.1);
+        }
+
+        .voice-controls-container .collapse-content {
+            padding: 10px;
+            display: none; /* Start collapsed */
+        }
+
+        .voice-controls-container.expanded .collapse-content {
+            display: block;
+        }
+
+        /* Model Display Container */
+        .model-display-container {
+            background-color: rgba(255, 255, 255, 0.05);
+            margin: 10px 15px;
+            border-radius: 4px;
+            border: 1px solid #333;
+            flex-shrink: 0;
+        }
+
+        .model-display-container h4 {
+            margin: 0;
+            color: #39FF14;
+            font-size: 14px;
+            text-transform: uppercase;
+            padding: 10px;
+            cursor: pointer;
+            background-color: rgba(0, 0, 0, 0.3);
+            border-radius: 4px 4px 0 0;
+            user-select: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .model-display-container h4:hover {
+            background-color: rgba(57, 255, 20, 0.1);
+        }
+
+        .model-display-container .collapse-content {
+            padding: 10px;
+            display: none; /* Start collapsed */
+        }
+
+        .model-display-container.expanded .collapse-content {
+            display: block;
+        }
+
+        .model-display-section {
+            font-size: 12px;
+            color: #ccc;
+        }
+
+        /* Theme Container */
+        .theme-container {
+            background-color: rgba(255, 255, 255, 0.05);
+            margin: 10px 15px;
+            border-radius: 4px;
+            border: 1px solid #333;
+            flex-shrink: 0;
+        }
+
+        .theme-container h4 {
+            margin: 0;
+            color: #39FF14;
+            font-size: 14px;
+            text-transform: uppercase;
+            padding: 10px;
+            cursor: pointer;
+            background-color: rgba(0, 0, 0, 0.3);
+            border-radius: 4px 4px 0 0;
+            user-select: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .theme-container h4:hover {
+            background-color: rgba(57, 255, 20, 0.1);
+        }
+
+        .theme-container .collapse-content {
+            padding: 10px;
+            display: none; /* Start collapsed */
+        }
+
+        .theme-container.expanded .collapse-content {
+            display: block;
+        }
+
+        .theme-container select {
+            width: 100%;
+            padding: 6px 8px;
+            background-color: #333;
+            color: white;
+            border: 1px solid #555;
+            border-radius: 4px;
+        }
+
+        /* Collapse indicators */
+        .collapse-indicator {
+            font-size: 12px;
+            transition: transform 0.3s ease;
+        }
+
+        .expanded .collapse-indicator {
+            transform: rotate(180deg);
+        }
+
+        /* Utility Section - Fixed at bottom */
+        .sidebar-utils {
+            flex-shrink: 0; /* Don't shrink */
+            padding: 15px;
+            border-top: 1px solid #333;
+            background-color: rgba(0, 0, 0, 0.3);
+        }
+
+        .toggle-button {
+            display: block;
+            width: 100%;
+            margin-bottom: 10px;
+            padding: 8px;
+            background-color: #333;
+            color: white;
+            border: 1px solid #555;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .toggle-button:hover {
+            background-color: #555;
+        }
+
+        .logout-button {
+            background-color: #d32f2f !important;
+            color: white !important;
+            text-align: center;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+
+        .logout-button:hover {
+            background-color: #b71c1c !important;
+        }
+
+        /* Hamburger Button - NOW INSIDE SIDEBAR */
+        #sidebarCollapse {
+            position: absolute;
+            top: 5px;
+            right: 10px;
+            font-size: 20px;
+            cursor: pointer;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.8);
+            border: 1px solid #555;
+            outline: none;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            z-index: 1001;
+            transition: all 0.3s ease;
+        }
+
+        #sidebarCollapse:hover {
+            color: #39FF14;
+            background-color: rgba(57, 255, 20, 0.2);
+            border-color: #39FF14;
+        }
+
+        /* When sidebar is collapsed, show hamburger button on screen */
+        .main-container.collapsed #sidebarCollapse {
+            position: fixed;
+            top: 90px;
+            left: 10px;
+            z-index: 1002;
+        }
+
+        /* Main Content Area */
+        .content {
+            width: calc(100vw - 300px); /* Full viewport width minus sidebar */
+            margin-left: 300px; /* Add margin to position it next to sidebar */
+            transition: width 0.5s ease, margin-left 0.5s ease;
+            padding: 0; /* Remove padding to ensure exact fit */
+            height: calc(100vh - 80px); /* Exact viewport height minus banner */
+            overflow-y: auto; /* Only content inside scrolls */
+            overflow-x: hidden; /* Prevent horizontal scroll */
+            box-sizing: border-box; /* Include any borders in calculation */
+        }
+
+        /* Collapsed State */
+        .main-container.collapsed .sidebar {
+            width: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        .main-container.collapsed .content {
+            width: 100vw; /* Take full viewport width when sidebar collapsed */
+            margin-left: 0; /* No margin when sidebar is collapsed */
+        }
+
+        .main-container.collapsed #sidebarCollapse {
+            left: 10px; /* Move hamburger to visible position when sidebar is collapsed */
+        }
+
+        /* Comment Popup */
+        #commentPopup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #333;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+            z-index: 1003;
+            color: white;
+            width: 400px;
+            max-width: 90%;
+        }
+
+        #commentPopup h2 {
+            margin-top: 0;
+            color: #39FF14;
+        }
+
+        #commentPopup textarea {
+            width: 100%;
+            height: 100px;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #555;
+            background-color: #444;
+            color: white;
+            box-sizing: border-box;
+            resize: vertical;
+        }
+
+        #commentPopup input[type="file"] {
+            margin: 10px 0;
+            color: white;
+        }
+
+        #commentPopup button {
+            margin: 10px 5px 0 0;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            background-color: #4CAF50;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        #commentPopup button:hover {
+            background-color: #45a049;
+        }
+
+        #commentPopup button[type="button"] {
+            background-color: #666;
+        }
+
+        #commentPopup button[type="button"]:hover {
+            background-color: #555;
+        }
+
+        #commentPopupLink {
+            cursor: pointer;
+            text-decoration: underline;
+            color: white;
+            margin-left: 20px;
+        }
+
+        #pastedImagePreview {
+            max-width: 100px;
+            margin-top: 10px;
+            border: 1px solid #555;
+            border-radius: 4px;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 250px;
+            }
+
+            .content {
+                width: calc(100vw - 250px);
+            }
+
+            .main-container.collapsed .content {
+                width: 100vw;
+            }
+
+            #sidebarCollapse {
+                left: 255px; /* Adjust for smaller sidebar */
+            }
+
+            .main-container.collapsed #sidebarCollapse {
+                left: 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Banner -->
+    <div class="banner">
+        THIS IS FOR REFERENCE ONLY. ALL INFORMATION SHOULD BE VERIFIED WITH CURRENT SOP'S
+        <a href="#" id="commentPopupLink">Leave a Comment</a>
+    </div>
+
+    <!-- Comment Popup Modal -->
+    <div id="commentPopup" style="display: none;">
+        <form id="commentForm">
+            <h2>Leave a Comment</h2>
+            <p>Instructions: You can write your comment, paste an image, or upload a file.</p>
+
+            <textarea name="comment" id="comment" placeholder="Write your comment here..." required></textarea>
+            <input type="hidden" id="imageData" name="imageData">
+
+            <div id="pastedImageFeedback" style="display: none; color: #39FF14;">
+                Image snippet successfully added!
+            </div>
+            <img id="pastedImagePreview" src="" alt="Pasted Image Preview" style="display:none;" />
+
+            <label for="fileUpload">Or upload an image:</label><br>
+            <input type="file" id="fileUpload" name="screenshot" accept="image/*" />
+
+            <button type="submit">Send</button>
+            <button type="button" id="closePopup">Close</button>
+        </form>
+    </div>
+
+    <!-- Debug: Main Container -->
+    <div class="main-container" style="border: 2px solid red;">
+        <div style="position: absolute; top: -25px; left: 5px; background: red; color: white; padding: 2px 8px; font-size: 12px; z-index: 9999;">MAIN CONTAINER</div>
+
+        <!-- Debug: Sidebar Container -->
+        <div class="sidebar" id="mainSidebar">
+
+            <!-- Hamburger Icon - NOW INSIDE SIDEBAR -->
+            <button id="sidebarCollapse" class="hamburger" aria-expanded="true" aria-label="Toggle sidebar">&#9776;</button>
+
+            <!-- Header Section Container -->
+            <div class="sidebar-header">
+                <h1>EMTAC</h1>
+                <p class="user-level">User Level: LEVEL_II</p>
+                <h2 class="welcome-message">Welcome John! How can I assist you?</h2>
+            </div>
+
+            <!-- Navigation Links Container - Scrollable -->
+            <div class="sidebar-nav">
+                <!-- Common endpoints for all users -->
+                <a href="#" class="nav-link highlight">Return to Main</a>
+                <a href="#" class="nav-link highlight">Search and Upload</a>
+                <a href="#" class="nav-link highlight">Parts and BOMs</a>
+
+                <!-- LEVEL_I and above endpoints -->
+                <a href="#" class="nav-link highlight">Search Troubleshooting</a>
+
+                <!-- LEVEL_II and above endpoints -->
+                <a href="#" class="nav-link highlight">Tools: Entry and Search</a>
+
+                <!-- Form Links -->
+                <a href="#" onclick="showForm('search-documents')" class="nav-link">Search Documents</a>
+                <a href="#" onclick="showForm('search-drawings')" class="nav-link">Search Drawings</a>
+                <a href="#" onclick="showForm('search-images')" class="nav-link">Search Images</a>
+                <a href="#" onclick="showForm('compare-images')" class="nav-link">Compare Images</a>
+                <a href="#" onclick="showForm('search-powerpoints')" class="nav-link">Search PowerPoints</a>
+
+                <!-- Additional links can be added here and will scroll -->
+                <a href="#" class="nav-link">Additional Feature 1</a>
+                <a href="#" class="nav-link">Additional Feature 2</a>
+                <a href="#" class="nav-link">Additional Feature 3</a>
+                <a href="#" class="nav-link">Additional Feature 4</a>
+                <a href="#" class="nav-link">Additional Feature 5</a>
+            </div>
+
+            <!-- Voice Controls Container -->
+            <div class="voice-controls-container" id="voiceControlsContainer">
+                <h4 onclick="toggleContainer('voiceControlsContainer')">
+                    Voice Controls
+                    <span class="collapse-indicator">▼</span>
+                </h4>
+                <div class="collapse-content">
+                    <button id="toggle-voice" class="toggle-button">Toggle Voice Recognition</button>
+                    <button id="toggle-text-to-speech" class="toggle-button">Toggle Text-to-Speech</button>
+                    <select id="voice-selection">
+                        <option>Select Voice</option>
+                        <option>Voice 1</option>
+                        <option>Voice 2</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Model Display Container -->
+            <div class="model-display-container" id="modelDisplayContainer">
+                <h4 onclick="toggleContainer('modelDisplayContainer')">
+                    AI Models
+                    <span class="collapse-indicator">▼</span>
+                </h4>
+                <div class="collapse-content">
+                    <div class="model-display-section">
+                        <p>Current AI Model: GPT-4</p>
+                        <p>Current Embedding Model: text-embedding-ada-002</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Theme Container -->
+            <div class="theme-container" id="themeContainer">
+                <h4 onclick="toggleContainer('themeContainer')">
+                    Theme
+                    <span class="collapse-indicator">▼</span>
+                </h4>
+                <div class="collapse-content">
+                    <select id="theme-select">
+                        <option value="">Default</option>
+                        <option value="theme-blue-grey.css">Professional Blue-Grey</option>
+                        <option value="theme-classic-grey-navy.css">Classic Grey & Navy</option>
+                        <option value="theme-minimal-white.css">Minimal White & Graphite</option>
+                        <option value="theme-green-modern.css">Green Modern</option>
+                        <option value="theme-industrial-yellow-steel.css">Industrial Yellow & Steel</option>
+                        <option value="theme-modern-purple-indigo.css">Modern Purple & Indigo</option>
+                        <option value="theme-teal-black.css">Futuristic Teal & Black</option>
+                        <option value="theme-light-orange.css">Modern Light & Orange</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Utility Section - Fixed at bottom -->
+            <div class="sidebar-utils">
+                <!-- Logout button -->
+                <a href="#" class="logout-button">Logout</a>
+            </div>
+        </div>
+
+        <!-- Debug: Main Content Container -->
+        <div class="content" style="border: 2px solid green;">
+            <div style="position: absolute; top: -25px; left: 5px; background: green; color: white; padding: 2px 8px; font-size: 12px; z-index: 9999;">CONTENT CONTAINER</div>
+
+            <!-- Content wrapper with padding -->
+            <div style="padding: 20px; height: 100%; box-sizing: border-box;">
+                <!-- Your page content goes here -->
+                <!-- This inner div will handle the padding and scrolling -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Sidebar collapse functionality
+        document.getElementById('sidebarCollapse').addEventListener('click', function() {
+            const mainContainer = document.querySelector('.main-container');
+            mainContainer.classList.toggle('collapsed');
+
+            // Update aria-expanded for accessibility
+            const isExpanded = !mainContainer.classList.contains('collapsed');
+            this.setAttribute('aria-expanded', isExpanded);
+        });
+
+        // Comment popup functionality
+        document.getElementById('commentPopupLink').addEventListener('click', function(e) {
+            e.preventDefault();
+            document.getElementById('commentPopup').style.display = 'block';
+        });
+
+        document.getElementById('closePopup').addEventListener('click', function() {
+            document.getElementById('commentPopup').style.display = 'none';
+        });
+
+        // Handle comment form submission
+        document.getElementById('commentForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            alert('Comment submitted! (This is a demo - no actual submission)');
+            document.getElementById('commentPopup').style.display = 'none';
+            this.reset();
+        });
+
+        // File upload preview
+        document.getElementById('fileUpload').addEventListener('change', function(e) {
+            if (e.target.files && e.target.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const preview = document.getElementById('pastedImagePreview');
+                    preview.src = e.target.result;
+                    preview.style.display = 'block';
+                };
+                reader.readAsDataURL(e.target.files[0]);
+            }
+        });
+
+        // Handle paste events for images
+        document.getElementById('comment').addEventListener('paste', function(e) {
+            const items = e.clipboardData.items;
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf('image') !== -1) {
+                    const blob = items[i].getAsFile();
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        document.getElementById('imageData').value = e.target.result;
+                        document.getElementById('pastedImageFeedback').style.display = 'block';
+                        const preview = document.getElementById('pastedImagePreview');
+                        preview.src = e.target.result;
+                        preview.style.display = 'block';
+                    };
+                    reader.readAsDataURL(blob);
+                    break;
+                }
+            }
+        });
+
+        // In-memory storage for demo (replaces localStorage in sandboxed environment)
+        let selectedTheme = '';
+
+        // Theme selector functionality
+        document.getElementById('theme-select').addEventListener('change', function() {
+            const themeFile = this.value;
+            selectedTheme = themeFile; // Store in memory instead of localStorage
+
+            // In a real implementation, this would load CSS files
+            // For demo purposes, we'll just show an alert
+            if (themeFile) {
+                alert(`Theme selected: ${themeFile}\n(In production, this would load the actual theme CSS)`);
+            }
+        });
+
+        // Voice controls demo
+        document.getElementById('toggle-voice').addEventListener('click', function() {
+            alert('Voice Recognition toggled! (Demo mode)');
+        });
+
+        document.getElementById('toggle-text-to-speech').addEventListener('click', function() {
+            alert('Text-to-Speech toggled! (Demo mode)');
+        });
+
+        // Demo navigation function
+        function showForm(formName) {
+            alert(`Showing form: ${formName}\n(This would load the actual form in production)`);
+        }
+
+        // Container collapse/expand functionality
+        function toggleContainer(containerId) {
+            const container = document.getElementById(containerId);
+            container.classList.toggle('expanded');
+        }
+
+        // Add click handlers to navigation links for demo
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.addEventListener('click', function(e) {
+                if (this.getAttribute('onclick')) return; // Skip if already has onclick
+                e.preventDefault();
+                alert(`Navigation to: ${this.textContent}\n(This would navigate to the actual page in production)`);
+            });
+        });
+
+        // Close popup when clicking outside
+        window.addEventListener('click', function(e) {
+            const popup = document.getElementById('commentPopup');
+            if (e.target === popup) {
+                popup.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
