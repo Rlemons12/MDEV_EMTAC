@@ -35,8 +35,15 @@ def get_request_id():
         return str(uuid.uuid4())[:8]
 
 
+import time
+import threading
+import json
+from modules.emtacdb.emtacdb_fts import DocumentEmbedding, Document
+from modules.configuration.log_config import logger, get_request_id
+
+
 class VectorSearchClient:
-    """Optimized VectorSearchClient using pgvector for high-performance similarity search."""
+    """Optimized VectorSearchClient using pgvector for high-performance similarity search with detailed timing."""
 
     def __init__(self):
         self.np = __import__('numpy')
@@ -47,8 +54,12 @@ class VectorSearchClient:
         logger.debug("pgvector-compatible vector search client initialized")
 
     def search(self, query, limit=5, threshold=0.2):
-        """Vector search using pgvector for optimal performance with shorter timeout."""
+        """Vector search using pgvector for optimal performance with detailed timing."""
         search_start = time.time()
+        request_id = get_request_id()
+
+        logger.info(
+            f"[TIMING] Starting vector search for query: '{query[:50]}...' (limit={limit}, threshold={threshold})")
 
         try:
             result = [None]
@@ -60,49 +71,80 @@ class VectorSearchClient:
                 except Exception as e:
                     exception[0] = e
 
+            worker_start = time.time()
             search_thread = threading.Thread(target=search_worker)
             search_thread.daemon = True
             search_thread.start()
+
+            logger.info(f"[TIMING] Search thread started in {time.time() - worker_start:.3f}s")
+
+            join_start = time.time()
             search_thread.join(timeout=5.0)  # Reduced from 10s to 5s
+            join_time = time.time() - join_start
+
+            logger.info(f"[TIMING] Thread join completed in {join_time:.3f}s")
 
             if search_thread.is_alive():
-                logger.warning(f"Vector search timed out after 5 seconds for query: {query[:50]}...")
+                logger.warning(f"[TIMING] Vector search timed out after 5 seconds for query: {query[:50]}...")
                 return []
 
             if exception[0]:
                 raise exception[0]
 
-            return result[0] if result[0] else []
+            results = result[0] if result[0] else []
+            total_time = time.time() - search_start
+
+            logger.info(f"[TIMING] Vector search COMPLETED: {total_time:.3f}s total, found {len(results)} results")
+            return results
 
         except Exception as e:
-            logger.error(f"Error in vector search: {e}", exc_info=True)
+            error_time = time.time() - search_start
+            logger.error(f"[TIMING] Error in vector search after {error_time:.3f}s: {e}", exc_info=True)
             return []
-        finally:
-            search_time = time.time() - search_start
-            if search_time > 0.5:
-                logger.warning(f"Vector search completed in {search_time:.3f}s")
-            else:
-                logger.debug(f"Vector search completed in {search_time:.3f}s")
 
     def _perform_search(self, query, limit, threshold=0.3):
-        """High-performance search using pgvector similarity operators."""
+        """High-performance search using pgvector similarity operators with detailed timing."""
+        method_start = time.time()
+        request_id = get_request_id()
+
+        logger.info(f"[TIMING] _perform_search started")
+
         from modules.configuration.config_env import DatabaseConfig
         from plugins.ai_modules import generate_embedding, ModelsConfig
         from sqlalchemy import text
 
+        # 1. Database setup timing
+        db_setup_start = time.time()
         db_config = DatabaseConfig()
         session = db_config.get_main_session()
+        db_setup_time = time.time() - db_setup_start
+        logger.info(f"[TIMING] Database setup: {db_setup_time:.3f}s")
 
         try:
+            # 2. Model config timing
+            config_start = time.time()
             current_model = ModelsConfig.get_config_value('embedding', 'CURRENT_MODEL', 'OpenAIEmbeddingModel')
+            config_time = time.time() - config_start
+            logger.info(f"[TIMING] Model config retrieval: {config_time:.3f}s")
+
+            # 3. Embedding generation timing
+            embedding_start = time.time()
             query_embedding = generate_embedding(query, current_model)
+            embedding_time = time.time() - embedding_start
+            logger.info(f"[TIMING] Embedding generation: {embedding_time:.3f}s")
 
             if not query_embedding:
-                logger.warning("Failed to generate embedding for query")
+                logger.warning("[TIMING] Failed to generate embedding for query")
                 return []
 
+            # 4. Vector string preparation timing
+            vector_prep_start = time.time()
             query_vector_str = '[' + ','.join(map(str, query_embedding)) + ']'
+            vector_prep_time = time.time() - vector_prep_start
+            logger.info(f"[TIMING] Vector string preparation: {vector_prep_time:.3f}s")
 
+            # 5. SQL query preparation timing
+            query_prep_start = time.time()
             similarity_query = text("""
                 SELECT 
                     de.document_id,
@@ -120,17 +162,29 @@ class VectorSearchClient:
                 ORDER BY de.embedding_vector <=> :query_vector ASC
                 LIMIT :limit
             """)
+            query_prep_time = time.time() - query_prep_start
+            logger.info(f"[TIMING] SQL query preparation: {query_prep_time:.3f}s")
 
+            # 6. Database execution timing
+            db_exec_start = time.time()
             result = session.execute(similarity_query, {
                 'query_vector': query_vector_str,
                 'model_name': current_model,
                 'threshold': threshold,
                 'limit': limit
             })
+            db_exec_time = time.time() - db_exec_start
+            logger.info(f"[TIMING] DATABASE QUERY EXECUTION: {db_exec_time:.3f}s")
 
+            # 7. Results processing timing
+            processing_start = time.time()
             top_docs = []
+            row_count = 0
+
             for row in result:
+                row_start = time.time()
                 doc_id, similarity, content, doc_title, file_path, rev = row
+                row_count += 1
 
                 display_content = content or doc_title or f"Document {doc_id}"
 
@@ -153,39 +207,88 @@ class VectorSearchClient:
                     "model_name": current_model
                 })
 
+                row_time = time.time() - row_start
+                if row_count <= 5:  # Log first 5 rows
+                    logger.debug(f"[TIMING] Row {row_count} processing: {row_time:.3f}s")
+
+            processing_time = time.time() - processing_start
+            logger.info(f"[TIMING] Results processing: {processing_time:.3f}s ({row_count} rows)")
+
+            # 8. Total method timing
+            total_method_time = time.time() - method_start
+            logger.info(f"[TIMING] _perform_search TOTAL: {total_method_time:.3f}s")
+
+            # Breakdown summary
+            logger.info(f"[TIMING] BREAKDOWN - DB Setup: {db_setup_time:.3f}s, "
+                        f"Config: {config_time:.3f}s, "
+                        f"Embedding: {embedding_time:.3f}s, "
+                        f"Vector Prep: {vector_prep_time:.3f}s, "
+                        f"Query Prep: {query_prep_time:.3f}s, "
+                        f"DB Execution: {db_exec_time:.3f}s, "
+                        f"Processing: {processing_time:.3f}s")
+
             logger.info(f"Vector search found {len(top_docs)} results (threshold: {threshold})")
             return top_docs
 
         except Exception as e:
-            logger.error(f"pgvector search failed: {e}", exc_info=True)
+            error_time = time.time() - method_start
+            logger.error(f"[TIMING] pgvector search failed after {error_time:.3f}s: {e}", exc_info=True)
             return self._legacy_search_fallback(query, limit, session)
         finally:
+            session_close_start = time.time()
             session.close()
+            session_close_time = time.time() - session_close_start
+            logger.info(f"[TIMING] Session close: {session_close_time:.3f}s")
 
     def _legacy_search_fallback(self, query, limit, session):
-        """Fallback to legacy search if pgvector fails."""
+        """Fallback to legacy search if pgvector fails with timing."""
+        fallback_start = time.time()
+        logger.info(f"[TIMING] Starting legacy search fallback")
+
         try:
             logger.info("Using legacy vector search fallback")
+
+            # Model loading timing
+            model_start = time.time()
             embedding_model = ModelsConfig.load_embedding_model()
+            model_time = time.time() - model_start
+            logger.info(f"[TIMING] Legacy model loading: {model_time:.3f}s")
+
+            # Embedding generation timing
+            embed_start = time.time()
             query_embedding = embedding_model.get_embeddings(query)
+            embed_time = time.time() - embed_start
+            logger.info(f"[TIMING] Legacy embedding generation: {embed_time:.3f}s")
 
             if not query_embedding:
                 return []
 
+            # Vector preparation timing
+            prep_start = time.time()
             query_embedding_np = self.np.array(query_embedding)
             query_norm = self.np.linalg.norm(query_embedding_np)
+            prep_time = time.time() - prep_start
+            logger.info(f"[TIMING] Legacy vector preparation: {prep_time:.3f}s")
 
             if query_norm == 0:
                 return []
 
+            # Database query timing
+            db_query_start = time.time()
             doc_embeddings = session.query(
                 DocumentEmbedding.document_id,
                 DocumentEmbedding.model_embedding
             ).filter(
                 DocumentEmbedding.model_embedding.isnot(None)
             ).limit(1000).all()
+            db_query_time = time.time() - db_query_start
+            logger.info(f"[TIMING] Legacy database query: {db_query_time:.3f}s")
 
+            # Similarity calculation timing
+            similarity_start = time.time()
             similarities = []
+            processed_count = 0
+
             for doc_id, doc_embedding_raw in doc_embeddings:
                 try:
                     if isinstance(doc_embedding_raw, bytes):
@@ -202,9 +305,18 @@ class VectorSearchClient:
                         if similarity > 0.3:
                             similarities.append((doc_id, float(similarity)))
 
+                    processed_count += 1
+                    if processed_count % 100 == 0:
+                        logger.debug(f"[TIMING] Legacy processed {processed_count} documents")
+
                 except Exception as e:
                     logger.debug(f"Error processing legacy embedding for document {doc_id}: {e}")
 
+            similarity_time = time.time() - similarity_start
+            logger.info(f"[TIMING] Legacy similarity calculation: {similarity_time:.3f}s ({processed_count} docs)")
+
+            # Sorting and final processing timing
+            final_start = time.time()
             similarities.sort(key=lambda x: x[1], reverse=True)
 
             top_docs = []
@@ -222,21 +334,41 @@ class VectorSearchClient:
                         "method": "legacy_fallback"
                     })
 
+            final_time = time.time() - final_start
+            total_fallback_time = time.time() - fallback_start
+
+            logger.info(f"[TIMING] Legacy final processing: {final_time:.3f}s")
+            logger.info(f"[TIMING] Legacy fallback TOTAL: {total_fallback_time:.3f}s")
+
             return top_docs
 
         except Exception as e:
-            logger.error(f"Legacy search fallback failed: {e}")
+            error_time = time.time() - fallback_start
+            logger.error(f"[TIMING] Legacy search fallback failed after {error_time:.3f}s: {e}")
             return []
 
     def search_with_adaptive_threshold(self, query, limit=5, min_results=1):
-        """Adaptive search that automatically adjusts threshold to find results."""
+        """Adaptive search that automatically adjusts threshold to find results with timing."""
+        adaptive_start = time.time()
+        logger.info(f"[TIMING] Starting adaptive threshold search")
+
         thresholds = [0.7, 0.5, 0.3, 0.1, 0.0]
 
-        for threshold in thresholds:
+        for i, threshold in enumerate(thresholds):
+            threshold_start = time.time()
             results = self.search(query, limit, threshold)
+            threshold_time = time.time() - threshold_start
+
+            logger.info(
+                f"[TIMING] Threshold {threshold} attempt {i + 1}: {threshold_time:.3f}s, {len(results)} results")
+
             if len(results) >= min_results:
+                total_adaptive_time = time.time() - adaptive_start
+                logger.info(f"[TIMING] Adaptive search completed in {total_adaptive_time:.3f}s after {i + 1} attempts")
                 return results
 
+        total_adaptive_time = time.time() - adaptive_start
+        logger.info(f"[TIMING] Adaptive search completed with no results in {total_adaptive_time:.3f}s")
         return []
 
 class ResponseFormatter:
