@@ -4,7 +4,7 @@ from sqlalchemy import text
 import re
 import json
 from typing import Dict, List, Any, Optional, Union, Tuple
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlalchemy.ext.declarative import declarative_base
 from modules.configuration.log_config import logger, with_request_id, log_timed_operation
 from modules.configuration.config_env import DatabaseConfig
@@ -14,20 +14,16 @@ from modules.emtacdb.emtacdb_fts import (
     KeywordAction, Document, DocumentEmbedding, ImageEmbedding,
     PartsPositionImageAssociation, ImageCompletedDocumentAssociation,
     ImagePositionAssociation, ToolImageAssociation, ImageTaskAssociation,
-    ImageProblemAssociation
+    ImageProblemAssociation, Part
 )
 from plugins.ai_modules.ai_models import ModelsConfig
 import threading
-import signal
 from collections import defaultdict
-from datetime import datetime, timedelta
 from modules.search.UnifiedSearchMixin import UnifiedSearchMixin
-# Base class for SQLAlchemy models
+
+
 Base = declarative_base()
 
-
-# REPLACE your existing VectorSearchClient class with this optimized version
-# Keep the same class name for compatibility
 
 def get_request_id():
     """Helper function to get request ID from context or generate one"""
@@ -38,46 +34,39 @@ def get_request_id():
         import uuid
         return str(uuid.uuid4())[:8]
 
-# WINDOWS-COMPATIBLE VectorSearchClient (complete replacement)
+
 class VectorSearchClient:
-    """Windows-compatible VectorSearchClient with threading-based timeouts."""
+    """Optimized VectorSearchClient using pgvector for high-performance similarity search."""
 
     def __init__(self):
         self.np = __import__('numpy')
-
-        # Performance optimization features
         self.embedding_cache = {}
         self.cache_expiry = {}
         self.cache_max_size = 1000
         self.cache_ttl = 3600
+        logger.debug("pgvector-compatible vector search client initialized")
 
-        logger.debug("Windows-compatible vector search client initialized")
-
-    def search(self, query, limit=5):
-        """Vector search with Windows-compatible timeout."""
-        from modules.emtacdb.emtacdb_fts import DocumentEmbedding, Document
-        from modules.configuration.config_env import DatabaseConfig
-
+    def search(self, query, limit=5, threshold=0.2):
+        """Vector search using pgvector for optimal performance with shorter timeout."""
         search_start = time.time()
 
         try:
-            # Windows-compatible timeout using threading
             result = [None]
             exception = [None]
 
             def search_worker():
                 try:
-                    result[0] = self._perform_search(query, limit)
+                    result[0] = self._perform_search(query, limit, threshold)
                 except Exception as e:
                     exception[0] = e
 
             search_thread = threading.Thread(target=search_worker)
             search_thread.daemon = True
             search_thread.start()
-            search_thread.join(timeout=400.0)  # 3-second timeout
+            search_thread.join(timeout=5.0)  # Reduced from 10s to 5s
 
             if search_thread.is_alive():
-                logger.warning(f"Vector search timed out after 400 seconds for query: {query[:50]}...")
+                logger.warning(f"Vector search timed out after 5 seconds for query: {query[:50]}...")
                 return []
 
             if exception[0]:
@@ -90,48 +79,115 @@ class VectorSearchClient:
             return []
         finally:
             search_time = time.time() - search_start
-            if search_time > 1.0:
+            if search_time > 0.5:
                 logger.warning(f"Vector search completed in {search_time:.3f}s")
             else:
                 logger.debug(f"Vector search completed in {search_time:.3f}s")
 
-    def _perform_search(self, query, limit):
-        """Actual search implementation without timeout."""
-        from modules.emtacdb.emtacdb_fts import DocumentEmbedding, Document
+    def _perform_search(self, query, limit, threshold=0.3):
+        """High-performance search using pgvector similarity operators."""
         from modules.configuration.config_env import DatabaseConfig
+        from plugins.ai_modules import generate_embedding, ModelsConfig
+        from sqlalchemy import text
 
-        # Get database session
         db_config = DatabaseConfig()
         session = db_config.get_main_session()
 
         try:
-            # Get embedding model
-            embedding_model = ModelsConfig.load_embedding_model()
+            current_model = ModelsConfig.get_config_value('embedding', 'CURRENT_MODEL', 'OpenAIEmbeddingModel')
+            query_embedding = generate_embedding(query, current_model)
 
-            # Generate query embedding
-            query_embedding = embedding_model.get_embeddings(query)
             if not query_embedding:
                 logger.warning("Failed to generate embedding for query")
                 return []
 
-            # Convert query embedding to numpy array
+            query_vector_str = '[' + ','.join(map(str, query_embedding)) + ']'
+
+            similarity_query = text("""
+                SELECT 
+                    de.document_id,
+                    1 - (de.embedding_vector <=> :query_vector) AS similarity,
+                    d.content,
+                    cd.title as doc_title,
+                    cd.file_path,
+                    cd.rev
+                FROM document_embedding de
+                LEFT JOIN document d ON de.document_id = d.id
+                LEFT JOIN complete_document cd ON d.complete_document_id = cd.id
+                WHERE de.model_name = :model_name
+                  AND de.embedding_vector IS NOT NULL
+                  AND (1 - (de.embedding_vector <=> :query_vector)) >= :threshold
+                ORDER BY de.embedding_vector <=> :query_vector ASC
+                LIMIT :limit
+            """)
+
+            result = session.execute(similarity_query, {
+                'query_vector': query_vector_str,
+                'model_name': current_model,
+                'threshold': threshold,
+                'limit': limit
+            })
+
+            top_docs = []
+            for row in result:
+                doc_id, similarity, content, doc_title, file_path, rev = row
+
+                display_content = content or doc_title or f"Document {doc_id}"
+
+                if display_content and len(display_content) > 1000:
+                    truncated = display_content[:1000]
+                    last_period = truncated.rfind('.')
+                    if last_period > 800:
+                        display_content = truncated[:last_period + 1]
+                    else:
+                        display_content = truncated + "..."
+
+                top_docs.append({
+                    "id": doc_id,
+                    "content": display_content,
+                    "similarity": float(similarity),
+                    "title": doc_title,
+                    "file_path": file_path,
+                    "revision": rev,
+                    "source": f"Document {doc_id}",
+                    "model_name": current_model
+                })
+
+            logger.info(f"Vector search found {len(top_docs)} results (threshold: {threshold})")
+            return top_docs
+
+        except Exception as e:
+            logger.error(f"pgvector search failed: {e}", exc_info=True)
+            return self._legacy_search_fallback(query, limit, session)
+        finally:
+            session.close()
+
+    def _legacy_search_fallback(self, query, limit, session):
+        """Fallback to legacy search if pgvector fails."""
+        try:
+            logger.info("Using legacy vector search fallback")
+            embedding_model = ModelsConfig.load_embedding_model()
+            query_embedding = embedding_model.get_embeddings(query)
+
+            if not query_embedding:
+                return []
+
             query_embedding_np = self.np.array(query_embedding)
             query_norm = self.np.linalg.norm(query_embedding_np)
 
             if query_norm == 0:
-                logger.warning("Query embedding has zero norm")
                 return []
 
-            # Simple search implementation - limit to first 100 for speed
             doc_embeddings = session.query(
                 DocumentEmbedding.document_id,
                 DocumentEmbedding.model_embedding
-            ).limit(100).all()
+            ).filter(
+                DocumentEmbedding.model_embedding.isnot(None)
+            ).limit(1000).all()
 
             similarities = []
             for doc_id, doc_embedding_raw in doc_embeddings:
                 try:
-                    # Parse embedding
                     if isinstance(doc_embedding_raw, bytes):
                         try:
                             doc_embedding = self.np.array(json.loads(doc_embedding_raw.decode('utf-8')))
@@ -140,20 +196,17 @@ class VectorSearchClient:
                     else:
                         doc_embedding = self.np.array(doc_embedding_raw)
 
-                    # Calculate similarity
                     doc_norm = self.np.linalg.norm(doc_embedding)
                     if doc_norm > 0:
                         similarity = self.np.dot(query_embedding_np, doc_embedding) / (query_norm * doc_norm)
-                        if similarity > 0.6:  # Minimum threshold
+                        if similarity > 0.3:
                             similarities.append((doc_id, float(similarity)))
 
                 except Exception as e:
-                    logger.debug(f"Error processing embedding for document {doc_id}: {e}")
+                    logger.debug(f"Error processing legacy embedding for document {doc_id}: {e}")
 
-            # Sort and get top results
             similarities.sort(key=lambda x: x[1], reverse=True)
 
-            # Fetch documents
             top_docs = []
             for doc_id, similarity in similarities[:limit]:
                 doc = session.query(Document).get(doc_id)
@@ -165,282 +218,86 @@ class VectorSearchClient:
                         "id": doc_id,
                         "content": snippet,
                         "similarity": similarity,
-                        "source": f"Document {doc_id}"
+                        "source": f"Document {doc_id} (legacy)",
+                        "method": "legacy_fallback"
                     })
 
-            logger.info(f"Vector search found {len(top_docs)} results")
             return top_docs
 
-        finally:
-            session.close()
-
-    def cosine_similarity(self, vector1, vector2):
-        """Calculate cosine similarity between two vectors."""
-        dot_product = self.np.dot(vector1, vector2)
-        norm_product = self.np.linalg.norm(vector1) * self.np.linalg.norm(vector2)
-
-        if norm_product == 0:
-            return 0
-
-        return dot_product / norm_product
-
-
-class AistManager(UnifiedSearchMixin):
-    """
-    AI Steward manages the search strategies and response generation process.
-    It orchestrates keyword search, full-text search, vector similarity search,
-    AI model fallback, and unified search capabilities with comprehensive tracking.
-
-    Enhanced with search analytics, user behavior tracking, and performance monitoring.
-    """
-
-    def __init__(self, ai_model=None, db_session=None):
-        """Initialize with optional AI model and database session."""
-        # Basic initialization
-        self.ai_model = ai_model
-        self.db_session = db_session
-        self.start_time = None
-        self.db_config = DatabaseConfig()
-        self.performance_history = []
-        self.step_timings = {}
-        self.current_request_id = None
-        self.performance_thresholds = {
-            'keyword_search': 0.5,
-            'fulltext_search': 1.0,
-            'vector_search': 2.0,
-            'ai_response': 3.0,
-            'total_request': 5.0,
-        }
-
-        # ALWAYS initialize tracking attributes (even if tracking fails)
-        self.tracked_search = None
-        self.current_user_id = None
-        self.current_session_id = None
-        self.query_tracker = None
-
-        logger.info("=== AIST MANAGER INITIALIZATION STARTING ===")
-
-        # Initialize vector search client
-        try:
-            self.vector_search_client = VectorSearchClient()
-            logger.debug("Vector search client initialized successfully")
         except Exception as e:
-            logger.warning(f"Failed to initialize vector search client: {e}")
-            self.vector_search_client = None
+            logger.error(f"Legacy search fallback failed: {e}")
+            return []
 
-        # FIXED: Initialize unified search capabilities properly
-        logger.info("Initializing UnifiedSearchMixin...")
+    def search_with_adaptive_threshold(self, query, limit=5, min_results=1):
+        """Adaptive search that automatically adjusts threshold to find results."""
+        thresholds = [0.7, 0.5, 0.3, 0.1, 0.0]
+
+        for threshold in thresholds:
+            results = self.search(query, limit, threshold)
+            if len(results) >= min_results:
+                return results
+
+        return []
+
+class ResponseFormatter:
+    """Utility class for formatting search responses."""
+
+    @staticmethod
+    def format_search_results(result):
+        """Format search results into a user-friendly response."""
         try:
-            # Call parent __init__ with no arguments (mixin pattern)
-            UnifiedSearchMixin.__init__(self)
-            logger.info("✅ UnifiedSearchMixin initialized")
-        except Exception as e:
-            logger.error(f"❌ UnifiedSearchMixin initialization failed: {e}")
-            # Set basic attributes to prevent further errors
-            self.unified_search_system = None
-            self.search_pattern_manager = None
-
-        # Try to initialize tracking (simple, single attempt)
-        self._init_tracking_simple()
-
-        logger.info("=== AIST MANAGER INITIALIZATION COMPLETE ===")
-
-        # Final status
-        has_tracking = (self.query_tracker is not None and
-                        self.tracked_search is not None and
-                        hasattr(self.tracked_search, 'execute_unified_search_with_tracking'))
-        logger.info(f"🎯 Tracking enabled: {has_tracking}")
-
-    def _init_tracking_simple(self):
-        """Simple, single tracking initialization method - FIXED IMPORTS."""
-        if not self.db_session:
-            logger.warning(" No database session - tracking disabled")
-            self.query_tracker = None
-            self.tracked_search = None
-            return
-
-        try:
-            logger.info("🔧 Initializing search tracking...")
-
-            # FIXED: Correct import paths
-            from modules.search.nlp_search import SearchQueryTracker
-            from modules.search.models.search_models import UnifiedSearchWithTracking
-
-            # Initialize tracker
-            self.query_tracker = SearchQueryTracker(self.db_session)
-            logger.info(" SearchQueryTracker initialized")
-
-            # Initialize tracking wrapper  
-            self.tracked_search = UnifiedSearchWithTracking(self)
-            self.tracked_search.query_tracker = self.query_tracker
-            logger.info(" UnifiedSearchWithTracking initialized")
-
-            # Verify it works
-            if hasattr(self.tracked_search, 'execute_unified_search_with_tracking'):
-                logger.info(" Tracking initialization successful")
-            else:
-                logger.error(" Tracking method not available")
-                self.query_tracker = None
-                self.tracked_search = None
-
-        except ImportError as e:
-            logger.warning(f"📦 Tracking modules not available: {e}")
-            self.query_tracker = None
-            self.tracked_search = None
-        except Exception as e:
-            logger.error(f" Tracking initialization failed: {e}")
-            self.query_tracker = None
-            self.tracked_search = None
-
-    def check_tracking_status(self):
-        """Simple tracking status check."""
-        try:
-            has_tracking = (getattr(self, 'query_tracker', None) is not None and
-                            getattr(self, 'tracked_search', None) is not None and
-                            hasattr(getattr(self, 'tracked_search', None), 'execute_unified_search_with_tracking'))
-
-            status = {
-                'tracking_enabled': has_tracking,
-                'db_session_exists': self.db_session is not None,
-                'query_tracker_exists': getattr(self, 'query_tracker', None) is not None,
-                'tracked_search_exists': getattr(self, 'tracked_search', None) is not None,
-                'has_tracking_method': has_tracking,
-                'current_session_id': getattr(self, 'current_session_id', None)
-            }
-
-            logger.info(f"=== TRACKING STATUS: {' ENABLED' if has_tracking else ' DISABLED'} ===")
-            return status
-
-        except Exception as e:
-            logger.error(f"Error checking tracking status: {e}")
-            return {'tracking_enabled': False, 'error': str(e)}
-
-    def verify_search_tables(self):
-        """Verify that search tracking tables exist and are accessible."""
-        try:
-            if not self.db_session:
-                logger.error("No database session available")
-                return False
-
-            from modules.search.models.search_models import SearchSession, SearchQuery, SearchResultClick
-
-            # Test if we can query the tables
-            session_count = self.db_session.query(SearchSession).count()
-            query_count = self.db_session.query(SearchQuery).count()
-            click_count = self.db_session.query(SearchResultClick).count()
-
-            logger.info(
-                f"Search tables verified: {session_count} sessions, {query_count} queries, {click_count} clicks")
-            return True
-
-        except Exception as e:
-            logger.error(f"Search table verification failed: {e}")
-            return False
-
-    # ===== USER SESSION MANAGEMENT =====
-
-    def set_current_user(self, user_id: str, context_data: Dict = None) -> bool:
-        """
-        Set the current user and start a tracking session.
-
-        Args:
-            user_id: User identifier
-            context_data: Additional context (role, department, etc.)
-
-        Returns:
-            bool: True if session started successfully
-        """
-        try:
-            self.current_user_id = user_id
-
-            if self.tracked_search:
-                # Start a new tracking session
-                self.current_session_id = self.tracked_search.start_user_session(
-                    user_id=user_id,
-                    context_data=context_data or {
-                        'component': 'aist_manager',
-                        'session_started_at': datetime.utcnow().isoformat()
-                    }
-                )
-                logger.info(f" Started tracking session {self.current_session_id} for user {user_id}")
-                return True
-            else:
-                logger.debug(f"👤 Set current user {user_id} (tracking disabled)")
-                return False
-
-        except Exception as e:
-            logger.error(f" Failed to set current user {user_id}: {e}")
-            return False
-
-    def end_user_session(self) -> bool:
-        """End the current user session."""
-        try:
-            if self.tracked_search and self.current_session_id:
-                success = self.tracked_search.end_session()
-                if success:
-                    logger.info(f" Ended tracking session {self.current_session_id}")
-                    self.current_session_id = None
-                    self.current_user_id = None
-                return success
-            return False
-
-        except Exception as e:
-            logger.error(f" Failed to end user session: {e}")
-            return False
-
-    @with_request_id
-    def format_search_results(self, result):
-        """
-        Format search results into a user-friendly answer.
-        This method properly handles the search results structure from unified search.
-        """
-        try:
-            logger.debug(f"Formatting search results: {type(result)}")
-            logger.debug(f"Result keys: {list(result.keys()) if isinstance(result, dict) else 'Not a dict'}")
-
             if not result or not isinstance(result, dict):
                 return "I couldn't find relevant information for your query."
 
-            # Check result status
             if result.get('status') != 'success':
                 error_msg = result.get('message', 'Search failed')
                 return f"Search error: {error_msg}"
 
+            # NEW: Handle AI-generated knowledge query responses
+            if 'answer' in result and result.get('method') in ['ai_knowledge_synthesis_with_chunks',
+                                                               'ai_knowledge_synthesis_direct']:
+                ai_answer = result['answer']
+
+                # Add source information if available
+                if 'source_info' in result:
+                    source_info = result['source_info']
+                    if source_info.get('document_source') and source_info.get('chunk_similarity'):
+                        similarity = source_info['chunk_similarity']
+                        doc_source = source_info['document_source']
+                        ai_answer += f"\n\n*Source: {doc_source} (Similarity: {similarity:.1%})*"
+                    elif source_info.get('source_type') == 'ai_general_knowledge':
+                        ai_answer += f"\n\n*Source: AI General Knowledge*"
+
+                return ai_answer
+
+            # Existing search result formatting logic
             total_results = result.get('total_results', 0)
             if total_results == 0:
                 return "No results found for your query."
 
-            # Check for organized results structure (from unified search)
+            # Check for organized results structure
             if 'organized_results' in result:
-                return self._format_organized_results(result['organized_results'], total_results)
-
-            # Check for results_by_type structure
+                return ResponseFormatter._format_organized_results(result['organized_results'], total_results)
             elif 'results_by_type' in result:
-                return self._format_results_by_type(result['results_by_type'], total_results)
-
-            # Check for direct results list (fallback for aggregate search)
+                return ResponseFormatter._format_results_by_type(result['results_by_type'], total_results)
             elif 'results' in result and isinstance(result['results'], list):
-                return self._format_direct_results(result['results'], total_results)
-
-            # Handle the case where parts are in the main result structure
-            # This seems to be what's happening based on the logs
+                return ResponseFormatter._format_direct_results(result['results'], total_results)
             elif total_results > 0:
-                return self._format_main_result_structure(result, total_results)
+                return ResponseFormatter._format_main_result_structure(result, total_results)
 
-            # Final fallback
             return f"Found {total_results} results for your query."
 
         except Exception as e:
             logger.error(f"Error formatting search results: {e}", exc_info=True)
             return "Found some results, but had trouble formatting them."
 
-    def _format_organized_results(self, organized_results, total_results):
+    @staticmethod
+    def _format_organized_results(organized_results, total_results):
         """Format organized results structure."""
         parts = []
 
-        # Format parts
         if 'parts' in organized_results and organized_results['parts']:
-            parts_list = organized_results['parts'][:10]  # Show up to 10 parts
+            parts_list = organized_results['parts'][:10]
             parts.append(f"Found {len(parts_list)} Banner sensor{'s' if len(parts_list) != 1 else ''}:")
 
             for i, part in enumerate(parts_list, 1):
@@ -451,22 +308,18 @@ class AistManager(UnifiedSearchMixin):
                     part_info += f" (Manufacturer: {part['oem_mfg']})"
                 parts.append(part_info)
 
-        # Format images
         if 'images' in organized_results and organized_results['images']:
             image_count = len(organized_results['images'])
             parts.append(f"\nFound {image_count} related image{'s' if image_count != 1 else ''}.")
 
-        # Format positions
         if 'positions' in organized_results and organized_results['positions']:
             position_count = len(organized_results['positions'])
             parts.append(f"\nFound {position_count} installation location{'s' if position_count != 1 else ''}.")
 
-        if parts:
-            return "\n".join(parts)
-        else:
-            return f"Found {total_results} results for your query."
+        return "\n".join(parts) if parts else f"Found {total_results} results for your query."
 
-    def _format_results_by_type(self, results_by_type, total_results):
+    @staticmethod
+    def _format_results_by_type(results_by_type, total_results):
         """Format results_by_type structure."""
         response_parts = []
 
@@ -483,27 +336,13 @@ class AistManager(UnifiedSearchMixin):
                     part_info += f" (Manufacturer: {part['oem_mfg']})"
                 response_parts.append(part_info)
 
-        # Handle images
-        if 'images' in results_by_type and results_by_type['images']:
-            if response_parts:
-                response_parts.append("")  # Add spacing
-
-            images_list = results_by_type['images'][:5]
-            response_parts.append(f"Found {len(images_list)} image{'s' if len(images_list) != 1 else ''}:")
-
-            for i, image in enumerate(images_list, 1):
-                image_info = f"{i}. {image.get('title', 'Untitled Image')}"
-                if image.get('description'):
-                    image_info += f" - {image['description']}"
-                response_parts.append(image_info)
-
         # Handle other types
         for result_type, results in results_by_type.items():
-            if result_type in ['parts', 'images'] or not results:
+            if result_type == 'parts' or not results:
                 continue
 
             if response_parts:
-                response_parts.append("")  # Add spacing
+                response_parts.append("")
 
             type_name = result_type.replace('_', ' ').title()
             response_parts.append(f"Found {len(results)} {type_name}:")
@@ -514,43 +353,97 @@ class AistManager(UnifiedSearchMixin):
 
         return "\n".join(response_parts) if response_parts else f"Found {total_results} results."
 
-    def _format_main_result_structure(self, result, total_results):
-        """
-        Handle the case where the search system returns results in the main structure.
-        This appears to be what's happening based on the logs.
-        """
-        logger.debug("Attempting to format main result structure")
+    @staticmethod
+    def _format_direct_results(results, total_results):
+        """Format direct results list structure - handles both dicts and SQLAlchemy objects."""
 
-        # Look for common result indicators
+        if not results or not isinstance(results, list):
+            return f"Found {total_results} results for your query."
+
+        if len(results) == 0:
+            return "No results found for your query."
+
+        response_parts = []
+        results_list = results[:10]  # Limit to first 10 results
+
+        response_parts.append(f"Found {len(results_list)} result{'s' if len(results_list) != 1 else ''}:")
+
+        for i, item in enumerate(results_list, 1):
+            # Handle SQLAlchemy Part objects
+            if hasattr(item, 'part_number'):  # This is a Part object
+                part_info = f"{i}. {item.part_number or 'Unknown Part'}"
+
+                # Add name/description if available
+                if item.name:
+                    part_info += f" - {item.name}"
+
+                # Add manufacturer if available
+                if item.oem_mfg:
+                    part_info += f" (Manufacturer: {item.oem_mfg})"
+
+                # Add model if available and different from name
+                if item.model and item.model != item.name:
+                    part_info += f" [Model: {item.model}]"
+
+                response_parts.append(part_info)
+
+            # Handle dictionary objects
+            elif isinstance(item, dict):
+                if 'part_number' in item:
+                    part_info = f"{i}. {item.get('part_number', 'Unknown')}"
+                    if item.get('name'):
+                        part_info += f" - {item.get('name')}"
+                    if item.get('oem_mfg'):
+                        part_info += f" (Manufacturer: {item['oem_mfg']})"
+                    response_parts.append(part_info)
+                else:
+                    # General dictionary handling
+                    name = (item.get('name') or
+                            item.get('title') or
+                            item.get('id') or
+                            'Unknown')
+
+                    description = (item.get('description') or
+                                   item.get('notes') or
+                                   item.get('model') or
+                                   item.get('oem_mfg') or
+                                   '')
+
+                    if description:
+                        response_parts.append(f"{i}. {name} - {description}")
+                    else:
+                        response_parts.append(f"{i}. {name}")
+            else:
+                # Handle other object types
+                response_parts.append(f"{i}. {str(item)}")
+
+        return "\n".join(response_parts)
+
+    @staticmethod
+    def _format_main_result_structure(result, total_results):
+        """Handle main result structure."""
         response_parts = []
 
-        # Check if there's a summary
         if 'summary' in result:
             response_parts.append(result['summary'])
 
-        # Check for various possible result structures
         found_results = False
-
-        # Try to find parts in various possible locations
         for key in ['parts', 'results', 'data', 'items']:
             if key in result and isinstance(result[key], list) and result[key]:
                 found_results = True
-                parts_list = result[key][:10]
+                items_list = result[key][:10]
 
                 if not response_parts:
-                    response_parts.append(f"Found {len(parts_list)} result{'s' if len(parts_list) != 1 else ''}:")
+                    response_parts.append(f"Found {len(items_list)} result{'s' if len(items_list) != 1 else ''}:")
 
-                for i, item in enumerate(parts_list, 1):
+                for i, item in enumerate(items_list, 1):
                     if isinstance(item, dict):
                         if 'part_number' in item:
                             part_info = f"{i}. {item.get('part_number', 'Unknown')}"
                             if item.get('name'):
                                 part_info += f" - {item.get('name')}"
-                            if item.get('oem_mfg'):
-                                part_info += f" (Manufacturer: {item['oem_mfg']})"
                             response_parts.append(part_info)
                         else:
-                            # Generic item
                             name = item.get('name', item.get('title', item.get('id', 'Unknown')))
                             response_parts.append(f"{i}. {name}")
                     else:
@@ -558,59 +451,421 @@ class AistManager(UnifiedSearchMixin):
                 break
 
         if not found_results:
-            # Last resort - just mention the count
             response_parts.append(f"Found {total_results} results for your query.")
 
         return "\n".join(response_parts) if response_parts else f"Found {total_results} results."
 
-    def _format_direct_results(self, results, total_results):
-        """Format direct results list."""
-        if not results:
-            return "No results found."
+class SearchUtils:
+    """Utility class for search-related operations."""
 
-        response_parts = [f"Found {len(results)} result{'s' if len(results) != 1 else ''}:"]
+    @staticmethod
+    def execute_with_timeout(func, timeout_seconds=10, *args, **kwargs):
+        """Windows-compatible timeout wrapper using threading."""
+        result = [None]
+        exception = [None]
+        completed = [False]
 
-        for i, result in enumerate(results[:10], 1):
-            # Try to determine what type of result this is
-            if 'part_number' in result:
-                # It's a part
-                part_info = f"{i}. {result.get('part_number', 'Unknown')}"
-                if result.get('name'):
-                    part_info += f" - {result.get('name')}"
-                if result.get('oem_mfg'):
-                    part_info += f" (Manufacturer: {result['oem_mfg']})"
-                response_parts.append(part_info)
-            elif 'title' in result:
-                # It's likely an image or document
-                response_parts.append(f"{i}. {result['title']}")
-            else:
-                # Generic result
-                name = result.get('name', result.get('id', 'Unknown'))
-                response_parts.append(f"{i}. {name}")
+        def worker():
+            try:
+                result[0] = func(*args, **kwargs)
+                completed[0] = True
+            except Exception as e:
+                exception[0] = e
+                completed[0] = True
 
-        return "\n".join(response_parts)
+        worker_thread = threading.Thread(target=worker)
+        worker_thread.daemon = True
+        worker_thread.start()
+        worker_thread.join(timeout=timeout_seconds)
 
-    # ===== ENHANCED SEARCH METHODS =====
+        if not completed[0]:
+            logger.warning(f"Operation timed out after {timeout_seconds} seconds")
+            return None, "Operation timed out"
 
-    def execute_search_with_analytics(self, question: str, request_id: str = None) -> Dict[str, Any]:
-        """
-        Main search method with comprehensive tracking and analytics.
-        This should be your primary search method going forward.
+        if exception[0]:
+            raise exception[0]
 
-        Args:
-            question: User's search query
-            request_id: Optional request identifier
+        return result[0], None
 
-        Returns:
-            Enhanced search results with tracking information
-        """
-        search_start = time.time()
-        self.current_request_id = request_id or str(uuid.uuid4())
+    @staticmethod
+    def extract_search_params(query):
+        """Extract search parameters from user query."""
+        params = {
+            'title': None,
+            'area': None,
+            'equipment_group': None,
+            'model': None,
+            'asset_number': None,
+            'location': None,
+            'description': None,
+            'query': query
+        }
 
-        logger.info(f" Execute search with analytics: '{question}' (Request: {self.current_request_id})")
+        # Extract title
+        title_match = re.search(r'of\s+(["\'])(.*?)\1', query)
+        if title_match:
+            params['title'] = title_match.group(2)
+        else:
+            title_match = re.search(r'of\s+([\w\s]+)(?:$|\s+(?:in|at|for|from))', query)
+            if title_match:
+                params['title'] = title_match.group(1).strip()
+
+        # Extract area
+        area_match = re.search(r'(?:in|of)\s+area\s+(["\'])(.*?)\1', query)
+        if area_match:
+            params['area'] = area_match.group(2)
+        else:
+            area_match = re.search(r'(?:in|of)\s+area\s+([\w\s]+)(?:$|\s+(?:and|with|that|which))', query)
+            if area_match:
+                params['area'] = area_match.group(1).strip()
+
+        # Extract other parameters
+        equipment_match = re.search(r'(?:for|of)\s+equipment\s+group\s+([\w\s]+)(?:$|\s+(?:and|with))', query)
+        if equipment_match:
+            params['equipment_group'] = equipment_match.group(1).strip()
+
+        model_match = re.search(r'(?:for|of)\s+model\s+([\w\s]+)(?:$|\s+(?:and|with))', query)
+        if model_match:
+            params['model'] = model_match.group(1).strip()
+
+        asset_match = re.search(r'(?:for|of)\s+asset\s+(?:number\s+)?([\w\-\d]+)', query)
+        if asset_match:
+            params['asset_number'] = asset_match.group(1).strip()
+
+        drawing_match = re.search(r'drawing\s+(?:number\s+)?([A-Z0-9\-]+)', query, re.IGNORECASE)
+        if drawing_match:
+            params['drawing_number'] = drawing_match.group(1).strip()
+
+        return params
+
+class AistManager(UnifiedSearchMixin):
+    """
+    AI Steward manages the search strategies and response generation process.
+    Cleaned and optimized version with consolidated functionality.
+    """
+
+    def __init__(self, ai_model=None, db_session=None):
+        """Initialize with optional AI model and database session."""
+        self.ai_model = ai_model
+        self.db_session = db_session
+        self.start_time = None
+        self.db_config = DatabaseConfig()
+        self.performance_history = []
+        self.current_request_id = None
+
+        # Initialize tracking attributes
+        self.tracked_search = None
+        self.current_user_id = None
+        self.current_session_id = None
+        self.query_tracker = None
+
+        logger.info("=== AIST MANAGER INITIALIZATION STARTING ===")
+
+        # Initialize vector search client
+        try:
+            self.vector_search_client = VectorSearchClient()
+            logger.debug("Vector search client initialized successfully")
+        except Exception as e:
+            logger.warning(f"Failed to initialize vector search client: {e}")
+            self.vector_search_client = None
+
+        # Initialize unified search capabilities
+        try:
+            UnifiedSearchMixin.__init__(self)
+            logger.info("UnifiedSearchMixin initialized")
+        except Exception as e:
+            logger.error(f"UnifiedSearchMixin initialization failed: {e}")
+            self.unified_search_system = None
+
+        # Initialize tracking
+        self._init_tracking()
+
+        logger.info("=== AIST MANAGER INITIALIZATION COMPLETE ===")
+
+    def _init_aggregate_search(self):
+        """Initialize the AggregateSearch class for chunk finding methods"""
+        try:
+            from modules.search.aggregate_search import AggregateSearch
+
+            # Pass the session if available
+            session = getattr(self, 'db_session', None)
+
+            # Initialize AggregateSearch instance
+            self.aggregate_search = AggregateSearch(session=session)
+            logger.info("AggregateSearch initialized successfully")
+
+        except ImportError as e:
+            logger.error(f"Failed to import AggregateSearch: {e}")
+            self.aggregate_search = None
+        except Exception as e:
+            logger.error(f"Failed to initialize AggregateSearch: {e}")
+            self.aggregate_search = None
+
+    @with_request_id
+    def _init_tracking(self):
+        """Initialize search tracking components."""
+        if not self.db_session:
+            logger.warning("No database session - tracking disabled")
+            return False
 
         try:
-            # Use tracking system if available
+            from modules.search.nlp_search import SearchQueryTracker
+            from modules.search.models.search_models import UnifiedSearchWithTracking
+
+            self.query_tracker = SearchQueryTracker(self.db_session)
+            self.tracked_search = UnifiedSearchWithTracking(self)
+            self.tracked_search.query_tracker = self.query_tracker
+
+            logger.info("Search tracking initialized successfully")
+            return True
+
+        except ImportError as e:
+            logger.warning(f"Tracking modules not available: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Tracking initialization failed: {e}")
+            return False
+
+    # ===== USER SESSION MANAGEMENT =====
+    @with_request_id
+    def set_current_user(self, user_id: str, context_data: Dict = None) -> bool:
+        """Set the current user and start a tracking session."""
+        try:
+            self.current_user_id = user_id
+
+            if self.tracked_search:
+                self.current_session_id = self.tracked_search.start_user_session(
+                    user_id=user_id,
+                    context_data=context_data or {
+                        'component': 'aist_manager',
+                        'session_started_at': datetime.utcnow().isoformat()
+                    }
+                )
+                logger.info(f"Started tracking session {self.current_session_id} for user {user_id}")
+                return True
+            else:
+                logger.debug(f"Set current user {user_id} (tracking disabled)")
+                return False
+
+        except Exception as e:
+            logger.error(f"Failed to set current user {user_id}: {e}")
+            return False
+
+    @with_request_id
+    def end_user_session(self) -> bool:
+        """End the current user session."""
+        try:
+            if self.tracked_search and self.current_session_id:
+                success = self.tracked_search.end_session()
+                if success:
+                    logger.info(f"Ended tracking session {self.current_session_id}")
+                    self.current_session_id = None
+                    self.current_user_id = None
+                return success
+            return False
+
+        except Exception as e:
+            logger.error(f"Failed to end user session: {e}")
+            return False
+
+    # ===== MAIN SEARCH METHODS =====
+
+    def answer_question(self, user_id, question, client_type='web', request_id=None):
+        """Main question answering method with improved structure."""
+        self.start_time = time.time()
+        self.current_request_id = request_id or get_request_id()
+
+        logger.info(f"Processing question: {question}")
+
+        try:
+            # Prepare search context
+            search_context = self._prepare_search_context(user_id, client_type)
+
+            # Delegate to UnifiedSearchMixin for primary search
+            result = result = self._execute_primary_search(question, search_context)
+
+            # Format final response
+            return self._format_final_response(result, question, user_id)
+
+        except Exception as e:
+            logger.error(f"Error in answer_question: {e}", exc_info=True)
+            return self._create_error_response(e, question, user_id)
+
+    @with_request_id
+    def _prepare_search_context(self, user_id, client_type):
+        """Prepare search context and check capabilities."""
+        has_tracking = (self.query_tracker is not None and
+                        self.tracked_search is not None and
+                        hasattr(self.tracked_search, 'execute_unified_search_with_tracking'))
+
+        has_vector_search = (hasattr(self, 'vector_search_client') and
+                             self.vector_search_client is not None)
+
+        # Initialize user session if needed
+        if has_tracking and not self.current_session_id:
+            try:
+                self.set_current_user(user_id or "anonymous", {'client_type': client_type})
+            except Exception as e:
+                logger.warning(f"Failed to set user session: {e}")
+
+        return {
+            'has_tracking': has_tracking,
+            'has_vector_search': has_vector_search,
+            'user_id': user_id or "anonymous"
+        }
+
+
+    @with_request_id
+    def _handle_search_fallbacks(self, question, context):
+        """Handle search fallbacks when primary search fails."""
+        if not context['has_vector_search'] or len(question.strip()) <= 2:
+            return self._create_helpful_no_results_response(question)
+
+        logger.info(f"Attempting vector search fallback for: '{question}'")
+
+        try:
+            # Use shorter timeout for vector search to avoid slow responses
+            vector_results = self.vector_search_client.search(question, limit=5, threshold=0.2)
+
+            if vector_results and len(vector_results) > 0:
+                logger.info(f"Vector search found {len(vector_results)} results!")
+                return self._format_vector_results(vector_results, question)
+            else:
+                logger.info("Vector search found no results")
+                return self._create_helpful_no_results_response(question)
+
+        except Exception as e:
+            logger.error(f"Vector search failed: {e}", exc_info=True)
+            return self._create_helpful_no_results_response(question)
+
+    @with_request_id
+    def _create_helpful_no_results_response(self, question):
+        """Create a helpful response when no results are found."""
+        # Analyze the question to provide specific guidance
+        question_lower = question.lower()
+
+        if any(term in question_lower for term in ['enzyme', 'protein', 'biochemical']):
+            suggestion = "You might want to search for specific part numbers, equipment names, or documentation related to your facility's systems."
+        elif any(term in question_lower for term in ['part', 'component']):
+            suggestion = "Try searching with a specific part number, manufacturer name, or equipment type."
+        elif any(term in question_lower for term in ['image', 'picture', 'photo']):
+            suggestion = "Try searching for images by equipment area, asset number, or specific equipment names."
+        else:
+            suggestion = "Try using more specific terms like equipment names, part numbers, or area designations."
+
+        return {
+            'status': 'success',  # Not an error, just no results
+            'answer': f"I couldn't find specific information about '{question}' in our facility database. {suggestion}",
+            'method': 'helpful_no_results',
+            'total_results': 0,
+            'request_id': self.current_request_id,
+            'suggestions': [
+                "Try searching for specific part numbers",
+                "Search by equipment area or location",
+                "Use manufacturer names or model numbers",
+                "Look for related documentation or manuals"
+            ]
+        }
+
+    @with_request_id
+    def _format_vector_results(self, vector_results, question):
+        """Format vector search results into response structure."""
+        answer_parts = ["Based on semantic similarity, I found relevant information:\n"]
+
+        for i, vr in enumerate(vector_results[:5], 1):
+            content = vr.get('content', '')
+            similarity = vr.get('similarity', 0)
+            doc_id = vr.get('id', 'unknown')
+
+            if len(content) > 300:
+                truncated = content[:300]
+                last_period = truncated.rfind('.')
+                if last_period > 200:
+                    content = truncated[:last_period + 1]
+                else:
+                    content = truncated + "..."
+
+            answer_parts.append(
+                f"{i}. {content}\n   (Document ID: {doc_id}, Similarity: {similarity:.3f})\n"
+            )
+
+        return {
+            'status': 'success',
+            'answer': "\n".join(answer_parts),
+            'method': 'vector_search_fallback',
+            'total_results': len(vector_results),
+            'request_id': self.current_request_id
+        }
+
+    @with_request_id
+    def _format_final_response(self, result, question, user_id):
+        """Format the final response."""
+        # Determine the answer based on result
+        if result and result.get('status') == 'success':
+            answer = ResponseFormatter.format_search_results(result)
+        elif result and result.get('message'):
+            answer = result.get('message', 'Search failed - no specific error message')
+        elif result and result.get('answer'):
+            answer = result.get('answer')
+        else:
+            # Provide a helpful fallback message
+            answer = f"I couldn't find specific information about '{question}' in the system. This might be because the search term doesn't match our current database content, or it may require a different search approach."
+
+        # Record interaction
+        try:
+            interaction = self.record_interaction(user_id or "anonymous", question, answer)
+            if interaction:
+                logger.info(f"Recorded interaction: {interaction.id}")
+        except Exception as e:
+            logger.warning(f"Failed to record interaction: {e}")
+
+        # Determine status - only mark as error if there was an actual error, not just no results
+        status = 'success'
+        if result:
+            if result.get('status') in ['error', 'failed']:
+                status = 'error'
+            elif result.get('status') in ['success', 'no_results']:
+                status = 'success'
+            else:
+                status = result.get('status', 'success')
+
+        return {
+            'status': status,
+            'answer': answer,
+            'method': result.get('search_method', 'unified_search') if result else 'unified_search_fallback',
+            'total_results': result.get('total_results', 0) if result else 0,
+            'request_id': self.current_request_id
+        }
+
+    @with_request_id
+    def _create_error_response(self, error, question, user_id):
+        """Create error response."""
+        error_msg = f"I encountered an error while processing your question: {str(error)}"
+
+        try:
+            self.record_interaction(user_id or "anonymous", question, error_msg)
+        except:
+            pass
+
+        return {
+            'status': 'error',
+            'answer': error_msg,
+            'message': str(error),
+            'method': 'error_fallback',
+            'total_results': 0,
+            'request_id': self.current_request_id
+        }
+
+    # ===== SEARCH ANALYTICS =====
+    @with_request_id
+    def execute_search_with_analytics(self, question: str, request_id: str = None) -> Dict[str, Any]:
+        """Main search method with comprehensive tracking and analytics."""
+        search_start = time.time()
+        self.current_request_id = request_id or get_request_id()
+
+        logger.info(f"Execute search with analytics: '{question}' (Request: {self.current_request_id})")
+
+        try:
             if self.tracked_search:
                 result = self.tracked_search.execute_unified_search_with_tracking(
                     question=question,
@@ -618,7 +873,6 @@ class AistManager(UnifiedSearchMixin):
                     request_id=self.current_request_id
                 )
 
-                # Add AistManager-specific metadata
                 result.update({
                     'aist_manager_info': {
                         'request_id': self.current_request_id,
@@ -629,19 +883,14 @@ class AistManager(UnifiedSearchMixin):
                     }
                 })
 
-                logger.info(
-                    f" Tracked search completed: {result.get('status')} with {result.get('total_results', 0)} results")
                 return result
-
             else:
-                # Fallback to regular unified search
                 result = self.execute_unified_search(
                     question=question,
                     user_id=self.current_user_id,
                     request_id=self.current_request_id
                 )
 
-                # Add basic metadata
                 result.update({
                     'aist_manager_info': {
                         'request_id': self.current_request_id,
@@ -652,13 +901,11 @@ class AistManager(UnifiedSearchMixin):
                     }
                 })
 
-                logger.info(
-                    f" Untracked search completed: {result.get('status')} with {result.get('total_results', 0)} results")
                 return result
 
         except Exception as e:
             search_time = time.time() - search_start
-            logger.error(f" Search failed after {search_time:.3f}s: {e}")
+            logger.error(f"Search failed after {search_time:.3f}s: {e}")
 
             return {
                 'status': 'error',
@@ -671,103 +918,19 @@ class AistManager(UnifiedSearchMixin):
                 }
             }
 
-    # ===== ANALYTICS AND FEEDBACK METHODS =====
-
-    def record_search_satisfaction(self, query_id: int, rating: int, feedback: str = None) -> bool:
-        """
-        Record user satisfaction for a search query.
-
-        Args:
-            query_id: Query ID from tracking system
-            rating: Satisfaction rating (1-5 scale)
-            feedback: Optional text feedback
-
-        Returns:
-            bool: True if recorded successfully
-        """
-        try:
-            if self.tracked_search:
-                success = self.tracked_search.record_satisfaction(query_id, rating)
-                if success:
-                    logger.info(f" Recorded satisfaction {rating}/5 for query {query_id}")
-
-                    # TODO: Store additional feedback if provided
-                    if feedback:
-                        logger.debug(f"💬 Feedback for query {query_id}: {feedback}")
-
-                return success
-            else:
-                logger.warning(f" Cannot record satisfaction - tracking disabled")
-                return False
-
-        except Exception as e:
-            logger.error(f" Failed to record satisfaction for query {query_id}: {e}")
-            return False
-
-    def track_result_interaction(self, query_id: int, result_type: str, result_id: int,
-                                 position: int, action: str = "view") -> bool:
-        """
-        Track user interaction with search results.
-
-        Args:
-            query_id: Query ID from tracking system
-            result_type: Type of result ('part', 'image', 'document')
-            result_id: ID of the result item
-            position: Position in search results (1-based)
-            action: Action taken ('view', 'download', 'share')
-
-        Returns:
-            bool: True if tracked successfully
-        """
-        try:
-            if self.tracked_search:
-                success = self.tracked_search.track_result_click(
-                    query_id=query_id,
-                    result_type=result_type,
-                    result_id=result_id,
-                    click_position=position,
-                    action_taken=action
-                )
-
-                if success:
-                    logger.debug(f"👆 Tracked {action} on {result_type} {result_id} at position {position}")
-
-                return success
-            else:
-                logger.debug(f" Cannot track interaction - tracking disabled")
-                return False
-
-        except Exception as e:
-            logger.error(f" Failed to track interaction: {e}")
-            return False
-
+    @with_request_id
     def get_search_analytics(self, days: int = 7) -> Dict[str, Any]:
-        """
-        Get comprehensive search analytics and performance metrics.
-
-        Args:
-            days: Number of days to include in report
-
-        Returns:
-            Analytics report with performance metrics
-        """
+        """Get comprehensive search analytics and performance metrics."""
         try:
             if self.tracked_search:
-                # Get tracking analytics
                 analytics = self.tracked_search.get_performance_report(days)
-
-                # Add AistManager-specific metrics
-                aist_metrics = self._get_aist_manager_metrics()
                 analytics.update({
-                    'aist_manager_metrics': aist_metrics,
+                    'aist_manager_metrics': self._get_aist_manager_metrics(),
                     'system_health': self._get_system_health_status(),
                     'generated_at': datetime.utcnow().isoformat(),
                     'report_type': 'comprehensive_search_analytics'
                 })
-
-                logger.info(f" Generated {days}-day analytics report")
                 return analytics
-
             else:
                 return {
                     'status': 'limited',
@@ -777,25 +940,26 @@ class AistManager(UnifiedSearchMixin):
                 }
 
         except Exception as e:
-            logger.error(f" Failed to generate analytics: {e}")
+            logger.error(f"Failed to generate analytics: {e}")
             return {
                 'status': 'error',
                 'message': str(e),
                 'error_type': 'analytics_generation_failed'
             }
 
+    @with_request_id
     def _get_aist_manager_metrics(self) -> Dict[str, Any]:
         """Get AistManager-specific performance metrics."""
         return {
             'vector_search_available': self.vector_search_client is not None,
             'database_available': self.db_session is not None,
-            'performance_thresholds': self.performance_thresholds,
             'performance_history_count': len(self.performance_history),
             'current_session_active': self.current_session_id is not None,
             'current_user': self.current_user_id,
             'tracking_enabled': self.tracked_search is not None
         }
 
+    @with_request_id
     def _get_system_health_status(self) -> Dict[str, Any]:
         """Get overall system health status."""
         health = {
@@ -810,7 +974,6 @@ class AistManager(UnifiedSearchMixin):
             'warnings': []
         }
 
-        # Check for issues
         if not health['components']['search_tracking']:
             health['warnings'].append('Search tracking disabled - analytics limited')
 
@@ -820,7 +983,6 @@ class AistManager(UnifiedSearchMixin):
         if not health['components']['database']:
             health['warnings'].append('Database unavailable - persistent search disabled')
 
-        # Determine overall status
         critical_components = ['unified_search', 'database']
         if not all(health['components'][comp] for comp in critical_components):
             health['overall_status'] = 'degraded'
@@ -829,1061 +991,39 @@ class AistManager(UnifiedSearchMixin):
 
         return health
 
-    # ===== ENHANCED QUERY ANALYSIS =====
-
-    def analyze_query_intent(self, question: str) -> Dict[str, Any]:
-        """
-        Analyze query intent using the enhanced NLP system.
-
-        Args:
-            question: User's query
-
-        Returns:
-            Detailed intent analysis
-        """
-        try:
-            if hasattr(self, 'unified_search_system') and self.unified_search_system:
-                if hasattr(self.unified_search_system, 'analyze_user_input'):
-                    analysis = self.unified_search_system.analyze_user_input(question)
-                    logger.debug(f"🧠 Intent analysis completed for: '{question}'")
-                    return analysis
-
-            # Fallback intent analysis
-            return {
-                'status': 'limited',
-                'message': 'Enhanced NLP analysis not available',
-                'basic_analysis': {
-                    'query': question,
-                    'is_search_query': self.is_unified_search_query(question),
-                    'analyzed_at': datetime.utcnow().isoformat()
-                }
-            }
-
-        except Exception as e:
-            logger.error(f" Intent analysis failed: {e}")
-            return {
-                'status': 'error',
-                'message': str(e),
-                'query': question
-            }
-
-    # ===== BACKWARD COMPATIBILITY METHODS =====
-
-    def execute_search(self, question: str, user_id: str = None, request_id: str = None) -> Dict[str, Any]:
-        """
-        Backward-compatible search method.
-        Redirects to the new analytics-enabled search.
-        """
-        logger.debug(" Redirecting legacy search to analytics-enabled search")
-
-        # Set user if provided
-        if user_id and user_id != self.current_user_id:
-            self.set_current_user(user_id)
-
-        return self.execute_search_with_analytics(question, request_id)
-
-    # ===== CLEANUP AND MAINTENANCE =====
-
-    def cleanup_session(self):
-        """Clean up the current session and resources."""
-        try:
-            # End tracking session
-            if self.current_session_id:
-                self.end_user_session()
-
-            # Clear request-specific data
-            self.current_request_id = None
-            self.start_time = None
-            self.step_timings.clear()
-
-            logger.debug("🧹 Session cleanup completed")
-
-        except Exception as e:
-            logger.error(f" Session cleanup failed: {e}")
-
-    def __enter__(self):
-        """Context manager entry."""
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit with cleanup."""
-        self.cleanup_session()
-
-        # Close unified search session if it exists
-        if hasattr(self, 'unified_search_system') and self.unified_search_system:
-            if hasattr(self.unified_search_system, 'close_session'):
-                try:
-                    self.unified_search_system.close_session()
-                except Exception as e:
-                    logger.error(f" Failed to close unified search session: {e}")
-
-    def get_tracking_info(self) -> Dict[str, Any]:
-        """Get current tracking system information."""
-        return {
-            'tracking_enabled': self.tracked_search is not None,
-            'current_user': self.current_user_id,
-            'current_session': self.current_session_id,
-            'current_request': self.current_request_id,
-            'system_health': self._get_system_health_status(),
-            'capabilities': {
-                'unified_search': hasattr(self, 'unified_search_system'),
-                'vector_search': self.vector_search_client is not None,
-                'search_analytics': self.tracked_search is not None,
-                'intent_analysis': hasattr(self, 'unified_search_system'),
-                'result_tracking': self.tracked_search is not None
-            }
-        }
-
-    def begin_request(self, request_id=None):
-        """
-        Start timing a new request.
-
-        Args:
-            request_id: Optional request ID for tracking (backwards compatible)
-        """
-        self.start_time = time.time()
-
-        # Store request_id if provided (for enhanced performance tracking)
-        if request_id:
-            self.current_request_id = request_id
-            logger.debug(f"Request {request_id} started with performance tracking")
-        else:
-            self.current_request_id = None
-
-    def track_performance_step(self, step_name, duration, metadata=None):
-        """
-        Track performance for individual steps in the question answering process.
-
-        Args:
-            step_name: Name of the step (e.g., 'keyword_search', 'ai_response')
-            duration: Time taken for the step in seconds
-            metadata: Additional metadata about the step
-        """
-        if not hasattr(self, 'step_timings'):
-            self.step_timings = {}
-
-        self.step_timings[step_name] = {
-            'duration': duration,
-            'timestamp': datetime.now().isoformat(),
-            'metadata': metadata or {}
-        }
-
-        # Check against thresholds and log warnings
-        threshold = self.performance_thresholds.get(step_name, 1.0)
-        if duration > threshold:
-            logger.warning(f"Step '{step_name}' exceeded threshold ({duration:.3f}s > {threshold}s) "
-                           f"for request {self.current_request_id}")
-
-        logger.debug(f"Step '{step_name}' completed in {duration:.3f}s for request {self.current_request_id}")
-
-    def get_performance_summary(self):
-        """Get a summary of current request performance."""
-        if not hasattr(self, 'start_time') or not self.start_time:
-            return {}
-
-        total_time = time.time() - self.start_time
-
-        return {
-            'total_time': total_time,
-            'start_time': self.start_time,
-            'performance_score': self._calculate_performance_score(total_time),
-            'request_id': getattr(self, 'current_request_id', None)
-        }
-
-    def _calculate_performance_score(self, total_time):
-        """Calculate a performance score (1-10, higher is better)."""
-        if total_time < 1.0:
-            return 10
-        elif total_time < 2.0:
-            return 8
-        elif total_time < 3.0:
-            return 6
-        elif total_time < 5.0:
-            return 4
-        elif total_time < 10.0:
-            return 2
-        else:
-            return 1
-
-    def record_request_performance(self, user_id, question, result_status, method_used):
-        """Record performance data for analysis and optimization."""
-        if not hasattr(self, 'performance_history'):
-            self.performance_history = []
-
-        performance_record = {
-            'timestamp': datetime.now().isoformat(),
-            'request_id': self.current_request_id,
-            'user_id': user_id,
-            'question_length': len(question),
-            'result_status': result_status,
-            'method_used': method_used,
-            'performance_summary': self.get_performance_summary()
-        }
-
-        # Keep only last 1000 records to prevent memory issues
-        self.performance_history.append(performance_record)
-        if len(self.performance_history) > 1000:
-            self.performance_history.pop(0)
-
-    def get_performance_analytics(self, hours=24):
-        """Get performance analytics for the specified time period."""
-        if not hasattr(self, 'performance_history'):
-            return {}
-
-        cutoff_time = datetime.now() - timedelta(hours=hours)
-
-        # Filter recent records
-        recent_records = [
-            record for record in self.performance_history
-            if datetime.fromisoformat(record['timestamp']) > cutoff_time
-        ]
-
-        if not recent_records:
-            return {'message': 'No performance data available for the specified period'}
-
-        # Calculate analytics
-        total_requests = len(recent_records)
-        method_stats = defaultdict(lambda: {'count': 0, 'total_time': 0, 'avg_time': 0})
-        step_stats = defaultdict(lambda: {'count': 0, 'total_time': 0, 'avg_time': 0})
-
-        for record in recent_records:
-            method = record.get('method_used', 'unknown')
-            method_stats[method]['count'] += 1
-
-            perf_summary = record.get('performance_summary', {})
-            total_time = perf_summary.get('total_time', 0)
-            method_stats[method]['total_time'] += total_time
-
-            # Analyze step performance
-            steps = perf_summary.get('steps', {})
-            for step_name, step_data in steps.items():
-                step_duration = step_data.get('duration', 0)
-                step_stats[step_name]['count'] += 1
-                step_stats[step_name]['total_time'] += step_duration
-
-        # Calculate averages
-        for method_data in method_stats.values():
-            if method_data['count'] > 0:
-                method_data['avg_time'] = method_data['total_time'] / method_data['count']
-
-        for step_data in step_stats.values():
-            if step_data['count'] > 0:
-                step_data['avg_time'] = step_data['total_time'] / step_data['count']
-
-        # Calculate overall metrics
-        total_time_all = sum(record.get('performance_summary', {}).get('total_time', 0) for record in recent_records)
-        avg_response_time = total_time_all / total_requests if total_requests > 0 else 0
-
-        # Performance distribution
-        performance_scores = [
-            record.get('performance_summary', {}).get('performance_score', 0)
-            for record in recent_records
-        ]
-
-        analytics = {
-            'period_hours': hours,
-            'total_requests': total_requests,
-            'avg_response_time': round(avg_response_time, 3),
-            'avg_performance_score': round(sum(performance_scores) / len(performance_scores),
-                                           2) if performance_scores else 0,
-            'method_performance': dict(method_stats),
-            'step_performance': dict(step_stats),
-            'performance_distribution': {
-                'excellent': len([s for s in performance_scores if s >= 8]),
-                'good': len([s for s in performance_scores if 6 <= s < 8]),
-                'average': len([s for s in performance_scores if 4 <= s < 6]),
-                'poor': len([s for s in performance_scores if 2 <= s < 4]),
-                'very_poor': len([s for s in performance_scores if s < 2])
-            },
-            'slowest_requests': sorted(
-                [
-                    {
-                        'request_id': r.get('request_id'),
-                        'total_time': r.get('performance_summary', {}).get('total_time', 0),
-                        'method': r.get('method_used'),
-                        'question_length': r.get('question_length', 0)
-                    }
-                    for r in recent_records
-                ],
-                key=lambda x: x['total_time'],
-                reverse=True
-            )[:10]
-        }
-
-        return analytics
-
-    def get_response_time(self):
-        """Calculate the response time so far."""
-        if self.start_time:
-            return time.time() - self.start_time
-        return 0
-
-    @with_request_id
-    def find_most_relevant_document(self, question, session=None, request_id=None):
-        """
-        Find the most relevant document with Windows-compatible timeout.
-        FIXED: Removed Unix-only signal.SIGALRM usage.
-        """
-        search_start = time.time()
-        logger.debug(f"Finding most relevant document for question: {question[:50]}...")
-
-        # Use the provided session or the class's session
-        local_session = None
-        if not session:
-            if self.db_session:
-                session = self.db_session
-            else:
-                local_session = self.db_config.get_main_session()
-                session = local_session
-
-        try:
-            # Get embedding model information
-            embedding_model_name = ModelsConfig.get_config_value('embedding', 'CURRENT_MODEL', 'NoEmbeddingModel')
-
-            # Check if embeddings are disabled
-            if embedding_model_name == "NoEmbeddingModel":
-                logger.info("Embeddings are disabled. Returning None for document search.")
-                return None
-
-            # FIXED: Use Windows-compatible timeout instead of signal.SIGALRM
-            def search_operation():
-                # Use the vector search client with timeout protection
-                if hasattr(self, 'vector_search_client') and self.vector_search_client:
-                    # Use optimized vector search
-                    vector_results = self.vector_search_client.search(
-                        question,
-                        limit=1
-                    )
-
-                    if vector_results:
-                        best_result = vector_results[0]
-                        doc_id = best_result['id']
-                        similarity = best_result['similarity']
-
-                        # Fetch the full document
-                        document = session.query(Document).get(doc_id)
-                        if document:
-                            search_time = time.time() - search_start
-                            logger.info(
-                                f"Found most relevant document (ID: {doc_id}, similarity: {similarity:.4f}) in {search_time:.3f}s")
-                            return document
-
-                # Fallback: try simple recent document search
-                logger.debug("Using fallback document search")
-                recent_docs = session.query(Document).limit(5).all()
-                if recent_docs:
-                    search_time = time.time() - search_start
-                    logger.info(f"Fallback: returning recent document in {search_time:.3f}s")
-                    return recent_docs[0]
-
-                return None
-
-            # Execute with 3-second timeout
-            result, error = self._execute_with_timeout(search_operation, 3.0)
-
-            if error:
-                search_time = time.time() - search_start
-                logger.warning(f"Document search timed out after {search_time:.3f}s for request {request_id}")
-                return None
-
-            return result
-
-        except Exception as e:
-            search_time = time.time() - search_start
-            logger.error(f"Error in document search after {search_time:.3f}s: {e}", exc_info=True)
-            return None
-        finally:
-            if local_session:
-                local_session.close()
-
-    @with_request_id
-    def answer_question(self, user_id, question, client_type='web', request_id=None):
-        """Simplified answer_question with basic tracking."""
-        self.start_time = time.time()
-        self.current_request_id = request_id or get_request_id()
-
-        logger.info(f"Processing question: {question}")
-
-        try:
-            # Check if tracking is available
-            has_tracking = (self.query_tracker is not None and
-                            self.tracked_search is not None and
-                            hasattr(self.tracked_search, 'execute_unified_search_with_tracking'))
-
-            # Execute search
-            if has_tracking:
-                logger.info(" Using TRACKED search")
-
-                # Initialize user session if needed
-                if not self.current_session_id:
-                    try:
-                        self.set_current_user(user_id or "anonymous", {'client_type': client_type})
-                    except Exception as e:
-                        logger.warning(f"Failed to set user session: {e}")
-
-                result = self.tracked_search.execute_unified_search_with_tracking(
-                    question=question,
-                    user_id=user_id or "anonymous",
-                    request_id=self.current_request_id
-                )
-            else:
-                logger.info(" Using UNTRACKED search")
-                result = self.execute_unified_search(question, user_id, self.current_request_id)
-
-            # Format response
-            if result.get('status') == 'success':
-                answer = self.format_search_results(result)
-            else:
-                answer = result.get('message', 'Search failed')
-
-            # Record interaction
-            try:
-                interaction = self.record_interaction(user_id or "anonymous", question, answer)
-                if interaction:
-                    logger.info(f"Recorded interaction: {interaction.id}")
-            except Exception as e:
-                logger.warning(f"Failed to record interaction: {e}")
-
-            return {
-                'status': result.get('status', 'success'),
-                'answer': answer,
-                'method': result.get('search_method', 'unified_search'),
-                'total_results': result.get('total_results', 0),
-                'tracking_info': result.get('tracking_info', {}),
-                'request_id': self.current_request_id
-            }
-
-        except Exception as e:
-            logger.error(f"Error in answer_question: {e}", exc_info=True)
-            error_msg = f"I encountered an error: {str(e)}"
-
-            return {
-                'status': 'error',
-                'answer': error_msg,
-                'message': str(e),
-                'method': 'error_fallback',
-                'total_results': 0,
-                'request_id': self.current_request_id
-            }
-
-    def get_or_create_aist_manager():
-        """
-        FIXED: Get or create a global AistManager instance WITH database session for tracking.
-        This allows tracking to work properly by providing the database session during initialization.
-        """
-        global global_aist_manager
-
-        if global_aist_manager is None:
-            try:
-                logger.info("🔧 Creating AistManager with tracking support...")
-
-                # CRITICAL FIX: Get database session for tracking
-                db_config = DatabaseConfig()
-                db_session = db_config.get_session()
-
-                if not db_session:
-                    logger.error(" Could not get database session")
-                    # Create without session as fallback
-                    global_aist_manager = AistManager()
-                else:
-                    logger.info(" Database session obtained")
-
-                    # Load AI model using ModelsConfig
-                    ai_model = ModelsConfig.load_ai_model()
-
-                    # FIXED: Create AistManager with database session
-                    global_aist_manager = AistManager(
-                        ai_model=ai_model,
-                        db_session=db_session  # CRITICAL: Pass database session during initialization
-                    )
-
-                logger.info(" Global AistManager created successfully")
-
-                # Test tracking initialization
-                if hasattr(global_aist_manager, 'check_tracking_status'):
-                    tracking_status = global_aist_manager.check_tracking_status()
-                    if tracking_status.get('tracking_enabled', False):
-                        logger.info(" Search tracking is fully operational")
-                    else:
-                        logger.warning(" Search tracking is not operational")
-                        logger.info(f" Tracking status: {tracking_status}")
-                else:
-                    logger.warning(" No tracking status check method available")
-
-            except Exception as e:
-                logger.error(f" Failed to create AistManager with tracking: {e}")
-                # Fallback without session
-                try:
-                    ai_model = ModelsConfig.load_ai_model()
-                    global_aist_manager = AistManager(ai_model=ai_model)
-                    logger.info(" Created fallback AistManager without tracking")
-                except Exception as fallback_error:
-                    logger.error(f" Fallback AistManager creation failed: {fallback_error}")
-                    global_aist_manager = AistManager()
-
-        return global_aist_manager
-
-    @with_request_id
-    def debug_search_results_structure(self, result):
-        """
-        Debug method to understand the exact structure of search results.
-        Add this temporarily to see what's being returned.
-        """
-        logger.info("=== DEBUGGING SEARCH RESULTS STRUCTURE ===")
-        logger.info(f"Result type: {type(result)}")
-
-        if isinstance(result, dict):
-            logger.info(f"Result keys: {list(result.keys())}")
-
-            for key, value in result.items():
-                logger.info(f"Key '{key}': type={type(value)}")
-
-                if isinstance(value, list) and value:
-                    logger.info(f"  List contains {len(value)} items")
-                    if value:
-                        logger.info(f"  First item type: {type(value[0])}")
-                        if isinstance(value[0], dict):
-                            logger.info(f"  First item keys: {list(value[0].keys())}")
-                            # Log first few items for parts
-                            for i, item in enumerate(value[:3]):
-                                if 'part_number' in item:
-                                    logger.info(f"  Item {i}: {item.get('part_number')} - {item.get('name')}")
-
-                elif isinstance(value, dict) and value:
-                    logger.info(f"  Dict keys: {list(value.keys())}")
-
-                elif isinstance(value, (str, int, float, bool)):
-                    logger.info(f"  Value: {value}")
-
-        logger.info("=== END DEBUG ===")
-
-    # ================================================================
-    # NEW SYNONYM-ENHANCED SEARCH METHOD
-    # Add this method to your AistManager class
-    # ================================================================
-
-    def _execute_unified_search_with_synonyms(self, question: str, user_id: str, request_id: str, session) -> Dict[
-        str, Any]:
-        """
-        Execute unified search with synonym expansion using the database we created.
-        This method tries multiple query variations using your synonym database.
-        """
-        import re
-
-        logger.info(f"Executing synonym-enhanced search for: {question}")
-
-        try:
-            # Step 1: Extract key terms from the query (remove search words)
-            stop_words = {'search', 'find', 'show', 'get', 'locate', 'display', 'for', 'the', 'a', 'an', 'with'}
-            words = re.findall(r'\b\w+\b', question.lower())
-            key_terms = [word for word in words if word not in stop_words and len(word) > 2]
-
-            logger.debug(f"Key terms extracted: {key_terms}")
-
-            # Step 2: Get synonyms for each key term
-            expanded_terms = {}
-            for term in key_terms:
-                synonyms = self._get_synonyms_for_term(term)
-                if synonyms:
-                    expanded_terms[term] = synonyms
-                    logger.debug(f"Found synonyms for '{term}': {synonyms}")
-
-            # Step 3: Create enhanced query variations
-            enhanced_queries = self._create_enhanced_queries(question, expanded_terms)
-            logger.info(f"Created {len(enhanced_queries)} query variations: {enhanced_queries}")
-
-            # Step 4: Try each query variation
-            best_result = None
-            best_score = 0
-
-            for i, query_variant in enumerate(enhanced_queries):
-                logger.debug(f"Trying query variation {i + 1}/{len(enhanced_queries)}: {query_variant}")
-
-                try:
-                    # Use your existing unified search system
-                    result = self.execute_unified_search(query_variant, user_id, request_id)
-
-                    if result and result.get('status') == 'success':
-                        result_score = result.get('total_results', 0)
-                        logger.debug(f"Query '{query_variant}' found {result_score} results")
-
-                        if result_score > best_score:
-                            best_score = result_score
-                            best_result = result
-                            best_result['matched_query'] = query_variant
-                            best_result['synonym_enhanced'] = query_variant != question
-                            best_result['expanded_terms'] = expanded_terms
-
-                            # If we found good results, we can stop
-                            if result_score >= 5:  # Good enough threshold
-                                logger.info(
-                                    f"Found sufficient results ({result_score}) with query: {query_variant}")
-                                break
-
-                except Exception as e:
-                    logger.warning(f"Search failed for query variant '{query_variant}': {e}")
-                    continue
-
-            # Step 5: Return the best result
-            if best_result and best_score > 0:
-                logger.info(
-                    f"Synonym search successful: {best_score} results with query '{best_result.get('matched_query')}'")
-                return best_result
-            else:
-                logger.warning("No results found even with synonym expansion")
-                return {
-                    'status': 'no_results',
-                    'message': f"No results found for '{question}' even with synonym variations",
-                    'total_results': 0,
-                    'expanded_terms': expanded_terms,
-                    'tried_queries': enhanced_queries
-                }
-
-        except Exception as e:
-            logger.error(f"Error in synonym-enhanced search: {e}", exc_info=True)
-            return {
-                'status': 'error',
-                'message': f"Synonym search failed: {str(e)}",
-                'total_results': 0
-            }
-
-    def _get_synonyms_for_term(self, term: str) -> List[str]:
-        """
-        Get synonyms for a term with proper SQL and rollback handling.
-        """
-        try:
-            if hasattr(self, 'db_session') and self.db_session.in_transaction():
-                self.db_session.rollback()
-                logger.debug("Rolled back transaction for synonym lookup")
-
-            sql_query = text("""
-                SELECT es.canonical_value, es.synonym_value, es.confidence_score
-                FROM entity_synonym es
-                JOIN entity_type et ON es.entity_type_id = et.id
-                WHERE (
-                    LOWER(es.canonical_value) LIKE :term OR 
-                    LOWER(es.synonym_value) LIKE :term
-                )
-                AND et.name = 'EQUIPMENT_TYPE'
-                AND es.confidence_score > 0.5
-                ORDER BY es.confidence_score DESC
-                LIMIT 10
-            """)
-
-            result = self.session.execute(sql_query, {'term': f'%{term.lower()}%'})
-
-            related_terms = set()
-            for row in result:
-                canonical = row[0].lower() if row[0] else ''
-                synonym = row[1].lower() if row[1] else ''
-
-                if canonical and canonical != term.lower():
-                    related_terms.add(canonical)
-                if synonym and synonym != term.lower():
-                    related_terms.add(synonym)
-
-            synonyms_list = list(related_terms)[:5]
-            logger.debug(f"Synonyms for '{term}': {synonyms_list if synonyms_list else 'none'}")
-
-            return synonyms_list
-
-        except Exception as e:
-            logger.warning(f"Database synonym lookup failed for '{term}': {e}")
-            try:
-                if hasattr(self, 'session'):
-                    self.session.rollback()
-            except Exception as rollback_error:
-                logger.warning(f"Failed to rollback after synonym error: {rollback_error}")
-
-            return self._get_synonyms_fallback(term)
-
-    def _get_synonyms_fallback(self, term: str) -> List[str]:
-        """
-        Fallback method when database lookup fails.
-        Add this method if it doesn't exist already.
-        """
-        logger.debug(f"Using fallback synonyms for '{term}'")
-
-        # Enhanced fallback synonyms
-        fallback_synonyms = {
-            'sensor': ['sensors', 'temperature sensor', 'pressure sensor', 'level sensor'],
-            'sensors': ['sensor', 'temperature sensor', 'pressure sensor', 'level sensor'],
-            'banner': ['banner engineering', 'banner corp', 'banner sensors'],
-            'valve': ['valves', 'control valve', 'ball valve', 'gate valve'],
-            'bearing': ['bearings', 'ball bearing', 'roller bearing'],
-            'switch': ['switches', 'limit switch', 'pressure switch'],
-            'motor': ['motors', 'electric motor', 'ac motor'],
-            'pump': ['pumps', 'centrifugal pump', 'hydraulic pump'],
-            'cable': ['cables', 'power cable', 'control cable'],
-            'seal': ['seals', 'oil seal', 'shaft seal'],
-            'belt': ['belts', 'drive belt', 'v-belt'],
-        }
-
-        term_lower = term.lower()
-
-        # Exact match
-        if term_lower in fallback_synonyms:
-            synonyms = fallback_synonyms[term_lower][:4]
-            logger.debug(f"Fallback exact match for '{term}': {synonyms}")
-            return synonyms
-
-        # Partial match
-        for key, values in fallback_synonyms.items():
-            if key in term_lower or term_lower in key:
-                synonyms = values[:3]
-                logger.debug(f"Fallback partial match for '{term}' (matched '{key}'): {synonyms}")
-                return synonyms
-
-        logger.debug(f"No fallback synonyms found for '{term}'")
-        return []
-
-    # Alternative Method 2: Using SQLAlchemy Core (if Method 1 doesn't work)
-    def _get_synonyms_for_term_alternative(self, term: str, session) -> List[str]:
-        """Alternative method using SQLAlchemy Core"""
-        try:
-            from sqlalchemy import MetaData, Table, select, and_, or_
-
-            # Reflect the tables
-            metadata = MetaData()
-            entity_synonym = Table('entity_synonym', metadata, autoload_with=session.bind)
-            entity_type = Table('entity_type', metadata, autoload_with=session.bind)
-
-            # Build the query
-            query = select(
-                entity_synonym.c.canonical_value,
-                entity_synonym.c.synonym_value
-            ).select_from(
-                entity_synonym.join(entity_type, entity_synonym.c.entity_type_id == entity_type.c.id)
-            ).where(
-                and_(
-                    or_(
-                        entity_synonym.c.canonical_value.ilike(f'%{term}%'),
-                        entity_synonym.c.synonym_value.ilike(f'%{term}%')
-                    ),
-                    entity_type.c.name == 'EQUIPMENT_TYPE'
-                )
-            ).limit(10)
-
-            result = session.execute(query)
-
-            # Collect related terms
-            related_terms = set()
-            for row in result:
-                canonical = row[0].lower() if row[0] else ''
-                synonym = row[1].lower() if row[1] else ''
-
-                if canonical and canonical != term.lower():
-                    related_terms.add(canonical)
-                if synonym and synonym != term.lower():
-                    related_terms.add(synonym)
-
-            return list(related_terms)[:5]
-
-        except Exception as e:
-            logger.warning(f"Alternative synonym lookup failed for {term}: {e}")
-            return []
-
-    # Method 3: Simple fallback using basic synonyms (if database fails)
-    def _get_synonyms_for_term_fallback(self, term: str, session) -> List[str]:
-        """Fallback method with hardcoded synonyms based on your data"""
-
-        # Based on your synonym database we created
-        fallback_synonyms = {
-            'valve': ['valves', 'control valve', 'ball valve', 'gate valve', 'check valve', 'relief valve'],
-            'bearing': ['bearings', 'ball bearing', 'roller bearing', 'thrust bearing', 'bearing assembly'],
-            'switch': ['switches', 'limit switch', 'pressure switch', 'temperature switch', 'safety switch'],
-            'motor': ['motors', 'electric motor', 'ac motor', 'dc motor', 'servo motor'],
-            'belt': ['belts', 'drive belt', 'v-belt', 'timing belt', 'serpentine belt'],
-            'cable': ['cables', 'power cable', 'control cable', 'data cable'],
-            'sensor': ['sensors', 'temperature sensor', 'pressure sensor', 'level sensor'],
-            'seal': ['seals', 'oil seal', 'shaft seal', 'hydraulic seal'],
-            'relay': ['relays', 'control relay', 'time relay', 'power relay'],
-            'pump': ['pumps', 'centrifugal pump', 'hydraulic pump', 'water pump'],
-            'spring': ['springs', 'compression spring', 'extension spring'],
-            'filter': ['filters', 'air filter', 'oil filter', 'hydraulic filter'],
-            'gear': ['gears', 'spur gear', 'bevel gear'],
-            'tube': ['tubes', 'hydraulic tube'],
-            'hose': ['hoses', 'hydraulic hose', 'air hose'],
-            'wire': ['wires', 'electrical wire'],
-            'fan': ['fans', 'cooling fan', 'exhaust fan'],
-
-            # Additional search action synonyms
-            'find': ['search', 'locate', 'get', 'show', 'display'],
-            'part': ['component', 'spare', 'item', 'piece'],
-            'image': ['picture', 'photo', 'pic', 'diagram']
-        }
-
-        # Look for exact matches or partial matches
-        synonyms = []
-        term_lower = term.lower()
-
-        # Exact match
-        if term_lower in fallback_synonyms:
-            synonyms = fallback_synonyms[term_lower][:4]  # Top 4 synonyms
-            logger.debug(f"Fallback synonyms for '{term}': {synonyms}")
-
-        # Partial match (for compound terms like "ball valve")
-        if not synonyms:
-            for key, values in fallback_synonyms.items():
-                if key in term_lower or term_lower in key:
-                    synonyms = values[:3]  # Top 3 for partial matches
-                    logger.debug(f"Partial fallback synonyms for '{term}' (matched '{key}'): {synonyms}")
-                    break
-
-        return synonyms
-
-    def _create_enhanced_queries(self, original_query: str, expanded_terms: Dict[str, List[str]]) -> List[str]:
-        """Create query variations using synonyms"""
-        queries = [original_query]
-
-        # For each term with synonyms, create variations
-        for original_term, synonyms in expanded_terms.items():
-            if not synonyms:
-                continue
-
-            # Try replacing with the best synonyms
-            for synonym in synonyms[:3]:  # Top 3 synonyms per term
-                enhanced_query = original_query.replace(original_term, synonym)
-                if enhanced_query != original_query and enhanced_query not in queries:
-                    queries.append(enhanced_query)
-
-        # Create combination queries (be careful not to create too many)
-        if len(expanded_terms) >= 2:
-            # Try one combination with the first synonym of each term
-            combined_query = original_query
-            for original_term, synonyms in list(expanded_terms.items())[:2]:
-                if synonyms:
-                    combined_query = combined_query.replace(original_term, synonyms[0])
-
-            if combined_query != original_query and combined_query not in queries:
-                queries.append(combined_query)
-
-        return queries[:6]  # Limit to 6 total queries to avoid performance issues
-
-    def _format_unified_search_response(self, search_result: Dict[str, Any], client_type: str = None) -> str:
-        """
-        Format unified search results into a response string.
-        Different formatting for different client types (web, mobile, etc.)
-        """
-        if client_type == 'json':
-            # Return raw JSON for API clients
-            import json
-            return json.dumps(search_result, indent=2)
-
-        # Create a natural language response with structured data
-        summary = search_result.get('summary', 'Found search results')
-        results_by_type = search_result.get('results_by_type', {})
-
-        response_parts = [summary, "\n"]
-
-        # Format each result type
-        for result_type, results in results_by_type.items():
-            if not results:
-                continue
-
-            type_title = result_type.title().replace('_', ' ')
-            response_parts.append(f"\n**{type_title}:**")
-
-            for i, result in enumerate(results[:5], 1):  # Limit to 5 per type
-                if result_type == 'images':
-                    title = result.get('title', f'Image {i}')
-                    desc = result.get('description', '')
-                    desc_part = f" - {desc}" if desc else ""
-                    response_parts.append(f"{i}. {title}{desc_part}")
-                    if result.get('full_url'):
-                        response_parts.append(f"   🖼 [View Image]({result['full_url']})")
-
-                elif result_type == 'documents':
-                    title = result.get('title', f'Document {i}')
-                    preview = result.get('preview', '')
-                    response_parts.append(f"{i}. {title}")
-                    if preview:
-                        response_parts.append(f"   📄 {preview}")
-                    if result.get('url'):
-                        response_parts.append(f"   [Open Document]({result['url']})")
-
-                elif result_type == 'parts':
-                    part_number = result.get('part_number', 'Unknown')
-                    name = result.get('name', 'Unknown Part')
-                    manufacturer = result.get('manufacturer', '')
-                    mfg_part = f" ({manufacturer})" if manufacturer else ""
-                    response_parts.append(f"{i}. Part {part_number}: {name}{mfg_part}")
-
-                    # Add usage locations
-                    locations = result.get('usage_locations', [])
-                    if locations:
-                        loc_str = ', '.join(locations[:3])
-                        response_parts.append(f"   📍 Used in: {loc_str}")
-
-                    # Add related images count
-                    img_count = len(result.get('related_images', []))
-                    if img_count > 0:
-                        response_parts.append(f"   🖼 {img_count} related image{'s' if img_count > 1 else ''}")
-
-
-                elif result_type == 'positions':
-
-                    # FIX: Handle None location properly
-
-                    location = result.get('location', {})
-
-                    if not location or not isinstance(location, dict):
-                        location = {}
-
-                    area = location.get('area', 'Unknown Area')
-
-                    equipment = location.get('equipment_group', '')
-
-                    eq_part = f" - {equipment}" if equipment else ""
-
-                    response_parts.append(f"{i}. {area}{eq_part}")
-
-                    # FIX: Handle None contents properly
-
-                    contents = result.get('contents', {})
-
-                    if not contents or not isinstance(contents, dict):
-                        contents = {}
-
-                    part_count = contents.get('part_count', 0)
-
-                    img_count = contents.get('image_count', 0)
-
-                    if part_count > 0 or img_count > 0:
-
-                        content_info = []
-
-                        if part_count > 0:
-                            content_info.append(f"{part_count} part{'s' if part_count > 1 else ''}")
-
-                        if img_count > 0:
-                            content_info.append(f"{img_count} image{'s' if img_count > 1 else ''}")
-
-                        response_parts.append(f"   📦 Contains: {', '.join(content_info)}")
-
-                elif result_type == 'drawings':
-                    number = result.get('number', 'Unknown')
-                    name = result.get('name', 'Unknown Drawing')
-                    revision = result.get('revision', '')
-                    rev_part = f" (Rev. {revision})" if revision else ""
-                    response_parts.append(f"{i}. Drawing {number}: {name}{rev_part}")
-                    if result.get('view_url'):
-                        response_parts.append(f"   📐 [View Drawing]({result['view_url']})")
-
-                elif result_type == 'equipment':
-                    name = result.get('name', f'Equipment {i}')
-                    eq_type = result.get('equipment_type', '')
-                    location = result.get('location', '')
-                    status = result.get('status', '')
-
-                    type_part = f" ({eq_type})" if eq_type else ""
-                    response_parts.append(f"{i}. {name}{type_part}")
-
-                    details = []
-                    if location:
-                        details.append(f"Location: {location}")
-                    if status:
-                        details.append(f"Status: {status}")
-
-                    if details:
-                        response_parts.append(f"    {', '.join(details)}")
-
-                elif result_type == 'procedures':
-                    name = result.get('name', f'Procedure {i}')
-                    difficulty = result.get('difficulty', '')
-                    est_time = result.get('estimated_time', '')
-
-                    response_parts.append(f"{i}. {name}")
-
-                    proc_details = []
-                    if difficulty:
-                        proc_details.append(f"Difficulty: {difficulty}")
-                    if est_time:
-                        proc_details.append(f"Time: {est_time}")
-
-                    if proc_details:
-                        response_parts.append(f"   🔧 {', '.join(proc_details)}")
-
-                else:
-                    # Generic formatting for other types
-                    title = result.get('title') or result.get('name') or f'Item {i}'
-                    response_parts.append(f"{i}. {title}")
-
-        # Add quick actions if available
-        quick_actions = search_result.get('quick_actions', [])
-        if quick_actions:
-            response_parts.append("\n**Quick Actions:**")
-            for action in quick_actions:
-                label = action.get('label', 'Action')
-                url = action.get('url', '#')
-                response_parts.append(f"• [🔗 {label}]({url})")
-
-        # Add related searches
-        related_searches = search_result.get('related_searches', [])
-        if related_searches:
-            response_parts.append("\n**Related Searches:**")
-            for suggestion in related_searches[:3]:  # Limit to 3
-                response_parts.append(f"• {suggestion}")
-
-        # Add search performance info for debug clients
-        if client_type == 'debug':
-            search_time = search_result.get('search_time_ms', 0)
-            confidence = search_result.get('confidence_score', 0)
-            method = search_result.get('search_method', 'unknown')
-            response_parts.append(
-                f"\n*Search completed in {search_time}ms using {method} (confidence: {confidence:.2f})*")
-
-        # Filter out None values before joining
-        response_parts = [part for part in response_parts if part is not None]
-        if response_parts:
-            return "\n".join(response_parts)
-        else:
-            return "Search completed successfully but no formatted response was generated."
+    # ===== SEARCH EXECUTION METHODS =====
 
     @with_request_id
     def try_keyword_search(self, question):
         """Try to answer using keyword search with improved error handling."""
         logger.debug('Attempting keyword search')
         local_session = None
-        try:
-            # Use the provided session or get a new one from DatabaseConfig
-            if not self.db_session:
-                local_session = self.db_config.get_main_session()
-                session = local_session
-            else:
-                session = self.db_session
 
-            # Use KeywordAction to find the best match with error handling
+        try:
+            session = self.db_session or self.db_config.get_main_session()
+            if not self.db_session:
+                local_session = session
+
             try:
                 keyword, action, details = KeywordAction.find_best_match(question, session)
             except Exception as keyword_error:
                 logger.error(f"KeywordAction.find_best_match failed: {keyword_error}")
-                # Continue with search instead of failing completely
                 keyword, action, details = None, None, None
 
             if keyword and action:
                 logger.info(f"Found matching keyword: {keyword} with action: {action}")
-
-                # Execute the appropriate action based on the keyword match
                 try:
-                    result = self.execute_keyword_action(keyword, action, details, question)
+                    result = self._execute_keyword_action(keyword, action, details, question)
                 except Exception as action_error:
                     logger.error(f"execute_keyword_action failed: {action_error}")
-                    # Fallback to simple search
-                    result = self.perform_advanced_keyword_search(question)
+                    result = self._perform_advanced_keyword_search(question)
 
                 if result:
-                    # Format the response
-                    if isinstance(result, dict):
-                        entity_type = result.get('entity_type', 'generic')
-                        results = result.get('results', [])
-                    else:
-                        entity_type = 'generic'
-                        results = []
+                    entity_type = result.get('entity_type', 'generic')
+                    results = result.get('results', [])
 
-                    # Format based on entity type and results
                     if results:
-                        answer = self.format_entity_results(results, entity_type)
+                        answer = self._format_entity_results(results, entity_type)
                         logger.info(f"Found {len(results)} {entity_type} results via keyword search")
                     else:
                         answer = action if isinstance(action, str) else "Action executed successfully."
@@ -1893,362 +1033,35 @@ class AistManager(UnifiedSearchMixin):
 
             logger.debug("Keyword search found no matching keywords or actions")
             return {'success': False}
+
         except Exception as e:
             logger.error(f"Error in keyword search: {e}", exc_info=True)
             return {'success': False, 'error': str(e)}
         finally:
-            # Only close the session if we created it locally
             if local_session:
                 local_session.close()
-                logger.debug("Closed local database session")
-
-    def execute_keyword_action(self, keyword, action, details, original_question):
-        """Execute the appropriate action based on the keyword match."""
-        logger.debug(f"Executing action for keyword '{keyword}': {action}")
-
-        try:
-            # Simple case - action is a direct response
-            if action.startswith("RESPOND:"):
-                response_text = action[8:].strip()  # Remove "RESPOND:" prefix
-                return {"entity_type": "response", "results": [{"text": response_text}]}
-
-            # Search case - action triggers a search
-            elif action.startswith("SEARCH:"):
-                search_type = action[7:].strip()  # Remove "SEARCH:" prefix
-                if search_type == "KEYWORD":
-                    return {"entity_type": "search",
-                            "results": self.perform_advanced_keyword_search(original_question)}
-                elif search_type == "FTS":
-                    # Use the CompleteDocument class method directly
-                    local_session = None
-                    try:
-                        if not self.db_session:
-                            local_session = self.db_config.get_main_session()
-                            session = local_session
-                        else:
-                            session = self.db_session
-
-                        # Call the search_by_text method from CompleteDocument
-                        fts_results = CompleteDocument.search_by_text(
-                            original_question,
-                            session=session,
-                            similarity_threshold=70,  # Lower threshold for better recall
-                            with_links=False  # Get document objects instead of HTML
-                        )
-
-                        # Format the results to match our expected structure
-                        return {"entity_type": "document", "results": self.format_fts_results(fts_results)}
-                    finally:
-                        if local_session:
-                            local_session.close()
-
-            # Database lookup case
-            elif action.startswith("DB_LOOKUP:"):
-                entity_type = action[10:].strip()  # Remove "DB_LOOKUP:" prefix
-                return self.perform_db_lookup(entity_type, details, original_question)
-
-            # Function call case
-            elif action.startswith("FUNCTION:"):
-                function_name = action[9:].strip()  # Remove "FUNCTION:" prefix
-                return self.execute_function(function_name, details, original_question)
-
-            # Default case - return the action as a direct response
-            else:
-                return {"entity_type": "response", "results": [{"text": action}]}
-
-        except Exception as e:
-            logger.error(f"Error executing keyword action: {e}", exc_info=True)
-            return None
-
-    def _detect_entity_type(self, query):
-        """
-        Detect the entity type from a query when no keyword match is found.
-
-        Args:
-            query: User's search query text
-
-        Returns:
-            String with the detected entity type or None
-        """
-        # Simple rule-based entity detection
-        query_lower = query.lower()
-
-        entity_patterns = {
-            "image": ["image", "picture", "photo", "photograph"],
-            "document": ["document", "doc", "manual", "guide", "instruction"],
-            "part": ["part", "component", "spare", "replacement"],
-            "tool": ["tool", "equipment", "device", "instrument"],
-            "position": ["position", "location", "area", "equipment group", "model"],
-            "problem": ["problem", "issue", "fault", "error", "trouble"],
-            "task": ["task", "job", "procedure", "operation"]
-        }
-
-        # Check each pattern
-        for entity_type, patterns in entity_patterns.items():
-            for pattern in patterns:
-                if pattern in query_lower:
-                    return entity_type
-
-        # Default to image if we can't determine
-        return None
-
-    def _extract_search_params(self, query, details):
-        """
-        Extract search parameters from the query and details.
-
-        Args:
-            query: User's search query text
-            details: Additional search parameters
-
-        Returns:
-            Dictionary of search parameters
-        """
-        # Start with the provided details
-        params = details.copy() if details else {}
-
-        # Extract common search parameters from query using regex
-        # Look for area mentions
-        area_match = re.search(r'(in|at|from)\s+(?:the\s+)?(?:area|zone)\s+(?:of\s+)?["\']?([^"\']+)["\']?', query,
-                               re.IGNORECASE)
-        if area_match:
-            params["area"] = area_match.group(2).strip()
-
-        # Look for equipment group mentions
-        equipment_match = re.search(r'(?:equipment|machine|system)\s+(?:group\s+)?["\']?([^"\']+)["\']?', query,
-                                    re.IGNORECASE)
-        if equipment_match:
-            params["equipment_group"] = equipment_match.group(1).strip()
-
-        # Look for model mentions
-        model_match = re.search(r'model\s+["\']?([^"\']+)["\']?', query, re.IGNORECASE)
-        if model_match:
-            params["model"] = model_match.group(1).strip()
-
-        # Look for title mentions
-        title_match = re.search(r'(?:called|named|titled)\s+["\']?([^"\']+)["\']?', query, re.IGNORECASE)
-        if title_match:
-            params["title"] = title_match.group(1).strip()
-
-        return params
-
-    def format_entity_results(self, results, entity_type):
-        """
-        Format search results based on entity type.
-
-        Args:
-            results: List of search result items
-            entity_type: Type of entity (e.g., 'image', 'document', 'drawing')
-
-        Returns:
-            Formatted response string
-        """
-        if not results:
-            return "No results found."
-
-        # Start with a header based on entity type
-        entity_type_readable = entity_type.replace('_', ' ').title()
-        response = f"I found {len(results)} {entity_type_readable}{'s' if len(results) > 1 else ''} that might be relevant:\n\n"
-
-        # Format the results based on entity type
-        if entity_type == "document" or entity_type == "powerpoint":
-            for idx, item in enumerate(results[:5], 1):
-                title = item.get('title', f"Document #{item.get('id', 'Unknown')}")
-                response += f"{idx}. {title}\n"
-
-        elif entity_type == "image":
-            for idx, item in enumerate(results[:5], 1):
-                title = item.get('title', f"Image #{item.get('id', 'Unknown')}")
-                description = item.get('description', '')
-                if description:
-                    description = f" - {description}"
-                response += f"{idx}. {title}{description}\n"
-
-        elif entity_type == "drawing":
-            for idx, item in enumerate(results[:5], 1):
-                number = item.get('number', '')
-                name = item.get('name', '')
-                response += f"{idx}. Drawing {number}: {name}\n"
-
-        elif entity_type == "user":
-            for idx, item in enumerate(results[:5], 1):
-                name = item.get('name', f"User #{item.get('id', 'Unknown')}")
-                emp_id = item.get('employee_id', '')
-                if emp_id:
-                    emp_id = f" (ID: {emp_id})"
-                response += f"{idx}. {name}{emp_id}\n"
-
-        elif entity_type == "part":
-            for idx, item in enumerate(results[:5], 1):
-                part_number = item.get('part_number', '')
-                name = item.get('name', f"Part #{item.get('id', 'Unknown')}")
-                response += f"{idx}. {part_number}: {name}\n"
-
-        elif entity_type == "tool":
-            for idx, item in enumerate(results[:5], 1):
-                name = item.get('name', f"Tool #{item.get('id', 'Unknown')}")
-                type_info = item.get('type', '')
-                if type_info:
-                    type_info = f" ({type_info})"
-                response += f"{idx}. {name}{type_info}\n"
-
-        elif entity_type == "response":
-            # For direct response items
-            for item in results:
-                text = item.get('text', '')
-                if text:
-                    response = text  # Just use the text directly
-                    break
-        else:
-            # Generic format for other entity types
-            for idx, item in enumerate(results[:5], 1):
-                item_name = item.get('title') or item.get('name') or f"Item #{item.get('id', 'Unknown')}"
-                response += f"{idx}. {item_name}\n"
-
-        # Add a note about viewing if appropriate
-        if entity_type not in ["response", "error"] and len(results) > 0:
-            if any('url' in item for item in results):
-                response += "\nClick on the links to view the full items."
-            else:
-                response += "\nWould you like more information about any of these items?"
-
-        return response
-
-    # Helper handlers for execute_function
-
-    def _handle_register_keyword(self, details, query, request_id=None):
-        """Handle keyword registration."""
-        try:
-            with KeywordSearch(session=self.db_session) as keyword_search:
-                result = keyword_search.register_keyword(
-                    keyword=details.get("keyword"),
-                    action_type=details.get("action_type"),
-                    search_pattern=details.get("search_pattern"),
-                    entity_type=details.get("entity_type"),
-                    description=details.get("description")
-                )
-                return result
-        except Exception as e:
-            logger.error(f"Error registering keyword: {e}", exc_info=True)
-            return {"status": "error", "message": str(e)}
-
-    def _handle_delete_keyword(self, details, query, request_id=None):
-        """Handle keyword deletion."""
-        try:
-            with KeywordSearch(session=self.db_session) as keyword_search:
-                result = keyword_search.delete_keyword(details.get("keyword"))
-                return result
-        except Exception as e:
-            logger.error(f"Error deleting keyword: {e}", exc_info=True)
-            return {"status": "error", "message": str(e)}
-
-    def _handle_list_keywords(self, details, query, request_id=None):
-        """Handle keyword listing."""
-        try:
-            with KeywordSearch(session=self.db_session) as keyword_search:
-                keywords = keyword_search.get_all_keywords()
-                return {"status": "success", "keywords": keywords, "count": len(keywords)}
-        except Exception as e:
-            logger.error(f"Error listing keywords: {e}", exc_info=True)
-            return {"status": "error", "message": str(e)}
-
-    def _handle_import_keywords(self, details, query, request_id=None):
-        """Handle keyword import from Excel."""
-        try:
-            file_path = details.get("file_path")
-            if not file_path:
-                return {"status": "error", "message": "No file path provided"}
-
-            with KeywordSearch(session=self.db_session) as keyword_search:
-                result = keyword_search.load_keywords_from_excel(file_path)
-                return result
-        except Exception as e:
-            logger.error(f"Error importing keywords: {e}", exc_info=True)
-            return {"status": "error", "message": str(e)}
-
-    def _handle_search_parts(self, details, query, request_id=None):
-        """Handle part search."""
-        try:
-            with KeywordSearch(session=self.db_session) as keyword_search:
-                return keyword_search.search_parts(details)
-        except Exception as e:
-            logger.error(f"Error searching parts: {e}", exc_info=True)
-            return {"status": "error", "message": str(e), "entity_type": "part"}
-
-    def _handle_search_tools(self, details, query, request_id=None):
-        """Handle tool search."""
-        try:
-            with KeywordSearch(session=self.db_session) as keyword_search:
-                return keyword_search.search_tools(details)
-        except Exception as e:
-            logger.error(f"Error searching tools: {e}", exc_info=True)
-            return {"status": "error", "message": str(e), "entity_type": "tool"}
-
-    def _handle_search_positions(self, details, query, request_id=None):
-        """Handle position search."""
-        try:
-            with KeywordSearch(session=self.db_session) as keyword_search:
-                return keyword_search.search_positions(details)
-        except Exception as e:
-            logger.error(f"Error searching positions: {e}", exc_info=True)
-            return {"status": "error", "message": str(e), "entity_type": "position"}
-
-    def _handle_search_problems(self, details, query, request_id=None):
-        """Handle problem search."""
-        try:
-            with KeywordSearch(session=self.db_session) as keyword_search:
-                return keyword_search.search_problems(details)
-        except Exception as e:
-            logger.error(f"Error searching problems: {e}", exc_info=True)
-            return {"status": "error", "message": str(e), "entity_type": "problem"}
-
-    def _handle_search_tasks(self, details, query, request_id=None):
-        """Handle task search."""
-        try:
-            with KeywordSearch(session=self.db_session) as keyword_search:
-                return keyword_search.search_tasks(details)
-        except Exception as e:
-            logger.error(f"Error searching tasks: {e}", exc_info=True)
-            return {"status": "error", "message": str(e), "entity_type": "task"}
 
     @with_request_id
     def try_fulltext_search(self, question):
-        """
-        Try to find answers using full-text search strategies.
-
-        This method searches through document content using full-text search
-        to find relevant information for the user's question.
-
-        Args:
-            question: User's question text
-
-        Returns:
-            Dictionary with search results and success status
-        """
+        """Try to find answers using full-text search strategies."""
         logger.debug(f"Trying fulltext search for: {question}")
 
         try:
-            # Try to use CompleteDocument.search_by_text to find relevant documents
             local_session = None
-
+            session = self.db_session or self.db_config.get_main_session()
             if not self.db_session:
-                local_session = self.db_config.get_main_session()
-                session = local_session
-            else:
-                session = self.db_session
+                local_session = session
 
             try:
-                # Search for documents matching the question text
                 search_results = CompleteDocument.search_by_text(
                     query=question,
                     session=session,
-                    similarity_threshold=70,  # Use a lower threshold for better recall
+                    similarity_threshold=70,
                     with_links=False
                 )
 
                 if search_results and len(search_results) > 0:
-                    # Format the document results
                     doc_titles = [doc.title for doc in search_results[:5]]
-
                     response = "I found the following documents that might contain relevant information:\n"
                     response += "\n".join([f"- {title}" for title in doc_titles])
                     response += "\n\nWould you like me to retrieve one of these documents for you?"
@@ -2271,38 +1084,22 @@ class AistManager(UnifiedSearchMixin):
 
     @with_request_id
     def try_vector_search(self, user_id, question):
-        """
-        Try to find answers using vector search strategies.
-
-        This method uses vector-based semantic search to find information
-        semantically similar to the user's question.
-
-        Args:
-            user_id: User ID for tracking
-            question: User's question text
-
-        Returns:
-            Dictionary with search results and success status
-        """
+        """Try to find answers using vector search strategies."""
         logger.debug(f"Trying vector search for user {user_id}: {question}")
 
         try:
-            # Check if the vector search service is available
             if not hasattr(self, "vector_search_client") or not self.vector_search_client:
                 logger.warning("Vector search client not available")
                 return {"success": False}
 
-            # Perform vector search
             vector_results = self.vector_search_client.search(question, limit=5)
 
             if vector_results and len(vector_results) > 0:
-                # Format results
                 response = "Based on semantic search, I found these potentially relevant passages:\n\n"
 
                 for i, result in enumerate(vector_results[:3], 1):
                     content = result.get("content", "").strip()
 
-                    # Truncate long passages
                     if len(content) > 300:
                         content = content[:297] + "..."
 
@@ -2324,330 +1121,79 @@ class AistManager(UnifiedSearchMixin):
             logger.error(f"Error in vector search: {e}", exc_info=True)
             return {"success": False}
 
+    # ===== UTILITY AND SUPPORT METHODS =====
     @with_request_id
-    def get_session(self, user_id, session):
-        """
-        Get the most recent chat session for a user.
-
-        Args:
-            user_id (str): The ID of the user
-            session: SQLAlchemy session
-
-        Returns:
-            ChatSession or None: The most recent chat session for the user
-        """
-        try:
-            logger.debug(f"Getting latest session for user {user_id}")
-            # Get the most recent session for the user
-            latest_session = session.query(ChatSession).filter_by(
-                user_id=user_id
-            ).order_by(
-                ChatSession.session_id.desc()
-            ).first()
-
-            if latest_session:
-                logger.debug(f"Found session {latest_session.session_id} for user {user_id}")
-            else:
-                logger.debug(f"No session found for user {user_id}")
-
-            return latest_session
-        except Exception as e:
-            logger.error(f"Error getting session for user {user_id}: {e}", exc_info=True)
-            return None
-
-    @with_request_id
-    def create_session(self, user_id, initial_message, session):
-        """
-        Create a new chat session for a user.
-
-        Args:
-            user_id (str): The ID of the user
-            initial_message (str): The initial message for the session
-            session: SQLAlchemy session
-
-        Returns:
-            int: The ID of the new session
-        """
-        try:
-            logger.debug(f"Creating new session for user {user_id}")
-            current_time = datetime.now().isoformat()
-
-            # Create a new session
-            new_session = ChatSession(
-                user_id=user_id,
-                start_time=current_time,
-                last_interaction=current_time,
-                session_data=[initial_message],
-                conversation_summary=[]
-            )
-
-            session.add(new_session)
-            session.commit()
-
-            logger.info(f"Created new session {new_session.session_id} for user {user_id}")
-            return new_session.session_id
-        except Exception as e:
-            logger.error(f"Error creating session for user {user_id}: {e}", exc_info=True)
-            session.rollback()
-            return None
-
-    @with_request_id
-    def update_session(self, session_id, session_data, answer, db_session):
-        """
-        Update an existing chat session with new data.
-
-        Args:
-            session_id (int): The ID of the session to update
-            session_data (list): The updated session data
-            answer (str): The answer to add to the session data
-            db_session: SQLAlchemy session
-
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        try:
-            logger.debug(f"Updating session {session_id}")
-            # Get the session
-            chat_session = db_session.query(ChatSession).filter_by(
-                session_id=session_id
-            ).first()
-
-            if not chat_session:
-                logger.warning(f"Session {session_id} not found")
-                return False
-
-            # Update session data and last interaction time
-            chat_session.session_data = session_data + [answer]
-            chat_session.last_interaction = datetime.now().isoformat()
-
-            db_session.commit()
-            logger.debug(f"Session {session_id} updated successfully")
-            return True
-        except Exception as e:
-            logger.error(f"Error updating session {session_id}: {e}", exc_info=True)
-            db_session.rollback()
-            return False
-
-    @with_request_id
-    def execute_keyword_action(self, keyword, action, details, original_question):
+    def _execute_keyword_action(self, keyword, action, details, original_question):
         """Execute the appropriate action based on the keyword match."""
-        logger.debug(f"Executing action for keyword '{keyword}': {action}")
-
         try:
-            # Extract search parameters from the query
-            search_params = self.extract_search_params(original_question)
+            search_params = SearchUtils.extract_search_params(original_question)
 
-            # Map route names to method calls
             if action.startswith("search_images_bp"):
-                # Parse the type of image search from the action
-                if "_title" in action:
-                    return self.search_images_by_title(search_params.get('title', ''), search_params)
-                elif "_area" in action:
-                    return self.search_images_by_area(search_params.get('area', ''), search_params)
-                elif "_equipment_group" in action:
-                    return self.search_images_by_equipment_group(search_params.get('equipment_group', ''),
-                                                                 search_params)
-                elif "_model" in action:
-                    return self.search_images_by_model(search_params.get('model', ''), search_params)
-                elif "_asset_number" in action:
-                    return self.search_images_by_asset_number(search_params.get('asset_number', ''), search_params)
-                else:
-                    # Default image search
-                    return self.search_images(search_params)
-
+                return self._handle_image_search(action, search_params)
             elif action.startswith("search_documents_bp"):
-                # Parse the type of document search from the action
-                if "_title" in action:
-                    return self.search_documents_by_title(search_params.get('title', ''), search_params)
-                elif "_area" in action:
-                    return self.search_documents_by_area(search_params.get('area', ''), search_params)
-                elif "_equipment_group" in action:
-                    return self.search_documents_by_equipment_group(search_params.get('equipment_group', ''),
-                                                                    search_params)
-                elif "_model" in action:
-                    return self.search_documents_by_model(search_params.get('model', ''), search_params)
-                elif "_asset_number" in action:
-                    return self.search_documents_by_asset_number(search_params.get('asset_number', ''),
-                                                                 search_params)
-                else:
-                    # Default document search
-                    return self.search_documents(search_params)
-
-            elif action.startswith("search_powerpoints_bp"):
-                # Parse the type of powerpoint search from the action
-                if "_title" in action:
-                    return self.search_powerpoints_by_title(search_params.get('title', ''), search_params)
-                elif "_area" in action:
-                    return self.search_powerpoints_by_area(search_params.get('area', ''), search_params)
-                elif "_equipment_group" in action:
-                    return self.search_powerpoints_by_equipment_group(search_params.get('equipment_group', ''),
-                                                                      search_params)
-                elif "_model" in action:
-                    return self.search_powerpoints_by_model(search_params.get('model', ''), search_params)
-                elif "_asset_number" in action:
-                    return self.search_powerpoints_by_asset_number(search_params.get('asset_number', ''),
-                                                                   search_params)
-                else:
-                    # Default powerpoint search
-                    return self.search_powerpoints(search_params)
-
+                return self._handle_document_search(action, search_params)
             elif action.startswith("search_drawing_by_number_bp"):
-                return self.search_drawings(search_params)
-
-            # Simple case - action is a direct response
+                return self._handle_drawing_search(search_params)
             elif action.startswith("RESPOND:"):
-                response_text = action[8:].strip()  # Remove "RESPOND:" prefix
+                response_text = action[8:].strip()
                 return {"entity_type": "response", "results": [{"text": response_text}]}
-
-            # Default case - return the action as a direct response
             else:
                 return {"entity_type": "response", "results": [{"text": f"I'll help you with: {keyword}"}]}
 
         except Exception as e:
             logger.error(f"Error executing keyword action: {e}", exc_info=True)
-            return {"entity_type": "error",
-                    "results": [{"text": "I encountered an error processing your request."}]}
+            return {"entity_type": "error", "results": [{"text": "I encountered an error processing your request."}]}
 
     @with_request_id
-    def extract_search_params(self, query):
-        """Extract search parameters from the user query."""
-        params = {
-            'title': None,
-            'area': None,
-            'equipment_group': None,
-            'model': None,
-            'asset_number': None,
-            'location': None,
-            'description': None,
-            'query': query  # Store the original query
-        }
+    def _handle_image_search(self, action, search_params):
+        """Handle image search based on action type."""
+        if "_title" in action:
+            search_params['title'] = search_params.get('title', '')
+        elif "_area" in action:
+            search_params['area'] = search_params.get('area', '')
+        elif "_equipment_group" in action:
+            search_params['equipment_group'] = search_params.get('equipment_group', '')
+        elif "_model" in action:
+            search_params['model'] = search_params.get('model', '')
+        elif "_asset_number" in action:
+            search_params['asset_number'] = search_params.get('asset_number', '')
 
-        # Extract title if "of Title" or similar pattern exists
-        title_match = re.search(r'of\s+(["\'])(.*?)\1', query)
-        if title_match:
-            params['title'] = title_match.group(2)
-        else:
-            # Try another pattern for title
-            title_match = re.search(r'of\s+([\w\s]+)(?:$|\s+(?:in|at|for|from))', query)
-            if title_match:
-                params['title'] = title_match.group(1).strip()
+        return self._search_images(search_params)
 
-        # Extract area if "in area" or "of area" pattern exists
-        area_match = re.search(r'(?:in|of)\s+area\s+(["\'])(.*?)\1', query)
-        if area_match:
-            params['area'] = area_match.group(2)
-        else:
-            area_match = re.search(r'(?:in|of)\s+area\s+([\w\s]+)(?:$|\s+(?:and|with|that|which))', query)
-            if area_match:
-                params['area'] = area_match.group(1).strip()
-
-        # Similar extraction for other parameters
-        equipment_match = re.search(r'(?:for|of)\s+equipment\s+group\s+([\w\s]+)(?:$|\s+(?:and|with))', query)
-        if equipment_match:
-            params['equipment_group'] = equipment_match.group(1).strip()
-
-        model_match = re.search(r'(?:for|of)\s+model\s+([\w\s]+)(?:$|\s+(?:and|with))', query)
-        if model_match:
-            params['model'] = model_match.group(1).strip()
-
-        asset_match = re.search(r'(?:for|of)\s+asset\s+(?:number\s+)?([\w\-\d]+)', query)
-        if asset_match:
-            params['asset_number'] = asset_match.group(1).strip()
-
-        # Extract any number that might be a drawing number
-        drawing_match = re.search(r'drawing\s+(?:number\s+)?([A-Z0-9\-]+)', query, re.IGNORECASE)
-        if drawing_match:
-            params['drawing_number'] = drawing_match.group(1).strip()
-
-        logger.debug(f"Extracted search parameters: {params}")
-        return params
-
-    # IMAGE SEARCH METHODS
     @with_request_id
-    def search_images(self, params, request_id=None):
-        """
-        Search for images based on comprehensive parameters using the Image.search class method.
+    def _handle_document_search(self, action, search_params):
+        """Handle document search based on action type."""
+        if "_title" in action:
+            search_params['title'] = search_params.get('title', '')
+        elif "_area" in action:
+            search_params['area'] = search_params.get('area', '')
 
-        Args:
-            params: Dictionary containing search parameters
-            request_id: Optional request ID for tracking this operation in logs
+        return self._search_documents(search_params)
 
-        Returns:
-            Dictionary with search results or error information
-        """
-        logger.debug(f"Searching for images with params: {params}")
+    @with_request_id
+    def _handle_drawing_search(self, search_params):
+        """Handle drawing search."""
+        return self._search_drawings(search_params)
+
+    @with_request_id
+    def _search_images(self, params):
+        """Search for images based on parameters."""
         local_session = None
         try:
+            session = self.db_session or self.db_config.get_main_session()
             if not self.db_session:
-                local_session = self.db_config.get_main_session()
-                session = local_session
-            else:
-                session = self.db_session
+                local_session = session
 
-            # Extract search parameters
-            search_text = params.get('query')
-            title = params.get('title')
-            description = params.get('description')
-            file_path = params.get('file_path')
-            image_id = params.get('image_id')
-            tool_id = params.get('tool_id')
-            complete_document_id = params.get('complete_document_id')
-            exact_match = params.get('exact_match', False)
-            limit = params.get('limit', 20)
-            offset = params.get('offset', 0)
-            sort_by = params.get('sort_by', 'id')
-            sort_order = params.get('sort_order', 'asc')
-            fields = params.get('fields')
-
-            # Location-based parameters that require position lookup
-            area_id = params.get('area')
-            equipment_group_id = params.get('equipment_group')
-            model_id = params.get('model')
-            asset_number_id = params.get('asset_number')
-
-            # First, check if we need to look up via position
-            position_id = None
-            if any([area_id, equipment_group_id, model_id, asset_number_id]):
-                position_query = session.query(Position)
-                if area_id:
-                    position_query = position_query.filter(Position.area_id == int(area_id))
-                if equipment_group_id:
-                    position_query = position_query.filter(Position.equipment_group_id == int(equipment_group_id))
-                if model_id:
-                    position_query = position_query.filter(Position.model_id == int(model_id))
-                if asset_number_id:
-                    position_query = position_query.filter(Position.asset_number_id == int(asset_number_id))
-
-                position = position_query.first()
-                if position:
-                    position_id = position.id
-                    logger.debug(f"Found position ID {position_id} from criteria")
-
-            # Use the Image.search method for comprehensive search
             results = Image.search(
-                search_text=search_text,
-                fields=fields,
-                image_id=image_id,
-                title=title,
-                description=description,
-                file_path=file_path,
-                position_id=position_id,
-                tool_id=tool_id,
-                complete_document_id=complete_document_id,
-                exact_match=exact_match,
-                limit=limit,
-                offset=offset,
-                sort_by=sort_by,
-                sort_order=sort_order,
-                request_id=request_id,
+                search_text=params.get('query'),
+                title=params.get('title'),
+                limit=20,
                 session=session
             )
 
             if results:
-                # Format the results for the client
                 image_results = []
                 for img in results:
-                    # Get full image data for serving
                     img_data = Image.serve_file(image_id=img.id, session=session)
                     if img_data and img_data['exists']:
                         image_results.append({
@@ -2657,193 +1203,42 @@ class AistManager(UnifiedSearchMixin):
                             'url': f"/search_images_bp/serve_image/{img.id}"
                         })
 
-                logger.info(f"Found {len(image_results)} images matching the criteria")
-                return {
-                    "entity_type": "image",
-                    "results": image_results
-                }
+                return {"entity_type": "image", "results": image_results}
             else:
-                logger.info("No images found matching criteria")
-                return {
-                    "entity_type": "response",
-                    "results": [{"text": "No images found matching your criteria."}]
-                }
+                return {"entity_type": "response", "results": [{"text": "No images found matching your criteria."}]}
 
         except Exception as e:
             logger.error(f"Error in image search: {e}", exc_info=True)
-            return {
-                "entity_type": "error",
-                "results": [{"text": f"Error searching for images: {str(e)}"}]
-            }
+            return {"entity_type": "error", "results": [{"text": f"Error searching for images: {str(e)}"}]}
         finally:
             if local_session:
                 local_session.close()
-                logger.debug("Closed local database session")
 
     @with_request_id
-    def search_images_by_title(self, title, params, request_id=None):
-        """Search for images by title."""
-        logger.debug(f"Searching for images by title: {title}")
-        params['title'] = title
-        return self.search_images(params, request_id=request_id)
-
-    @with_request_id
-    def search_images_by_area(self, area, params, request_id=None):
-        """Search for images by area."""
-        logger.debug(f"Searching for images by area: {area}")
-        params['area'] = area
-        return self.search_images(params, request_id=request_id)
-
-    @with_request_id
-    def search_images_by_equipment_group(self, equipment_group, params, request_id=None):
-        """Search for images by equipment group."""
-        logger.debug(f"Searching for images by equipment group: {equipment_group}")
-        params['equipment_group'] = equipment_group
-        return self.search_images(params, request_id=request_id)
-
-    @with_request_id
-    def search_images_by_model(self, model, params, request_id=None):
-        """Search for images by model."""
-        logger.debug(f"Searching for images by model: {model}")
-        params['model'] = model
-        return self.search_images(params, request_id=request_id)
-
-    @with_request_id
-    def search_images_by_asset_number(self, asset_number, params, request_id=None):
-        """Search for images by asset number."""
-        logger.debug(f"Searching for images by asset number: {asset_number}")
-        params['asset_number'] = asset_number
-        return self.search_images(params, request_id=request_id)
-
-    @with_request_id
-    def search_documents(self, params, request_id=None):
-        """
-        Search for documents based on comprehensive parameters using CompleteDocument search methods.
-
-        This method intelligently selects between CompleteDocument.dynamic_search and
-        CompleteDocument.search_by_text based on the provided parameters.
-
-        Args:
-            params: Dictionary of search parameters
-            request_id: Optional request ID for tracking this operation in logs
-
-        Returns:
-            Dictionary with entity_type and results
-        """
-        logger.debug(f"Searching for documents with params: {params}")
+    def _search_documents(self, params):
+        """Search for documents based on parameters."""
         local_session = None
         try:
-            # Get session
+            session = self.db_session or self.db_config.get_main_session()
             if not self.db_session:
-                local_session = self.db_config.get_main_session()
-                session = local_session
-            else:
-                session = self.db_session
+                local_session = session
 
-            # Extract search parameters
             search_text = params.get('query')
             title = params.get('title')
-            rev = params.get('rev')
-            file_path = params.get('file_path')
-            content = params.get('content')
-            similarity_threshold = params.get('similarity_threshold', 80)
 
-            # Location-based parameters that require position lookup
-            area_id = params.get('area')
-            equipment_group_id = params.get('equipment_group')
-            model_id = params.get('model')
-            asset_number_id = params.get('asset_number')
-            location_id = params.get('location')
-
-            # Prepare search filters for dynamic_search
-            search_filters = {}
-
-            # Map direct attributes
             if title:
-                search_filters['title'] = title
-            if rev:
-                search_filters['rev'] = rev
-            if file_path:
-                search_filters['file_path'] = file_path
-            if content:
-                search_filters['content'] = content
-
-            # Check if we need to filter by position attributes
-            position_filters = {}
-            if area_id:
-                position_filters['area_id'] = int(area_id)
-            if equipment_group_id:
-                position_filters['equipment_group_id'] = int(equipment_group_id)
-            if model_id:
-                position_filters['model_id'] = int(model_id)
-            if asset_number_id:
-                position_filters['asset_number_id'] = int(asset_number_id)
-            if location_id:
-                position_filters['location_id'] = int(location_id)
-
-            # If we have position filters, we need to get positions first
-            position_ids = []
-            if position_filters:
-                position_query = session.query(Position)
-                for attr, value in position_filters.items():
-                    position_query = position_query.filter(getattr(Position, attr) == value)
-
-                positions = position_query.all()
-                if positions:
-                    position_ids = [p.id for p in positions]
-                    logger.debug(f"Found {len(position_ids)} positions matching criteria")
-                else:
-                    logger.debug("No positions found matching criteria")
-                    return {
-                        "entity_type": "response",
-                        "results": [{"text": "No documents found matching position criteria."}]
-                    }
-
-            # If we have position IDs, we need to get document IDs
-            document_ids = []
-            if position_ids:
-                assoc_query = session.query(CompletedDocumentPositionAssociation.complete_document_id).filter(
-                    CompletedDocumentPositionAssociation.position_id.in_(position_ids)
-                )
-                document_ids = [row[0] for row in assoc_query.all()]
-                logger.debug(f"Found {len(document_ids)} document IDs associated with positions")
-
-                if not document_ids:
-                    return {
-                        "entity_type": "response",
-                        "results": [{"text": "No documents found associated with the specified positions."}]
-                    }
-
-            # Determine search strategy based on parameters
-            results = []
-
-            # Strategy 1: If we have document IDs from position filtering
-            if document_ids:
-                query = session.query(CompleteDocument).filter(
-                    CompleteDocument.id.in_(document_ids)
-                )
-
-                # Apply any other direct filters
-                for attr, value in search_filters.items():
-                    query = query.filter(getattr(CompleteDocument, attr).ilike(f"%{value}%"))
-
-                results = query.all()
-
-            # Strategy 2: If we have specific filters but no position filtering
-            elif search_filters:
-                results = CompleteDocument.dynamic_search(session, **search_filters)
-
-            # Strategy 3: If we just have search text, use fuzzy text search
+                results = CompleteDocument.dynamic_search(session, title=title)
             elif search_text:
                 results = CompleteDocument.search_by_text(
                     search_text,
                     session=session,
-                    similarity_threshold=similarity_threshold,
-                    with_links=False,
+                    similarity_threshold=80,
+                    with_links=False
                 )
+            else:
+                results = []
 
-            # Format the results for the client
-            if results and not isinstance(results, str):
+            if results:
                 document_results = []
                 for doc in results:
                     document_results.append({
@@ -2853,443 +1248,75 @@ class AistManager(UnifiedSearchMixin):
                         'url': f"/search_documents_bp/view_document/{doc.id}"
                     })
 
-                logger.info(f"Found {len(document_results)} documents matching the criteria")
-                return {
-                    "entity_type": "document",
-                    "results": document_results
-                }
+                return {"entity_type": "document", "results": document_results}
             else:
-                # If no results or error message returned, try one more time with text search
-                # if we haven't tried it already
-                if not search_text and (title or rev):
-                    fallback_text = title or rev
-                    fts_results = CompleteDocument.search_by_text(
-                        fallback_text,
-                        session=session,
-                        with_links=False,
-                        request_id=request_id
-                    )
-
-                    if fts_results and isinstance(fts_results, list) and len(fts_results) > 0:
-                        document_results = []
-                        for doc in fts_results:
-                            document_results.append({
-                                'id': doc.id,
-                                'title': doc.title,
-                                'rev': doc.rev,
-                                'url': f"/search_documents_bp/view_document/{doc.id}"
-                            })
-
-                        logger.info(f"Found {len(document_results)} documents using fallback text search")
-                        return {
-                            "entity_type": "document",
-                            "results": document_results
-                        }
-
-                logger.info("No documents found matching criteria")
-                return {
-                    "entity_type": "response",
-                    "results": [{"text": "No documents found matching your criteria."}]
-                }
+                return {"entity_type": "response", "results": [{"text": "No documents found matching your criteria."}]}
 
         except Exception as e:
             logger.error(f"Error in document search: {e}", exc_info=True)
-            return {
-                "entity_type": "error",
-                "results": [{"text": f"Error searching for documents: {str(e)}"}]
-            }
+            return {"entity_type": "error", "results": [{"text": f"Error searching for documents: {str(e)}"}]}
         finally:
             if local_session:
                 local_session.close()
-                logger.debug("Closed local database session")
 
     @with_request_id
-    def search_documents_by_title(self, title, params, request_id=None):
-        """Search for documents by title."""
-        logger.debug(f"Searching for documents by title: {title}")
-        params['title'] = title
-        return self.search_documents(params, request_id=request_id)
-
-    @with_request_id
-    def search_documents_by_area(self, area, params, request_id=None):
-        """Search for documents by area."""
-        logger.debug(f"Searching for documents by area: {area}")
-        params['area'] = area
-        return self.search_documents(params, request_id=request_id)
-
-    @with_request_id
-    def search_documents_by_equipment_group(self, equipment_group, params, request_id=None):
-        """Search for documents by equipment group."""
-        logger.debug(f"Searching for documents by equipment group: {equipment_group}")
-        params['equipment_group'] = equipment_group
-        return self.search_documents(params, request_id=request_id)
-
-    @with_request_id
-    def search_documents_by_model(self, model, params, request_id=None):
-        """Search for documents by model."""
-        logger.debug(f"Searching for documents by model: {model}")
-        params['model'] = model
-        return self.search_documents(params, request_id=request_id)
-
-    @with_request_id
-    def search_documents_by_asset_number(self, asset_number, params, request_id=None):
-        """Search for documents by asset number."""
-        logger.debug(f"Searching for documents by asset number: {asset_number}")
-        params['asset_number'] = asset_number
-        return self.search_documents(params, request_id=request_id)
-
-    @with_request_id
-    def search_documents_by_location(self, location, params, request_id=None):
-        """Search for documents by location."""
-        logger.debug(f"Searching for documents by location: {location}")
-        params['location'] = location
-        return self.search_documents(params, request_id=request_id)
-
-    @with_request_id
-    def search_documents_by_revision(self, rev, params, request_id=None):
-        """Search for documents by revision number."""
-        logger.debug(f"Searching for documents by revision: {rev}")
-        params['rev'] = rev
-        return self.search_documents(params, request_id=request_id)
-
-    # region Review: Powerpoint
-    # # POWERPOINT SEARCH METHODS
-    #
-    #     def search_powerpoints(self, params):
-    #         """Search for PowerPoint presentations based on general parameters."""
-    #         logger.debug(f"Searching for PowerPoints with params: {params}")
-    #         local_session = None
-    #         try:
-    #             if not self.db_session:
-    #                 local_session = self.db_config.get_main_session()
-    #                 session = local_session
-    #             else:
-    #                 session = self.db_session
-    #
-    #             # Prepare search criteria based on available parameters
-    #             search_criteria = {}
-    #
-    #             if params.get('title'):
-    #                 search_criteria['title'] = params['title'] + " PowerPoint"
-    #             if params.get('area'):
-    #                 search_criteria['area'] = params['area']
-    #             if params.get('equipment_group'):
-    #                 search_criteria['equipment_group'] = params['equipment_group']
-    #             if params.get('model'):
-    #                 search_criteria['model'] = params['model']
-    #             if params.get('asset_number'):
-    #                 search_criteria['asset_number'] = params['asset_number']
-    #
-    #             # Note: Since I don't see a dedicated PowerPoints table, we'll search in documents
-    #             # with PowerPoint-related keywords
-    #             try:
-    #                 from modules.emtacdb.search_powerpoints_bp import search_powerpoints_db
-    #                 result = search_powerpoints_db(session, **search_criteria)
-    #             except ImportError:
-    #                 # Fallback to searching for PowerPoint files through documents
-    #                 from modules.emtacdb.search_documents_bp import search_documents_db
-    #                 if 'title' not in search_criteria:
-    #                     search_criteria['title'] = "PowerPoint"
-    #                 result = search_documents_db(session, **search_criteria)
-    #
-    #             if ('powerpoints' in result and result['powerpoints']) or ('documents' in result and result['documents']):
-    #                 # Format the results
-    #                 pp_results = []
-    #                 if 'powerpoints' in result:
-    #                     items = result['powerpoints']
-    #                     url_prefix = "/search_powerpoints_bp/view_powerpoint/"
-    #                 else:
-    #                     items = result['documents']
-    #                     url_prefix = "/search_documents_bp/view_document/"
-    #
-    #                 for pp in items:
-    #                     pp_results.append({
-    #                         'id': pp['id'],
-    #                         'title': pp['title'],
-    #                         'url': f"{url_prefix}{pp['id']}"
-    #                     })
-    #
-    #                 return {
-    #                     "entity_type": "powerpoint",
-    #                     "results": pp_results
-    #                 }
-    #             else:
-    #                 return {
-    #                     "entity_type": "response",
-    #                     "results": [{"text": "No presentations found matching your criteria."}]
-    #                 }
-    #
-    #         except Exception as e:
-    #             logger.error(f"Error in PowerPoint search: {e}", exc_info=True)
-    #             return {
-    #                 "entity_type": "error",
-    #                 "results": [{"text": f"Error searching for presentations: {str(e)}"}]
-    #             }
-    #         finally:
-    #             if local_session:
-    #                 local_session.close()
-    #
-    #     def search_powerpoints_by_title(self, title, params):
-    #         """Search for PowerPoints by title."""
-    #         logger.debug(f"Searching for PowerPoints by title: {title}")
-    #         params['title'] = title
-    #         return self.search_powerpoints(params)
-    #
-    #     def search_powerpoints_by_area(self, area, params):
-    #         """Search for PowerPoints by area."""
-    #         logger.debug(f"Searching for PowerPoints by area: {area}")
-    #         params['area'] = area
-    #         return self.search_powerpoints(params)
-    #
-    #     def search_powerpoints_by_equipment_group(self, equipment_group, params):
-    #         """Search for PowerPoints by equipment group."""
-    #         logger.debug(f"Searching for PowerPoints by equipment group: {equipment_group}")
-    #         params['equipment_group'] = equipment_group
-    #         return self.search_powerpoints(params)
-    #
-    #     def search_powerpoints_by_model(self, model, params):
-    #         """Search for PowerPoints by model."""
-    #         logger.debug(f"Searching for PowerPoints by model: {model}")
-    #         params['model'] = model
-    #         return self.search_powerpoints(params)
-    #
-    #     def search_powerpoints_by_asset_number(self, asset_number, params):
-    #         """Search for PowerPoints by asset number."""
-    #         logger.debug(f"Searching for PowerPoints by asset number: {asset_number}")
-    #         params['asset_number'] = asset_number
-    #         return self.search_powerpoints(params)
-
-    # DRAWING SEARCH METHODSn  Po
-
-    @with_request_id
-    def search_drawings(self, params, request_id=None):
-        """
-        Search for drawings based on parameters using the Drawing.search_and_format method.
-
-        Args:
-            params: Dictionary containing search parameters
-            request_id: Optional request ID for tracking this operation in logs
-
-        Returns:
-            Dictionary with entity_type and results
-        """
-        logger.debug(f"Searching for drawings with params: {params}")
+    def _search_drawings(self, params):
+        """Search for drawings based on parameters."""
         local_session = None
-
         try:
-            # Get session
+            session = self.db_session or self.db_config.get_main_session()
             if not self.db_session:
-                local_session = self.db_config.get_main_session()
-                session = local_session
-            else:
-                session = self.db_session
+                local_session = session
 
-            # Extract search parameters
             search_text = params.get('query')
-            exact_match = params.get('exact_match', False)
-            fields = params.get('fields')
+            drawing_number = params.get('drawing_number')
 
-            # Extract drawing-specific parameters
-            drawing_id = params.get('drawing_id')
-            drw_equipment_name = params.get('equipment_name')
-            drw_number = params.get('drawing_number') or params.get('number')
-            drw_name = params.get('name')
-            drw_revision = params.get('revision')
-            drw_spare_part_number = params.get('spare_part_number')
-            file_path = params.get('file_path')
-            limit = params.get('limit', 20)
-
-            # If no specific drawing number was extracted but we have a query,
-            # try to find a drawing number pattern in the query
-            if not drw_number and search_text:
-                # Look for common drawing number patterns (alphanumeric with possible hyphens)
-                number_match = re.search(r'\b([A-Z0-9][\w\-]*\d)\b', search_text, re.IGNORECASE)
-                if number_match:
-                    drw_number = number_match.group(1)
-                    logger.debug(f"Extracted drawing number from query: {drw_number}")
-
-            # Use the new search_and_format method that handles everything
             return Drawing.search_and_format(
                 search_text=search_text,
-                fields=fields,
-                exact_match=exact_match,
-                drawing_id=drawing_id,
-                drw_equipment_name=drw_equipment_name,
-                drw_number=drw_number,
-                drw_name=drw_name,
-                drw_revision=drw_revision,
-                drw_spare_part_number=drw_spare_part_number,
-                file_path=file_path,
-                limit=limit,
-                request_id=request_id,
+                drw_number=drawing_number,
+                limit=20,
                 session=session
             )
 
         except Exception as e:
             logger.error(f"Error in drawing search: {e}", exc_info=True)
-            return {
-                "entity_type": "error",
-                "results": [{"text": f"Error searching for drawings: {str(e)}"}]
-            }
-        finally:
-            if local_session:
-                local_session.close()
-                logger.debug("Closed local database session")
-
-    @with_request_id
-    def search_drawings_by_number(self, number, params, request_id=None):
-        """Search for drawings by drawing number."""
-        logger.debug(f"Searching for drawings by number: {number}")
-        params['drawing_number'] = number
-        return self.search_drawings(params, request_id=request_id)
-
-    @with_request_id
-    def search_drawings_by_asset_number(self, asset_number, params, request_id=None):
-        """Search for drawings by asset number."""
-        logger.debug(f"Searching for drawings by asset number: {asset_number}")
-        local_session = None
-
-        try:
-            # Get session
-            if not self.db_session:
-                local_session = self.db_config.get_main_session()
-                session = local_session
-            else:
-                session = self.db_session
-
-            # Get drawings
-            drawings = Drawing.search_by_asset_number(
-                asset_number_value=asset_number,
-                request_id=request_id,
-                session=session
-            )
-
-            # Format using Drawing.search_and_format
-            if drawings:
-                drawing_ids = [drawing.id for drawing in drawings]
-                return Drawing.search_and_format(
-                    drawing_id=drawing_ids,
-                    request_id=request_id,
-                    session=session
-                )
-            else:
-                return {
-                    "entity_type": "response",
-                    "results": [{"text": f"No drawings found for asset number '{asset_number}'."}]
-                }
-        except Exception as e:
-            logger.error(f"Error searching drawings by asset number: {e}", exc_info=True)
-            return {
-                "entity_type": "error",
-                "results": [{"text": f"Error searching for drawings: {str(e)}"}]
-            }
+            return {"entity_type": "error", "results": [{"text": f"Error searching for drawings: {str(e)}"}]}
         finally:
             if local_session:
                 local_session.close()
 
     @with_request_id
-    def search_drawings_by_name(self, name, params, request_id=None):
-        """Search for drawings by name."""
-        logger.debug(f"Searching for drawings by name: {name}")
-        params['name'] = name
-        return self.search_drawings(params, request_id=request_id)
-
-    @with_request_id
-    def search_drawings_by_revision(self, revision, params, request_id=None):
-        """Search for drawings by revision."""
-        logger.debug(f"Searching for drawings by revision: {revision}")
-        params['revision'] = revision
-        return self.search_drawings(params, request_id=request_id)
-
-    @with_request_id
-    def search_drawings_by_spare_part(self, part_number, params, request_id=None):
-        """Search for drawings by spare part number."""
-        logger.debug(f"Searching for drawings by spare part number: {part_number}")
-        params['spare_part_number'] = part_number
-        return self.search_drawings(params, request_id=request_id)
-
-    def perform_advanced_keyword_search(self, query, request_id=None):
-        """
-        Perform an advanced keyword search across multiple entity types.
-
-        This method searches across documents, images, drawings, and PowerPoints
-        to find the most relevant results for the query.
-
-        Args:
-            query: User's search query text
-            request_id: Optional request ID for tracking this operation in logs
-
-        Returns:
-            List of search results from various entity types
-        """
-        logger.debug(f"Performing advanced keyword search for: {query}")
-
+    def _perform_advanced_keyword_search(self, query):
+        """Perform an advanced keyword search across multiple entity types."""
         try:
-            # First try using the KeywordSearch class
             with KeywordSearch(session=self.db_session) as keyword_search:
-                # Execute the search
                 keyword_result = keyword_search.execute_search(query)
 
-                # If we got successful results from the keyword search, return them
                 if keyword_result.get("status") == "success" and keyword_result.get("count", 0) > 0:
-                    # Add request_id to the result metadata if provided
-                    if request_id:
-                        keyword_result["request_id"] = request_id
                     return keyword_result
 
-            # If keyword search didn't find anything, try our own multi-entity search
-
-            # Extract search parameters
-            search_params = self._extract_search_params(query, {})
+            # Fallback to multi-entity search
+            search_params = SearchUtils.extract_search_params(query)
             search_params["query"] = query
 
-            # Store all results
             all_results = []
 
-            # Try document search
-            doc_results = self.search_documents(search_params, request_id=request_id)
-            if doc_results.get('entity_type') == 'document' and 'results' in doc_results:
-                # Add the top 3 document results
-                for doc in doc_results['results'][:3]:
-                    doc['type'] = 'document'
-                    all_results.append(doc)
+            # Try different search types
+            for search_method in [self._search_documents, self._search_images, self._search_drawings]:
+                try:
+                    results = search_method(search_params)
+                    if results.get('results'):
+                        for item in results['results'][:3]:
+                            item['type'] = results.get('entity_type', 'unknown')
+                            all_results.append(item)
+                except Exception as e:
+                    logger.warning(f"Search method failed: {e}")
 
-            # Try image search
-            img_results = self.search_images(search_params, request_id=request_id)
-            if img_results.get('entity_type') == 'image' and 'results' in img_results:
-                # Add the top 3 image results
-                for img in img_results['results'][:3]:
-                    img['type'] = 'image'
-                    all_results.append(img)
-
-            # Try drawing search
-            drw_results = self.search_drawings(search_params, request_id=request_id)
-            if drw_results.get('entity_type') == 'drawing' and 'results' in drw_results:
-                # Add the top 3 drawing results
-                for drw in drw_results['results'][:3]:
-                    drw['type'] = 'drawing'
-                    all_results.append(drw)
-
-            # Try PowerPoint search
-            #            pp_results = self.search_powerpoints(search_params, request_id=request_id)
-            #            if pp_results.get('entity_type') == 'powerpoint' and 'results' in pp_results:
-            # Add the top 3 PowerPoint results
-            #                for pp in pp_results['results'][:3]:
-            #                    pp['type'] = 'powerpoint'
-            #                    all_results.append(pp)
-
-            # Format the combined results
             return {
-                "status": "success",
+                "status": "success" if all_results else "not_found",
                 "entity_type": "mixed",
                 "count": len(all_results),
-                "results": all_results,
-                "request_id": request_id
-            } if all_results else {
-                "status": "not_found",
-                "message": "No results found for your query",
-                "query": query,
-                "request_id": request_id
+                "results": all_results
             }
 
         except Exception as e:
@@ -3297,251 +1324,61 @@ class AistManager(UnifiedSearchMixin):
             return {
                 "status": "error",
                 "message": f"Error in keyword search: {str(e)}",
-                "query": query,
-                "request_id": request_id
+                "query": query
             }
 
-    def perform_db_lookup(self, entity_type, details, query, request_id=None):
-        """
-        Perform a database lookup for a specific entity type.
+    @with_request_id
+    def _format_entity_results(self, results, entity_type):
+        """Format search results based on entity type."""
+        if not results:
+            return "No results found."
 
-        This method routes the search to the appropriate entity-specific search method
-        based on the provided entity_type.
+        entity_type_readable = entity_type.replace('_', ' ').title()
+        response = f"I found {len(results)} {entity_type_readable}{'s' if len(results) > 1 else ''} that might be relevant:\n\n"
 
-        Args:
-            entity_type: Type of entity to search (e.g., 'image', 'document', 'drawing')
-            details: Dictionary of additional search parameters
-            query: Original search query text
-            request_id: Optional request ID for tracking this operation in logs
-
-        Returns:
-            Dictionary with search results
-        """
-        logger.debug(f"Performing DB lookup for entity type: {entity_type}")
-
-        try:
-            # Convert query into search parameters
-            params = self._extract_search_params(query, details)
-
-            # Add the original query as a search parameter
-            params["query"] = query
-
-            # Route to appropriate search method based on entity type
-            if entity_type == "image":
-                return self.search_images(params, request_id=request_id)
-            elif entity_type == "document":
-                return self.search_documents(params, request_id=request_id)
+        for idx, item in enumerate(results[:5], 1):
+            if entity_type == "document":
+                title = item.get('title', f"Document #{item.get('id', 'Unknown')}")
+                response += f"{idx}. {title}\n"
+            elif entity_type == "image":
+                title = item.get('title', f"Image #{item.get('id', 'Unknown')}")
+                description = item.get('description', '')
+                if description:
+                    description = f" - {description}"
+                response += f"{idx}. {title}{description}\n"
             elif entity_type == "drawing":
-                return self.search_drawings(params, request_id=request_id)
+                number = item.get('number', '')
+                name = item.get('name', '')
+                response += f"{idx}. Drawing {number}: {name}\n"
             elif entity_type == "part":
-                # Create KeywordSearch instance to use its part search capability
-                with KeywordSearch(session=self.db_session) as keyword_search:
-                    return keyword_search.search_parts(params)
-            elif entity_type == "tool":
-                with KeywordSearch(session=self.db_session) as keyword_search:
-                    return keyword_search.search_tools(params)
-            elif entity_type == "position":
-                with KeywordSearch(session=self.db_session) as keyword_search:
-                    return keyword_search.search_positions(params)
-            elif entity_type == "problem":
-                with KeywordSearch(session=self.db_session) as keyword_search:
-                    return keyword_search.search_problems(params)
-            elif entity_type == "task":
-                with KeywordSearch(session=self.db_session) as keyword_search:
-                    return keyword_search.search_tasks(params)
-            elif entity_type == "powerpoint":
-                return self.search_powerpoints(params, request_id=request_id)
-            elif entity_type == "user":
-                return self.search_users(params, request_id=request_id)
+                part_number = item.get('part_number', '')
+                name = item.get('name', f"Part #{item.get('id', 'Unknown')}")
+                response += f"{idx}. {part_number}: {name}\n"
+            elif entity_type == "response":
+                text = item.get('text', '')
+                if text:
+                    response = text
+                    break
             else:
-                logger.warning(f"Unknown entity type: {entity_type}")
-                return {
-                    "entity_type": "response",
-                    "results": [{"text": f"I'm not sure how to look up {entity_type} entities."}]
-                }
+                item_name = item.get('title') or item.get('name') or f"Item #{item.get('id', 'Unknown')}"
+                response += f"{idx}. {item_name}\n"
 
-        except Exception as e:
-            logger.error(f"Error in DB lookup for {entity_type}: {e}", exc_info=True)
-            return {
-                "entity_type": "error",
-                "message": f"Error in database lookup: {str(e)}",
-                "entity_type": entity_type
-            }
+        return response
 
-    def search_users(self, params):
-        """Search for users based on parameters."""
-        logger.debug(f"Searching for users with params: {params}")
-        local_session = None
-        try:
-            if not self.db_session:
-                local_session = self.db_config.get_main_session()
-                session = local_session
-            else:
-                session = self.db_session
-
-            # Extract name from the query if present
-            name = None
-            employee_id = None
-
-            # Try to extract name from query
-            name_match = re.search(r'(?:named|called|for)\s+([\w\s]+)(?:$|\?|\.)', params['query'], re.IGNORECASE)
-            if name_match:
-                name = name_match.group(1).strip()
-
-            # Try to extract employee ID from query
-            id_match = re.search(r'(?:employee|user|id)\s+(?:id\s+)?(\w+)', params['query'], re.IGNORECASE)
-            if id_match:
-                employee_id = id_match.group(1)
-
-            # Lookup user in database
-            user = None
-            if employee_id:
-                user = session.query(User).filter_by(employee_id=employee_id).first()
-            elif name:
-                # Try to match by first or last name
-                name_parts = name.split()
-                if len(name_parts) == 1:
-                    # Single name provided, could be first or last
-                    users = session.query(User).filter(
-                        (User.first_name.ilike(f"%{name}%")) |
-                        (User.last_name.ilike(f"%{name}%"))
-                    ).all()
-                    if users:
-                        user = users[0]  # Take the first matching user
-                elif len(name_parts) >= 2:
-                    # First and last name provided
-                    first_name = name_parts[0]
-                    last_name = ' '.join(name_parts[1:])
-                    user = session.query(User).filter(
-                        User.first_name.ilike(f"%{first_name}%"),
-                        User.last_name.ilike(f"%{last_name}%")
-                    ).first()
-
-            if user:
-                return {
-                    "entity_type": "user",
-                    "results": [{
-                        "id": user.id,
-                        "employee_id": user.employee_id,
-                        "name": f"{user.first_name} {user.last_name}",
-                        "current_shift": user.current_shift,
-                        "primary_area": user.primary_area
-                    }]
-                }
-            else:
-                return {
-                    "entity_type": "response",
-                    "results": [{"text": "No user found matching your criteria."}]
-                }
-
-        except Exception as e:
-            logger.error(f"Error in user search: {e}", exc_info=True)
-            return {
-                "entity_type": "error",
-                "results": [{"text": f"Error searching for users: {str(e)}"}]
-            }
-        finally:
-            if local_session:
-                local_session.close()
-
-    def get_search_suggestions(self, question):
-        """
-        Generate search suggestions based on the user's question.
-
-        This function analyzes the question and suggests alternative
-        search approaches or related queries.
-
-        Args:
-            question: User's question text
-
-        Returns:
-            String with search suggestions
-        """
-        # Extract keywords from the question
-        keywords = [word for word in re.findall(r'\b\w{4,}\b', question.lower())
-                    if word not in {"what", "where", "when", "which", "about", "would", "could", "should"}]
-
-        if not keywords:
-            return ""
-
-        # Generate alternative search suggestions
-        suggestions = []
-
-        # Suggest a drawing search if the question might be about a drawing
-        if any(word in question.lower() for word in ["drawing", "schematic", "diagram", "sketch"]):
-            suggestions.append("Try asking for a specific drawing number if you know it")
-
-        # Suggest an image search if the question might be about images
-        if any(word in question.lower() for word in ["image", "picture", "photo", "see"]):
-            suggestions.append("Try asking to see images from a specific area or of specific equipment")
-
-        # Suggest document search
-        if any(word in question.lower() for word in ["document", "manual", "instruction", "procedure"]):
-            suggestions.append("Try asking for documents with a specific title or from a specific area")
-
-        # Create alternative search suggestion using main keywords
-        if len(keywords) >= 2:
-            alt_query = " ".join(keywords[:3])
-            suggestions.append(f"Try searching for '{alt_query}'")
-
-        if not suggestions:
-            return ""
-
-        # Format suggestions
-        return "\n\nHere are some search suggestions:\n- " + "\n- ".join(suggestions)
-
-    def format_response(self, answer, client_type=None, results=None):
-        """
-        Enhanced format_response that includes performance information.
-        """
-        # Basic formatting for all client types
-        formatted_answer = answer.strip()
-
-        # Add performance metrics if available and response was slow
-        if hasattr(self, 'start_time') and self.start_time:
-            response_time = time.time() - self.start_time
-
-            # Add performance info for slow responses or debug mode
-            if response_time > 2.0 or client_type == 'debug':
-                if '<div class="performance-note">' not in formatted_answer:
-                    formatted_answer += f"<div class='performance-note'><small>Response time: {response_time:.2f}s</small></div>"
-
-        # Format URLs if not already done
-        if '<a href=' not in formatted_answer and ('http://' in formatted_answer or 'https://' in formatted_answer):
-            formatted_answer = re.sub(
-                r'(https?://[^\s]+)',
-                r'<a href="\1" target="_blank">\1</a>',
-                formatted_answer
-            )
-
-        return formatted_answer
-
+    @with_request_id
     def record_interaction(self, user_id, question, answer):
-        """Enhanced interaction recording with debugging."""
+        """Record interaction with enhanced debugging."""
         try:
-            logger.debug(f"Recording interaction for user: {user_id}")
-            logger.debug(f"Question length: {len(question)} chars")
-            logger.debug(f"Answer length: {len(answer)} chars")
-
             local_session = None
-
-            # Get session
+            session = self.db_session or self.db_config.get_main_session()
             if not self.db_session:
-                local_session = self.db_config.get_main_session()
-                session = local_session
-                logger.debug("Using local session for recording")
-            else:
-                session = self.db_session
-                logger.debug("Using existing session for recording")
+                local_session = session
 
             try:
-                # Calculate processing time
                 processing_time = None
                 if hasattr(self, 'start_time') and self.start_time:
                     processing_time = int((time.time() - self.start_time) * 1000)
-                    logger.debug(f"Processing time: {processing_time}ms")
 
-                # Record interaction
                 interaction = QandA.record_interaction(
                     user_id=user_id,
                     question=question,
@@ -3560,730 +1397,284 @@ class AistManager(UnifiedSearchMixin):
             finally:
                 if local_session:
                     local_session.close()
-                    logger.debug("Local session closed")
 
         except Exception as e:
             logger.error(f"Error in record_interaction: {e}", exc_info=True)
             return None
 
-    def _ensure_ai_model(self):
-        """Ensure AI model is loaded if needed"""
-        if self.ai_model is None:
-            from plugins import load_ai_model
-            self.ai_model = load_ai_model()
-            logger.debug("AI model lazy-loaded")
-        return self.ai_model
+    @with_request_id
+    def begin_request(self, request_id=None):
+        """Start timing a new request."""
+        self.start_time = time.time()
+        if request_id:
+            self.current_request_id = request_id
+            logger.debug(f"Request {request_id} started with performance tracking")
+        else:
+            self.current_request_id = None
 
-    def enhance_ai_response(answer, question, relevant_doc):
-        """
-        Enhance the raw AI response with document context and improved formatting.
+    @with_request_id
+    def get_response_time(self):
+        """Calculate the response time so far."""
+        if self.start_time:
+            return time.time() - self.start_time
+        return 0
 
-        Args:
-            answer: Raw AI model response text
-            question: Original user question
-            relevant_doc: Document object used to generate the response
+    @with_request_id
+    def format_response(self, answer, client_type=None, results=None):
+        """Enhanced format_response that includes performance information."""
+        formatted_answer = answer.strip()
 
-        Returns:
-            Enhanced and formatted response string
-        """
-        # Initialize enhanced answer
-        enhanced = answer.strip()
+        if hasattr(self, 'start_time') and self.start_time:
+            response_time = time.time() - self.start_time
 
-        # Add document citation if not already present
-        if relevant_doc and hasattr(relevant_doc, 'id'):
-            # Create citation with document info
-            doc_title = getattr(relevant_doc, 'title', f'Document #{relevant_doc.id}')
-            doc_info = f"(Source: {doc_title})"
+            if response_time > 2.0 or client_type == 'debug':
+                if '<div class="performance-note">' not in formatted_answer:
+                    formatted_answer += f"<div class='performance-note'><small>Response time: {response_time:.2f}s</small></div>"
 
-            # Add citation at the end if not already present
-            if doc_info not in enhanced:
-                enhanced += f"\n\n{doc_info}"
+        if '<a href=' not in formatted_answer and ('http://' in formatted_answer or 'https://' in formatted_answer):
+            formatted_answer = re.sub(
+                r'(https?://[^\s]+)',
+                r'<a href="\1" target="_blank">\1</a>',
+                formatted_answer
+            )
 
-        # Format paragraph breaks for better readability
-        import re
-        enhanced = re.sub(r'(\n{3,})', '\n\n', enhanced)
+        return formatted_answer
 
-        logger.debug(f"Enhanced AI response from {len(answer)} to {len(enhanced)} characters")
-        return enhanced
+    @with_request_id
+    def find_most_relevant_document(self, question, session=None, request_id=None):
+        """Find the most relevant document with timeout protection."""
+        search_start = time.time()
+        logger.debug(f"Finding most relevant document for question: {question[:50]}...")
 
-    def get_performance_recommendations(aist_manager):
-        """Analyze performance data and provide optimization recommendations."""
-        analytics = aist_manager.get_performance_analytics(hours=24)
+        local_session = None
+        if not session:
+            if self.db_session:
+                session = self.db_session
+            else:
+                local_session = self.db_config.get_main_session()
+                session = local_session
 
-        if not analytics or analytics.get('total_requests', 0) == 0:
-            return []
-
-        recommendations = []
-
-        # Check overall response time
-        avg_time = analytics.get('avg_response_time', 0)
-        if avg_time > 3.0:
-            recommendations.append({
-                'priority': 'high',
-                'category': 'response_time',
-                'message': f'Average response time is {avg_time:.2f}s, consider optimizing search strategies'
-            })
-
-        # Check step performance
-        step_perf = analytics.get('step_performance', {})
-
-        if 'ai_response' in step_perf and step_perf['ai_response']['avg_time'] > 2.0:
-            recommendations.append({
-                'priority': 'medium',
-                'category': 'ai_model',
-                'message': f'AI model responses averaging {step_perf["ai_response"]["avg_time"]:.2f}s, consider model optimization'
-            })
-
-        if 'vector_search' in step_perf and step_perf['vector_search']['avg_time'] > 1.5:
-            recommendations.append({
-                'priority': 'medium',
-                'category': 'vector_search',
-                'message': f'Vector search averaging {step_perf["vector_search"]["avg_time"]:.2f}s, consider index optimization'
-            })
-
-        if 'fulltext_search' in step_perf and step_perf['fulltext_search']['avg_time'] > 1.0:
-            recommendations.append({
-                'priority': 'low',
-                'category': 'fulltext_search',
-                'message': f'Full-text search averaging {step_perf["fulltext_search"]["avg_time"]:.2f}s, consider database indexing'
-            })
-
-        # Check performance distribution
-        perf_dist = analytics.get('performance_distribution', {})
-        poor_performance_ratio = (perf_dist.get('poor', 0) + perf_dist.get('very_poor', 0)) / analytics[
-            'total_requests']
-
-        if poor_performance_ratio > 0.2:  # More than 20% poor performance
-            recommendations.append({
-                'priority': 'high',
-                'category': 'overall',
-                'message': f'{poor_performance_ratio * 100:.1f}% of requests have poor performance, investigate bottlenecks'
-            })
-
-        return recommendations
-
-    def _execute_with_timeout(self, func, timeout_seconds=400, *args, **kwargs):
-        """
-        Windows-compatible timeout wrapper using threading.
-        Replaces the Unix-only signal.SIGALRM approach.
-        """
-        result = [None]
-        exception = [None]
-        completed = [False]
-
-        def worker():
-            try:
-                result[0] = func(*args, **kwargs)
-                completed[0] = True
-            except Exception as e:
-                exception[0] = e
-                completed[0] = True
-
-        # Start the worker thread
-        worker_thread = threading.Thread(target=worker)
-        worker_thread.daemon = True
-        worker_thread.start()
-
-        # Wait for completion or timeout
-        worker_thread.join(timeout=timeout_seconds)
-
-        if not completed[0]:
-            # Thread is still running - timeout occurred
-            logger.warning(f"Operation timed out after {timeout_seconds} seconds")
-            return None, "Operation timed out"
-
-        if exception[0]:
-            # Thread completed with exception
-            raise exception[0]
-
-        # Thread completed successfully
-        return result[0], None
-
-    def _direct_part_search_with_synonyms(self, query: str, session) -> Dict[str, Any]:
-        """
-        Direct part search that actually returns part numbers.
-        This is the missing piece - we need to search for actual parts!
-        """
         try:
-            # Import Part model
-            from modules.emtacdb.emtacdb_fts import Part
+            embedding_model_name = ModelsConfig.get_config_value('embedding', 'CURRENT_MODEL', 'NoEmbeddingModel')
 
-            # Strategy 1: Search for parts using the Part.search method
-            search_params = {
-                'search_text': query,
-                'fields': ['part_number', 'name', 'oem_mfg', 'model', 'notes'],
-                'limit': 20,
-                'session': session
-            }
+            if embedding_model_name == "NoEmbeddingModel":
+                logger.info("Embeddings are disabled. Returning None for document search.")
+                return None
 
-            logger.debug(f"Searching parts with: {search_params}")
+            def search_operation():
+                if hasattr(self, 'vector_search_client') and self.vector_search_client:
+                    vector_results = self.vector_search_client.search(question, limit=1)
 
-            # Execute part search
-            parts = Part.search(**search_params)
+                    if vector_results:
+                        best_result = vector_results[0]
+                        doc_id = best_result['id']
+                        similarity = best_result['similarity']
 
-            if parts:
-                # Format parts for unified search response
-                formatted_parts = []
-                for part in parts:
-                    part_data = {
-                        'id': part.id,
-                        'part_number': part.part_number,
-                        'name': part.name,
-                        'oem_mfg': part.oem_mfg,
-                        'model': part.model,
-                        'type': 'part',
-                        'description': part.notes or '',
-                        'match_type': 'synonym_search'
-                    }
-                    formatted_parts.append(part_data)
+                        document = session.query(Document).get(doc_id)
+                        if document:
+                            search_time = time.time() - search_start
+                            logger.info(
+                                f"Found most relevant document (ID: {doc_id}, similarity: {similarity:.4f}) in {search_time:.3f}s")
+                            return document
 
+                logger.debug("Using fallback document search")
+                recent_docs = session.query(Document).limit(5).all()
+                if recent_docs:
+                    search_time = time.time() - search_start
+                    logger.info(f"Fallback: returning recent document in {search_time:.3f}s")
+                    return recent_docs[0]
+
+                return None
+
+            result, error = SearchUtils.execute_with_timeout(search_operation, 3.0)
+
+            if error:
+                search_time = time.time() - search_start
+                logger.warning(f"Document search timed out after {search_time:.3f}s for request {request_id}")
+                return None
+
+            return result
+
+        except Exception as e:
+            search_time = time.time() - search_start
+            logger.error(f"Error in document search after {search_time:.3f}s: {e}", exc_info=True)
+            return None
+        finally:
+            if local_session:
+                local_session.close()
+
+    @with_request_id
+    def cleanup_session(self):
+        """Clean up the current session and resources."""
+        try:
+            if self.current_session_id:
+                self.end_user_session()
+
+            self.current_request_id = None
+            self.start_time = None
+
+            logger.debug("Session cleanup completed")
+
+        except Exception as e:
+            logger.error(f"Session cleanup failed: {e}")
+
+    def __enter__(self):
+        """Context manager entry."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit with cleanup."""
+        self.cleanup_session()
+
+        if hasattr(self, 'unified_search_system') and self.unified_search_system:
+            if hasattr(self.unified_search_system, 'close_session'):
+                try:
+                    self.unified_search_system.close_session()
+                except Exception as e:
+                    logger.error(f"Failed to close unified search session: {e}")
+
+    @with_request_id
+    def query_ai_model(self, prompt, user_id=None, request_id=None):
+        """Send a prompt directly to the currently selected AI model for an answer."""
+        self.current_request_id = request_id or get_request_id()
+
+        logger.info(f"Sending query to AI model (Request: {self.current_request_id})")
+        logger.debug(f"Prompt length: {len(prompt)} characters")
+
+        try:
+            # Load the currently selected AI model
+            ai_model = ModelsConfig.load_ai_model()
+
+            if not ai_model:
+                error_msg = "No AI model is currently available"
+                logger.error(error_msg)
+                return {
+                    'status': 'error',
+                    'answer': error_msg,
+                    'method': 'ai_model_direct',
+                    'model_name': 'none',
+                    'request_id': self.current_request_id
+                }
+
+            # Check if AI is disabled
+            if hasattr(ai_model, '__class__') and 'NoAIModel' in ai_model.__class__.__name__:
+                logger.info("AI model is disabled (NoAIModel)")
                 return {
                     'status': 'success',
-                    'total_results': len(formatted_parts),
-                    'results_by_type': {
-                        'parts': formatted_parts
-                    },
-                    'search_method': 'direct_part_search',
-                    'query': query
+                    'answer': "AI is currently disabled.",
+                    'method': 'ai_model_disabled',
+                    'model_name': 'NoAIModel',
+                    'request_id': self.current_request_id
                 }
-            else:
-                # Strategy 2: Try broader search with individual terms
-                words = query.split()
-                for word in words:
-                    if len(word) > 3:  # Skip short words
-                        broader_params = {
-                            'search_text': word,
-                            'fields': ['part_number', 'name', 'oem_mfg'],
-                            'limit': 10,
-                            'session': session
-                        }
 
-                        broader_parts = Part.search(**broader_params)
-                        if broader_parts:
-                            formatted_parts = []
-                            for part in broader_parts:
-                                part_data = {
-                                    'id': part.id,
-                                    'part_number': part.part_number,
-                                    'name': part.name,
-                                    'oem_mfg': part.oem_mfg,
-                                    'model': part.model,
-                                    'type': 'part',
-                                    'description': part.notes or '',
-                                    'match_type': 'broader_search',
-                                    'matched_term': word
-                                }
-                                formatted_parts.append(part_data)
+            # Get the model name for logging
+            model_name = getattr(ai_model, 'model_name', ai_model.__class__.__name__)
+            logger.info(f"Using AI model: {model_name}")
 
-                            return {
-                                'status': 'success',
-                                'total_results': len(formatted_parts),
-                                'results_by_type': {
-                                    'parts': formatted_parts
-                                },
-                                'search_method': 'broader_term_search',
-                                'query': query,
-                                'matched_term': word
-                            }
+            # Send prompt to AI model
+            start_time = time.time()
+            response = ai_model.get_response(prompt)
+            response_time = time.time() - start_time
 
-                return {
-                    'status': 'no_results',
-                    'total_results': 0,
-                    'message': f"No parts found for query: {query}"
-                }
+            logger.info(f"AI model responded in {response_time:.2f}s")
+            logger.debug(f"Response length: {len(response)} characters")
+
+            # Record interaction if user_id provided
+            if user_id:
+                try:
+                    self.record_interaction(user_id, prompt, response)
+                    logger.debug(f"Interaction recorded for user: {user_id}")
+                except Exception as e:
+                    logger.warning(f"Failed to record interaction: {e}")
+
+            return {
+                'status': 'success',
+                'answer': response,
+                'method': 'ai_model_direct',
+                'model_name': model_name,
+                'response_time_seconds': round(response_time, 2),
+                'request_id': self.current_request_id
+            }
 
         except Exception as e:
-            logger.error(f"Error in direct part search: {e}", exc_info=True)
+            error_msg = f"Error querying AI model: {str(e)}"
+            logger.error(error_msg)
+            logger.exception("AI model query exception:")
+
             return {
                 'status': 'error',
-                'total_results': 0,
-                'message': f"Part search failed: {str(e)}"
+                'answer': error_msg,
+                'method': 'ai_model_direct',
+                'model_name': 'unknown',
+                'error': str(e),
+                'request_id': self.current_request_id
             }
 
-    def _get_fallback_synonyms(self, term: str) -> List[str]:
-        """Enhanced fallback synonyms with better coverage"""
+    @with_request_id
+    def query_ai_with_context(self, user_query, context_text, user_id=None, request_id=None):
+        """Send a user query with context text to the AI model."""
+        self.current_request_id = request_id or get_request_id()
 
-        logger.debug(f" Using fallback synonyms for '{term}'")
+        logger.info(f"Sending query with context to AI model (Request: {self.current_request_id})")
 
-        # Enhanced fallback synonyms based on your database structure
-        fallback_synonyms = {
-            # Equipment types
-            'valve': ['valves', 'control valve', 'ball valve', 'gate valve', 'check valve', 'relief valve'],
-            'bearing': ['bearings', 'ball bearing', 'roller bearing', 'thrust bearing', 'bearing assembly'],
-            'switch': ['switches', 'limit switch', 'pressure switch', 'safety switch', 'temperature switch'],
-            'motor': ['motors', 'electric motor', 'servo motor', 'ac motor', 'dc motor'],
-            'belt': ['belts', 'drive belt', 'v-belt', 'timing belt', 'serpentine belt'],
-            'cable': ['cables', 'power cable', 'control cable', 'data cable'],
-            'sensor': ['sensors', 'temperature sensor', 'pressure sensor', 'level sensor', 'flow sensor'],
-            'seal': ['seals', 'oil seal', 'hydraulic seal', 'shaft seal', 'mechanical seal'],
-            'relay': ['relays', 'control relay', 'power relay', 'time relay'],
-            'pump': ['pumps', 'centrifugal pump', 'hydraulic pump', 'water pump', 'circulation pump'],
-            'spring': ['springs', 'compression spring', 'extension spring', 'torsion spring'],
-            'filter': ['filters', 'air filter', 'oil filter', 'hydraulic filter', 'fuel filter'],
-            'gear': ['gears', 'spur gear', 'bevel gear', 'worm gear'],
-            'tube': ['tubes', 'hydraulic tube', 'pneumatic tube'],
-            'hose': ['hoses', 'hydraulic hose', 'air hose', 'water hose'],
-            'wire': ['wires', 'electrical wire', 'control wire'],
-            'fan': ['fans', 'cooling fan', 'exhaust fan', 'ventilation fan'],
-            'coupling': ['couplings', 'flexible coupling', 'rigid coupling'],
-            'gasket': ['gaskets', 'rubber gasket', 'metal gasket'],
-            'bushing': ['bushings', 'bronze bushing', 'rubber bushing'],
-            'bracket': ['brackets', 'mounting bracket', 'support bracket'],
+        # Build the contextual prompt
+        prompt = f"""Based on the following context information, please answer the user's question accurately and helpfully.
 
-            # Component descriptors
-            'assembly': ['assemblies', 'unit', 'component', 'module'],
-            'component': ['components', 'part', 'piece', 'element'],
-            'unit': ['units', 'assembly', 'module', 'system'],
-            'part': ['parts', 'component', 'piece'],
-            'piece': ['pieces', 'part', 'component'],
+    CONTEXT:
+    {context_text}
 
-            # Actions/search terms
-            'find': ['search', 'locate', 'get', 'show', 'display'],
-            'search': ['find', 'locate', 'look for'],
-            'show': ['display', 'present', 'exhibit'],
-            'get': ['obtain', 'retrieve', 'fetch'],
+    USER QUESTION:
+    {user_query}
 
-            # Size/type modifiers
-            'small': ['compact', 'mini', 'tiny'],
-            'large': ['big', 'oversized', 'heavy duty'],
-            'heavy': ['robust', 'industrial', 'heavy duty'],
-            'light': ['lightweight', 'compact'],
+    Please provide a clear, helpful answer based on the context provided. If the context doesn't contain enough information to fully answer the question, please say so and provide what information you can."""
 
-            # Material types
-            'steel': ['stainless steel', 'carbon steel', 'alloy steel'],
-            'aluminum': ['aluminium', 'alloy', 'light metal'],
-            'plastic': ['polymer', 'synthetic', 'composite'],
-            'rubber': ['elastomer', 'flexible material'],
-        }
+        # Use the direct query function
+        return self.query_ai_model(prompt, user_id, request_id)
 
-        term_lower = term.lower()
+    @with_request_id
+    def query_ai_simple(self, question, user_id=None, request_id=None):
+        """Send a simple question directly to the AI model without additional context."""
+        return self.query_ai_model(question, user_id, request_id)
 
-        # Exact match
-        if term_lower in fallback_synonyms:
-            synonyms = fallback_synonyms[term_lower][:4]
-            logger.debug(f" Fallback exact match synonyms for '{term}': {synonyms}")
-            return synonyms
 
-        # Partial match for compound terms
-        for key, values in fallback_synonyms.items():
-            if key in term_lower or term_lower in key:
-                synonyms = values[:3]
-                logger.debug(f" Fallback partial match synonyms for '{term}' (matched '{key}'): {synonyms}")
-                return synonyms
 
-        # Stem-based matching (basic)
-        stems = {
-            'bear': 'bearing',
-            'valv': 'valve',
-            'mot': 'motor',
-            'pump': 'pump',
-            'seal': 'seal',
-            'switch': 'switch',
-            'sens': 'sensor',
-            'belt': 'belt',
-            'cabl': 'cable',
-            'wire': 'wire',
-            'hose': 'hose',
-            'tube': 'tube',
-            'gear': 'gear',
-            'spring': 'spring',
-            'filter': 'filter',
-            'fan': 'fan'
-        }
+# ===== GLOBAL INSTANCE MANAGEMENT =====
 
-        for stem, full_term in stems.items():
-            if stem in term_lower and full_term in fallback_synonyms:
-                synonyms = fallback_synonyms[full_term][:2]
-                logger.debug(
-                    f" Fallback stem match synonyms for '{term}' (stem '{stem}' -> '{full_term}'): {synonyms}")
-                return synonyms
+global_aist_manager = None
 
-        # No synonyms found
-        logger.debug(f"ℹ No fallback synonyms found for '{term}'")
-        return []
+@with_request_id
+def get_or_create_aist_manager():
+    """Get or create a global AistManager instance with database session for tracking."""
+    global global_aist_manager
 
-    # Helper function to test database connectivity before synonym lookup
-    def test_synonym_database_connectivity(session) -> bool:
-        """Test if we can safely query the synonym database"""
+    if global_aist_manager is None:
         try:
-            if session.in_transaction():
-                session.rollback()
+            logger.info("Creating AistManager with tracking support...")
 
-            from sqlalchemy import text
+            db_config = DatabaseConfig()
+            db_session = db_config.get_session()
 
-            # Simple test query
-            test_query = text("SELECT COUNT(*) FROM entity_synonym LIMIT 1")
-            result = session.execute(test_query)
-            count = result.scalar()
-
-            logger.debug(f" Synonym database connectivity test passed (found {count} synonyms)")
-            return True
-
-        except Exception as e:
-            logger.warning(f" Synonym database connectivity test failed: {e}")
-            try:
-                session.rollback()
-            except:
-                pass
-            return False
-
-    # Updated synonym expansion that uses the fixed method
-    def expand_query_with_synonyms_safe(self, query_text: str) -> Dict[str, List[str]]:
-        """Safely expand query with synonyms, handling all database errors"""
-
-        # Test database connectivity first
-        if not test_synonym_database_connectivity(self.session):
-            logger.warning(" Synonym database unavailable, using fallback only")
-            return self._expand_query_with_fallback_only(query_text)
-
-        import re
-
-        # Remove common search words and extract key terms
-        stop_words = {'search', 'find', 'show', 'get', 'locate', 'display', 'for', 'the', 'a', 'an', 'part',
-                      'number'}
-        words = re.findall(r'\b\w+\b', query_text.lower())
-        key_terms = [word for word in words if word not in stop_words and len(word) > 2]
-
-        expanded_terms = {}
-
-        for term in key_terms:
-            # Use the fixed synonym lookup method
-            synonyms = self._get_synonyms_for_term(term, self.session)
-            if synonyms:
-                expanded_terms[term] = synonyms
-
-        logger.debug(f" Expanded terms for '{query_text}': {expanded_terms}")
-        return expanded_terms
-
-    def _expand_query_with_fallback_only(self, query_text: str) -> Dict[str, List[str]]:
-        """Expand query using only fallback synonyms when database is unavailable"""
-
-        import re
-
-        stop_words = {'search', 'find', 'show', 'get', 'locate', 'display', 'for', 'the', 'a', 'an', 'part',
-                      'number'}
-        words = re.findall(r'\b\w+\b', query_text.lower())
-        key_terms = [word for word in words if word not in stop_words and len(word) > 2]
-
-        expanded_terms = {}
-
-        for term in key_terms:
-            synonyms = self._get_fallback_synonyms(term)
-            if synonyms:
-                expanded_terms[term] = synonyms
-
-        logger.debug(f" Fallback-only expanded terms for '{query_text}': {expanded_terms}")
-        return expanded_terms
-
-    def _detect_search_intent(self, question: str) -> Dict[str, Any]:
-        """
-        Detect search intent using database patterns with proper error handling.
-        This method was missing and causing the AttributeError.
-
-        Args:
-            question: User's search query
-
-        Returns:
-            Dictionary with intent information
-        """
-        try:
-            # Clean the question
-            question_lower = question.lower().strip()
-
-            # Try database patterns first if available
-            if hasattr(self, 'db_session') and self.db_session:
-                try:
-                    database_result = self._query_intent_patterns_safe(question_lower)
-                    if database_result.get('is_search_query', False):
-                        return {
-                            'intent': database_result.get('intent_name', 'UNKNOWN'),
-                            'confidence': database_result.get('confidence', 0.0),
-                            'search_method': database_result.get('search_method', 'database'),
-                            'method': 'database_patterns',
-                            'intent_id': database_result.get('intent_id'),
-                            'pattern_details': {
-                                'matched_pattern': database_result.get('matched_pattern'),
-                                'priority': database_result.get('priority'),
-                                'success_rate': database_result.get('success_rate')
-                            }
-                        }
-                except Exception as db_error:
-                    logger.warning(f"Database intent detection failed: {db_error}")
-
-            # Fallback to pattern-based detection
-            return self._fallback_intent_detection(question_lower)
-
-        except Exception as e:
-            logger.error(f"Error in _detect_search_intent: {e}", exc_info=True)
-            return {
-                'intent': 'UNKNOWN',
-                'confidence': 0.0,
-                'search_method': 'error',
-                'method': 'error_fallback',
-                'error': str(e)
-            }
-
-    def _query_intent_patterns_safe(self, question_lower: str) -> Dict[str, Any]:
-        """
-        Safe query of intent patterns from database with proper transaction handling.
-        """
-        try:
-            # Import search models
-            from modules.search.models.search_models import SearchIntent, IntentPattern, IntentKeyword
-
-            # Ensure clean transaction state
-            if self.db_session.in_transaction():
-                self.db_session.rollback()
-
-            # Get active intents
-            active_intents = self.db_session.query(SearchIntent).filter(
-                SearchIntent.is_active == True
-            ).order_by(SearchIntent.priority.desc()).all()
-
-            logger.debug(f" Testing against {len(active_intents)} active search intents")
-
-            best_match = None
-            best_confidence = 0.0
-
-            for intent in active_intents:
-                try:
-                    # Test patterns for this intent
-                    pattern_confidence = self._test_regex_patterns_safe(question_lower, intent)
-
-                    # Test keywords for this intent
-                    keyword_confidence = self._test_keyword_matches_safe(question_lower, intent)
-
-                    # Combined confidence
-                    combined_confidence = max(pattern_confidence, keyword_confidence * 0.8)
-
-                    if combined_confidence > best_confidence:
-                        best_confidence = combined_confidence
-                        best_match = {
-                            'intent': intent,
-                            'confidence': combined_confidence,
-                            'pattern_confidence': pattern_confidence,
-                            'keyword_confidence': keyword_confidence
-                        }
-
-                    logger.debug(
-                        f"Intent '{intent.name}': pattern={pattern_confidence:.2f}, keyword={keyword_confidence:.2f}, combined={combined_confidence:.2f}")
-
-                except Exception as intent_error:
-                    logger.warning(f" Error testing intent {intent.name}: {intent_error}")
-                    continue
-
-            # Determine result
-            threshold = 0.6
-
-            if best_match and best_confidence >= threshold:
-                intent = best_match['intent']
-                return {
-                    'is_search_query': True,
-                    'intent_name': intent.name,
-                    'intent_id': intent.id,
-                    'confidence': best_confidence,
-                    'search_method': getattr(intent, 'search_method', 'unknown'),
-                    'database_available': True,
-                    'method': 'database_intent_detection_safe'
-                }
+            if not db_session:
+                logger.error("Could not get database session")
+                global_aist_manager = AistManager()
             else:
-                return {
-                    'is_search_query': False,
-                    'best_confidence': best_confidence,
-                    'threshold': threshold,
-                    'database_available': True,
-                    'tested_intents': len(active_intents)
-                }
+                logger.info("Database session obtained")
+                ai_model = ModelsConfig.load_ai_model()
+                global_aist_manager = AistManager(
+                    ai_model=ai_model,
+                    db_session=db_session
+                )
+
+            logger.info("Global AistManager created successfully")
 
         except Exception as e:
-            logger.error(f" Database intent detection failed: {e}")
-            # Always rollback on error
+            logger.error(f"Failed to create AistManager with tracking: {e}")
             try:
-                if self.db_session:
-                    self.db_session.rollback()
-            except:
-                pass
+                ai_model = ModelsConfig.load_ai_model()
+                global_aist_manager = AistManager(ai_model=ai_model)
+                logger.info("Created fallback AistManager without tracking")
+            except Exception as fallback_error:
+                logger.error(f"Fallback AistManager creation failed: {fallback_error}")
+                global_aist_manager = AistManager()
 
-            return {
-                'is_search_query': False,
-                'database_available': False,
-                'error': str(e)
-            }
-
-    def _test_regex_patterns_safe(self, question_lower: str, intent) -> float:
-        """Test regex patterns for an intent with proper error handling."""
-        max_confidence = 0.0
-
-        try:
-            # Ensure fresh transaction state
-            try:
-                self.db_session.rollback()
-            except:
-                pass
-
-            # Access patterns with error handling
-            patterns = []
-            try:
-                patterns = list(intent.patterns)  # Convert to list to avoid lazy loading issues
-            except Exception as pattern_load_error:
-                logger.warning(f"[WARN] Could not load patterns for intent {intent.name}: {pattern_load_error}")
-                return 0.0
-
-            for pattern in patterns:
-                try:
-                    if not getattr(pattern, 'is_active', True):
-                        continue
-
-                    pattern_text = getattr(pattern, 'pattern_text', '')
-                    if not pattern_text:
-                        continue
-
-                    # Test the regex pattern
-                    match = re.search(pattern_text, question_lower, re.IGNORECASE)
-
-                    if match:
-                        # Calculate confidence
-                        success_rate = getattr(pattern, 'success_rate', 0.8)
-                        base_confidence = success_rate if success_rate > 0 else 0.8
-                        usage_count = getattr(pattern, 'usage_count', 0)
-                        usage_boost = min(0.1, usage_count / 1000)
-
-                        pattern_confidence = min(1.0, base_confidence + usage_boost)
-
-                        if pattern_confidence > max_confidence:
-                            max_confidence = pattern_confidence
-
-                        logger.debug(
-                            f"[MATCH] Pattern '{pattern_text[:50]}...' matched with confidence {pattern_confidence:.2f}")
-
-                except re.error as regex_error:
-                    logger.warning(f"[WARN] Invalid regex pattern: {regex_error}")
-                    continue
-                except Exception as pattern_error:
-                    logger.warning(f"[WARN] Error testing pattern: {pattern_error}")
-                    continue
-
-        except Exception as e:
-            logger.warning(f"[WARN] Error testing regex patterns for intent {intent.name}: {e}")
-
-        return max_confidence
-
-    def _test_keyword_matches_safe(self, question_lower: str, intent) -> float:
-        """Test keyword matches for an intent with proper error handling."""
-        try:
-            # Ensure fresh transaction state
-            try:
-                self.db_session.rollback()
-            except:
-                pass
-
-            total_weight = 0.0
-            matched_weight = 0.0
-
-            # Access keywords with error handling
-            keywords = []
-            try:
-                keywords = list(intent.keywords)  # Convert to list to avoid lazy loading
-            except Exception as keyword_load_error:
-                logger.warning(f"[WARN] Could not load keywords for intent {intent.name}: {keyword_load_error}")
-                return 0.0
-
-            for keyword in keywords:
-                try:
-                    if not getattr(keyword, 'is_active', True):
-                        continue
-
-                    weight = getattr(keyword, 'weight', 1.0)
-                    keyword_text = getattr(keyword, 'keyword_text', '')
-
-                    if not keyword_text:
-                        continue
-
-                    total_weight += weight
-                    keyword_text_lower = keyword_text.lower()
-
-                    # Handle missing is_exact_match column
-                    is_exact_match = getattr(keyword, 'is_exact_match', False)  # Default to False
-
-                    if is_exact_match:
-                        # Word boundary match
-                        if re.search(r'\b' + re.escape(keyword_text_lower) + r'\b', question_lower):
-                            matched_weight += weight
-                            logger.debug(f"[MATCH] Exact keyword match: '{keyword_text}' (weight: {weight})")
-                    else:
-                        # Partial match
-                        if keyword_text_lower in question_lower:
-                            matched_weight += weight
-                            logger.debug(f"[MATCH] Partial keyword match: '{keyword_text}' (weight: {weight})")
-
-                except Exception as keyword_error:
-                    logger.warning(f"[WARN] Error testing keyword: {keyword_error}")
-                    continue
-
-            # Calculate confidence
-            confidence = matched_weight / total_weight if total_weight > 0 else 0.0
-
-            if confidence > 0:
-                logger.debug(
-                    f"[RESULT] Keyword confidence for intent '{intent.name}': {matched_weight}/{total_weight} = {confidence:.2f}")
-
-            return confidence
-
-        except Exception as e:
-            logger.warning(f"[WARN] Error testing keywords for intent {intent.name}: {e}")
-            return 0.0
-
-    def _fallback_intent_detection(self, question_lower: str) -> Dict[str, Any]:
-        """
-        Fallback intent detection using basic patterns when database is unavailable.
-        """
-        logger.debug("[INFO] Using fallback intent detection")
-
-        # Essential search patterns
-        intent_patterns = {
-            'FIND_PART': [
-                r'part\s+number\s+for',  # "part number for"
-                r'find\s+part',  # "find part"
-                r'what\s+does\s+part',  # "what does part"
-                r'show\s+me.*part',  # "show me part"
-                r'([A-Za-z]+)\s+(sensors?|motors?|valves?|pumps?|bearings?|switches?)',  # "Banner sensors"
-                r'[A-Z]\d{5,}',  # A115957 style part numbers
-                r'\d{6,}',  # 6+ digit numbers
-            ],
-            'SHOW_IMAGES': [
-                r'show.*images',  # "show images"
-                r'pictures\s+of',  # "pictures of"
-                r'images\s+of',  # "images of"
-            ],
-            'LOCATION_SEARCH': [
-                r'what.*in\s+room',  # "what's in room"
-                r'show.*in\s+(room|area|zone)',  # "show in room"
-            ],
-            'FIND_SENSOR': [
-                r'([A-Za-z]+)\s+sensors?',  # "Banner sensors"
-                r'show\s+me\s+([A-Za-z]+)\s+sensors?',  # "show me Banner sensors"
-            ]
-        }
-
-        best_intent = 'UNKNOWN'
-        best_confidence = 0.0
-
-        for intent, patterns in intent_patterns.items():
-            for pattern in patterns:
-                try:
-                    if re.search(pattern, question_lower, re.IGNORECASE):
-                        confidence = 0.7  # Reasonable confidence for fallback
-                        if confidence > best_confidence:
-                            best_confidence = confidence
-                            best_intent = intent
-                            logger.debug(f"[MATCH] Fallback pattern matched: {pattern} -> {intent}")
-                            break
-                except re.error:
-                    continue
-
-        return {
-            'intent': best_intent,
-            'confidence': best_confidence,
-            'search_method': 'fallback',
-            'method': 'pattern_fallback'
-        }
+    return global_aist_manager
