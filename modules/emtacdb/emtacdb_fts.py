@@ -1,8 +1,10 @@
 
+from sqlalchemy.dialects.postgresql import TSVECTOR, JSONB
+from pgvector.sqlalchemy import Vector
 from dataclasses import dataclass
 from sqlalchemy.dialects.postgresql import UUID
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Index
+from sqlalchemy import Index,func
 from typing import List, Dict, Any, Tuple, Optional
 import time
 import threading
@@ -1700,6 +1702,9 @@ class Part(Base):
     notes = Column(String)  # MP2=Notes, SPC= Long Description
     documentation = Column(String)  # MP2=Specifications
 
+    # FTS Column - will be populated by trigger
+    search_vector = Column(TSVECTOR)
+
     part_position_image = relationship("PartsPositionImageAssociation", back_populates="part")
     part_problem = relationship("PartProblemAssociation", back_populates="part")
     part_task = relationship("PartTaskAssociation", back_populates="part")
@@ -1713,6 +1718,7 @@ class Part(Base):
                search_text: Optional[str] = None,
                fields: Optional[List[str]] = None,
                exact_match: bool = False,
+               use_fts: bool = True,  # New parameter to enable/disable FTS
                part_id: Optional[int] = None,
                part_number: Optional[str] = None,
                name: Optional[str] = None,
@@ -1728,12 +1734,14 @@ class Part(Base):
                session: Optional[Session] = None) -> List['Part']:
         """
         Comprehensive search method for Part objects with flexible search options.
+        Now includes PostgreSQL Full Text Search (FTS) capabilities.
 
         Args:
             search_text: Text to search for across specified fields
             fields: List of field names to search in. If None, searches in default fields
                    (part_number, name, oem_mfg, model)
             exact_match: If True, performs exact matching instead of partial matching
+            use_fts: If True and search_text provided, uses PostgreSQL FTS for better performance
             part_id: Optional ID to filter by
             part_number: Optional part_number to filter by
             name: Optional name to filter by
@@ -1749,7 +1757,7 @@ class Part(Base):
             session: Optional SQLAlchemy session. If None, a new session will be created
 
         Returns:
-            List of Part objects matching the search criteria
+            List of Part objects matching the search criteria, ordered by relevance when using FTS
         """
         # Get or use the provided request_id
         rid = request_id or get_request_id()
@@ -1766,6 +1774,7 @@ class Part(Base):
             'search_text': search_text,
             'fields': fields,
             'exact_match': exact_match,
+            'use_fts': use_fts,
             'part_id': part_id,
             'part_number': part_number,
             'name': name,
@@ -1788,30 +1797,53 @@ class Part(Base):
                 # Start with the base query
                 query = session.query(cls)
                 filters = []
+                use_fts_ranking = False
 
                 # Process search_text across multiple fields if provided
                 if search_text:
                     search_text = search_text.strip()
                     if search_text:
-                        # Default fields to search in if none specified
-                        if fields is None or len(fields) == 0:
-                            fields = ['part_number', 'name', 'oem_mfg', 'model']
+                        # Check if we should use FTS
+                        if use_fts and hasattr(cls, 'search_vector'):
+                            debug_id(f"Using PostgreSQL FTS for text search: '{search_text}'", rid)
+                            try:
+                                # Use PostgreSQL FTS with ranking
+                                ts_query = func.plainto_tsquery('english', search_text)
 
-                        debug_id(f"Searching for text '{search_text}' in fields: {fields}", rid)
+                                # Add FTS filter
+                                filters.append(cls.search_vector.op('@@')(ts_query))
 
-                        # Create field-specific filters
-                        text_filters = []
-                        for field_name in fields:
-                            if hasattr(cls, field_name):
-                                field = getattr(cls, field_name)
-                                if exact_match:
-                                    text_filters.append(field == search_text)
-                                else:
-                                    text_filters.append(field.ilike(f"%{search_text}%"))
+                                # Add ranking for ordering
+                                query = query.add_columns(
+                                    func.ts_rank(cls.search_vector, ts_query).label('rank')
+                                )
+                                use_fts_ranking = True
 
-                        # Add the combined text search filter if we have any
-                        if text_filters:
-                            filters.append(or_(*text_filters))
+                            except Exception as fts_error:
+                                debug_id(f"FTS search failed, falling back to ILIKE: {fts_error}", rid)
+                                use_fts = False
+
+                        # Fallback to traditional ILIKE search if FTS not available or failed
+                        if not use_fts:
+                            # Default fields to search in if none specified
+                            if fields is None or len(fields) == 0:
+                                fields = ['part_number', 'name', 'oem_mfg', 'model']
+
+                            debug_id(f"Using ILIKE search for text '{search_text}' in fields: {fields}", rid)
+
+                            # Create field-specific filters
+                            text_filters = []
+                            for field_name in fields:
+                                if hasattr(cls, field_name):
+                                    field = getattr(cls, field_name)
+                                    if exact_match:
+                                        text_filters.append(field == search_text)
+                                    else:
+                                        text_filters.append(field.ilike(f"%{search_text}%"))
+
+                            # Add the combined text search filter if we have any
+                            if text_filters:
+                                filters.append(or_(*text_filters))
 
                 # Add filters for specific fields if provided
                 if part_id is not None:
@@ -1885,12 +1917,26 @@ class Part(Base):
                 if filters:
                     query = query.filter(and_(*filters))
 
+                # Apply ordering - use FTS ranking if available, otherwise default ordering
+                if use_fts_ranking:
+                    query = query.order_by(text('rank DESC'))
+                else:
+                    # Default ordering by part_number for consistent results
+                    query = query.order_by(cls.part_number)
+
                 # Apply limit
                 query = query.limit(limit)
 
-                # Execute query and log results
-                results = query.all()
-                debug_id(f"Part.search completed, found {len(results)} results", rid)
+                # Execute query and handle results
+                if use_fts_ranking:
+                    # Extract just the Part objects from the ranked results
+                    raw_results = query.all()
+                    results = [result[0] for result in raw_results]  # result[0] is the Part object
+                    debug_id(f"FTS search completed, found {len(results)} ranked results", rid)
+                else:
+                    results = query.all()
+                    debug_id(f"Standard search completed, found {len(results)} results", rid)
+
                 return results
 
         except Exception as e:
@@ -1902,6 +1948,54 @@ class Part(Base):
             if not session_provided:
                 session.close()
                 debug_id(f"Closed database session for Part.search", rid)
+
+    @classmethod
+    @with_request_id
+    def fts_search(cls,
+                   search_text: str,
+                   limit: int = 100,
+                   request_id: Optional[str] = None,
+                   session: Optional[Session] = None) -> List[tuple]:
+        """
+        Dedicated Full Text Search method that returns parts with their relevance scores.
+
+        Args:
+            search_text: Text to search for using PostgreSQL FTS
+            limit: Maximum number of results to return
+            request_id: Optional request ID for tracking
+            session: Optional SQLAlchemy session
+
+        Returns:
+            List of tuples: (Part object, relevance_score)
+        """
+        rid = request_id or get_request_id()
+
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+
+        debug_id(f"Starting FTS search for: '{search_text}'", rid)
+
+        try:
+            ts_query = func.plainto_tsquery('english', search_text)
+            rank = func.ts_rank(cls.search_vector, ts_query)
+
+            results = session.query(cls, rank.label('relevance')) \
+                .filter(cls.search_vector.op('@@')(ts_query)) \
+                .order_by(rank.desc()) \
+                .limit(limit) \
+                .all()
+
+            debug_id(f"FTS search found {len(results)} results", rid)
+            return [(result[0], float(result[1])) for result in results]
+
+        except Exception as e:
+            error_id(f"Error in Part.fts_search: {str(e)}", rid)
+            raise
+        finally:
+            if not session_provided:
+                session.close()
 
     @classmethod
     @with_request_id
@@ -4791,96 +4885,277 @@ class Document(Base):
 
 class DocumentEmbedding(Base):
     """
-    Enhanced embedding model supporting both legacy LargeBinary and modern pgvector storage.
+    Enhanced embedding model supporting variable dimensions and rich metadata.
 
-    This class intelligently handles both storage formats:
-    - Legacy: model_embedding (LargeBinary) for backward compatibility
-    - Modern: embedding_vector (pgvector) for better performance
-
-    The class automatically determines which storage format to use based on what's available.
+    Updated to work with migrated table structure that includes:
+    - Flexible pgvector storage (no dimension constraints)
+    - actual_dimensions column for fast querying
+    - embedding_metadata JSONB column for rich model information
     """
     __tablename__ = 'document_embedding'
 
     id = Column(Integer, primary_key=True)
-    document_id = Column(Integer, ForeignKey('document.id'))
+    document_id = Column(Integer, ForeignKey('document.id'), nullable=False)
     model_name = Column(String, nullable=False)
 
-    # Legacy storage (keep for backward compatibility)
-    model_embedding = Column(LargeBinary, nullable=True)  # Made nullable
+    # Legacy storage (backward compatibility)
+    model_embedding = Column(LargeBinary, nullable=True)
 
-    # Modern pgvector storage (add this column)
-    embedding_vector = Column(Vector(1536), nullable=True)  # Made nullable
+    # Modern flexible pgvector storage (no dimension constraint)
+    embedding_vector = Column(Vector, nullable=True)  # No dimension limit!
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    # New enhanced columns from migration
+    actual_dimensions = Column(Integer, nullable=True)
+    embedding_metadata = Column(JSONB, nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True)
 
     # Relationships
     document = relationship("Document", back_populates="embeddings")
 
     def __repr__(self):
         storage_type = self.get_storage_type()
-        return f"<DocumentEmbedding(doc_id={self.document_id}, model={self.model_name}, storage={storage_type})>"
+        dims = self.actual_dimensions or "unknown"
+        return f"<DocumentEmbedding(doc_id={self.document_id}, model={self.model_name}, dims={dims}, storage={storage_type})>"
 
     @property
     def embedding_as_list(self) -> List[float]:
         """
         Get embedding as Python list, automatically handling both storage formats.
-        Fixed to properly handle numpy arrays.
-
-        Returns:
-            List[float]: Embedding vector as list of floats
+        Optimized to reuse existing database session when possible.
         """
         # Try pgvector first (preferred format)
         if self.embedding_vector is not None:
             try:
                 # Convert pgvector to list
-                vector_str = str(self.embedding_vector)
+                vector_str = str(self.embedding_vector).strip()
+
+                # Check if data is truncated (contains ...)
+                if '...' in vector_str:
+                    # Try to get the actual data from the database
+                    return self._get_full_embedding_from_db()
+
+                # Handle bracket format: [1.0,2.0,3.0]
                 if vector_str.startswith('[') and vector_str.endswith(']'):
                     vector_str = vector_str[1:-1]  # Remove brackets
-                return [float(x.strip()) for x in vector_str.split(',') if x.strip()]
+                    embedding_list = [float(x.strip()) for x in vector_str.split(',') if x.strip()]
+
+                # Handle escaped newlines and spaces
+                elif any(seq in vector_str for seq in ['\\n', '  ', '\t']):
+                    # Replace escaped newlines with actual newlines
+                    vector_str = vector_str.replace('\\n', '\n').replace('\\t', ' ')
+
+                    # Split on any whitespace and filter out empty strings
+                    import re
+                    values = re.split(r'\s+', vector_str.strip())
+                    # Filter out empty strings and ellipsis
+                    values = [x for x in values if x.strip() and x.strip() != '...' and x.strip() != '']
+                    embedding_list = [float(x) for x in values]
+
+                # Handle single space-separated line: "1.0 2.0 3.0"
+                else:
+                    values = vector_str.split()
+                    # Filter out ellipsis and empty values
+                    values = [x for x in values if x.strip() and x.strip() != '...' and x.strip() != '']
+                    embedding_list = [float(x) for x in values]
+
+                # Validate we have a reasonable number of dimensions
+                if embedding_list and len(embedding_list) > 100:  # OpenAI embeddings should have 1536 dimensions
+                    # Auto-update actual_dimensions if not set
+                    if not self.actual_dimensions or self.actual_dimensions != len(embedding_list):
+                        self.actual_dimensions = len(embedding_list)
+
+                    return embedding_list
+                else:
+                    # Fall through to try database retrieval
+                    return self._get_full_embedding_from_db()
+
             except Exception as e:
-                print(f"Warning: Error parsing pgvector format: {e}")
+                # Try to get full data from database
+                try:
+                    return self._get_full_embedding_from_db()
+                except Exception as db_error:
+                    logger.debug(f"Failed to get full embedding from DB: {db_error}")
 
         # Fallback to legacy LargeBinary format
         if self.model_embedding is not None:
             try:
                 # Try numpy array first (CLIP embeddings)
                 import numpy as np
-                return np.frombuffer(self.model_embedding, dtype=np.float32).tolist()
+                embedding_list = np.frombuffer(self.model_embedding, dtype=np.float32).tolist()
+
+                if embedding_list and len(embedding_list) > 100:
+                    # Auto-update actual_dimensions if not set
+                    if not self.actual_dimensions or self.actual_dimensions != len(embedding_list):
+                        self.actual_dimensions = len(embedding_list)
+                    return embedding_list
+
             except Exception as numpy_error:
                 try:
                     # Fallback to JSON format (document embeddings)
-                    return json.loads(self.model_embedding.decode('utf-8'))
+                    embedding_list = json.loads(self.model_embedding.decode('utf-8'))
+
+                    if embedding_list and len(embedding_list) > 100:
+                        # Auto-update actual_dimensions if not set
+                        if not self.actual_dimensions or self.actual_dimensions != len(embedding_list):
+                            self.actual_dimensions = len(embedding_list)
+                        return embedding_list
+
                 except Exception as json_error:
-                    print(f"Warning: Error parsing both numpy and JSON formats: numpy={numpy_error}, json={json_error}")
+                    logger.debug(f"Error parsing legacy formats for embedding {getattr(self, 'id', 'unknown')}")
+
+        return []
+
+    def _get_full_embedding_from_db(self):
+        """
+        Get the full embedding data directly from the database when the cached version is truncated.
+        Optimized to reuse session from current context when possible.
+        """
+        try:
+            # Try to reuse existing session from SQLAlchemy context
+            from sqlalchemy.orm import object_session
+            session = object_session(self)
+
+            if session:
+                # Use existing session - much faster
+                result = session.execute(
+                    text("SELECT embedding_vector FROM document_embedding WHERE id = :embedding_id"),
+                    {"embedding_id": self.id}
+                ).fetchone()
+            else:
+                # Fall back to creating new session
+                from modules.configuration.config_env import DatabaseConfig
+                db_config = DatabaseConfig()
+                with db_config.main_session() as new_session:
+                    result = new_session.execute(
+                        text("SELECT embedding_vector FROM document_embedding WHERE id = :embedding_id"),
+                        {"embedding_id": self.id}
+                    ).fetchone()
+
+            if result and result[0] is not None:
+                full_vector_str = str(result[0]).strip()
+
+                # Parse the full vector string
+                if full_vector_str.startswith('[') and full_vector_str.endswith(']'):
+                    vector_str = full_vector_str[1:-1]  # Remove brackets
+                    embedding_list = [float(x.strip()) for x in vector_str.split(',') if x.strip()]
+                else:
+                    # Handle space-separated format
+                    import re
+                    values = re.split(r'\s+', full_vector_str.replace('\\n', '\n').replace('\\t', ' '))
+                    embedding_list = [float(x) for x in values if x.strip() and x.strip() != '...' and x.strip() != '']
+
+                logger.debug(f"Retrieved full embedding from DB: {len(embedding_list)} dimensions")
+                return embedding_list
+
+        except Exception as e:
+            logger.debug(f"Error retrieving full embedding from database: {e}")
+
+        return []
+
+    def _get_full_embedding_from_db(self):
+        """
+        Get the full embedding data directly from the database when the cached version is truncated.
+        """
+        try:
+            from modules.configuration.config_env import DatabaseConfig
+
+            db_config = DatabaseConfig()
+            with db_config.main_session() as session:
+                # Query the full embedding vector directly
+                result = session.execute(
+                    text("SELECT embedding_vector FROM document_embedding WHERE id = :embedding_id"),
+                    {"embedding_id": self.id}
+                ).fetchone()
+
+                if result and result[0] is not None:
+                    full_vector_str = str(result[0]).strip()
+
+                    # Parse the full vector string
+                    if full_vector_str.startswith('[') and full_vector_str.endswith(']'):
+                        vector_str = full_vector_str[1:-1]  # Remove brackets
+                        embedding_list = [float(x.strip()) for x in vector_str.split(',') if x.strip()]
+                    else:
+                        # Handle space-separated format
+                        import re
+                        values = re.split(r'\s+', full_vector_str.replace('\\n', '\n').replace('\\t', ' '))
+                        embedding_list = [float(x) for x in values if
+                                          x.strip() and x.strip() != '...' and x.strip() != '']
+
+                    logger.debug(f"Retrieved full embedding from DB: {len(embedding_list)} dimensions")
+                    return embedding_list
+
+        except Exception as e:
+            logger.error(f"Error retrieving full embedding from database: {e}")
 
         return []
 
     @embedding_as_list.setter
     def embedding_as_list(self, value: List[float]):
         """
-        Set embedding from Python list, preferring pgvector storage.
-
-        Args:
-            value: List of floats representing the embedding
+        Set embedding from Python list, automatically updating metadata and dimensions.
         """
         if not isinstance(value, list) or not value:
             raise ValueError("Embedding must be a non-empty list of floats")
 
+        # Set actual dimensions
+        self.actual_dimensions = len(value)
+
+        # Update or create metadata
+        if not self.embedding_metadata:
+            self.embedding_metadata = {}
+
+        self.embedding_metadata.update({
+            'dimensions': len(value),
+            'model_type': self._infer_model_type(len(value)),
+            'last_updated': datetime.utcnow().isoformat(),
+            'storage_method': 'enhanced_pgvector'
+        })
+
         # Store in pgvector format (preferred)
         try:
             self.embedding_vector = value
+            logger.debug(f"Stored embedding in pgvector format: {len(value)} dimensions")
         except Exception as e:
-            print(f"Warning: Could not store in pgvector format: {e}")
+            logger.warning(f"Could not store in pgvector format: {e}")
             # Fallback to legacy format
             self.model_embedding = json.dumps(value).encode('utf-8')
+            if self.embedding_metadata:
+                self.embedding_metadata['storage_method'] = 'legacy_fallback'
+
+    def _infer_model_type(self, dimensions: int) -> str:
+        """
+        Infer model type based on embedding dimensions and model name
+        """
+        model_name_lower = (self.model_name or '').lower()
+
+        # Check model name patterns first
+        if 'openai' in model_name_lower or 'text-embedding' in model_name_lower:
+            return f'openai_{dimensions}d'
+        elif 'tinyllama' in model_name_lower:
+            return f'tinyllama_{dimensions}d'
+        elif any(x in model_name_lower for x in ['sentence', 'transformer', 'mini', 'mpnet']):
+            return f'sentence_transformer_{dimensions}d'
+        elif 'clip' in model_name_lower:
+            return f'clip_{dimensions}d'
+
+        # Fall back to dimension-based inference
+        dimension_mapping = {
+            384: 'sentence_transformers_mini',  # all-MiniLM-L6-v2
+            768: 'sentence_transformers_base',  # all-mpnet-base-v2
+            1024: 'sentence_transformers_large',  # larger sentence transformers
+            1536: 'openai_text_embedding_3_small',  # OpenAI small
+            3072: 'openai_text_embedding_3_large',  # OpenAI large
+            512: 'clip_base',  # CLIP base model
+        }
+
+        return dimension_mapping.get(dimensions, f'custom_{dimensions}d')
 
     def get_storage_type(self) -> str:
         """
         Determine which storage format is being used.
-
-        Returns:
-            str: 'pgvector', 'legacy', 'both', or 'none'
         """
         has_pgvector = self.embedding_vector is not None
         has_legacy = self.model_embedding is not None
@@ -4894,107 +5169,57 @@ class DocumentEmbedding(Base):
         else:
             return 'none'
 
-    def migrate_to_pgvector(self) -> bool:
-        """
-        Migrate legacy LargeBinary embedding to pgvector format.
-
-        Returns:
-            bool: True if migration successful, False otherwise
-        """
-        if self.embedding_vector is not None:
-            return True  # Already in pgvector format
-
-        if self.model_embedding is None:
-            return False  # No data to migrate
-
-        try:
-            # Parse legacy format
-            legacy_data = json.loads(self.model_embedding.decode('utf-8'))
-
-            # Store in pgvector format
-            self.embedding_vector = legacy_data
-
-            # Optionally clear legacy data to save space
-            # self.model_embedding = None  # Uncomment when confident
-
-            return True
-        except Exception as e:
-            print(f"Error migrating embedding to pgvector: {e}")
-            return False
-
     def get_embedding_stats(self) -> dict:
         """
-        Get statistics about the embedding.
-
-        Returns:
-            dict: Statistics including dimensions, storage type, etc.
+        Get comprehensive statistics about the embedding.
         """
         embedding = self.embedding_as_list
 
         return {
-            'dimensions': len(embedding),
-            'storage_type': self.get_storage_type(),
-            'model_name': self.model_name,
+            'id': self.id,
             'document_id': self.document_id,
+            'model_name': self.model_name,
+            'dimensions': len(embedding),
+            'actual_dimensions': self.actual_dimensions,
+            'storage_type': self.get_storage_type(),
             'has_data': len(embedding) > 0,
+            'metadata': self.embedding_metadata or {},
             'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'model_info': self._get_model_info()
         }
 
-    @classmethod
-    def create_with_pgvector(cls, document_id: int, model_name: str, embedding: List[float], **kwargs):
-        """
-        Create a new DocumentEmbedding using pgvector storage.
+    def _get_model_info(self) -> dict:
+        """Get inferred information about the model and compatibility"""
+        if not self.actual_dimensions:
+            return {'status': 'no_embedding'}
 
-        Args:
-            document_id: ID of the associated document
-            model_name: Name of the embedding model
-            embedding: List of floats representing the embedding
-            **kwargs: Additional keyword arguments
+        return {
+            'inferred_type': self._infer_model_type(self.actual_dimensions),
+            'dimension_category': self._get_dimension_category(),
+            'openai_compatible': self.actual_dimensions in [1536, 3072],
+            'sentence_transformers_compatible': self.actual_dimensions in [384, 768, 1024],
+            'clip_compatible': self.actual_dimensions in [512, 768],
+            'storage_efficiency': 'pgvector' if self.embedding_vector else 'legacy'
+        }
 
-        Returns:
-            DocumentEmbedding: New instance with pgvector storage
-        """
-        instance = cls(
-            document_id=document_id,
-            model_name=model_name,
-            embedding_vector=embedding,
-            **kwargs
-        )
-        return instance
-
-    @classmethod
-    def create_with_legacy(cls, document_id: int, model_name: str, embedding: List[float], **kwargs):
-        """
-        Create a new DocumentEmbedding using legacy LargeBinary storage.
-
-        Args:
-            document_id: ID of the associated document
-            model_name: Name of the embedding model
-            embedding: List of floats representing the embedding
-            **kwargs: Additional keyword arguments
-
-        Returns:
-            DocumentEmbedding: New instance with legacy storage
-        """
-        instance = cls(
-            document_id=document_id,
-            model_name=model_name,
-            model_embedding=json.dumps(embedding).encode('utf-8'),
-            **kwargs
-        )
-        return instance
+    def _get_dimension_category(self) -> str:
+        """Categorize embedding by dimension size"""
+        if not self.actual_dimensions:
+            return 'unknown'
+        elif self.actual_dimensions < 400:
+            return 'compact'  # 384d models
+        elif self.actual_dimensions < 800:
+            return 'standard'  # 768d models
+        elif self.actual_dimensions < 1600:
+            return 'large'  # 1536d OpenAI
+        else:
+            return 'extra_large'  # 3072d+ models
 
     def cosine_similarity(self, other_embedding: List[float]) -> Optional[float]:
         """
         Calculate cosine similarity with another embedding.
-        Uses pgvector operators if available, otherwise fallback to manual calculation.
-
-        Args:
-            other_embedding: List of floats to compare against
-
-        Returns:
-            float: Cosine similarity score (0-1), or None if calculation fails
+        Includes dimension compatibility check.
         """
         current_embedding = self.embedding_as_list
 
@@ -5002,6 +5227,7 @@ class DocumentEmbedding(Base):
             return None
 
         if len(current_embedding) != len(other_embedding):
+            logger.warning(f"Dimension mismatch: {len(current_embedding)} vs {len(other_embedding)}")
             return None
 
         try:
@@ -5017,73 +5243,397 @@ class DocumentEmbedding(Base):
 
             return dot_product / (norm_a * norm_b)
         except Exception as e:
-            print(f"Error calculating cosine similarity: {e}")
+            logger.error(f"Error calculating cosine similarity: {e}")
             return None
 
     def to_dict(self) -> dict:
         """
         Convert embedding to dictionary for JSON serialization.
-
-        Returns:
-            dict: Dictionary representation of the embedding
         """
         return {
             'id': self.id,
             'document_id': self.document_id,
             'model_name': self.model_name,
             'embedding': self.embedding_as_list,
+            'actual_dimensions': self.actual_dimensions,
             'storage_type': self.get_storage_type(),
-            'dimensions': len(self.embedding_as_list),
+            'metadata': self.embedding_metadata or {},
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
 
+    # Factory methods for creating embeddings
+    @classmethod
+    def create_with_pgvector(cls, document_id: int, model_name: str, embedding: List[float], **kwargs):
+        """
+        Create a new DocumentEmbedding using pgvector storage.
+        """
+        instance = cls(
+            document_id=document_id,
+            model_name=model_name,
+            **kwargs
+        )
+        # Use the setter to automatically handle dimensions and metadata
+        instance.embedding_as_list = embedding
+        return instance
+
+    @classmethod
+    def create_with_legacy(cls, document_id: int, model_name: str, embedding: List[float], **kwargs):
+        """
+        Create a new DocumentEmbedding using legacy LargeBinary storage.
+        """
+        instance = cls(
+            document_id=document_id,
+            model_name=model_name,
+            model_embedding=json.dumps(embedding).encode('utf-8'),
+            actual_dimensions=len(embedding),
+            **kwargs
+        )
+
+        # Set metadata for legacy storage
+        instance.embedding_metadata = {
+            'dimensions': len(embedding),
+            'model_type': instance._infer_model_type(len(embedding)),
+            'storage_method': 'legacy_direct',
+            'created': datetime.utcnow().isoformat()
+        }
+
+        return instance
+
+    @classmethod
+    def create_tinyllama_embedding(cls, document_id: int, model_name: str, embedding: List[float], **kwargs):
+        """
+        Create a TinyLlama embedding with appropriate metadata.
+        """
+        instance = cls(
+            document_id=document_id,
+            model_name=model_name,
+            **kwargs
+        )
+
+        # Use the setter to handle everything automatically
+        instance.embedding_as_list = embedding
+
+        # Add TinyLlama-specific metadata
+        if not instance.embedding_metadata:
+            instance.embedding_metadata = {}
+
+        instance.embedding_metadata.update({
+            'model_family': 'tinyllama',
+            'sentence_transformer_base': True,
+            'creation_method': 'sentence_transformer_direct'
+        })
+
+        return instance
+
+    # Migration and maintenance methods
+    def migrate_to_pgvector(self) -> bool:
+        """
+        Migrate legacy LargeBinary embedding to pgvector format.
+        Enhanced to update new columns.
+        """
+        if self.embedding_vector is not None:
+            return True  # Already in pgvector format
+
+        if self.model_embedding is None:
+            return False  # No data to migrate
+
+        try:
+            # Get embedding as list (this will try both formats)
+            embedding_list = self.embedding_as_list
+
+            if not embedding_list:
+                return False
+
+            # Store in pgvector format using the setter
+            self.embedding_as_list = embedding_list
+
+            # Update metadata to reflect migration
+            if not self.embedding_metadata:
+                self.embedding_metadata = {}
+
+            self.embedding_metadata.update({
+                'migration_timestamp': datetime.utcnow().isoformat(),
+                'migrated_from': 'legacy_binary',
+                'storage_method': 'migrated_to_pgvector'
+            })
+
+            logger.info(f"Successfully migrated embedding {self.id} to pgvector format")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error migrating embedding {self.id} to pgvector: {e}")
+            return False
+
     @classmethod
     def create_pgvector_indexes(cls, session):
         """
-        Create optimized indexes for pgvector similarity search.
-
-        Args:
-            session: SQLAlchemy session
-
-        Returns:
-            bool: True if indexes created successfully
+        Create optimized indexes for the new table structure.
+        Enhanced for variable dimensions.
         """
         from sqlalchemy import text
 
         indexes = [
-            # HNSW index for cosine similarity
+            # Basic indexes
+            "CREATE INDEX IF NOT EXISTS idx_doc_embedding_doc_id ON document_embedding (document_id);",
+            "CREATE INDEX IF NOT EXISTS idx_doc_embedding_model ON document_embedding (model_name);",
+            "CREATE INDEX IF NOT EXISTS idx_doc_embedding_dims ON document_embedding (actual_dimensions);",
+            "CREATE INDEX IF NOT EXISTS idx_doc_embedding_created ON document_embedding (created_at);",
+            "CREATE INDEX IF NOT EXISTS idx_doc_embedding_metadata ON document_embedding USING gin (embedding_metadata);",
+
+            # Dimension-specific HNSW indexes for common sizes
             """
-            CREATE INDEX IF NOT EXISTS idx_doc_embedding_cosine 
+            CREATE INDEX IF NOT EXISTS idx_doc_embedding_vector_cosine_384d 
             ON document_embedding 
             USING hnsw (embedding_vector vector_cosine_ops)
+            WHERE actual_dimensions = 384
             WITH (m = 16, ef_construction = 64);
             """,
 
-            # HNSW index for L2 distance
             """
-            CREATE INDEX IF NOT EXISTS idx_doc_embedding_l2 
+            CREATE INDEX IF NOT EXISTS idx_doc_embedding_vector_cosine_768d 
+            ON document_embedding 
+            USING hnsw (embedding_vector vector_cosine_ops)
+            WHERE actual_dimensions = 768
+            WITH (m = 16, ef_construction = 64);
+            """,
+
+            """
+            CREATE INDEX IF NOT EXISTS idx_doc_embedding_vector_cosine_1536d 
+            ON document_embedding 
+            USING hnsw (embedding_vector vector_cosine_ops)
+            WHERE actual_dimensions = 1536
+            WITH (m = 16, ef_construction = 64);
+            """,
+
+            # L2 distance indexes
+            """
+            CREATE INDEX IF NOT EXISTS idx_doc_embedding_vector_l2_384d 
             ON document_embedding 
             USING hnsw (embedding_vector vector_l2_ops)
+            WHERE actual_dimensions = 384
             WITH (m = 16, ef_construction = 64);
             """,
 
-            # Regular indexes
-            "CREATE INDEX IF NOT EXISTS idx_doc_embedding_model ON document_embedding (model_name);",
-            "CREATE INDEX IF NOT EXISTS idx_doc_embedding_doc_id ON document_embedding (document_id);",
-            "CREATE INDEX IF NOT EXISTS idx_doc_embedding_created ON document_embedding (created_at);"
+            """
+            CREATE INDEX IF NOT EXISTS idx_doc_embedding_vector_l2_768d 
+            ON document_embedding 
+            USING hnsw (embedding_vector vector_l2_ops)
+            WHERE actual_dimensions = 768
+            WITH (m = 16, ef_construction = 64);
+            """,
+
+            """
+            CREATE INDEX IF NOT EXISTS idx_doc_embedding_vector_l2_1536d 
+            ON document_embedding 
+            USING hnsw (embedding_vector vector_l2_ops)
+            WHERE actual_dimensions = 1536
+            WITH (m = 16, ef_construction = 64);
+            """,
         ]
 
-        try:
-            for index_sql in indexes:
+        successful_indexes = 0
+        for index_sql in indexes:
+            try:
                 session.execute(text(index_sql))
-            session.commit()
-            print("pgvector indexes created successfully")
-            return True
+                session.commit()
+                successful_indexes += 1
+                logger.debug(f"Created index successfully")
+            except Exception as e:
+                session.rollback()
+                logger.warning(f"Index creation failed (may already exist): {e}")
+
+        logger.info(f"Successfully created {successful_indexes} indexes for document_embedding table")
+        return successful_indexes > 0
+
+
+    @with_request_id
+    def _find_most_relevant_document_chunk(cls, question, model_name=None, session=None, request_id=None):
+        """
+        Find the most relevant document chunk for a given question using vector similarity.
+
+        Optimized for performance with:
+        1. pgvector search (fastest)
+        2. Fallback to batched processing
+        3. Query-side filtering
+        4. Simple LRU caching
+
+        Args:
+            question (str): The user's question like "how large is the moon"
+            model_name (str, optional): Embedding model to use
+            session (Session, optional): Database session
+            request_id (str, optional): Request ID for logging
+
+        Returns:
+            Document: The most relevant text chunk as a Document object, or None
+        """
+        from plugins.ai_modules import generate_embedding, ModelsConfig
+        from modules.configuration.config_env import DatabaseConfig
+        import numpy as np
+
+        # Get model name
+        if model_name is None:
+            model_name = ModelsConfig.get_config_value('embedding', 'CURRENT_MODEL', 'NoEmbeddingModel')
+
+        if model_name == "NoEmbeddingModel":
+            logger.info("Embeddings are disabled. Returning None for chunk search.")
+            return None
+
+        # Session management
+        session_created = False
+        if session is None:
+            db_config = DatabaseConfig()
+            session = db_config.get_main_session()
+            session_created = True
+
+        try:
+            # Check cache first
+            cache_key = f"chunk:{question}:{model_name}"
+            if hasattr(cls._find_most_relevant_document_chunk,
+                       'cache') and cache_key in cls._find_most_relevant_document_chunk.cache:
+                logger.info("Using cached chunk result")
+                cached_doc_id = cls._find_most_relevant_document_chunk.cache[cache_key]
+                if cached_doc_id is None:
+                    return None
+                chunk = session.query(Document).get(cached_doc_id)
+                if chunk:
+                    logger.info(f"Retrieved cached chunk: Document ID {cached_doc_id}")
+                return chunk
+
+            # Generate embedding for the question
+            question_embedding = generate_embedding(question, model_name)
+            if not question_embedding:
+                logger.info("No embeddings generated for question. Returning None.")
+                cls._cache_chunk_result(cache_key, None)
+                return None
+
+            # Try pgvector first (much faster for chunk search!)
+            try:
+                chunk = cls._search_chunks_with_pgvector(session, question_embedding, model_name)
+                if chunk:
+                    logger.info(f"pgvector found relevant chunk: Document ID {chunk.id}")
+                    cls._cache_chunk_result(cache_key, chunk.id)
+                    return chunk
+            except Exception as e:
+                logger.warning(f"pgvector chunk search failed, falling back to batch processing: {e}")
+
+            # Fallback to batch processing method
+            chunk = cls._search_chunks_with_batch_processing(session, question, question_embedding, model_name,
+                                                             cache_key)
+            return chunk
+
         except Exception as e:
-            session.rollback()
-            print(f"Error creating pgvector indexes: {e}")
-            return False
+            logger.error(f"Error in chunk search: {e}")
+            return None
+        finally:
+            if session_created and session:
+                session.close()
+
+    @with_request_id
+    def _search_chunks_with_pgvector(cls, session, question_embedding, model_name):
+        """Fast pgvector search for document chunks - preferred method"""
+        from sqlalchemy import text
+
+        query_vector_str = '[' + ','.join(map(str, question_embedding)) + ']'
+
+        # Search for chunks with content (not empty chunks)
+        search_query = text("""
+            SELECT 
+                de.document_id,
+                d.content,
+                d.name as chunk_name,
+                cd.title as document_title,
+                1 - (de.embedding_vector <=> :query_vector) AS similarity
+            FROM document_embedding de
+            JOIN document d ON de.document_id = d.id
+            LEFT JOIN complete_document cd ON d.complete_document_id = cd.id
+            WHERE de.model_name = :model_name
+              AND de.embedding_vector IS NOT NULL
+              AND d.content IS NOT NULL
+              AND LENGTH(d.content) > 50
+              AND (1 - (de.embedding_vector <=> :query_vector)) >= 0.01
+            ORDER BY de.embedding_vector <=> :query_vector ASC
+            LIMIT 1
+        """)
+
+        result = session.execute(search_query, {
+            'query_vector': query_vector_str,
+            'model_name': model_name
+        }).fetchone()
+
+        if result:
+            doc_id, content, chunk_name, doc_title, similarity = result
+            logger.info(f"pgvector found chunk {doc_id} with similarity {similarity:.4f} from '{doc_title}'")
+
+            chunk = session.query(Document).get(doc_id)
+            if chunk:
+                # Attach similarity metadata
+                chunk._similarity_score = float(similarity)
+                chunk._search_metadata = {
+                    'method': 'pgvector',
+                    'similarity': float(similarity),
+                    'document_title': doc_title,
+                    'chunk_name': chunk_name
+                }
+            return chunk
+
+        return None
+
+    @classmethod
+    def _cache_chunk_result(cls, cache_key, doc_id):
+        """Cache chunk search results"""
+        if not hasattr(cls._find_most_relevant_document_chunk, 'cache'):
+            cls._find_most_relevant_document_chunk.cache = {}
+
+        cache = cls._find_most_relevant_document_chunk.cache
+        if len(cache) > 100:  # Keep cache size reasonable
+            # Remove oldest entry (simple LRU)
+            oldest_key = next(iter(cache))
+            del cache[oldest_key]
+
+        cache[cache_key] = doc_id
+        logger.debug(f"Cached chunk result: {cache_key} -> {doc_id}")
+
+def get_embeddings_by_model_and_dimensions(session, model_pattern: str = None, dimensions: int = None,
+                                           limit: int = 100):
+    """
+    Query embeddings by model pattern and/or dimensions
+    """
+    query = session.query(DocumentEmbedding)
+
+    if model_pattern:
+        query = query.filter(DocumentEmbedding.model_name.ilike(f'%{model_pattern}%'))
+
+    if dimensions:
+        query = query.filter(DocumentEmbedding.actual_dimensions == dimensions)
+
+    return query.limit(limit).all()
+def get_dimension_statistics(session):
+    """
+    Get statistics about embedding dimensions in the database
+    """
+    from sqlalchemy import func
+
+    results = session.query(
+        DocumentEmbedding.actual_dimensions,
+        func.count(DocumentEmbedding.id).label('count'),
+        func.array_agg(DocumentEmbedding.model_name.distinct()).label('models')
+    ).filter(
+        DocumentEmbedding.actual_dimensions.isnot(None)
+    ).group_by(
+        DocumentEmbedding.actual_dimensions
+    ).order_by(
+        DocumentEmbedding.actual_dimensions
+    ).all()
+
+    stats = {}
+    for result in results:
+        stats[result.actual_dimensions] = {
+            'count': result.count,
+            'models': list(set(result.models)) if result.models else []
+        }
+
+    return stats
 
 class CompleteDocument(Base):
     """
