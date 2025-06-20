@@ -166,7 +166,7 @@ def configure_offline_mode(request_id=None):
 
 
 def preload_ai_models():
-    """Preload AI models in background for instant access"""
+    """Preload AI models in background for instant access - ENHANCED with embedding support"""
     global _model_preload_status
 
     # Set request ID for this background operation
@@ -178,31 +178,72 @@ def preload_ai_models():
             _model_preload_status['started'] = True
             _model_preload_status['start_time'] = time.time()
 
-            info_id("Starting AI model preloading...", request_id)
-            print("Starting AI model preloading...")
+            info_id("Starting AI model preloading (IMAGE + EMBEDDING)...", request_id)
+            print("Starting AI model preloading (IMAGE + EMBEDDING)...")
 
-            # Import and preload CLIP model
+            # Import and preload models
             from plugins.ai_modules.ai_models import ModelsConfig
 
-            # Try to get the current image model and preload it
+            # =========================
+            # PRELOAD IMAGE MODEL (existing)
+            # =========================
             try:
-                # FIXED: Use load_image_model instead of get_current_image_model
                 model_handler = ModelsConfig.load_image_model()
                 model_type = type(model_handler).__name__
 
-                info_id(f"Preloading current image model: {model_type}", request_id)
-
-                info_id(f"Successfully preloaded {model_type}", request_id)
-                print(f"Successfully preloaded {model_type}")
+                info_id(f"Preloaded image model: {model_type}", request_id)
+                print(f"Preloaded image model: {model_type}")
 
                 # If it's CLIPModelHandler, get cache stats
                 if hasattr(model_handler, 'get_cache_stats'):
                     cache_stats = model_handler.get_cache_stats()
-                    debug_id(f"Model cache stats: {cache_stats}", request_id)
+                    debug_id(f"Image model cache stats: {cache_stats}", request_id)
 
             except Exception as model_error:
                 warning_id(f"Could not preload image model: {model_error}", request_id)
                 print(f"Could not preload image model: {model_error}")
+
+            # =========================
+            # PRELOAD EMBEDDING MODEL (NEW!)
+            # =========================
+            try:
+                info_id("Loading embedding model for vector search...", request_id)
+                print("Loading embedding model for vector search...")
+
+                # Get current embedding model configuration
+                current_ai_model, current_embedding_model = ModelsConfig.load_config_from_db()
+
+                if current_embedding_model and current_embedding_model != 'NoEmbeddingModel':
+                    info_id(f"Preloading embedding model: {current_embedding_model}", request_id)
+                    print(f"Preloading embedding model: {current_embedding_model}")
+
+                    # Force load the embedding model
+                    embedding_handler = ModelsConfig.load_embedding_model(current_embedding_model)
+
+                    # Test that it works by generating a test embedding
+                    test_embedding = embedding_handler.get_embeddings("startup test embedding")
+
+                    if test_embedding and len(test_embedding) > 0:
+                        info_id(f"Embedding model preloaded successfully (dim: {len(test_embedding)})", request_id)
+                        print(f"Embedding model preloaded successfully (dim: {len(test_embedding)})")
+
+                        # Store model readiness flag
+                        _model_preload_status['embedding_ready'] = True
+                        _model_preload_status['embedding_dimension'] = len(test_embedding)
+                    else:
+                        warning_id("Embedding model loaded but test embedding failed", request_id)
+                        print("Embedding model loaded but test embedding failed")
+                        _model_preload_status['embedding_ready'] = False
+                else:
+                    info_id("No embedding model configured - skipping embedding preload", request_id)
+                    print("No embedding model configured - skipping embedding preload")
+                    _model_preload_status['embedding_ready'] = False
+
+            except Exception as embedding_error:
+                error_id(f"Failed to preload embedding model: {embedding_error}", request_id)
+                print(f"Failed to preload embedding model: {embedding_error}")
+                _model_preload_status['embedding_ready'] = False
+                _model_preload_status['embedding_error'] = str(embedding_error)
 
             _model_preload_status['completed'] = True
             _model_preload_status['completion_time'] = time.time()
@@ -218,6 +259,46 @@ def preload_ai_models():
         error_id(f"Error during model preloading: {e}", request_id, exc_info=True)
         print(f"Error during model preloading: {e}")
 
+
+# Enhanced model preload status structure
+_model_preload_status = {
+    'started': False,
+    'completed': False,
+    'error': None,
+    'start_time': None,
+    'completion_time': None,
+    'request_id': None,
+    # NEW: Embedding model specific status
+    'embedding_ready': False,
+    'embedding_dimension': None,
+    'embedding_error': None
+}
+
+
+def check_embedding_model_readiness():
+    """Check if embedding model is preloaded and ready for vector search"""
+    global _model_preload_status
+
+    if not _model_preload_status['completed']:
+        return {
+            'ready': False,
+            'reason': 'Model preloading not completed yet',
+            'status': 'loading'
+        }
+
+    if _model_preload_status.get('embedding_ready', False):
+        return {
+            'ready': True,
+            'reason': 'Embedding model preloaded successfully',
+            'dimension': _model_preload_status.get('embedding_dimension'),
+            'status': 'ready'
+        }
+
+    return {
+        'ready': False,
+        'reason': _model_preload_status.get('embedding_error', 'Unknown embedding model issue'),
+        'status': 'error'
+    }
 
 @with_request_id
 def preload_models_async(request_id=None):
@@ -300,6 +381,8 @@ def create_app(request_id=None):
         preload_thread = preload_models_async(request_id)
 
         # ========== END MODEL PRELOADING SECTION ==========
+
+
 
         # Register blueprints and event listeners
         register_blueprints(app)
