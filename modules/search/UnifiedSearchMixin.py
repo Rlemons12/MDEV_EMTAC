@@ -14,7 +14,7 @@ Automatically detects query intent and organizes results by entity type
 """
 
 import time
-import logging
+from modules.configuration.log_config import logger,with_request_id
 import re
 from datetime import datetime
 from typing import Dict, List, Any, Optional
@@ -36,20 +36,20 @@ except ImportError:
     def log_timed_operation(operation_name):
         yield
 
-logger = logging.getLogger(__name__)
-
 
 class UnifiedSearchMixin:
     """Enhanced UnifiedSearchMixin with working query tracking"""
 
     def __init__(self):
         """Initialize the unified search capabilities."""
-        logger.info("🔧 Initializing UnifiedSearchMixin...")
+        logger.info(" Initializing UnifiedSearchMixin...")
 
         # Initialize the comprehensive unified search system
         self.unified_search_system = None
         self.search_pattern_manager = None
-
+        # Initialize AggregateSearch FIRST (before other search systems)
+        self.aggregate_search = None
+        self._init_aggregate_search()
         # Query patterns that indicate unified search intent
         self.unified_search_patterns = [
             # Location-based queries
@@ -82,7 +82,7 @@ class UnifiedSearchMixin:
                 self.tracked_search = None
                 return
 
-            logger.info("🔧 Starting query tracking initialization...")
+            logger.info(" Starting query tracking initialization...")
 
             # FIXED: Correct import paths
             try:
@@ -134,7 +134,7 @@ class UnifiedSearchMixin:
         try:
             # Use the session from this AistManager instance
             session = getattr(self, 'db_session', None)
-            logger.info(f"🔧 Initializing unified search with session: {session is not None}")
+            logger.info(f" Initializing unified search with session: {session is not None}")
 
             # Try multiple search system options in order of preference
             search_system_initialized = False
@@ -187,6 +187,53 @@ class UnifiedSearchMixin:
                 logger.error(f" Even minimal search system failed: {final_error}")
                 self.unified_search_system = None
 
+    def _init_aggregate_search(self):
+        """Initialize the AggregateSearch class for chunk finding methods"""
+        try:
+            from modules.search.aggregate_search import AggregateSearch
+
+            # Pass the session if available
+            session = getattr(self, 'db_session', None)
+
+            # Initialize AggregateSearch instance
+            self.aggregate_search = AggregateSearch(session=session)
+            logger.info("AggregateSearch initialized successfully")
+
+        except ImportError as e:
+            logger.error(f"Failed to import AggregateSearch: {e}")
+            self.aggregate_search = None
+        except Exception as e:
+            logger.error(f"Failed to initialize AggregateSearch: {e}")
+            self.aggregate_search = None
+
+    def _detect_search_intent(self, question):
+        """
+        Simple search intent detection - minimal implementation
+        """
+        return {
+            'intent_id': 'general_search',
+            'confidence': 0.8,
+            'intent_type': 'search',
+            'parameters': {},
+            'requires_search': True,
+            'search_type': 'unified'
+        }
+
+    @with_request_id
+    def _execute_primary_search(self, question, context):
+        """Execute the primary search strategy."""
+        if context['has_tracking']:
+            logger.info("Using TRACKED search")
+            return self.tracked_search.execute_unified_search_with_tracking(
+                question=question,
+                user_id=context['user_id'],
+                request_id=self.current_request_id
+            )
+        else:
+            logger.info("Using UNTRACKED search")
+            return self.execute_unified_search(question, context['user_id'], self.current_request_id)
+
+    @with_request_id
     def _create_minimal_search_system(self, session):
         """Create a minimal search system that always works"""
 
@@ -210,6 +257,7 @@ class UnifiedSearchMixin:
 
         return MinimalSearchSystem(session)
 
+    @with_request_id
     def execute_unified_search(self, question: str, user_id: str = None, request_id: str = None) -> Dict[str, Any]:
         """
         FIXED: Execute unified search with correct method names
@@ -217,11 +265,11 @@ class UnifiedSearchMixin:
         import time
 
         search_start = time.time()
-        logger.info(f"🔍 Executing unified search for: {question}")
+        logger.info(f" Executing unified search for: {question}")
 
         # Check if we have a search system
         if not self.unified_search_system:
-            logger.error("❌ No search system available!")
+            logger.error(" No search system available!")
             return {
                 'status': 'error',
                 'message': 'Search system not available',
@@ -239,22 +287,22 @@ class UnifiedSearchMixin:
         # Execute search with the available system
         try:
             system_type = type(self.unified_search_system).__name__
-            logger.info(f"🔍 Using search system: {system_type}")
+            logger.info(f" Using search system: {system_type}")
 
             # FIXED: Try correct method names based on system type
             search_result = None
 
             if hasattr(self.unified_search_system, 'execute_nlp_aggregated_search'):
                 # SpaCyEnhancedAggregateSearch uses this method
-                logger.info("🔍 Using execute_nlp_aggregated_search method")
+                logger.info(" Using execute_nlp_aggregated_search method")
                 search_result = self.unified_search_system.execute_nlp_aggregated_search(question)
             elif hasattr(self.unified_search_system, 'execute_aggregated_search'):
                 # Basic AggregateSearch uses this method
-                logger.info("🔍 Using execute_aggregated_search method")
+                logger.info(" Using execute_aggregated_search method")
                 search_result = self.unified_search_system.execute_aggregated_search(question)
             else:
                 # MinimalSearchSystem fallback
-                logger.info("🔍 Using fallback search method")
+                logger.info(" Using fallback search method")
                 search_result = {
                     'status': 'success',
                     'results': [],
@@ -269,15 +317,15 @@ class UnifiedSearchMixin:
                 search_time = time.time() - search_start
                 enhanced_result['search_time_ms'] = int(search_time * 1000)
                 logger.info(
-                    f"✅ Search completed successfully in {search_time:.2f}s with {enhanced_result.get('total_results', 0)} results")
+                    f" Search completed successfully in {search_time:.2f}s with {enhanced_result.get('total_results', 0)} results")
                 return enhanced_result
             else:
-                logger.warning(f"⚠️ Search returned no results for: {question}")
+                logger.warning(f" Search returned no results for: {question}")
                 return self._no_unified_results_response(question, search_result)
 
         except Exception as e:
             search_time = time.time() - search_start
-            logger.error(f"❌ Search failed after {search_time:.3f}s: {e}", exc_info=True)
+            logger.error(f" Search failed after {search_time:.3f}s: {e}", exc_info=True)
             return {
                 'status': 'error',
                 'message': f"Search error: {str(e)}",
@@ -291,7 +339,7 @@ class UnifiedSearchMixin:
             }
     # FIXED VERSION - Database-Safe Intent Detection
     # This version handles missing columns and transaction failures gracefully
-
+    @with_request_id
     def is_unified_search_query(self, question: str) -> bool:
         """
         FIXED: Database-driven intent detection with proper error handling.
@@ -314,6 +362,7 @@ class UnifiedSearchMixin:
         logger.debug(" Using enhanced fallback patterns")
         return self._enhanced_fallback_detection(question_lower)
 
+    @with_request_id
     def _query_intent_patterns_safe(self, question_lower: str) -> Dict[str, Any]:
         """
         FIXED: Safe version that handles database errors and missing columns.
@@ -407,6 +456,7 @@ class UnifiedSearchMixin:
                 'error': str(e)
             }
 
+    @with_request_id
     def _test_regex_patterns_safe(self, question_lower: str, intent) -> float:
         """
         FIXED: Safe version that handles transaction failures.
@@ -534,6 +584,7 @@ class UnifiedSearchMixin:
             logger.warning(f" Error testing keywords for intent {intent.name}: {e}")
             return 0.0
 
+    @with_request_id
     def _enhanced_fallback_detection(self, question_lower: str) -> bool:
         """
         ENHANCED: Better fallback that handles manufacturer + product queries.
@@ -589,6 +640,7 @@ class UnifiedSearchMixin:
         logger.debug(" No enhanced fallback patterns matched")
         return False
 
+    @with_request_id
     def _detect_manufacturer_query_fallback(self, question_lower: str) -> bool:
         """
         ENHANCED: Detect manufacturer queries when database is unavailable.
@@ -667,6 +719,7 @@ class UnifiedSearchMixin:
             'final_decision': final_decision
         }
 
+    @with_request_id
     def _query_intent_patterns(self, question_lower: str) -> Dict[str, Any]:
         """
         Query the SearchIntent and IntentPattern tables to detect search intent.
@@ -1084,58 +1137,6 @@ class UnifiedSearchMixin:
                 'timestamp': datetime.utcnow().isoformat()
             }
 
-    def debug_intent_detection(self, question: str) -> Dict[str, Any]:
-        """
-        Debug a specific question to see exactly how intent detection works.
-        Shows detailed breakdown of pattern matching and scoring.
-
-        Args:
-            question: The question to debug
-
-        Returns:
-            Detailed breakdown of the intent detection process
-        """
-        print(f" DEBUGGING INTENT DETECTION FOR: '{question}'")
-        print("=" * 60)
-
-        question_lower = question.lower().strip()
-        debug_info = {
-            'original_question': question,
-            'normalized_question': question_lower,
-            'database_result': None,
-            'fallback_used': False,
-            'final_decision': None,
-            'intent_breakdown': []
-        }
-
-        # Test database patterns
-        database_result = self._query_intent_patterns(question_lower)
-        debug_info['database_result'] = database_result
-
-        if database_result.get('database_available', True):
-            print(f" Database Available: {database_result['database_available']}")
-            print(f" Search Query Detected: {database_result['is_search_query']}")
-
-            if database_result['is_search_query']:
-                print(f" Intent: {database_result['intent_name']}")
-                print(f" Confidence: {database_result['confidence']:.3f}")
-                print(f"🔧 Search Method: {database_result['search_method']}")
-            else:
-                print(f" No intent detected (best confidence: {database_result.get('best_confidence', 0):.3f})")
-                print(f"🚪 Threshold: {database_result.get('threshold', 0.6)}")
-
-            debug_info['final_decision'] = database_result['is_search_query']
-
-        else:
-            print("  Database unavailable, testing fallback...")
-            fallback_result = self._minimal_fallback_detection(question_lower)
-            debug_info['fallback_used'] = True
-            debug_info['final_decision'] = fallback_result
-            print(f" Fallback Result: {fallback_result}")
-
-        print()
-        return debug_info
-
     def execute_unified_search(self, question: str, user_id: str = None, request_id: str = None) -> Dict[str, Any]:
         """
         FIXED: Execute unified search with query tracking.
@@ -1218,7 +1219,7 @@ class UnifiedSearchMixin:
 
             # STEP 2: Route based on search_method from database
             if search_method == 'comprehensive_part_search':
-                logger.info(f"🔧 Routing to comprehensive_part_search based on intent: {intent_name}")
+                logger.info(f" Routing to comprehensive_part_search based on intent: {intent_name}")
                 return self._execute_part_search(question, intent_name, detected_intent)
 
             elif search_method == 'comprehensive_image_search':
@@ -1348,47 +1349,6 @@ class UnifiedSearchMixin:
         """
         # Similar structure for image searches
         pass
-
-    def test_your_fixed_method_now(self):
-        """
-        Add this method to test your comprehensive_part_search directly
-        """
-        logger.error(f" TESTING YOUR FIXED METHOD DIRECTLY")
-
-        # Test params that match what the logs show
-        test_params = {
-            'search_text': 'valve bypass 1-1/2" 110-120v',
-            'entity_type': 'part',
-            'fields': ['name', 'part_number', 'oem_mfg', 'model', 'notes'],
-            'limit': 10,
-            'raw_input': 'What is the part number for VALVE BYPASS 1-1/2" 110-120V'
-        }
-
-        try:
-            # Try to find and call your method
-            if hasattr(self, 'comprehensive_part_search'):
-                logger.error(f" Found comprehensive_part_search on self")
-                result = self.comprehensive_part_search(test_params)
-            elif hasattr(self, 'unified_search_system') and hasattr(self.unified_search_system, '_aggregate_search'):
-                logger.error(f" Found comprehensive_part_search on aggregate_search")
-                result = self.unified_search_system._aggregate_search.comprehensive_part_search(test_params)
-            else:
-                logger.error(f" Cannot find comprehensive_part_search method")
-                return {"status": "error", "message": "Method not found"}
-
-            logger.error(f" TEST RESULT: {result.get('status')} with {result.get('count', 0)} results")
-
-            if result.get('results'):
-                for i, part in enumerate(result['results'][:3]):
-                    pn = part.get('part_number', 'No PN')
-                    name = part.get('name', 'No name')
-                    logger.error(f"  Part {i + 1}: {pn} - {name}")
-
-            return result
-
-        except Exception as e:
-            logger.error(f" TEST FAILED: {e}", exc_info=True)
-            return {"status": "error", "message": str(e)}
 
     def _enhance_unified_search_results(self, search_result: Dict[str, Any],
                                         question: str) -> Dict[str, Any]:
@@ -2185,6 +2145,7 @@ class UnifiedSearchMixin:
             return normalized
 
     # Integration function to fix the existing search functionality
+
     def fix_part_search_extraction(query: str) -> Dict[str, Any]:
         """
         Fix the part number extraction that's failing in your current system
@@ -2573,4 +2534,41 @@ class UnifiedSearchMixin:
             'timestamp': datetime.utcnow().isoformat(),
             'original_search_result': search_result
         }
+
+#======ai question answer=======
+
+    def execute_chunk_based_search(self, question, user_id=None, request_id=None):
+        """FAST version using existing VectorSearchClient"""
+        try:
+            # Use your existing vector search client (it's already optimized)
+            if hasattr(self, 'vector_search_client') and self.vector_search_client:
+                vector_results = self.vector_search_client.search(question, limit=1, threshold=0.3)
+
+                if vector_results and len(vector_results) > 0:
+                    best_result = vector_results[0]
+                    return {
+                        'status': 'success',
+                        'chunk_found': True,
+                        'content': best_result.get('content', ''),
+                        'metadata': {
+                            'document_title': best_result.get('title', 'Unknown'),
+                            'method': 'vector_search_client'
+                        },
+                        'similarity': best_result.get('similarity', 0.0),
+                        'method': 'vector_search_fast'
+                    }
+
+            return {
+                'status': 'no_results',
+                'chunk_found': False,
+                'method': 'no_search_available'
+            }
+
+        except Exception as e:
+            logger.error(f"Error in fast chunk search: {e}")
+            return {
+                'status': 'error',
+                'message': str(e),
+                'method': 'chunk_search_error'
+            }
 
