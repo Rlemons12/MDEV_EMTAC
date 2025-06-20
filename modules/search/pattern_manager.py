@@ -43,7 +43,7 @@ except ImportError as e:
     warning_id(f"Search models not available: {e}")
     SEARCH_MODELS_AVAILABLE = False
 
-
+@with_request_id
 def get_module_status():
     """Get the current module status."""
     return {
@@ -92,6 +92,7 @@ class SearchPatternManager:
                 f"Models Available: {self._search_models_available}", self._request_id)
 
     @property
+    @with_request_id
     def session(self):
         """Get or create database session."""
         if not self._database_available:
@@ -107,6 +108,7 @@ class SearchPatternManager:
                 return None
         return self._session
 
+    @with_request_id
     def close_session(self):
         """Close database session if created by this manager."""
         if self._session is not None:
@@ -117,11 +119,13 @@ class SearchPatternManager:
             except Exception as e:
                 error_id(f"Error closing session: {e}", self._request_id)
 
+    @with_request_id
     def __enter__(self):
         """Support for context manager usage."""
         debug_id("Entering SearchPatternManager context", self._request_id)
         return self
 
+    @with_request_id
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Close session when exiting context."""
         if exc_type:
@@ -227,7 +231,7 @@ class SearchPatternManager:
 
     @with_request_id
     # In pattern_manager.py, around line 258, replace the problematic query with:
-
+    @with_request_id
     def load_patterns_from_database(self) -> Dict[str, Any]:
         """
         Load all patterns from database with intelligent caching.
@@ -296,6 +300,7 @@ class SearchPatternManager:
                 "fallback_patterns": fallback_patterns
             }
 
+    @with_request_id
     def _is_cache_valid(self, current_time: datetime) -> bool:
         """Check if cached data is still valid."""
         is_valid = (
@@ -312,6 +317,7 @@ class SearchPatternManager:
 
         return is_valid
 
+    @with_request_id
     def _invalidate_cache(self):
         """Force reload of patterns from database on next access."""
         self._pattern_cache = {}
@@ -405,6 +411,7 @@ class SearchPatternManager:
                 "error": str(e)
             }
 
+    @with_request_id
     def _get_fallback_patterns(self) -> Dict[str, Any]:
         """Provide basic fallback patterns when database is unavailable."""
         debug_id("Using fallback patterns", self._request_id)
@@ -423,6 +430,7 @@ class SearchPatternManager:
             "fallback_mode": True
         }
 
+    @with_request_id
     def _get_default_intents(self) -> List[Dict[str, Any]]:
         """Get default search intents for AggregateSearch."""
         debug_id("Preparing default intents", self._request_id)
@@ -453,24 +461,28 @@ class SearchPatternManager:
             }
         ]
 
+    @with_request_id
     def _add_default_patterns(self, intents: Dict) -> int:
         """Add default patterns for intents."""
         debug_id("Adding default patterns", self._request_id)
         # Placeholder implementation - add actual pattern creation logic
         return len(intents) * 2  # Example count
 
+    @with_request_id
     def _add_default_keywords(self, intents: Dict) -> int:
         """Add default keywords for intents."""
         debug_id("Adding default keywords", self._request_id)
         # Placeholder implementation - add actual keyword creation logic
         return len(intents) * 5  # Example count
 
+    @with_request_id
     def _add_default_entity_rules(self, intents: Dict) -> int:
         """Add default entity extraction rules for intents."""
         debug_id("Adding default entity rules", self._request_id)
         # Placeholder implementation - add actual rule creation logic
         return len(intents) * 3  # Example count
 
+    @with_request_id
     def _load_intent_data(self, intent) -> Dict[str, Any]:
         """Load complete data for a single intent."""
         debug_id(f"Loading intent data for: {intent.name}", self._request_id)
