@@ -18,7 +18,7 @@ def download_tinyllama_model(target_dir):
         print(" Model already downloaded. Skipping download.")
         return
 
-    print("📥 Downloading TinyLlama-1.1B-Chat-v1.0...")
+    print(" Downloading TinyLlama-1.1B-Chat-v1.0...")
     print(f"Target directory: {target_dir}")
 
     try:
