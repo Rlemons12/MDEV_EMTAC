@@ -10,8 +10,10 @@ from .ai_models import (
     OpenAIEmbeddingModel,
     NoAIModel,
     NoEmbeddingModel,
-    GPT4AllModel,           
-    GPT4AllEmbeddingModel,  
+    GPT4AllModel,
+    GPT4AllEmbeddingModel,
+    TinyLlamaModel,
+    TinyLlamaEmbeddingModel,
     ModelsConfig
 )
 
@@ -26,7 +28,9 @@ __all__ = [
     'OpenAIEmbeddingModel',
     'NoAIModel',
     'NoEmbeddingModel',
-    'GPT4AllModel',           
-    'GPT4AllEmbeddingModel',  
+    'GPT4AllModel',
+    'GPT4AllEmbeddingModel',
+    'TinyLlamaModel',
+    'TinyLlamaEmbeddingModel',
     'ModelsConfig'
 ]
