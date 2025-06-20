@@ -33,7 +33,7 @@ def get_or_create_aist_manager():
 
     if global_aist_manager is None:
         try:
-            logger.info("🔧 Creating AistManager with tracking support...")
+            logger.info(" Creating AistManager with tracking support...")
 
             # CRITICAL FIX: Get database session for tracking
             db_config = DatabaseConfig()
