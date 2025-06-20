@@ -749,11 +749,15 @@ class Llama3Model(AIModel):
 
             outputs = self.model.generate(
                 input_ids,
-                max_new_tokens=256,
-                eos_token_id=terminators,
-                do_sample=True,
-                temperature=0.6,
-                top_p=0.9,
+                max_new_tokens=56,
+                #eos_token_id=terminators,
+                do_sample=False,
+                #temperature=0.6,
+                #top_p=0.9,
+                pad_token_id=self.tokenizer.eos_token_id,
+                eos_token_id=self.tokenizer.eos_token_id,
+                use_cache=True,  # Enable KV cache
+                early_stopping=True  # Stop at EOS token
             )
             response = outputs[0][input_ids.shape[-1]:]
             decoded_response = self.tokenizer.decode(response, skip_special_tokens=True)
@@ -1680,9 +1684,14 @@ class TinyLlamaModel(AIModel):  # NOW INHERITS FROM AIModel!
     @with_request_id
     def get_response(self, prompt: str) -> str:
         """
-        Generate response using TinyLlama model.
+        Generate response using TinyLlama model with detailed timing.
         Implements your framework's AIModel interface.
         """
+        method_start = time.time()
+        request_id = get_request_id()
+
+        logger.info(f"[TINYLLAMA TIMING] Starting get_response for prompt length: {len(prompt)}")
+
         if not self.model_loaded or self.model is None or self.tokenizer is None:
             error_msg = f"TinyLlama model not available. Error: {self.last_error}"
             logger.error(error_msg)
@@ -1691,13 +1700,17 @@ class TinyLlamaModel(AIModel):  # NOW INHERITS FROM AIModel!
         if not prompt or len(prompt.strip()) == 0:
             return "Please provide a valid prompt."
 
-        logger.info(f"Generating TinyLlama response for prompt length: {len(prompt)}")
+        logger.info(f"[TINYLLAMA TIMING] Model validation completed in {time.time() - method_start:.3f}s")
 
         result = {"response": None, "error": None, "completed": False}
 
         def generate():
             try:
-                # Format prompt for chat
+                gen_start = time.time()
+                logger.info(f"[TINYLLAMA TIMING] Starting generation thread...")
+
+                # 1. Chat template formatting timing
+                template_start = time.time()
                 messages = [
                     {"role": "system", "content": "You are a helpful assistant."},
                     {"role": "user", "content": prompt}
@@ -1708,16 +1721,25 @@ class TinyLlamaModel(AIModel):  # NOW INHERITS FROM AIModel!
                     tokenize=False,
                     add_generation_prompt=True
                 )
+                template_time = time.time() - template_start
+                logger.info(f"[TINYLLAMA TIMING] Chat template formatting: {template_time:.3f}s")
 
-                # Tokenize input
+                # 2. Tokenization timing
+                tokenize_start = time.time()
                 inputs = self.tokenizer(
                     formatted_prompt,
                     return_tensors="pt",
                     truncation=True,
                     max_length=768
                 )
+                tokenize_time = time.time() - tokenize_start
+                input_token_count = inputs['input_ids'].shape[-1]
+                logger.info(f"[TINYLLAMA TIMING] Tokenization: {tokenize_time:.3f}s ({input_token_count} tokens)")
 
-                # Generate response
+                # 3. Model generation timing (the big one!)
+                generation_start = time.time()
+                logger.info(f"[TINYLLAMA TIMING] Starting model.generate() with max_tokens={self.max_tokens}...")
+
                 with torch.no_grad():
                     outputs = self.model.generate(
                         **inputs,
@@ -1730,43 +1752,114 @@ class TinyLlamaModel(AIModel):  # NOW INHERITS FROM AIModel!
                         eos_token_id=self.tokenizer.eos_token_id
                     )
 
-                # Extract and decode new tokens
+                generation_time = time.time() - generation_start
+                output_token_count = outputs[0].shape[-1]
+                new_token_count = output_token_count - input_token_count
+
+                logger.info(f"[TINYLLAMA TIMING] MODEL GENERATION: {generation_time:.3f}s")
+                logger.info(f"[TINYLLAMA TIMING] Generated {new_token_count} new tokens (total: {output_token_count})")
+
+                if generation_time > 30:
+                    logger.warning(
+                        f"[TINYLLAMA TIMING] SLOW GENERATION WARNING: {generation_time:.3f}s for {new_token_count} tokens")
+                    logger.warning(f"[TINYLLAMA TIMING] Tokens per second: {new_token_count / generation_time:.2f}")
+
+                # 4. Response extraction and decoding timing
+                decode_start = time.time()
                 response_tokens = outputs[0][inputs['input_ids'].shape[-1]:]
                 response_text = self.tokenizer.decode(response_tokens, skip_special_tokens=True).strip()
+                decode_time = time.time() - decode_start
+                logger.info(f"[TINYLLAMA TIMING] Response decoding: {decode_time:.3f}s")
+
+                # 5. Total generation timing
+                total_gen_time = time.time() - gen_start
+                logger.info(f"[TINYLLAMA TIMING] Total generation thread: {total_gen_time:.3f}s")
+                logger.info(f"[TINYLLAMA TIMING] BREAKDOWN - Template: {template_time:.3f}s, "
+                            f"Tokenize: {tokenize_time:.3f}s, "
+                            f"Generate: {generation_time:.3f}s, "
+                            f"Decode: {decode_time:.3f}s")
 
                 result["response"] = response_text
                 result["completed"] = True
-                logger.info(f"TinyLlama response generated: {len(response_text)} characters")
+                logger.info(f"[TINYLLAMA TIMING] Response generated: {len(response_text)} characters")
 
             except Exception as e:
+                error_time = time.time() - gen_start
                 result["error"] = str(e)
-                logger.error(f"TinyLlama generation error: {e}")
+                logger.error(f"[TINYLLAMA TIMING] Generation error after {error_time:.3f}s: {e}")
 
-        # Execute with timeout
+        # Thread execution timing
+        thread_start = time.time()
         thread = threading.Thread(target=generate, daemon=True)
         thread.start()
-        thread.join(timeout=self.generation_timeout)
 
-        # Handle results
+        logger.info(f"[TINYLLAMA TIMING] Thread started, waiting up to {self.generation_timeout}s...")
+        thread.join(timeout=self.generation_timeout)
+        thread_time = time.time() - thread_start
+
+        logger.info(f"[TINYLLAMA TIMING] Thread execution completed in {thread_time:.3f}s")
+
+        # Handle results with timing
+        result_start = time.time()
+
         if not result["completed"]:
             warning_msg = f"TinyLlama response timed out after {self.generation_timeout}s"
-            logger.warning(warning_msg)
+            logger.warning(f"[TINYLLAMA TIMING] TIMEOUT: {warning_msg}")
             return warning_msg
 
         if result["error"]:
             error_msg = f"TinyLlama generation error: {result['error']}"
-            logger.error(error_msg)
+            logger.error(f"[TINYLLAMA TIMING] ERROR: {error_msg}")
             return error_msg
+
+        result_time = time.time() - result_start
+        total_method_time = time.time() - method_start
+
+        logger.info(f"[TINYLLAMA TIMING] Result handling: {result_time:.3f}s")
+        logger.info(f"[TINYLLAMA TIMING] TOTAL get_response METHOD: {total_method_time:.3f}s")
+
+        # Performance analysis
+        if total_method_time > 30:
+            logger.warning(f"[TINYLLAMA TIMING] PERFORMANCE WARNING: Total time {total_method_time:.3f}s is very slow")
+            logger.warning(
+                f"[TINYLLAMA TIMING] Consider reducing max_tokens (current: {self.max_tokens}) or switching models")
 
         return result["response"] or "No response generated."
 
+    @with_request_id
     def generate_description(self, image_path: str) -> str:
         """
-        Generate image description.
+        Generate image description with timing.
         Implements your framework's AIModel interface.
         """
-        return "Image description not supported by TinyLlama text model. Please use a vision model."
+        method_start = time.time()
+        request_id = get_request_id()
 
+        logger.info(f"[TINYLLAMA TIMING] generate_description called for: {image_path}")
+
+        # Validate input
+        validation_start = time.time()
+        if not image_path:
+            logger.warning(f"[TINYLLAMA TIMING] Empty image_path provided")
+            return "No image path provided."
+
+        validation_time = time.time() - validation_start
+        logger.debug(f"[TINYLLAMA TIMING] Input validation: {validation_time:.6f}s")
+
+        # Generate response
+        response_start = time.time()
+        response = "Image description not supported by TinyLlama text model. Please use a vision model."
+        response_time = time.time() - response_start
+
+        total_time = time.time() - method_start
+
+        logger.info(f"[TINYLLAMA TIMING] generate_description completed in {total_time:.6f}s")
+        logger.debug(
+            f"[TINYLLAMA TIMING] BREAKDOWN - Validation: {validation_time:.6f}s, Response: {response_time:.6f}s")
+
+        return response
+
+    @with_request_id
     def get_model_info(self):
         """Get comprehensive model information for your framework."""
         info = {
@@ -1947,30 +2040,86 @@ def test_tinyllama_framework_integration():
         logger.error(f"TinyLlama framework integration test failed: {e}")
         return False
 
+
 class TinyLlamaEmbeddingModel(EmbeddingModel):
-    """TinyLlama-based embedding model using sentence-transformers with TinyLlama-compatible models"""
+    _instance = None
+    _model_loaded = False
+    _cached_model = None
+
+    def __new__(cls, model_name="all-MiniLM-L6-v2"):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
 
     def __init__(self, model_name="all-MiniLM-L6-v2"):
-        """
-        Initialize TinyLlama embedding model
+        # Only initialize once
+        if self._model_loaded:
+            logger.info(f"Using cached TinyLlama embedding model: {model_name}")
+            return
 
-        Args:
-            model_name: Name of the sentence-transformer model to use
-                       Defaults to a lightweight model compatible with TinyLlama workflow
-        """
+        logger.info(f"Loading TinyLlama embedding model: {model_name}")
         self.model_name = model_name
         self.model = None
         self.is_loaded = False
-
-        # TinyLlama-optimized models (smaller, faster)
-        self.tinyllama_compatible_models = [
-            "all-MiniLM-L6-v2",  # 22MB, 384 dimensions - very fast
-            "all-MiniLM-L12-v2",  # 33MB, 384 dimensions - slightly better quality
-            "paraphrase-MiniLM-L6-v2",  # 22MB, 384 dimensions - good for paraphrases
-            "multi-qa-MiniLM-L6-cos-v1"  # 22MB, 384 dimensions - optimized for Q&A
-        ]
-
         self._initialize_model()
+        TinyLlamaEmbeddingModel._model_loaded = True
+
+    def _initialize_model(self):
+        """Initialize the model only if not already cached"""
+        if TinyLlamaEmbeddingModel._cached_model is not None:
+            logger.info("Using existing cached TinyLlama model")
+            self.model = TinyLlamaEmbeddingModel._cached_model
+            self.is_loaded = True
+            return
+
+        try:
+            logger.info(f"Attempting to load TinyLlama embedding model: {self.model_name}")
+            from sentence_transformers import SentenceTransformer
+
+            self.model = SentenceTransformer(self.model_name)
+            TinyLlamaEmbeddingModel._cached_model = self.model  # Cache it
+            self.is_loaded = True
+
+            # Test the model
+            logger.info("Testing TinyLlama embedding model...")
+            test_embedding = self.model.encode("test")
+            logger.info("TinyLlama embedding model test successful!")
+            logger.info(f"   - Model: {self.model_name}")
+            logger.info(f"   - Embedding dimensions: {len(test_embedding)}")
+            logger.info(f"   - Optimized for: Fast local inference")
+            logger.info(f"Successfully loaded TinyLlama embedding model: {self.model_name}")
+
+        except Exception as e:
+            logger.error(f"Failed to load TinyLlama embedding model: {e}")
+            self.model = None
+            self.is_loaded = False
+            raise
+
+    def preload_embedding_model_properly():
+        """Ensure embedding model is properly preloaded and cached"""
+        try:
+            logger.info("Force-preloading TinyLlama embedding model...")
+
+            # Force creation of singleton instance
+            embedding_model = TinyLlamaEmbeddingModel()
+
+            # Force initialization if not already done
+            if not embedding_model.is_loaded:
+                embedding_model._initialize_model()
+
+            # Test it works
+            test_result = embedding_model.get_embeddings("preload test")
+
+            if test_result and len(test_result) > 0:
+                logger.info(f"Embedding model preloaded successfully! Dimensions: {len(test_result)}")
+                return True
+            else:
+                logger.error("Embedding model preload failed - no test result")
+                return False
+
+        except Exception as e:
+            logger.error(f"Failed to preload embedding model: {e}")
+            return False
 
     def _initialize_model(self):
         """Initialize the TinyLlama-optimized embedding model"""
@@ -2045,31 +2194,24 @@ class TinyLlamaEmbeddingModel(EmbeddingModel):
             logger.debug(f"Failed to load TinyLlama embedding model {model_name}: {e}")
             return False
 
-    def get_embeddings(self, text: str) -> list:
-        """Generate embeddings optimized for TinyLlama workflow"""
-        if self.model is None or not self.is_loaded:
-            logger.warning("TinyLlama embedding model not available")
-            return []
+    def get_embeddings(self, text):
+        """Get embeddings using cached model"""
+        if not self.is_loaded or self.model is None:
+            logger.warning("TinyLlama embedding model not loaded, attempting to initialize...")
+            self._initialize_model()
 
-        logger.debug(f"Generating TinyLlama embeddings with model: {self.model_name}")
+        if not self.is_loaded:
+            logger.error("Failed to load TinyLlama embedding model")
+            return None
 
         try:
-            # Handle both single text and list inputs (TinyLlama compatibility)
-            if isinstance(text, str):
-                embeddings = self.model.encode([text], show_progress_bar=False)[0]
-            elif isinstance(text, list):
-                embeddings = self.model.encode(text, show_progress_bar=False)
-                return [emb.tolist() if hasattr(emb, 'tolist') else emb for emb in embeddings]
-            else:
-                logger.error(f"Invalid text type for TinyLlama embeddings: {type(text)}")
-                return []
-
-            logger.debug(f"Generated TinyLlama embeddings: {len(embeddings)} dimensions")
-            return embeddings.tolist() if hasattr(embeddings, 'tolist') else embeddings
-
+            logger.debug(f"Generating TinyLlama embeddings with model: {self.model_name}")
+            embedding = self.model.encode(text)
+            logger.debug(f"Generated TinyLlama embeddings: {len(embedding)} dimensions")
+            return embedding.tolist()
         except Exception as e:
             logger.error(f"Error generating TinyLlama embeddings: {e}")
-            return []
+            return None
 
     def is_available(self):
         """Check if the TinyLlama embedding model is available and loaded"""
