@@ -1,0 +1,486 @@
+# Clean Comments for nlp_search.py Module
+
+## Script-Level Documentation
+
+```python
+"""
+nlp_search.py
+
+CORE PURPOSE:
+Advanced NLP-powered search engine that combines spaCy natural language processing
+with database-driven pattern matching for intelligent manufacturing/maintenance queries.
+
+ARCHITECTURE ROLE:
+- NLP Engine: Primary natural language understanding component
+- Pattern Database Integration: Uses 155+ regex patterns stored in database
+- Machine Learning Hub: Supports ML model training and inference for intent classification
+- Search Analytics Provider: Comprehensive tracking and performance analysis
+
+KEY CAPABILITIES:
+1. Intent Detection: Database patterns + spaCy + ML model fusion
+2. Entity Extraction: Parts, locations, equipment, maintenance actions
+3. Parameter Building: Converts natural language to structured search parameters
+4. Performance Learning: Auto-improves based on search success rates
+5. Synonym Resolution: Database-driven canonical term mapping
+6. Session Management: User search session tracking and analytics
+
+INTEGRATION PATTERN:
+- Used by: UnifiedSearchMixin as primary search system
+- Depends on: AggregateSearch for actual database queries
+- Extends: DatabasePatternIntegrationMixin for pattern management
+- Supports: SearchQueryTracker for analytics integration
+
+DESIGN PHILOSOPHY:
+- Progressive Enhancement: Works without spaCy, better with spaCy, best with ML
+- Database-Driven Intelligence: Patterns learn and improve from usage
+- Robust Fallbacks: Multiple classification methods ensure system reliability
+- Performance Focus: Caching, optimization, and monitoring built-in
+"""
+```
+
+## Core Database Model Classes
+
+### SearchIntentHierarchy
+```python
+class SearchIntentHierarchy(Base):
+    """
+    INTENT RELATIONSHIP MANAGER
+
+    Purpose: Defines parent-child relationships between search intents for
+    hierarchical intent resolution and specialization.
+
+    Use Case: Allows generic intents like "FIND_PART" to have specialized
+    children like "FIND_SENSOR" or "FIND_MOTOR" with modified priorities.
+
+    Key Fields:
+    - parent_intent_id: Generic intent (e.g., FIND_PART)
+    - child_intent_id: Specialized intent (e.g., FIND_SENSOR)
+    - inheritance_type: How child inherits from parent ("specialization", "context")
+    - priority_modifier: Adjustment to base priority for this specialization
+
+    Database Design:
+    - Enables intent specialization without pattern duplication
+    - Supports context-aware intent resolution
+    - Allows dynamic priority adjustment based on relationships
+    """
+```
+
+### IntentContext
+```python
+class IntentContext(Base):
+    """
+    CONTEXT-AWARE INTENT BOOSTING
+
+    Purpose: Defines contextual conditions that boost or modify intent confidence
+    based on user context, session data, or environmental factors.
+
+    Use Case: Boost "MAINTENANCE_PROCEDURE" intent confidence when user's role
+    is "maintenance_technician" or when in maintenance work order context.
+
+    Key Fields:
+    - intent_id: Which intent to boost
+    - context_type: Type of context ("user_role", "work_order_type", "location")
+    - context_value: Specific value that triggers boost ("maintenance_tech")
+    - boost_factor: Multiplier for intent confidence (1.2 = 20% boost)
+    - is_required: Whether this context is required for intent activation
+
+    Intelligence Feature:
+    - Context-sensitive search behavior
+    - User role-based intent prioritization
+    - Environmental awareness for better intent detection
+    """
+```
+
+### PatternTemplate & PatternVariation
+```python
+class PatternTemplate(Base):
+    """
+    PATTERN GENERATION ENGINE
+
+    Purpose: Template system for generating multiple pattern variations from
+    a single parameterized template to reduce manual pattern creation.
+
+    Use Case: Template "{action} {equipment} in {location}" generates:
+    "find pump in area A", "locate motor in room 123", etc.
+
+    Key Fields:
+    - template_text: Parameterized pattern with {placeholders}
+    - parameter_types: JSON defining possible values for each placeholder
+    - success_rate: Performance tracking for generated patterns
+    """
+
+class PatternVariation(Base):
+    """
+    GENERATED PATTERN INSTANCE
+
+    Purpose: Stores actual pattern variations generated from templates,
+    with individual performance tracking and language support.
+
+    Key Fields:
+    - template_id: Source template
+    - variation_text: Actual regex pattern generated
+    - confidence_weight: Performance-based confidence modifier
+    - language_code: Support for multi-language patterns
+    """
+```
+
+### EntityType & EntitySynonym
+```python
+class EntityType(Base):
+    """
+    ENTITY DEFINITION REGISTRY
+
+    Purpose: Defines entity types that can be extracted from queries with
+    validation rules and normalization procedures.
+
+    Use Case: Define "EQUIPMENT_TYPE" entity with validation regex for
+    equipment names and normalization rules for synonyms.
+
+    Key Fields:
+    - validation_regex: Pattern to validate extracted entities
+    - normalization_rules: JSON rules for entity cleanup/standardization
+    - is_core_entity: Whether this entity is essential for search
+    """
+
+class EntitySynonym(Base):
+    """
+    INTELLIGENT SYNONYM MAPPING
+
+    Purpose: Maps alternative terms to canonical forms with confidence
+    scoring and usage tracking for continuous improvement.
+
+    Use Case: "motor" → "electric motor", "bearing" → "ball bearing"
+    with confidence scores based on context accuracy.
+
+    Key Fields:
+    - canonical_value: Standard term to use
+    - synonym_value: Alternative term users might type
+    - confidence_score: How reliable this mapping is (0.0-1.0)
+    - usage_count: Tracking for learning which synonyms work best
+
+    Learning Feature:
+    - Auto-adjusts confidence based on search success rates
+    - Discovers new synonyms from user query patterns
+    """
+```
+
+## Session and Analytics Classes
+
+### SearchSession & SearchQuery
+```python
+class SearchSession(Base):
+    """
+    USER SEARCH SESSION TRACKER
+
+    Purpose: Groups related searches into sessions for user behavior analysis
+    and continuous search improvement.
+
+    Use Case: Track a user's complete search journey from initial query
+    through refinements to final successful result.
+
+    Key Fields:
+    - session_token: Unique session identifier
+    - total_queries: How many searches in this session
+    - successful_queries: How many found useful results
+    - context_data: User role, work context, location data
+
+    Analytics Value:
+    - User search pattern analysis
+    - Session success rate optimization
+    - Context-aware search improvement
+    """
+
+class SearchQuery(Base):
+    """
+    COMPREHENSIVE QUERY ANALYTICS
+
+    Purpose: Tracks every search query with detailed metadata for
+    performance analysis and machine learning training data.
+
+    Key Fields:
+    - query_text: Exact user input
+    - detected_intent_id: Which intent was classified
+    - intent_confidence: Confidence score for classification
+    - extracted_entities: JSON of all entities found
+    - execution_time_ms: Performance tracking
+    - result_count: Success measurement
+    - user_satisfaction_score: 1-5 rating from user feedback
+
+    Machine Learning Support:
+    - Training data for intent classification models
+    - Performance optimization through analytics
+    - User satisfaction correlation analysis
+    """
+```
+
+### SearchQueryTracker
+```python
+class SearchQueryTracker:
+    """
+    SEARCH ANALYTICS ORCHESTRATOR
+
+    Purpose: Central coordinator for all search tracking, analytics, and
+    performance monitoring with seamless integration into search flow.
+
+    Core Responsibilities:
+    - Session lifecycle management (start/end sessions)
+    - Query tracking with comprehensive metadata capture
+    - User feedback collection and correlation
+    - Performance report generation with actionable insights
+    - Result click tracking for relevance learning
+
+    Integration Pattern:
+    - Used by: UnifiedSearchMixin for transparent analytics
+    - Provides: Rich analytics data to AistManager
+    - Supports: Machine learning training data collection
+
+    Key Methods:
+    - track_search_query(): Captures query with full context
+    - record_user_satisfaction(): 1-5 rating system
+    - get_search_performance_report(): Detailed analytics
+
+    Analytics Features:
+    - Success rate trends over time
+    - Intent detection accuracy monitoring
+    - User satisfaction correlation analysis
+    - Performance bottleneck identification
+    """
+```
+
+## Machine Learning Classes
+
+### MLModel & UserFeedback
+```python
+class MLModel(Base):
+    """
+    ML MODEL REGISTRY AND VERSIONING
+
+    Purpose: Manages machine learning models for intent classification,
+    entity extraction, and similarity search with version control.
+
+    Key Fields:
+    - model_type: "intent_classifier", "entity_extractor", "similarity"
+    - model_path: File system location of trained model
+    - accuracy_score: Performance on test data
+    - is_active: Currently deployed model flag
+
+    Model Lifecycle Support:
+    - A/B testing between model versions
+    - Rollback capability for failed deployments
+    - Performance tracking across model versions
+    """
+
+class UserFeedback(Base):
+    """
+    FEEDBACK-DRIVEN LEARNING SYSTEM
+
+    Purpose: Captures user feedback on search results for continuous
+    model improvement and search quality optimization.
+
+    Feedback Types:
+    - "relevance": Are results relevant to query?
+    - "intent_correct": Was intent classification accurate?
+    - "result_useful": Did user find what they needed?
+
+    Learning Integration:
+    - Feeds back into pattern success rate calculation
+    - Training data for ML model improvement
+    - Search ranking adjustment based on user preferences
+    """
+```
+
+## Core NLP Processing Classes
+
+### DatabasePatternIntegrationMixin
+```python
+class DatabasePatternIntegrationMixin:
+    """
+    DATABASE PATTERN INTELLIGENCE LAYER
+
+    Purpose: Bridges the gap between hardcoded regex patterns and intelligent,
+    database-driven pattern matching with performance learning.
+
+    Core Capabilities:
+    - Dynamic pattern loading from database with caching
+    - Pattern performance tracking and optimization
+    - Automatic pattern success rate calculation
+    - Transaction-safe database operations
+
+    Key Methods:
+    - _load_database_patterns(): Fetches 155+ patterns with performance data
+    - _classify_intent_with_database(): Primary intent detection using DB patterns
+    - _extract_params_from_database_pattern(): Structured parameter extraction
+    - update_pattern_usage(): Performance feedback loop
+
+    Performance Features:
+    - 5-minute pattern cache with TTL management
+    - Safe Decimal/Float conversion for database values
+    - Robust error handling with graceful degradation
+    - Pattern statistics for optimization recommendations
+
+    Integration Benefits:
+    - Patterns learn and improve from actual usage
+    - New patterns can be added without code changes
+    - A/B testing of pattern variations
+    - Automatic identification of problematic patterns
+    """
+```
+
+### SpaCyEnhancedAggregateSearch
+```python
+class SpaCyEnhancedAggregateSearch(DatabasePatternIntegrationMixin):
+    """
+    MASTER NLP SEARCH ENGINE WITH DATABASE INTELLIGENCE
+
+    Purpose: Complete natural language processing system that combines
+    spaCy's linguistic analysis with database-driven pattern intelligence
+    for manufacturing/maintenance search queries.
+
+    Architecture Layers:
+    1. Database Pattern Layer: Primary intent detection using proven patterns
+    2. spaCy NLP Layer: Advanced linguistic analysis and entity extraction
+    3. Machine Learning Layer: ML model inference for complex queries
+    4. Fallback Layer: Regex-based processing when advanced features unavailable
+
+    Core Processing Flow:
+    1. analyze_user_input() - Comprehensive NLP analysis
+    2. _classify_intent() - Multi-method intent detection
+    3. _extract_all_entities() - Entity extraction with synonym resolution
+    4. _build_search_parameters() - Convert NLP to structured search params
+    5. execute_nlp_aggregated_search() - Execute search with analytics
+
+    Key Features:
+    - Progressive enhancement: Works without spaCy, better with spaCy, best with ML
+    - Database pattern integration: 155+ learned patterns from actual usage
+    - Comprehensive entity extraction: Parts, locations, equipment, actions
+    - Intelligent parameter building: Handles descriptions vs direct part numbers
+    - Performance analytics: Success rate tracking and optimization suggestions
+    - Synonym resolution: Context-aware canonical term mapping
+
+    Search Intelligence:
+    - Intent hierarchy resolution for specialized searches
+    - Context-aware confidence boosting
+    - Pattern performance learning and optimization
+    - Automatic fallback strategies for robustness
+
+    Integration with AggregateSearch:
+    - Routes to appropriate search methods based on detected intent
+    - Provides structured parameters for database queries
+    - Handles search result organization and enhancement
+
+    Performance Monitoring:
+    - Execution time tracking with optimization alerts
+    - Cache management for analysis results
+    - Pattern usage statistics and recommendations
+    - User satisfaction correlation analysis
+    """
+```
+
+### Enhanced Helper Classes
+
+```python
+class PatternTemplateGenerator:
+    """
+    AUTOMATED PATTERN CREATION ENGINE
+
+    Purpose: Generates multiple pattern variations from parameterized templates
+    to reduce manual pattern maintenance and improve coverage.
+
+    Use Case: From template "find {equipment} in {location}" generate dozens
+    of specific patterns for different equipment types and locations.
+    """
+
+class SearchSessionManager:
+    """
+    USER SESSION LIFECYCLE MANAGER
+
+    Purpose: Manages search sessions for user behavior analysis and
+    context-aware search improvement.
+
+    Key Features:
+    - Session grouping for related searches
+    - Context preservation across queries
+    - User journey analytics
+    """
+
+class IntentClassifierML:
+    """
+    MACHINE LEARNING INTENT CLASSIFIER
+
+    Purpose: ML-powered intent classification that learns from historical
+    search data and user feedback for improved accuracy.
+
+    Key Features:
+    - Training from SearchQuery historical data
+    - Model persistence and versioning
+    - Confidence scoring with fallback integration
+    """
+
+class FeedbackLearner:
+    """
+    CONTINUOUS IMPROVEMENT ENGINE
+
+    Purpose: Learns from user feedback, click patterns, and search success
+    to automatically improve search quality and pattern performance.
+
+    Learning Sources:
+    - User satisfaction ratings (1-5 scale)
+    - Result click patterns and positions
+    - Search refinement patterns
+    - Popular query analysis for new pattern generation
+    """
+```
+
+## Factory Functions
+
+```python
+def create_enhanced_search_system(session, user_context=None, nlp_instance=None):
+    """
+    ENHANCED SEARCH SYSTEM FACTORY
+
+    Purpose: Creates a fully configured SpaCyEnhancedAggregateSearch instance
+    with database integration, proper session management, and optimal configuration.
+
+    Benefits:
+    - Simplified initialization with proper dependencies
+    - Consistent configuration across application
+    - Easy testing and development setup
+    """
+
+def create_ml_enhanced_search_system(session, user_context=None):
+    """
+    ML-POWERED SEARCH SYSTEM FACTORY
+
+    Purpose: Creates search system with full ML capabilities including
+    automatic model training, feedback learning, and advanced analytics.
+
+    Features:
+    - Automatic ML model training if none exists
+    - Enhanced analytics with ML insights
+    - Feedback-driven continuous improvement
+    """
+```
+
+## Summary: Building Blocks for AistManager
+
+This nlp_search.py module provides the **intelligent search foundation** that AistManager coordinates:
+
+**For UnifiedSearchMixin Integration:**
+- Primary search engine (SpaCyEnhancedAggregateSearch)
+- Database pattern intelligence (DatabasePatternIntegrationMixin)
+- Comprehensive analytics (SearchQueryTracker)
+
+**For AistManager Coordination:**
+- Structured result format for consistent handling
+- Performance metrics for AistManager's analytics
+- Session management that integrates with AistManager's user tracking
+- Error handling that provides useful fallbacks
+
+**Architecture Benefits:**
+- **Modular Design**: Each class has single responsibility
+- **Progressive Enhancement**: Works at multiple capability levels
+- **Learning System**: Continuously improves from usage data
+- **Robust Fallbacks**: Graceful degradation when components unavailable
+- **Performance Focus**: Built-in monitoring and optimization
+
+This creates a solid foundation where AistManager can focus on AI model integration and user session management while delegating all search intelligence to this well-structured NLP system.

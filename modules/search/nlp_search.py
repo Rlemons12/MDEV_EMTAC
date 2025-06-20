@@ -13,6 +13,7 @@ from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime, timedelta
 import re
 import json
+from decimal import Decimal
 import pickle
 import itertools
 from uuid import uuid4
@@ -36,6 +37,16 @@ except ImportError as e:
 
 # Force enable MODELS_AVAILABLE for database models
 MODELS_AVAILABLE = True
+
+def safe_numeric_multiply(a, b):
+    """Safely multiply numeric values, handling Decimal and float types."""
+    try:
+        val_a = float(a) if a is not None else 0.0
+        val_b = float(b) if b is not None else 0.0
+        return val_a * val_b
+    except (ValueError, TypeError):
+        logging.warning(f"Failed to multiply {a} and {b}, returning 0.0")
+        return 0.0
 
 try:
     from modules.search.pattern_manager import SearchPatternManager
@@ -750,6 +761,8 @@ class DatabasePatternIntegrationMixin:
 
     def _load_database_patterns(self) -> Dict[str, List[Dict]]:
         """FIXED: Load your regex patterns from the database with proper error handling."""
+        from decimal import Decimal
+
         current_time = datetime.utcnow()
 
         # Check cache validity
@@ -763,6 +776,17 @@ class DatabasePatternIntegrationMixin:
         if not self._session:
             logger.warning("No database session available for loading patterns")
             return {}
+
+        def safe_float(value):
+            """Safely convert Decimal or any numeric value to float."""
+            if value is None:
+                return 0.0
+            if isinstance(value, Decimal):
+                return float(value)
+            try:
+                return float(value)
+            except (ValueError, TypeError):
+                return 0.0
 
         try:
             # FIXED: Clean transaction state first
@@ -789,8 +813,8 @@ class DatabasePatternIntegrationMixin:
             for row in results:
                 intent_name = row[6]  # intent name
                 pattern_text = row[1]  # pattern_text
-                priority = row[2] or 1.0  # priority
-                success_rate = row[3] or 0.0  # success_rate
+                priority = safe_float(row[2]) or 1.0  # priority - FIXED
+                success_rate = safe_float(row[3]) or 0.0  # success_rate - FIXED
                 usage_count = row[4] or 0  # usage_count
                 pattern_type = row[5] or 'regex'  # pattern_type
                 description = row[7]  # description
@@ -807,6 +831,9 @@ class DatabasePatternIntegrationMixin:
                     # Compile regex pattern
                     compiled_pattern = re.compile(pattern_text, re.IGNORECASE)
 
+                    # FIXED: Now using safe float values
+                    confidence_weight = priority * max(success_rate, 0.1)
+
                     patterns_by_intent[intent_name]['patterns'].append({
                         'pattern': pattern_text,
                         'priority': priority,
@@ -814,7 +841,7 @@ class DatabasePatternIntegrationMixin:
                         'usage_count': usage_count,
                         'pattern_type': pattern_type,
                         'compiled': compiled_pattern,
-                        'confidence_weight': priority * max(success_rate, 0.1)
+                        'confidence_weight': confidence_weight  # FIXED
                     })
                     total_patterns += 1
 
@@ -915,7 +942,7 @@ class DatabasePatternIntegrationMixin:
                             "fields": ['name', 'part_number', 'oem_mfg', 'model', 'notes'],
                             "extraction_method": "database_pattern_description"
                         })
-                        logger.debug(f"📝 Database pattern extracted description: '{cleaned_description}'")
+                        logger.debug(f" Database pattern extracted description: '{cleaned_description}'")
 
                     else:
                         # This should be a direct part number like "find part A115957"
@@ -930,7 +957,7 @@ class DatabasePatternIntegrationMixin:
                                 "entity_type": "part",
                                 "extraction_method": "database_pattern_direct"
                             })
-                            logger.debug(f"🔢 Database pattern extracted part number: '{part_candidate}'")
+                            logger.debug(f" Database pattern extracted part number: '{part_candidate}'")
                         else:
                             # Fallback to description search
                             params.update({
@@ -1952,11 +1979,24 @@ class SpaCyEnhancedAggregateSearch(DatabasePatternIntegrationMixin):
         }
 
     def _calculate_confidence(self, analysis):
-        """Calculate enhanced confidence score."""
+        """Calculate enhanced confidence score with Decimal/Float safety."""
+        from decimal import Decimal
+
+        def safe_float(value):
+            """Safely convert any numeric value to float."""
+            if value is None:
+                return 0.0
+            if isinstance(value, Decimal):
+                return float(value)
+            try:
+                return float(value)
+            except (ValueError, TypeError):
+                return 0.0
+
         scores = []
 
         # Intent confidence (enhanced weight for database patterns)
-        intent_confidence = analysis["intent"]["confidence"]
+        intent_confidence = safe_float(analysis["intent"]["confidence"])
         if analysis["intent"].get("method") == "database_patterns":
             intent_confidence *= 1.2  # Boost database pattern confidence
         scores.append(intent_confidence)
@@ -1968,6 +2008,79 @@ class SpaCyEnhancedAggregateSearch(DatabasePatternIntegrationMixin):
             scores.append(entity_confidence)
 
         # Parameter confidence
+        param_count = len([k for k in analysis["search_parameters"].keys() if k != "raw_input"])
+        if param_count > 0:
+            param_confidence = min(param_count * 0.3, 1.0)
+            scores.append(param_confidence)
+
+        return sum(scores) / len(scores) if scores else 0.0
+
+    # Alternative: Add type safety to the entire analysis object
+    def safe_analysis_preprocessing(self, analysis):
+        """Preprocess analysis object to ensure all numeric values are floats."""
+        from decimal import Decimal
+
+        def convert_decimals_to_floats(obj):
+            """Recursively convert Decimal values to floats in nested structures."""
+            if isinstance(obj, dict):
+                return {k: convert_decimals_to_floats(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [convert_decimals_to_floats(item) for item in obj]
+            elif isinstance(obj, Decimal):
+                return float(obj)
+            else:
+                return obj
+
+        return convert_decimals_to_floats(analysis)
+
+    # Usage: Call this before _calculate_confidence
+    def enhanced_calculate_confidence(self, analysis):
+        """Enhanced version that preprocesses the analysis object."""
+        # First, ensure all Decimals are converted to floats
+        safe_analysis = self.safe_analysis_preprocessing(analysis)
+
+        # Then proceed with normal calculation
+        return self._calculate_confidence(safe_analysis)
+
+    # Quick debugging version to identify the exact source
+    def debug_calculate_confidence(self, analysis):
+        """Debug version to identify where Decimals are coming from."""
+        import logging
+        from decimal import Decimal
+
+        # Check for Decimals in the analysis object
+        def find_decimals(obj, path=""):
+            """Find all Decimal values in the analysis object."""
+            if isinstance(obj, dict):
+                for k, v in obj.items():
+                    find_decimals(v, f"{path}.{k}")
+            elif isinstance(obj, list):
+                for i, item in enumerate(obj):
+                    find_decimals(item, f"{path}[{i}]")
+            elif isinstance(obj, Decimal):
+                logging.warning(f"Found Decimal at {path}: {obj}")
+
+        # Debug the analysis object
+        find_decimals(analysis, "analysis")
+
+        scores = []
+
+        # Intent confidence (with debugging)
+        intent_confidence = analysis["intent"]["confidence"]
+        if isinstance(intent_confidence, Decimal):
+            logging.warning(f"Intent confidence is Decimal: {intent_confidence}")
+            intent_confidence = float(intent_confidence)
+
+        if analysis["intent"].get("method") == "database_patterns":
+            intent_confidence *= 1.2
+        scores.append(intent_confidence)
+
+        # Rest of the method remains the same...
+        total_entities = sum(len(ent_list) for ent_list in analysis["entities"].values())
+        if total_entities > 0:
+            entity_confidence = min(total_entities * 0.2, 1.0)
+            scores.append(entity_confidence)
+
         param_count = len([k for k in analysis["search_parameters"].keys() if k != "raw_input"])
         if param_count > 0:
             param_confidence = min(param_count * 0.3, 1.0)
@@ -2428,6 +2541,8 @@ def create_ml_enhanced_search_system(session, user_context=None):
 # Users can import either name
 SpaCyEnhancedAggregateSearchLegacy = SpaCyEnhancedAggregateSearch
 
+
+
 if __name__ == "__main__":
     """
     Example usage of the complete enhanced search system.
@@ -2449,7 +2564,7 @@ ORIGINAL FUNCTIONALITY:
 ENHANCED FEATURES:
  Database pattern integration (155+ patterns)
  Automatic pattern learning and statistics
-🔧 Enhanced parameter extraction using proven regex
+ Enhanced parameter extraction using proven regex
  Fixed synonym loading with transaction handling
  Performance monitoring and optimization
  Self-improving search intelligence
