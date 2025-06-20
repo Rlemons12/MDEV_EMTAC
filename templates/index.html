@@ -1,47 +1,9 @@
-{% extends "module_template_html/base_template.html" %}
+{% extends "module_template_html/base_template_1_0_0_converted.html" %}
 
 {% block title %}Home | EMTAC Assistant{% endblock %}
 
-{% block extra_head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/index_styles.css') }}">
-{% endblock %}
-
 {% block content %}
-    <div class="answer-section" id="answer-section">
-        <p id="answer"></p>
-    </div>
-
-    <div class="thumbnails-section" id="thumbnails-section">
-        <!-- Thumbnails will be displayed here -->
-    </div>
-
-    <div class="doc-links-section" id="doc-links-section">
-        <!-- Hoverable links for relevant documents will be displayed here -->
-    </div>
-
-    <div class="user-input-container">
-        <input type="text" id="user_id" placeholder="User ID" value="{{ employee_id }}" readonly style="display: none;">
-        <select id="area" style="display: none;">
-            <!-- Options will be populated here -->
-        </select>
-        <div class="input-and-button">
-            <textarea id="user_input" placeholder="Your Question" rows="2" cols="50"></textarea>
-            <button id="submit-question" onclick="submitQuestion()">Ask</button>
-        </div>
-    </div>
-
-    <div class="comment-box">
-        <textarea id="user_comment" placeholder="Comment, suggestions or corrections"></textarea>
-        <div class="rating-section">
-            <label for="rating">Rating:</label>
-            <select id="rating">
-                {% for i in range(1, 11) %}
-                    <option value="{{ i }}">{{ i }}</option>
-                {% endfor %}
-            </select>
-            <button id="submit_comment_rating">Submit</button>
-        </div>
-    </div>
+    {% include 'index_partial/index_partial_5.html' %}
 {% endblock %}
 
 {% block extra_scripts %}
@@ -49,11 +11,9 @@
 <script src="{{ url_for('static', filename='chatbot_display_thumbnails.js') }}"></script>
 <script src="{{ url_for('static', filename='update_qanda_table.js') }}"></script>
 <script>
-    document.getElementById("sidebarCollapse").onclick = function () {
-        document.querySelector(".main-container").classList.toggle("collapsed");
-    };
-
+    // Additional functionality from your original index.html
     document.addEventListener("DOMContentLoaded", function () {
+        // Toggle buttons functionality (not sidebar related)
         const toggleButtons = document.querySelectorAll(".toggle-button");
         toggleButtons.forEach(button => {
             button.onclick = function () {
@@ -61,16 +21,20 @@
             };
         });
 
-        document.getElementById("submit-question")?.addEventListener("click", function () {
-            if (typeof submitQuestion === "function") {
-                submitQuestion();
-            } else {
-                console.error("submitQuestion function not found");
-            }
-        });
+        // Submit question event listener backup
+        const submitQuestionBtn = document.getElementById("submit-question");
+        if (submitQuestionBtn) {
+            submitQuestionBtn.addEventListener("click", function () {
+                if (typeof submitQuestion === "function") {
+                    submitQuestion();
+                } else {
+                    console.error("submitQuestion function not found");
+                }
+            });
+        }
     });
 
-    // Fallback in case submitQuestion doesn't exist
+    // Fallback submitQuestion function (in case the partial doesn't load properly)
     if (typeof submitQuestion !== 'function') {
         function submitQuestion() {
             const userInput = document.getElementById('user_input').value;
@@ -121,4 +85,3 @@
     }
 </script>
 {% endblock %}
-</html>
