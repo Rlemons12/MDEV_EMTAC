@@ -4,7 +4,7 @@ from modules.emtacdb.emtacdb_fts import (
     PartsPositionImageAssociation, Position, Part, Image, BOMResult, AssetNumber
 )
 from modules.configuration.config_env import DatabaseConfig
-from modules.configuration.config import BASE_DIR
+from modules.configuration.config import DATABASE_DIR
 from modules.configuration.log_config import logger
 import json
 import os
@@ -21,7 +21,7 @@ def serve_bom_image(session, image_id):
         image = session.query(Image).filter_by(id=image_id).first()
         if image:
             logger.debug(f"Image found: {image.title} with file_path: {image.file_path}")
-            file_path = os.path.join(BASE_DIR, image.file_path)
+            file_path = os.path.join(DATABASE_DIR, image.file_path)
             logger.debug(f"Constructed file path: {file_path}")
             if os.path.exists(file_path):
                 logger.info(f"File exists. Serving file: {file_path}")
