@@ -1769,7 +1769,6 @@ class AistManager(UnifiedSearchMixin):
         return self.query_ai_model(question, user_id, request_id)
 
 
-
 # ===== GLOBAL INSTANCE MANAGEMENT =====
 
 global_aist_manager = None
