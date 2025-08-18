@@ -31,6 +31,9 @@
 /Database/PDF_FILES/*
 /Database/PPT_FILES/*
 
+/modules/emtac_ai/models/
+
+
 # Ensure .gitkeep files are not ignored
 !/Database/db_backup/.gitkeep
 !/Database/DB_DOC/.gitkeep

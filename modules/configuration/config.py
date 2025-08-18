@@ -1,3 +1,4 @@
+"""Project configuration file"""
 #modules/configuration/config.py
 
 import os
@@ -94,3 +95,130 @@ directories_to_check = [
     Utility_tools,
     UTILITIES
 ]
+
+
+# --- Orchestrator base (single source of truth) ---
+# Allow override by env var, but default to modules/emtac_ai under the project
+ORC_BASE_DIR = os.getenv(
+    "ORCHESTRATOR_BASE_DIR",
+    os.path.join(BASE_DIR, "modules", "emtac_ai")
+)
+
+# (Optional) Keep this only if something else uses it. Otherwise you can remove ORC_PROJECT_ROOT.
+ORC_PROJECT_ROOT = BASE_DIR  # same as project root
+
+# Models directory
+ORC_MODELS_DIR = os.path.join(ORC_BASE_DIR, "models")
+
+# Training data directory
+ORC_TRAINING_DATA_DIR = os.path.join(ORC_BASE_DIR, "training_data", "datasets")
+ORC_TRAINING_DATA_LOADSHEET = os.path.join(ORC_TRAINING_DATA_DIR, "loadsheet")
+
+# Main training data directory (parent of datasets)
+ORC_TRAINING_DATA_ROOT = os.path.join(ORC_BASE_DIR, "training_data")
+
+
+# Specific model directories
+ORC_INTENT_MODEL_DIR = os.path.join(ORC_MODELS_DIR, "intent_classifier")
+ORC_PARTS_MODEL_DIR = os.path.join(ORC_MODELS_DIR, "parts")
+ORC_IMAGES_MODEL_DIR = os.path.join(ORC_MODELS_DIR, "images")
+ORC_DOCUMENTS_MODEL_DIR = os.path.join(ORC_MODELS_DIR, "documents")
+ORC_DRAWINGS_MODEL_DIR = os.path.join(ORC_MODELS_DIR, "drawings")
+ORC_TOOLS_MODEL_DIR = os.path.join(ORC_MODELS_DIR, "tools")
+ORC_TROUBLESHOOTING_MODEL_DIR = os.path.join(ORC_MODELS_DIR, "troubleshooting")
+
+# Specific training data directories
+ORC_INTENT_TRAIN_DATA_DIR = os.path.join(ORC_TRAINING_DATA_DIR, "intent_classifier")
+ORC_PARTS_TRAIN_DATA_DIR = os.path.join(ORC_TRAINING_DATA_DIR, "parts")
+ORC_IMAGES_TRAIN_DATA_DIR = os.path.join(ORC_TRAINING_DATA_DIR, "images")
+ORC_DOCUMENTS_TRAIN_DATA_DIR = os.path.join(ORC_TRAINING_DATA_DIR, "documents")
+ORC_DRAWINGS_TRAIN_DATA_DIR = os.path.join(ORC_TRAINING_DATA_DIR, "drawings")
+ORC_TOOLS_TRAIN_DATA_DIR = os.path.join(ORC_TRAINING_DATA_DIR, "tools")
+ORC_TROUBLESHOOTING_TRAIN_DATA_DIR = os.path.join(ORC_TRAINING_DATA_DIR, "troubleshooting")
+
+# Query template directories - These paths are CORRECT and match your actual structure
+ORC_QUERY_TEMPLATES_TRAIN_DATA_DIR = os.path.join(ORC_BASE_DIR, "training_data", "query_templants")
+ORC_QUERY_TEMPLATE_PARTS = os.path.join(ORC_BASE_DIR, "training_data", "query_templants", "parts")
+ORC_QUERY_TEMPLATE_DRAWINGS = os.path.join(ORC_BASE_DIR, "training_data", "query_templants", "drawings")
+
+# NEW: Additional directories found in your project
+ORC_ORCHESTRATOR_DIR = os.path.join(ORC_BASE_DIR, "orchestrator")
+ORC_ORCHESTRATOR_TEST_SCRIPTS_DIR = os.path.join(ORC_ORCHESTRATOR_DIR, "test_scripts_orchestrator")
+
+ORC_TEST_SCRIPTS_DIR = os.path.join(ORC_BASE_DIR, "test_scripts")
+
+ORC_TRAINING_MODULE_DIR = os.path.join(ORC_BASE_DIR, "training_module")
+
+ORC_TRAINING_SCRIPTS_DIR = os.path.join(ORC_BASE_DIR, "training_scripts")
+ORC_TRAINING_SCRIPTS_DATASET_GEN_DIR = os.path.join(ORC_TRAINING_SCRIPTS_DIR, "dataset_gen")
+ORC_TRAINING_SCRIPTS_INTENT_TRAIN_DIR = os.path.join(ORC_TRAINING_SCRIPTS_DIR, "dataset_intent_train")
+ORC_TRAINING_SCRIPTS_PERFORMANCE_DIR = os.path.join(ORC_TRAINING_SCRIPTS_DIR, "performance_tst_model")
+ORC_TRAINING_SCRIPTS_TST_DIR = os.path.join(ORC_TRAINING_SCRIPTS_DIR, "tst")
+
+ORC_UTIL_SCRIPTS_DIR = os.path.join(ORC_BASE_DIR, "util_scripts")
+
+# Optional: A dictionary to easily iterate over model directories
+MODEL_DIRS = {
+    "intent_classifier": ORC_INTENT_MODEL_DIR,
+    "parts": ORC_PARTS_MODEL_DIR,
+    "images": ORC_IMAGES_MODEL_DIR,
+    "documents": ORC_DOCUMENTS_MODEL_DIR,
+    "drawings": ORC_DRAWINGS_MODEL_DIR,
+    "tools": ORC_TOOLS_MODEL_DIR,
+    "troubleshooting": ORC_TROUBLESHOOTING_MODEL_DIR,
+}
+
+# Training data directories dictionary
+TRAIN_DATA_DIRS = {
+    "intent_classifier": ORC_INTENT_TRAIN_DATA_DIR,
+    "parts": ORC_PARTS_TRAIN_DATA_DIR,
+    "images": ORC_IMAGES_TRAIN_DATA_DIR,
+    "documents": ORC_DOCUMENTS_TRAIN_DATA_DIR,
+    "drawings": ORC_DRAWINGS_TRAIN_DATA_DIR,
+    "tools": ORC_TOOLS_TRAIN_DATA_DIR,
+    "troubleshooting": ORC_TROUBLESHOOTING_TRAIN_DATA_DIR,
+}
+
+# NEW: Additional directories dictionary for complete project structure
+PROJECT_DIRS = {
+    "base": ORC_BASE_DIR,
+    "models": ORC_MODELS_DIR,
+    "training_data_root": ORC_TRAINING_DATA_ROOT,
+    "training_data_datasets": ORC_TRAINING_DATA_DIR,
+    "training_data_loadsheet": ORC_TRAINING_DATA_LOADSHEET,
+    "query_templates": ORC_QUERY_TEMPLATES_TRAIN_DATA_DIR,
+    "query_template_parts": ORC_QUERY_TEMPLATE_PARTS,
+    "query_template_drawings": ORC_QUERY_TEMPLATE_DRAWINGS,
+    "orchestrator": ORC_ORCHESTRATOR_DIR,
+    "orchestrator_test_scripts": ORC_ORCHESTRATOR_TEST_SCRIPTS_DIR,
+    "test_scripts": ORC_TEST_SCRIPTS_DIR,
+    "training_module": ORC_TRAINING_MODULE_DIR,
+    "training_scripts": ORC_TRAINING_SCRIPTS_DIR,
+    "training_scripts_dataset_gen": ORC_TRAINING_SCRIPTS_DATASET_GEN_DIR,
+    "training_scripts_intent_train": ORC_TRAINING_SCRIPTS_INTENT_TRAIN_DIR,
+    "training_scripts_performance": ORC_TRAINING_SCRIPTS_PERFORMANCE_DIR,
+    "training_scripts_tst": ORC_TRAINING_SCRIPTS_TST_DIR,
+    "util_scripts": ORC_UTIL_SCRIPTS_DIR,
+}
+
+# Complete list of all directories for setup scripts
+ALL_DIRS = [
+    ORC_BASE_DIR,
+    ORC_MODELS_DIR,
+    ORC_TRAINING_DATA_ROOT,
+    ORC_TRAINING_DATA_DIR,
+    ORC_TRAINING_DATA_LOADSHEET,
+    ORC_QUERY_TEMPLATES_TRAIN_DATA_DIR,
+    ORC_QUERY_TEMPLATE_PARTS,
+    ORC_QUERY_TEMPLATE_DRAWINGS,
+    ORC_ORCHESTRATOR_DIR,
+    ORC_ORCHESTRATOR_TEST_SCRIPTS_DIR,
+    ORC_TEST_SCRIPTS_DIR,
+    ORC_TRAINING_MODULE_DIR,
+    ORC_TRAINING_SCRIPTS_DIR,
+    ORC_TRAINING_SCRIPTS_DATASET_GEN_DIR,
+    ORC_TRAINING_SCRIPTS_INTENT_TRAIN_DIR,
+    ORC_TRAINING_SCRIPTS_PERFORMANCE_DIR,
+    ORC_TRAINING_SCRIPTS_TST_DIR,
+    ORC_UTIL_SCRIPTS_DIR,
+] + list(MODEL_DIRS.values()) + list(TRAIN_DATA_DIRS.values())

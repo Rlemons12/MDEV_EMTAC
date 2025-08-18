@@ -7439,19 +7439,28 @@ class CompleteDocument(Base):
     # Add this method to the CompleteDocument class
     @classmethod
     @with_request_id
-    def search_by_text(cls, query, session=None, similarity_threshold=70, with_links=False, request_id=None):
+    def search_by_text(
+            cls,
+            query,
+            session=None,
+            limit: int = 25,  # NEW: accept limit from callers
+            threshold: float = None,  # NEW: accept 'threshold' (ignored here, for compat)
+            similarity_threshold: int = 70,  # kept for compat with older code
+            with_links: bool = False,
+            request_id=None,
+            **kwargs  # NEW: swallow any future kwargs safely
+    ):
         """
         Search documents by text content using PostgreSQL full-text search.
 
         Args:
             query: Search query string
             session: Optional database session
-            similarity_threshold: Minimum similarity threshold (not used in FTS, kept for compatibility)
+            limit: Max results to return (compat with UnifiedSearch)
+            threshold: Optional FTS score threshold (not used here; kept for compat)
+            similarity_threshold: Back-compat arg (not used by FTS)
             with_links: Whether to return HTML links or document objects
             request_id: Request ID for logging
-
-        Returns:
-            List of matching documents or HTML links
         """
         try:
             # Create session if not provided
@@ -7463,36 +7472,28 @@ class CompleteDocument(Base):
 
             try:
                 # Use PostgreSQL full-text search if available
-                results = cls._search_postgresql(session, query, 50, request_id)
+                # (was hardcoded 50; now honor 'limit')
+                results = cls._search_postgresql(session, query, limit, request_id)
 
                 if results:
-                    # Convert results to document objects or links
                     if with_links:
-                        # Return HTML links
+                        # Return HTML links (cap display to 10 to keep UI tidy)
                         html_links = []
-                        for result in results[:10]:  # Limit to top 10
+                        for result in results[:10]:
                             title = result.get('title', 'Untitled')
                             doc_id = result.get('id')
                             highlight = result.get('highlight', '')
-
                             link = f'<a href="/complete_document/{doc_id}" target="_blank">{title}</a>'
                             if highlight:
                                 link += f'<br><small>{highlight}</small>'
                             html_links.append(link)
-
                         return '<br><br>'.join(html_links)
                     else:
-                        # Return document objects
+                        # Return document objects, preserving rank order
                         doc_ids = [r['id'] for r in results]
                         documents = session.query(cls).filter(cls.id.in_(doc_ids)).all()
-
-                        # Sort by original result order
                         doc_dict = {doc.id: doc for doc in documents}
-                        sorted_docs = []
-                        for result in results:
-                            if result['id'] in doc_dict:
-                                sorted_docs.append(doc_dict[result['id']])
-
+                        sorted_docs = [doc_dict[i] for i in doc_ids if i in doc_dict]
                         info_id(f"Found {len(sorted_docs)} documents matching '{query}'", request_id)
                         return sorted_docs
                 else:

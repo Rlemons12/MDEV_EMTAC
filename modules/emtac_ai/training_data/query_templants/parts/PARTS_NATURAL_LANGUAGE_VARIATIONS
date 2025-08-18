@@ -1,0 +1,318 @@
+PARTS_NATURAL_LANGUAGE_VARIATIONS = {
+
+    # ITEMNUM (Internal Part Numbers) - Expanded from 15 to 45 variations
+    "ITEMNUM": {
+        "formal": [
+            "part number {itemnum}",
+            "item {itemnum}",
+            "catalog number {itemnum}",
+            "stock number {itemnum}",
+            "SKU {itemnum}",
+            "inventory number {itemnum}",
+            "product code {itemnum}",
+            "article number {itemnum}",
+            "reference number {itemnum}",
+            "item code {itemnum}",
+            "catalog code {itemnum}",
+            "stock code {itemnum}",
+            "product number {itemnum}",
+            "material number {itemnum}",
+            "component number {itemnum}"
+        ],
+        "casual": [
+            "part {itemnum}",
+            "item# {itemnum}",
+            "number {itemnum}",
+            "code {itemnum}",
+            "{itemnum}",
+            "the {itemnum}",
+            "#{itemnum}",
+            "part# {itemnum}",
+            "item {itemnum}",
+            "piece {itemnum}",
+            "thing {itemnum}",
+            "that {itemnum}",
+            "product {itemnum}",
+            "stuff {itemnum}",
+            "component {itemnum}"
+        ],
+        "contextual": [
+            "the {itemnum} part",
+            "anything with {itemnum}",
+            "that {itemnum} item",
+            "part called {itemnum}",
+            "item labeled {itemnum}",
+            "piece numbered {itemnum}",
+            "component {itemnum}",
+            "product marked {itemnum}",
+            "item tagged {itemnum}",
+            "part identified as {itemnum}",
+            "article {itemnum}",
+            "unit {itemnum}",
+            "piece marked {itemnum}",
+            "item referenced as {itemnum}",
+            "component labeled {itemnum}"
+        ]
+    },
+
+    # DESCRIPTION (Part Names) - Expanded from 15 to 45 variations
+    "DESCRIPTION": {
+        "formal": [
+            "{description}",
+            "a {description}",
+            "the {description}",
+            "{description} component",
+            "{description} part",
+            "{description} assembly",
+            "{description} unit",
+            "{description} piece",
+            "{description} element",
+            "{description} device",
+            "{description} product",
+            "{description} item",
+            "{description} hardware",
+            "{description} equipment",
+            "{description} mechanism"
+        ],
+        "casual": [
+            "some {description}",
+            "any {description}",
+            "that {description}",
+            "{description} thing",
+            "one of those {description}",
+            "{description} stuff",
+            "a {description} thingy",
+            "{description} pieces",
+            "{description} bits",
+            "those {description} things",
+            "{description} parts",
+            "some {description} stuff",
+            "{description} thingamajigs",
+            "{description} whatsits",
+            "{description} doohickeys"
+        ],
+        "contextual": [
+            "something like a {description}",
+            "type of {description}",
+            "kind of {description}",
+            "{description} or similar",
+            "{description} style part",
+            "{description} variant",
+            "{description} or equivalent",
+            "{description} replacement",
+            "{description} substitute",
+            "{description} alternative",
+            "form of {description}",
+            "{description} variety",
+            "{description} version",
+            "similar {description}",
+            "comparable {description}"
+        ]
+    },
+
+    # OEMMFG (Manufacturers) - Expanded from 15 to 45 variations
+    "OEMMFG": {
+        "formal": [
+            "manufactured by {manufacturer}",
+            "made by {manufacturer}",
+            "from {manufacturer}",
+            "{manufacturer} brand",
+            "{manufacturer} manufactured",
+            "produced by {manufacturer}",
+            "{manufacturer} produced",
+            "by {manufacturer}",
+            "{manufacturer} company",
+            "{manufacturer} corporation",
+            "{manufacturer} products",
+            "{manufacturer} branded",
+            "{manufacturer} original",
+            "genuine {manufacturer}",
+            "authentic {manufacturer}"
+        ],
+        "casual": [
+            "{manufacturer} stuff",
+            "{manufacturer} parts",
+            "any {manufacturer}",
+            "{manufacturer} made",
+            "some {manufacturer}",
+            "{manufacturer} things",
+            "{manufacturer} bits",
+            "{manufacturer} gear",
+            "{manufacturer} components",
+            "that {manufacturer}",
+            "{manufacturer} brand",
+            "{manufacturer} items",
+            "{manufacturer} products",
+            "{manufacturer} pieces",
+            "whatever {manufacturer} has"
+        ],
+        "contextual": [
+            "something from {manufacturer}",
+            "anything {manufacturer} makes",
+            "whatever {manufacturer} has",
+            "that {manufacturer} brand",
+            "{manufacturer} or equivalent",
+            "parts from {manufacturer}",
+            "items by {manufacturer}",
+            "products from {manufacturer}",
+            "components from {manufacturer}",
+            "anything made by {manufacturer}",
+            "stuff from {manufacturer}",
+            "parts manufactured by {manufacturer}",
+            "equipment from {manufacturer}",
+            "hardware from {manufacturer}",
+            "devices from {manufacturer}"
+        ]
+    },
+
+    # MODEL (Manufacturer's Part Numbers) - Expanded and corrected from 15 to 45 variations
+    "MODEL": {
+        "formal": [
+            "OEM part {model}",
+            "manufacturer part {model}",
+            "OEM part number {model}",
+            "manufacturer part number {model}",
+            "original part {model}",
+            "factory part {model}",
+            "genuine part {model}",
+            "OEM {model}",
+            "manufacturer's part {model}",
+            "original equipment part {model}",
+            "factory part number {model}",
+            "OEM reference {model}",
+            "manufacturer reference {model}",
+            "original part number {model}",
+            "factory reference {model}"
+        ],
+        "casual": [
+            "OEM {model}",
+            "part {model}",
+            "the {model}",
+            "{model} part",
+            "manufacturer {model}",
+            "original {model}",
+            "factory {model}",
+            "genuine {model}",
+            "that {model}",
+            "{model} number",
+            "OEM# {model}",
+            "part# {model}",
+            "mfg {model}",
+            "orig {model}",
+            "{model} piece"
+        ],
+        "contextual": [
+            "something like OEM {model}",
+            "similar to part {model}",
+            "{model} or equivalent",
+            "compatible with {model}",
+            "replaces {model}",
+            "substitute for {model}",
+            "alternative to {model}",
+            "replacement for {model}",
+            "equivalent to {model}",
+            "same as {model}",
+            "matches {model}",
+            "fits like {model}",
+            "works like {model}",
+            "functions as {model}",
+            "performs like {model}"
+        ]
+    },
+
+    # Additional contextual combinations for multi-entity queries
+    "COMBINATIONS": {
+        "formal": [
+            "{description} manufactured by {manufacturer}",
+            "{manufacturer} {description} part number {itemnum}",
+            "OEM part {model} from {manufacturer}",
+            "{description} with manufacturer part {model}",
+            "{manufacturer} original {description}",
+            "genuine {manufacturer} {description} part {itemnum}",
+            "{description} component from {manufacturer}",
+            "authentic {manufacturer} part {itemnum}",
+            "original {manufacturer} {description} with OEM {model}",
+            "factory {manufacturer} {description}"
+        ],
+        "casual": [
+            "{manufacturer} {description} stuff",
+            "that {description} from {manufacturer}",
+            "{manufacturer} part {itemnum}",
+            "some {description} with OEM {model}",
+            "{manufacturer} {description} thing",
+            "any {description} from {manufacturer}",
+            "{manufacturer} {description} bits",
+            "that {itemnum} part",
+            "{description} with part {model}",
+            "{manufacturer} {description} pieces"
+        ],
+        "contextual": [
+            "something like {description} from {manufacturer}",
+            "type of {description} with OEM {model}",
+            "{description} or similar from {manufacturer}",
+            "equivalent {description} part {itemnum}",
+            "replacement {description} from {manufacturer}",
+            "substitute for {manufacturer} {description}",
+            "alternative to part {itemnum}",
+            "compatible {description} with OEM {model}",
+            "similar {manufacturer} {description}",
+            "comparable {description} part {itemnum}"
+        ]
+    },
+
+    # Technical/Industry specific variations
+    "TECHNICAL": {
+        "formal": [
+            "OEM specification {model}",
+            "manufacturer specification {itemnum}",
+            "technical specification {description}",
+            "engineering part {model}",
+            "certified {manufacturer} component",
+            "approved {description} from {manufacturer}",
+            "specification compliant {description}",
+            "standard {manufacturer} part {itemnum}",
+            "regulatory approved {description}",
+            "quality assured {manufacturer} {description}"
+        ],
+        "casual": [
+            "spec {model}",
+            "standard {description}",
+            "approved {manufacturer} stuff",
+            "certified {description}",
+            "quality {manufacturer} parts",
+            "legit {description}",
+            "proper {manufacturer} {description}",
+            "real {description}",
+            "good {manufacturer} parts",
+            "right {description} stuff"
+        ]
+    },
+
+    # Urgency/Priority variations
+    "URGENCY": {
+        "formal": [
+            "urgently need {description}",
+            "immediately require {itemnum}",
+            "priority order for {manufacturer} {description}",
+            "emergency replacement {description}",
+            "critical need for part {itemnum}",
+            "expedited request for {description}",
+            "rush order {manufacturer} part {model}",
+            "urgent requirement for {description}",
+            "immediate need for {itemnum}",
+            "emergency order {description}"
+        ],
+        "casual": [
+            "really need {description}",
+            "gotta have {itemnum}",
+            "need {description} ASAP",
+            "must have {manufacturer} {description}",
+            "desperate for {description}",
+            "really need that {itemnum}",
+            "gotta get {description}",
+            "need {manufacturer} stuff now",
+            "must find {description}",
+            "really want {itemnum}"
+        ]
+    }
+}
