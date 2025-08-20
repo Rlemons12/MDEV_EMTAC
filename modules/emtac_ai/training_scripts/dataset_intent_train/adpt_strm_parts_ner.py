@@ -5,6 +5,9 @@ This mirrors your drawings adaptive streaming trainer but swaps in the parts
 label schema and PARTS config paths. It keeps your logging approach and
 best-checkpoint export behavior.
 """
+# Disable TorchDynamo to avoid ONNX DiagnosticOptions import errors
+import os
+os.environ["TORCHDYNAMO_DISABLE"] = "1"
 
 import os
 import json
@@ -34,7 +37,7 @@ from seqeval.metrics import f1_score, accuracy_score
 
 # === Config paths for PARTS data/model ===
 # (These match your non-streaming parts trainer)
-from modules.emtac_ai.config import ORC_PARTS_TRAIN_DATA_DIR, ORC_PARTS_MODEL_DIR  # <- IMPORTANT
+from modules.configuration.config import ORC_PARTS_TRAIN_DATA_DIR, ORC_PARTS_MODEL_DIR  # <- IMPORTANT
 
 # === Your custom logger ===
 from modules.configuration.log_config import (
@@ -357,72 +360,100 @@ class StreamingTrainer(Trainer):
 
 
 def create_validation_dataset(jsonl_file, tokenizer, max_length=128, val_size=5000, request_id=None):
-    examples = []
-    bad, kept = 0, 0
-    with open(jsonl_file, 'r', encoding='utf-8') as f:
-        for i, line in enumerate(f):
-            if i >= val_size: break
-            try:
-                ex = json.loads(line)
-                text, entities = ex["text"], ex.get("entities", [])
-                words = text.split()
-                labels = ["O"] * len(words)
-                run = 0
-                for ent in entities:
-                    e_start, e_end, e_type = ent["start"], ent["end"], ent["entity"]
-                    first = last = None
-                    run = 0
-                    for j, w in enumerate(words):
-                        w_start = text.find(w, run); w_end = w_start + len(w); run = w_end + 1
-                        if w_start < e_end and w_end > e_start:
-                            if first is None: first = j
-                            last = j
-                    if first is not None:
-                        labels[first] = f"B-{e_type}"
-                        for k in range(first + 1, (last or first) + 1):
-                            labels[k] = f"I-{e_type}"
-                label_ids = [LABEL2ID.get(l, 0) for l in labels]
-                examples.append({"tokens": words, "ner_tags": label_ids})
-                kept += 1
-            except json.JSONDecodeError:
-                bad += 1
-                continue
-
-    info_id(f"Validation examples kept={kept}, bad_lines_skipped={bad}", request_id)
-    ds = Dataset.from_list(examples)
-
-    def tokenize_and_align(batch):
+    """
+    Builds a small validation set that accepts EITHER:
+      - {"tokens":[...], "ner_tags":[...]}  (already tokenized)
+      - {"text":"...", "entities":[{"start":..,"end":..,"entity": "..."}]} (raw)
+    Produces a HuggingFace Dataset of dicts compatible with DataCollatorForTokenClassification.
+    """
+    def align(tokens, word_labels):
+        # word->token alignment BEFORE tensors, to preserve word_ids()
         tok = tokenizer(
-            batch["tokens"],
+            tokens,
             is_split_into_words=True,
             truncation=True,
             padding="max_length",
             max_length=max_length,
         )
+        word_ids = tok.word_ids()
         aligned = []
-        for i, word_labels in enumerate(batch["ner_tags"]):
-            word_ids = tok.word_ids(batch_index=i)
-            prev = None; label_ids = []
-            for wid in word_ids:
-                if wid is None:
-                    label_ids.append(-100)
+        prev = None
+        for wid in word_ids:
+            if wid is None:
+                aligned.append(-100)
+            else:
+                base = LABEL2ID.get(word_labels[wid], 0)
+                if wid != prev:
+                    aligned.append(base)
                 else:
-                    base = word_labels[wid]
-                    if wid != prev:
-                        label_ids.append(base)
+                    lab = ID2LABEL[base]
+                    if lab.startswith("B-"):
+                        aligned.append(LABEL2ID.get("I-" + lab[2:], base))
                     else:
-                        lab = ID2LABEL[base]
-                        if lab.startswith("B-"):
-                            inside = "I-" + lab[2:]
-                            label_ids.append(LABEL2ID[inside])
-                        else:
-                            label_ids.append(base)
-                    prev = wid
-            aligned.append(label_ids)
-        tok["labels"] = aligned
-        return tok
+                        aligned.append(base)
+                prev = wid
+        return {
+            "input_ids": tok["input_ids"],
+            "attention_mask": tok["attention_mask"],
+            "labels": aligned,
+        }
 
-    return ds.map(tokenize_and_align, batched=True, remove_columns=["tokens", "ner_tags"])
+    def raw_to_words_and_labels(text, entities):
+        words = text.split()
+        labels = ["O"] * len(words)
+        run = 0
+        for ent in entities or []:
+            e_start, e_end = ent["start"], ent["end"]
+            e_type = ent.get("entity") or ent.get("label")
+            if not e_type:
+                continue
+            first = last = None
+            run = 0
+            for j, w in enumerate(words):
+                w_start = text.find(w, run); w_end = w_start + len(w); run = w_end + 1
+                if w_start < e_end and w_end > e_start:
+                    if first is None: first = j
+                    last = j
+            if first is not None:
+                labels[first] = f"B-{e_type}"
+                for k in range(first + 1, (last or first) + 1):
+                    labels[k] = f"I-{e_type}"
+        return words, labels
+
+    rows = []
+    kept, bad = 0, 0
+    with open(jsonl_file, "r", encoding="utf-8") as f:
+        for i, line in enumerate(f):
+            if val_size is not None and i >= val_size:
+                break
+            try:
+                ex = json.loads(line)
+                if "tokens" in ex and "ner_tags" in ex:
+                    tokens = ex["tokens"]
+                    tag_ids = ex["ner_tags"]
+                    # convert tag_ids -> BIO tag strings for alignment logic
+                    word_labels = [ID2LABEL[t] if isinstance(t, int) else t for t in tag_ids]
+                    rows.append(align(tokens, word_labels))
+                    kept += 1
+                elif "text" in ex:
+                    text = ex["text"]
+                    entities = ex.get("entities", [])
+                    tokens, word_labels = raw_to_words_and_labels(text, entities)
+                    rows.append(align(tokens, word_labels))
+                    kept += 1
+                else:
+                    bad += 1
+            except Exception:
+                bad += 1
+                continue
+
+    info_id(f"Validation examples kept={kept}, bad_lines_skipped={bad}", request_id)
+    # build Dataset from already-aligned features
+    return Dataset.from_dict({
+        "input_ids": [r["input_ids"] for r in rows],
+        "attention_mask": [r["attention_mask"] for r in rows],
+        "labels": [r["labels"] for r in rows],
+    })
 
 
 def simple_compute_metrics_fn(p):
@@ -625,7 +656,7 @@ def main():
 
     training_args = TrainingArguments(
         output_dir=model_dir,
-        eval_strategy="steps",
+        evaluation_strategy="steps",  # <-- correct
         save_strategy="steps",
         eval_steps=mode_cfg["eval_steps"],
         save_steps=mode_cfg["save_steps"],
@@ -669,7 +700,6 @@ def main():
         args=training_args,
         train_dataset="placeholder",
         eval_dataset=val_dataset,
-        processing_class=tokenizer,
         data_collator=data_collator,
         compute_metrics=simple_compute_metrics_fn,
         streaming_dataset_config=streaming_config,
