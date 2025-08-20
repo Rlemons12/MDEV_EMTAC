@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from modules.emtac_ai.training_scripts.performance_tst_model.performance_tracker import (
     PerformanceTracker, QueryResult, EntityMatch
 )
-from modules.emtac_ai.config import ORC_PARTS_MODEL_DIR, ORC_TRAINING_DATA_LOADSHEET
+from modules.configuration.config import ORC_PARTS_MODEL_DIR, ORC_TRAINING_DATA_LOADSHEET
 
 # Enhanced query templates with natural language variations
 ENHANCED_QUERY_TEMPLATES = [

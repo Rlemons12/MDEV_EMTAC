@@ -8,7 +8,7 @@ from transformers import (
     AutoModelForTokenClassification,
     pipeline,
 )
-from modules.emtac_ai.config import ORC_PARTS_MODEL_DIR
+from modules.configuration.config import ORC_PARTS_MODEL_DIR
 
 
 # Config
