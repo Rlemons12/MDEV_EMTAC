@@ -15878,6 +15878,9 @@ class KeywordSearch:
                 "message": f"Error loading keywords from Excel: {str(e)}"
             }
 
+
+
+
 # Base.metadata.create_all(engine, checkfirst=True)  # <-- COMMENTED OUT
 
 _database_initialized = False
