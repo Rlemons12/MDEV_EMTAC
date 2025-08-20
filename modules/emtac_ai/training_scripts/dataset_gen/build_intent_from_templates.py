@@ -87,6 +87,42 @@ def get_template_files(root_dir: str, req_id: Optional[str]) -> List[Path]:
     return files
 
 
+def group_template_files_by_label(root_dir: str, req_id: Optional[str]) -> Dict[str, List[Path]]:
+    """
+    Walk root_dir and group discovered template files by the root's first-level
+    subfolder name. Example:
+        query_templates/
+          parts/*.txt -> label 'parts'
+          drawings/*.txt -> label 'drawings'
+          foo/bar/*.tmpl -> label 'foo'   (still grouped by the first segment)
+    """
+    root = Path(root_dir).resolve()
+    groups: Dict[str, List[Path]] = {}
+    if not root.exists():
+        warning_id(f"Templates root not found: {root_dir}", req_id)
+        return groups
+
+    for path in root.rglob("*"):
+        if not (path.is_file() and path.suffix.lower() in TEMPLATE_SUFFIXES):
+            continue
+        try:
+            rel = path.relative_to(root)
+        except Exception:
+            # Defensive: if relative_to fails, treat as unlabeled
+            label = "unknown"
+        else:
+            # label = first dir segment under root, or file stem if none
+            parts = rel.parts
+            label = parts[0] if len(parts) > 1 else path.stem
+        groups.setdefault(label, []).append(path)
+
+    # Stable ordering for logging/debuggability
+    for label in list(groups.keys()):
+        groups[label].sort()
+        info_id(f"[root-scan] Label '{label}': {len(groups[label])} files", req_id)
+    return groups
+
+
 def read_templates(files: List[Path], req_id: Optional[str]) -> List[str]:
     """Read lines from template files, skip empty and comment lines."""
     templates: List[str] = []
@@ -262,6 +298,8 @@ def main():
                         help="How many sample texts to show per label in the quick report (default=3).")
     parser.add_argument("--save-report", action="store_true",
                         help="If set, save a JSON report (counts+samples + split sizes) to the output directory.")
+    parser.add_argument("--root-templates-dir", default=None,
+                        help="If set, scan this root and include ALL subfolders as separate intent labels (label = subfolder name).")
 
     args = parser.parse_args()
 
@@ -274,41 +312,42 @@ def main():
         except Exception as e:
             error_id(f"Failed to parse --column-map JSON: {e}", req_id)
 
-    # Load inventory
+    # Load inventory (optional)
     df = load_inventory(args.inventory_path, req_id)
 
-    # Collect parts templates
-    parts_files = get_template_files(args.parts_templates_dir, req_id)
-    if not parts_files:
-        error_id(f"No template files found under: {args.parts_templates_dir}", req_id)
-        return
+    rows: List[Dict[str, str]] = []
 
-    parts_templates = read_templates(parts_files, req_id)
-    info_id(f"Loaded {len(parts_templates)} parts templates from {args.parts_templates_dir}", req_id)
+    # ---------- NEW: root-scanning mode (auto include ALL subfolders as labels) ----------
+    if args.root_templates_dir:
+        root = Path(args.root_templates_dir).resolve()
+        if not root.exists():
+            error_id(f"No such root: {args.root_templates_dir}", req_id)
+            return
 
-    # Synthesize parts examples
-    rows = synthesize_examples(
-        templates=parts_templates,
-        label="parts",
-        n_per_template=args.samples_per_template,
-        df=df,
-        column_map=column_map,
-        skip_unknown_placeholders=args.skip_unknown_placeholders,
-        req_id=req_id,
-    )
+        # Group files by first-level subfolder under root (label = subfolder name)
+        label_to_files: Dict[str, List[Path]] = {}
+        for f in root.rglob("*"):
+            if f.is_file() and f.suffix.lower() in TEMPLATE_SUFFIXES:
+                try:
+                    rel = f.relative_to(root)
+                except Exception:
+                    label = "unknown"
+                else:
+                    parts = rel.parts
+                    label = parts[0] if len(parts) > 1 else f.stem
+                label_to_files.setdefault(label, []).append(f)
 
-    # Optionally add other intents from sibling dirs (label = folder name)
-    if args.include_other_intents and args.other_template_dirs:
-        for d in args.other_template_dirs:
-            if not d:
-                continue
-            files = get_template_files(d, req_id)
-            if not files:
-                warning_id(f"No templates in other intent dir: {d}", req_id)
-                continue
-            tpls = read_templates(files, req_id)
-            label = Path(d).name  # e.g., "drawings"
-            info_id(f"Loaded {len(tpls)} templates for intent '{label}' from {d}", req_id)
+        total_files = sum(len(v) for v in label_to_files.values())
+        if total_files == 0:
+            error_id(f"No template files found under root: {args.root_templates_dir}", req_id)
+            return
+
+        info_id(f"Discovered {total_files} template files across {len(label_to_files)} labels under {args.root_templates_dir}", req_id)
+
+        for label, files in sorted(label_to_files.items(), key=lambda kv: kv[0]):
+            info_id(f"[root-scan] Label '{label}': {len(files)} files", req_id)
+            tpls = read_templates(files, req_id)  # loads non-empty, non-comment lines:contentReference[oaicite:1]{index=1}
+            info_id(f"Loaded {len(tpls)} templates for intent '{label}'", req_id)
             rows.extend(
                 synthesize_examples(
                     templates=tpls,
@@ -320,6 +359,49 @@ def main():
                     req_id=req_id,
                 )
             )
+    else:
+        # ---------- ORIGINAL behavior: parts + optional other dirs ----------
+        parts_files = get_template_files(args.parts_templates_dir, req_id)  # discovers .txt/.tmpl/.templates recursively:contentReference[oaicite:2]{index=2}
+        if not parts_files:
+            error_id(f"No template files found under: {args.parts_templates_dir}", req_id)
+            return
+
+        parts_templates = read_templates(parts_files, req_id)  # parse template lines:contentReference[oaicite:3]{index=3}
+        info_id(f"Loaded {len(parts_templates)} parts templates from {args.parts_templates_dir}", req_id)
+
+        rows = synthesize_examples(  # placeholder fill + synthesis:contentReference[oaicite:4]{index=4}
+            templates=parts_templates,
+            label="parts",
+            n_per_template=args.samples_per_template,
+            df=df,
+            column_map=column_map,
+            skip_unknown_placeholders=args.skip_unknown_placeholders,
+            req_id=req_id,
+        )
+
+        # Optionally add other intents (label = folder name)
+        if args.include_other_intents and args.other_template_dirs:
+            for d in args.other_template_dirs:
+                if not d:
+                    continue
+                files = get_template_files(d, req_id)
+                if not files:
+                    warning_id(f"No templates in other intent dir: {d}", req_id)
+                    continue
+                tpls = read_templates(files, req_id)
+                label = Path(d).name  # e.g., "drawings"
+                info_id(f"Loaded {len(tpls)} templates for intent '{label}' from {d}", req_id)
+                rows.extend(
+                    synthesize_examples(
+                        templates=tpls,
+                        label=label,
+                        n_per_template=args.samples_per_template,
+                        df=df,
+                        column_map=column_map,
+                        skip_unknown_placeholders=args.skip_unknown_placeholders,
+                        req_id=req_id,
+                    )
+                )
 
     # Deduplicate if requested
     if args.dedup:
@@ -356,6 +438,7 @@ def main():
             error_id(f"Failed to write report JSON: {e}", req_id)
 
     info_id("Intent dataset build completed.", req_id)
+
 
 
 if __name__ == "__main__":
