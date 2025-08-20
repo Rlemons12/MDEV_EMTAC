@@ -137,9 +137,9 @@ ORC_TOOLS_TRAIN_DATA_DIR = os.path.join(ORC_TRAINING_DATA_DIR, "tools")
 ORC_TROUBLESHOOTING_TRAIN_DATA_DIR = os.path.join(ORC_TRAINING_DATA_DIR, "troubleshooting")
 
 # Query template directories - These paths are CORRECT and match your actual structure
-ORC_QUERY_TEMPLATES_TRAIN_DATA_DIR = os.path.join(ORC_BASE_DIR, "training_data", "query_templants")
-ORC_QUERY_TEMPLATE_PARTS = os.path.join(ORC_BASE_DIR, "training_data", "query_templants", "parts")
-ORC_QUERY_TEMPLATE_DRAWINGS = os.path.join(ORC_BASE_DIR, "training_data", "query_templants", "drawings")
+ORC_QUERY_TEMPLATES_TRAIN_DATA_DIR = os.path.join(ORC_BASE_DIR, "training_data", "query_templates")
+ORC_QUERY_TEMPLATE_PARTS = os.path.join(ORC_BASE_DIR, "training_data", "query_templates", "parts")
+ORC_QUERY_TEMPLATE_DRAWINGS = os.path.join(ORC_BASE_DIR, "training_data", "query_templates", "drawings")
 
 # NEW: Additional directories found in your project
 ORC_ORCHESTRATOR_DIR = os.path.join(ORC_BASE_DIR, "orchestrator")
@@ -148,6 +148,10 @@ ORC_ORCHESTRATOR_TEST_SCRIPTS_DIR = os.path.join(ORC_ORCHESTRATOR_DIR, "test_scr
 ORC_TEST_SCRIPTS_DIR = os.path.join(ORC_BASE_DIR, "test_scripts")
 
 ORC_TRAINING_MODULE_DIR = os.path.join(ORC_BASE_DIR, "training_module")
+
+# load sheets
+ORC_TRAINING_DATA_DRAWINGS_LOADSHEET_PATH= os.path.join(ORC_TRAINING_DATA_LOADSHEET,"drawing_loadsheet.xlsx")
+ORC_TRAINING_DATA_PARTS_LOADSHEET_PATH= os.path.join(ORC_TRAINING_DATA_LOADSHEET,"parts_loadsheet.xlsx")
 
 ORC_TRAINING_SCRIPTS_DIR = os.path.join(ORC_BASE_DIR, "training_scripts")
 ORC_TRAINING_SCRIPTS_DATASET_GEN_DIR = os.path.join(ORC_TRAINING_SCRIPTS_DIR, "dataset_gen")
