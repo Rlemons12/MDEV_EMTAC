@@ -1,17 +1,16 @@
+#modules/emtac_ai/query_expansion/db_search_repo/document_repository.py
 from __future__ import annotations
-from typing import Any, Dict, List, Optional, Sequence, Tuple
-
-from sqlalchemy import and_, or_, text, func
-from sqlalchemy.orm import Session
-
-from modules.configuration.log_config import (
-    with_request_id, get_request_id, log_timed_operation, debug_id, info_id, error_id
-)
 from .base_repository import BaseRepository
+from modules.configuration.log_config import get_request_id,with_request_id
+from modules.configuration.log_config import debug_id, error_id, log_timed_operation
+from sqlalchemy.orm import Session
+from sqlalchemy import func, text
+from typing import List, Optional, Dict, Any, Sequence
+
 
 # ---- Robust imports for your tree layout ----
 try:
-    from emtacdb_fts import (
+    from modules.emtacdb.emtacdb_fts import (
         Document,
         DocumentEmbedding,
         Image,

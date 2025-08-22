@@ -1,18 +1,15 @@
 from __future__ import annotations
-from typing import Any, Dict, List, Optional, Sequence
-
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-
-from modules.configuration.log_config import (
-    with_request_id, get_request_id, log_timed_operation,
-    debug_id, info_id, error_id,
-)
+from typing import List, Optional
 from .base_repository import BaseRepository
+from modules.configuration.log_config import get_request_id, with_request_id
+from modules.configuration.log_config import debug_id, error_id, log_timed_operation
+from typing import List, Optional, Dict, Any
+from sqlalchemy.orm import Session
+
 
 # ---- Robust imports (match your repo style) ----
 try:
-    from emtacdb_fts import (
+    from modules.emtacdb.emtacdb_fts import (
         CompleteDocument,
         Document,  # chunks
         Image,

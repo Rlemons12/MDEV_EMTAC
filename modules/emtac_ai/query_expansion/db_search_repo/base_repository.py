@@ -1,7 +1,10 @@
 from __future__ import annotations
+from typing import Optional
 
+# Shared config/logging
 from modules.configuration.config_env import DatabaseConfig
-from modules.configuration.log_config import debug_id, get_request_id
+from modules.configuration.log_config import get_request_id,debug_id
+
 
 
 class BaseRepository:

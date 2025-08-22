@@ -1,17 +1,18 @@
-# modules/search/aggregate_search.py
+# modules/emtac_ai/query_expansion/db_search_repo/aggregate_search.py
 from __future__ import annotations
-
 from dataclasses import dataclass
-from typing import List, Optional, Any, Dict
+from typing import Any, Dict, List, Optional
+from .repo_manager import REPOManager
+from .part_repository import PartRepository
+from .position_repository import PositionRepository
+from .document_repository import DocumentRepository
+from .image_repository import ImageRepository
+from .drawing_repository import DrawingRepository
+from .complete_document_repository import CompleteDocumentRepository
 
+# Shared logging/config
 from modules.configuration.log_config import (
-    with_request_id,
-    get_request_id,
-    log_timed_operation,
-    debug_id,
-    info_id,
-)
-from modules.search.db_search_repo import REPOManager
+    info_id, debug_id, warning_id, error_id, with_request_id, get_request_id,log_timed_operation)
 
 
 # -------------------- DTOs --------------------
