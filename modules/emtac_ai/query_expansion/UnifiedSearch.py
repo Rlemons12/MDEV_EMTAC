@@ -1,23 +1,26 @@
-# UnifiedSearch.py  (drop-in fixed version)
+# UnifiedSearch.py  (updated to use the new query_expansion orchestrator)
 from __future__ import annotations
 
-import inspect
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, Any, Optional, List, Callable, Tuple
-import traceback
 
 from modules.configuration.log_config import logger, with_request_id
+from modules.configuration.log_config import debug_id, get_request_id  # optional, used for extra logs
 
-# Optional engines present in your app
+# ──────────────────────────────────────────────────────────────────────────────
+# Orchestrator (NEW LOCATION)
+# ──────────────────────────────────────────────────────────────────────────────
 try:
-    from modules.emtac_ai.orchestrator.orchestrator import Orchestrator
+    # New orchestrator lives here
+    from modules.emtac_ai.query_expansion.orchestrator import EMTACQueryExpansionOrchestrator as Orchestrator
 except Exception:
     Orchestrator = None
 
+# Optional vector layer (AggregateSearch)
 try:
-    from modules.search.aggregate_search import AggregateSearch
+    from modules.emtac_ai import AggregateSearch
 except Exception:
     AggregateSearch = None
 
@@ -28,9 +31,9 @@ except Exception:
     CompleteDocument = None
 
 
-# ---------------------------
+# ──────────────────────────────────────────────────────────────────────────────
 # Tracking primitives
-# ---------------------------
+# ──────────────────────────────────────────────────────────────────────────────
 @dataclass
 class SearchEvent:
     query: str
@@ -93,9 +96,9 @@ def _fmt_kvs(**kvs):
     return " ".join(f"{k}={v}" for k, v in kvs.items() if v not in (None, {}, [], ""))
 
 
-# ---------------------------
+# ──────────────────────────────────────────────────────────────────────────────
 # UnifiedSearch Hub
-# ---------------------------
+# ──────────────────────────────────────────────────────────────────────────────
 class UnifiedSearch:
     """
     Hub for:
@@ -113,6 +116,8 @@ class UnifiedSearch:
         enable_orchestrator: bool = True,
         intent_model_dir: Optional[str] = None,
         ner_model_dirs: Optional[Dict[str, str]] = None,
+        ai_model=None,
+        domain: str = "maintenance",
     ):
         self.db_session = getattr(self, "db_session", None) or db_session
         self.tracker = SearchTracker(self.db_session)
@@ -124,7 +129,7 @@ class UnifiedSearch:
         self.regex_enabled = False
 
         # Init backends
-        self._init_orchestrator(enable_orchestrator, intent_model_dir, ner_model_dirs)
+        self._init_orchestrator(enable_orchestrator, intent_model_dir, ner_model_dirs, ai_model, domain)
         self._init_vector(enable_vector)
         self._init_fts(enable_fts)
         self._init_regex(enable_regex)
@@ -132,29 +137,36 @@ class UnifiedSearch:
         logger.info("UnifiedSearch hub initialized.")
 
     # ---------- Initialization helpers ----------
-    def _init_orchestrator(self, enable_orchestrator: bool, intent_dir: Optional[str],
-                           ner_dirs: Optional[Dict[str, str]]):
+    def _init_orchestrator(
+        self,
+        enable_orchestrator: bool,
+        intent_dir: Optional[str],
+        ner_dirs: Optional[Dict[str, str]],
+        ai_model=None,
+        domain: str = "maintenance",
+    ):
         if not enable_orchestrator:
             self._log("warning", "Orchestrator disabled by flag")
             return
 
-        # Make the import reason explicit
-        if 'Orchestrator' not in globals() or Orchestrator is None:
-            self._log("error", "Orchestrator class not importable at modules.emtac_ai.orchestrator.orchestrator")
+        if Orchestrator is None:
+            self._log("error", "New orchestrator not importable at modules.emtac_ai.query_expansion.orchestrator")
             return
 
         try:
-            # Pass explicit dirs if provided; otherwise let Orchestrator use its defaults.
+            # Use the new orchestrator directly
             self.orchestrator = Orchestrator(
+                ai_model=ai_model,
                 intent_model_dir=intent_dir,
-                ner_model_dirs=ner_dirs,
+                ner_model_dir=ner_dirs.get("default") if isinstance(ner_dirs, dict) else None,  # optional
+                domain=domain,
             )
             self.register_backend("orchestrator",
                                   lambda q, request_id=None: self._call_orchestrator(q, request_id=request_id))
             self._log("info", "Orchestrator backend registered")
         except Exception as e:
             import traceback
-            self._log("error", "Failed to init Orchestrator", error=str(e))
+            self._log("error", "Failed to init new orchestrator", error=str(e))
             logger.error("Orchestrator init traceback:\n" + traceback.format_exc())
 
     def _init_vector(self, enable_vector: bool):
@@ -268,25 +280,35 @@ class UnifiedSearch:
 
     # ---------- Backend callers ----------
     def _call_orchestrator(self, question: str, request_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Bridges the new orchestrator API to UnifiedSearch expectations.
+        - Calls process_query_complete_pipeline(...)
+        - Ensures a 'results' list is present for downstream
+        """
         if not self.orchestrator:
             self._log("warning", "Orchestrator not initialized", request_id)
             return {"method": "orchestrator", "results": []}
 
-        self._log("debug", "Orchestrator.process_prompt: start", request_id, q_len=len(question))
+        self._log("debug", "Orchestrator.process_query_complete_pipeline: start", request_id, q_len=len(question))
         t0 = time.perf_counter()
         try:
-            payload = self.orchestrator.process_prompt(question) or {}
+            payload = self.orchestrator.process_query_complete_pipeline(query=question, enable_ai=True) or {}
             dt_ms = int((time.perf_counter() - t0) * 1000)
-            results = payload.get("results") or []
+
+            # Normalize keys for UnifiedSearch
+            # If your orchestrator already returns 'results', this is a no-op.
+            if "results" not in payload:
+                payload["results"] = payload.get("results", [])
+
             intent = payload.get("intent")
             keys = ",".join(sorted(payload.keys()))
-            self._log("info", "Orchestrator.process_prompt: done", request_id,
-                      duration_ms=dt_ms, intent=intent or "", results=len(results), keys=keys)
+            self._log("info", "Orchestrator.process_query_complete_pipeline: done", request_id,
+                      duration_ms=dt_ms, intent=intent or "", results=len(payload["results"]), keys=keys)
             payload.setdefault("method", "orchestrator")
             return payload
         except Exception as e:
             dt_ms = int((time.perf_counter() - t0) * 1000)
-            self._log("error", "Orchestrator.process_prompt failed", request_id, duration_ms=dt_ms, error=str(e))
+            self._log("error", "Orchestrator call failed", request_id, duration_ms=dt_ms, error=str(e))
             return {"method": "orchestrator", "results": [], "error": str(e)}
 
     def _call_vector_search(self, question: str) -> Dict[str, Any]:
