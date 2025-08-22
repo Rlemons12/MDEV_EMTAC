@@ -1,0 +1,1 @@
+Exported from: C:\Users\10169062\Desktop\emtac-intent-ner\modules\emtac_ai\models\drawings\checkpoint-600
