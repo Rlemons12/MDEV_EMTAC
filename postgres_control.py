@@ -5,8 +5,8 @@ import time
 from datetime import datetime
 
 # UPDATE THESE PATHS TO MATCH YOUR SETUP
-BIN_DIR = r"C:\Users\10169062\Desktop\AU_IndusMaintdb\Database\postgreSQL\pgsql\bin"
-DATA_DIR = r"C:\Users\10169062\PostgreSQL\data"
+BIN_DIR = r"C:\Users\10169062\PycharmProjects\MDEV_EMTAC\Database\postgreSQL\pgsql\bin"
+DATA_DIR = r"C:\Users\10169062\postgresql\pgsql\data"
 
 
 def run_pg_ctl(args, timeout=30):
