@@ -7784,6 +7784,165 @@ class Problem(Base):
     drawing_problem = relationship("DrawingProblemAssociation", back_populates="problem")
     part_problem = relationship("PartProblemAssociation", back_populates="problem")
 
+    # ----------------------------
+    # CREATE / ADD
+    # ----------------------------
+    @classmethod
+    @with_request_id
+    def add_to_db(cls, session, name: str, description: str, request_id=None) -> int:
+        """
+        Add or get a Problem by name. Always returns the Problem ID.
+        """
+        try:
+            problem = session.query(cls).filter_by(name=name).first()
+            if problem:
+                info_id(f"Found existing Problem '{name}' (id={problem.id})", request_id)
+                return problem.id
+
+            problem = cls(name=name, description=description)
+            session.add(problem)
+            session.commit()
+            info_id(f"Created new Problem '{name}' (id={problem.id})", request_id)
+            return problem.id
+        except Exception as e:
+            session.rollback()
+            error_id(f"Problem.add_to_db failed: {e}", request_id)
+            raise
+
+    # ----------------------------
+    # RETRIEVE
+    # ----------------------------
+    @classmethod
+    @with_request_id
+    def get_by_id(cls, session, problem_id: int, request_id=None):
+        """Retrieve a Problem by its ID."""
+        try:
+            return session.query(cls).filter_by(id=problem_id).first()
+        except Exception as e:
+            error_id(f"Problem.get_by_id failed: {e}", request_id)
+            return None
+
+    @classmethod
+    @with_request_id
+    def list_all(cls, session, limit: int = 100, request_id=None):
+        """List all Problems with optional limit."""
+        try:
+            return session.query(cls).limit(limit).all()
+        except Exception as e:
+            error_id(f"Problem.list_all failed: {e}", request_id)
+            return []
+
+    # ----------------------------
+    # UPDATE
+    # ----------------------------
+    @classmethod
+    @with_request_id
+    def update_problem(cls, session, problem_id: int, name: str = None, description: str = None, request_id=None) -> bool:
+        """Update an existing Problem's fields."""
+        try:
+            problem = session.query(cls).filter_by(id=problem_id).first()
+            if not problem:
+                warning_id(f"Problem {problem_id} not found for update", request_id)
+                return False
+
+            if name:
+                problem.name = name
+            if description:
+                problem.description = description
+
+            session.commit()
+            info_id(f"Updated Problem {problem_id}", request_id)
+            return True
+        except Exception as e:
+            session.rollback()
+            error_id(f"Problem.update_problem failed: {e}", request_id)
+            return False
+
+    # ----------------------------
+    # DELETE
+    # ----------------------------
+    @classmethod
+    @with_request_id
+    def delete_problem(cls, session, problem_id: int, request_id=None) -> bool:
+        """Delete a Problem by ID."""
+        try:
+            problem = session.query(cls).filter_by(id=problem_id).first()
+            if not problem:
+                warning_id(f"Problem {problem_id} not found for deletion", request_id)
+                return False
+
+            session.delete(problem)
+            session.commit()
+            info_id(f"Deleted Problem {problem_id}", request_id)
+            return True
+        except Exception as e:
+            session.rollback()
+            error_id(f"Problem.delete_problem failed: {e}", request_id)
+            return False
+
+    # ----------------------------
+    # SEARCH
+    # ----------------------------
+    @classmethod
+    @with_request_id
+    def search(cls, session, text: str, exact: bool = False, limit: int = 50, request_id=None):
+        """Search Problems by name or description."""
+        try:
+            query = session.query(cls)
+            if exact:
+                results = query.filter((cls.name == text) | (cls.description == text)).limit(limit).all()
+            else:
+                results = query.filter(
+                    (cls.name.ilike(f"%{text}%")) | (cls.description.ilike(f"%{text}%"))
+                ).limit(limit).all()
+
+            debug_id(f"Problem.search for '{text}' returned {len(results)} results", request_id)
+            return results
+        except Exception as e:
+            error_id(f"Problem.search failed: {e}", request_id)
+            return []
+
+    # ----------------------------
+    # RELATIONSHIP HELPERS
+    # ----------------------------
+    def get_solutions(self):
+        """Return all solutions linked to this Problem."""
+        return self.solutions
+
+    def get_positions(self):
+        """Return all position associations for this Problem."""
+        return self.problem_position
+
+    def get_images(self):
+        """Return all image associations for this Problem."""
+        return self.image_problem
+
+    def get_documents(self):
+        """Return all document associations for this Problem."""
+        return self.complete_document_problem
+
+    def get_drawings(self):
+        """Return all drawing associations for this Problem."""
+        return self.drawing_problem
+
+    def get_parts(self):
+        """Return all part associations for this Problem."""
+        return self.part_problem
+
+    # ----------------------------
+    # STATS
+    # ----------------------------
+    @classmethod
+    @with_request_id
+    def count(cls, session, request_id=None) -> int:
+        """Count total number of Problems."""
+        try:
+            return session.query(cls).count()
+        except Exception as e:
+            error_id(f"Problem.count failed: {e}", request_id)
+            return 0
+
+
 class Solution(Base):
     __tablename__ = 'solution'
 
@@ -7852,6 +8011,61 @@ class DrawingPartAssociation(Base):
     
     drawing = relationship("Drawing", back_populates="drawing_part")
     part = relationship("Part", back_populates="drawing_part")
+
+    # ======================================================
+    # SINGLE ADD OPERATION
+    # ======================================================
+    @classmethod
+    @with_request_id
+    def add(cls,
+            drawing_id: int,
+            part_id: int,
+            session: Optional[Session] = None,
+            request_id: Optional[str] = None) -> Optional[int]:
+        """
+        Create a new Drawing-Part association if it does not already exist.
+
+        Args:
+            drawing_id: ID of the drawing
+            part_id: ID of the part
+            session: Optional SQLAlchemy session (new session created if not provided)
+            request_id: Optional request ID for logging
+
+        Returns:
+            int: ID of the created association, or None if it already existed or failed
+        """
+        rid = request_id or get_request_id()
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+
+        try:
+            # Check if association already exists
+            existing = session.query(cls).filter_by(
+                drawing_id=drawing_id,
+                part_id=part_id
+            ).first()
+
+            if existing:
+                debug_id(f"Association already exists: Drawing {drawing_id} ↔ Part {part_id}", rid)
+                return existing.id
+
+            assoc = cls(drawing_id=drawing_id, part_id=part_id)
+            session.add(assoc)
+            session.commit()
+
+            info_id(f"Created DrawingPartAssociation: Drawing {drawing_id} ↔ Part {part_id}", rid)
+            return assoc.id
+
+        except Exception as e:
+            session.rollback()
+            error_id(f"Failed to create DrawingPartAssociation: {e}", rid, exc_info=True)
+            return None
+        finally:
+            if not session_provided:
+                session.close()
+
 
     @classmethod
     @with_request_id
@@ -8180,6 +8394,79 @@ class DrawingPartAssociation(Base):
             if not session_provided:
                 session.close()
                 debug_id(f"Closed database session for Part.get_drawings_by_part", rid)
+
+    # ======================================================
+    # BULK OPERATIONS
+    # ======================================================
+    @classmethod
+    @with_request_id
+    def bulk_link(cls,
+                  drawing_ids: Optional[List[int]] = None,
+                  part_ids: Optional[List[int]] = None,
+                  session: Optional[Session] = None,
+                  request_id: Optional[str] = None) -> int:
+        """
+        Bulk link parts and drawings in one transaction.
+
+        You can:
+        - Pass a single drawing_id with multiple part_ids
+        - Pass a single part_id with multiple drawing_ids
+
+        Args:
+            drawing_ids: List of drawing IDs (or a single-element list if linking one drawing to many parts)
+            part_ids: List of part IDs (or a single-element list if linking one part to many drawings)
+            session: Optional session (if not provided, a new one is created)
+            request_id: For logging
+
+        Returns:
+            int: Number of new associations created
+        """
+        rid = request_id or get_request_id()
+        db_config = DatabaseConfig()
+        session_provided = session is not None
+        if not session_provided:
+            session = db_config.get_main_session()
+
+        created_count = 0
+        try:
+            if not drawing_ids or not part_ids:
+                warning_id("bulk_link requires both drawing_ids and part_ids", rid)
+                return 0
+
+            # Ensure both are lists
+            if isinstance(drawing_ids, int):
+                drawing_ids = [drawing_ids]
+            if isinstance(part_ids, int):
+                part_ids = [part_ids]
+
+            # Loop through all combinations
+            for d_id in drawing_ids:
+                for p_id in part_ids:
+                    existing = session.query(cls).filter_by(drawing_id=d_id, part_id=p_id).first()
+                    if not existing:
+                        assoc = cls(drawing_id=d_id, part_id=p_id)
+                        session.add(assoc)
+                        created_count += 1
+                        debug_id(f"Prepared link Drawing {d_id} ↔ Part {p_id}", rid)
+                    else:
+                        debug_id(f"Skipped existing link Drawing {d_id} ↔ Part {p_id}", rid)
+
+            if created_count > 0:
+                session.commit()
+                info_id(f"bulk_link created {created_count} new associations", rid)
+            else:
+                debug_id("bulk_link found all associations already exist", rid)
+
+            return created_count
+
+        except Exception as e:
+            session.rollback()
+            error_id(f"bulk_link failed: {e}", rid, exc_info=True)
+            return 0
+        finally:
+            if not session_provided:
+                session.close()
+
     
 class PartProblemAssociation(Base):
     __tablename__ = 'part_problem'
