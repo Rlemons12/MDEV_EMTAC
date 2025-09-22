@@ -1658,14 +1658,72 @@ class Subassembly(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=True)
     location_id = Column(Integer, ForeignKey('location.id'))
-    description = Column(String, nullable=True)  # CHANGED to allow NULL
+    description = Column(String, nullable=True)
+
     # Relationships
     location = relationship("Location", back_populates="subassembly")
     component_assembly = relationship("ComponentAssembly", back_populates="subassembly")
     position = relationship("Position", back_populates="subassembly")
 
+    @classmethod
+    @with_request_id
+    def add_subassembly(cls, session, name, location_id, description=None, request_id=None):
+        """Add a new Subassembly to the database."""
+        new_sub = cls(name=name, location_id=location_id, description=description)
+        session.add(new_sub)
+        session.commit()
+        logger.info(f"Created Subassembly '{name}' under Location {location_id}")
+        return new_sub
+
+    @classmethod
+    @with_request_id
+    def delete_subassembly(cls, session, subassembly_id, request_id=None):
+        """Delete a Subassembly by ID."""
+        sub = session.query(cls).filter_by(id=subassembly_id).first()
+        if sub:
+            session.delete(sub)
+            session.commit()
+            logger.info(f"Deleted Subassembly id={subassembly_id}")
+            return True
+        return False
+
+    @classmethod
+    @with_request_id
+    def search(cls, session, name=None, location_id=None):
+        """Search Subassemblies by name or location_id."""
+        query = session.query(cls)
+        if name:
+            query = query.filter(cls.name.ilike(f"%{name}%"))
+        if location_id:
+            query = query.filter(cls.location_id == location_id)
+        return query.all()
+
+    @classmethod
+    @with_request_id
+    def find_or_create(cls, session, name, location_id, description=None, request_id=None):
+        """Find Subassembly by name + location, or create it."""
+        sub = session.query(cls).filter_by(name=name, location_id=location_id).first()
+        if sub:
+            return sub
+        sub = cls(name=name, location_id=location_id, description=description)
+        session.add(sub)
+        session.commit()
+        return sub
+
+    @classmethod
+    @with_request_id
+    def find_related_entities(cls, session, subassembly_id, request_id=None):
+        """Traverse relationships: upward (location), downward (component assemblies, positions)."""
+        sub = session.query(cls).filter_by(id=subassembly_id).first()
+        if not sub:
+            return None
+        return {
+            "subassembly": sub,
+            "upward": {"location": sub.location},
+            "downward": {"component_assemblies": sub.component_assembly, "positions": sub.position}
+        }
+
 class ComponentAssembly(Base):
-    # specific group of components of a subassembly
     __tablename__ = 'component_assembly'
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=True)
@@ -1677,16 +1735,132 @@ class ComponentAssembly(Base):
     assembly_view = relationship("AssemblyView", back_populates="component_assembly")
     position = relationship("Position", back_populates="component_assembly")
 
-class AssemblyView(Base): # # TODO Rename to ComponentView
+    @classmethod
+    @with_request_id
+    def add_component(cls, session, name, subassembly_id, description=None, request_id=None):
+        """Add a new ComponentAssembly."""
+        comp = cls(name=name, subassembly_id=subassembly_id, description=description)
+        session.add(comp)
+        session.commit()
+        logger.info(f"Created ComponentAssembly '{name}' under Subassembly {subassembly_id}")
+        return comp
+
+    @classmethod
+    @with_request_id
+    def delete_component(cls, session, component_id, request_id=None):
+        """Delete a ComponentAssembly by ID."""
+        comp = session.query(cls).filter_by(id=component_id).first()
+        if comp:
+            session.delete(comp)
+            session.commit()
+            logger.info(f"Deleted ComponentAssembly id={component_id}")
+            return True
+        return False
+
+    @classmethod
+    @with_request_id
+    def search(cls, session, name=None, subassembly_id=None):
+        """Search ComponentAssemblies by name or subassembly_id."""
+        query = session.query(cls)
+        if name:
+            query = query.filter(cls.name.ilike(f"%{name}%"))
+        if subassembly_id:
+            query = query.filter(cls.subassembly_id == subassembly_id)
+        return query.all()
+
+    @classmethod
+    @with_request_id
+    def find_or_create(cls, session, name, subassembly_id, description=None, request_id=None):
+        """Find a ComponentAssembly or create it if missing."""
+        comp = session.query(cls).filter_by(name=name, subassembly_id=subassembly_id).first()
+        if comp:
+            return comp
+        comp = cls(name=name, subassembly_id=subassembly_id, description=description)
+        session.add(comp)
+        session.commit()
+        return comp
+
+    @classmethod
+    @with_request_id
+    def find_related_entities(cls, session, component_id, request_id=None):
+        """Traverse relationships: upward (subassembly), downward (assembly views, positions)."""
+        comp = session.query(cls).filter_by(id=component_id).first()
+        if not comp:
+            return None
+        return {
+            "component_assembly": comp,
+            "upward": {"subassembly": comp.subassembly},
+            "downward": {"assembly_views": comp.assembly_view, "positions": comp.position}
+        }
+
+class AssemblyView(Base):  # TODO rename to ComponentView
     __tablename__ = 'assembly_view'
-    # location within component_assembly. example front,back,right-side top left ect...
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=True)
     description = Column(String, nullable=True)
     component_assembly_id = Column(Integer, ForeignKey('component_assembly.id'), nullable=False)
+
     # Relationships
     component_assembly = relationship("ComponentAssembly", back_populates="assembly_view")
     position = relationship("Position", back_populates="assembly_view")
+
+    @classmethod
+    @with_request_id
+    def add_view(cls, session, name, component_assembly_id, description=None, request_id=None):
+        """Add a new AssemblyView (ComponentView)."""
+        view = cls(name=name, component_assembly_id=component_assembly_id, description=description)
+        session.add(view)
+        session.commit()
+        logger.info(f"Created AssemblyView '{name}' under ComponentAssembly {component_assembly_id}")
+        return view
+
+    @classmethod
+    @with_request_id
+    def delete_view(cls, session, view_id, request_id=None):
+        """Delete an AssemblyView by ID."""
+        view = session.query(cls).filter_by(id=view_id).first()
+        if view:
+            session.delete(view)
+            session.commit()
+            logger.info(f"Deleted AssemblyView id={view_id}")
+            return True
+        return False
+
+    @classmethod
+    @with_request_id
+    def search(cls, session, name=None, component_assembly_id=None):
+        """Search AssemblyViews by name or component_assembly_id."""
+        query = session.query(cls)
+        if name:
+            query = query.filter(cls.name.ilike(f"%{name}%"))
+        if component_assembly_id:
+            query = query.filter(cls.component_assembly_id == component_assembly_id)
+        return query.all()
+
+    @classmethod
+    @with_request_id
+    def find_or_create(cls, session, name, component_assembly_id, description=None, request_id=None):
+        """Find an AssemblyView by name + component_assembly, or create it."""
+        view = session.query(cls).filter_by(name=name, component_assembly_id=component_assembly_id).first()
+        if view:
+            return view
+        view = cls(name=name, component_assembly_id=component_assembly_id, description=description)
+        session.add(view)
+        session.commit()
+        return view
+
+    @classmethod
+    @with_request_id
+    def find_related_entities(cls, session, view_id, request_id=None):
+        """Traverse relationships: upward (component assembly), downward (positions)."""
+        view = session.query(cls).filter_by(id=view_id).first()
+        if not view:
+            return None
+        return {
+            "assembly_view": view,
+            "upward": {"component_assembly": view.component_assembly},
+            "downward": {"positions": view.position}
+        }
 
 class Part(Base):
     __tablename__ = 'part'
@@ -1711,6 +1885,59 @@ class Part(Base):
     drawing_part = relationship("DrawingPartAssociation", back_populates="part")
 
     __table_args__ = (UniqueConstraint('part_number', name='_part_number_uc'),)
+
+    @classmethod
+    @with_request_id
+    def add_part_to_db(cls,
+                       session,
+                       part_number: str,
+                       name: Optional[str] = None,
+                       oem_mfg: Optional[str] = None,
+                       model: Optional[str] = None,
+                       class_flag: Optional[str] = None,
+                       ud6: Optional[str] = None,
+                       type_: Optional[str] = None,
+                       notes: Optional[str] = None,
+                       documentation: Optional[str] = None,
+                       request_id: Optional[str] = None) -> int:
+        """
+        Get-or-create a Part by part_number. Always returns the Part ID.
+
+        Args:
+            session: SQLAlchemy session
+            part_number (str): Unique part number
+            Other fields: Optional values for creation
+
+        Returns:
+            int: ID of the existing or newly created Part
+        """
+        try:
+            part = session.query(cls).filter_by(part_number=part_number).first()
+            if part:
+                info_id(f"Found existing Part '{part_number}' (id={part.id})", request_id)
+                return part.id
+
+            # Create new Part
+            part = cls(
+                part_number=part_number,
+                name=name,
+                oem_mfg=oem_mfg,
+                model=model,
+                class_flag=class_flag,
+                ud6=ud6,
+                type=type_,
+                notes=notes,
+                documentation=documentation
+            )
+            session.add(part)
+            session.commit()
+            info_id(f"Created new Part '{part_number}' (id={part.id})", request_id)
+            return part.id
+
+        except SQLAlchemyError as e:
+            session.rollback()
+            error_id(f"Part.add_part_to_db failed: {e}", request_id)
+            raise
 
     @classmethod
     @with_request_id
