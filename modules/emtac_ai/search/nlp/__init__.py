@@ -1,47 +1,57 @@
 """
-NLP search package for emtac_ai.
-Provides tracking, ML classifiers, feedback handling, and spaCy-enhanced search.
+nlp package
+-----------
+Exports NLP models, trackers, and pipeline components.
 """
 
-from .tracker import SearchQueryTracker, SearchSessionManager
 from .models import (
-    SearchSession, SearchQuery, SearchResultClick,
-    MLModel, UserFeedback,
-    SearchIntentHierarchy, IntentContext,
-    PatternTemplate, PatternVariation,
-    EntityType, EntitySynonym,
-)
-from .ml_models import IntentClassifierML, FeedbackLearner
-from .feedback import (
-    record_feedback,
-    get_feedback_for_query,
-    average_rating_for_query,
-)
+    SearchSession,
+    SearchQuery,
+    SearchResultClick, SearchAnalytics,)
+from .tracker import SearchQueryTracker, SearchSessionManager
+from .ml_models import IntentClassifierML
 from .spacy_search import SpaCyEnhancedAggregateSearch
-from .factories import (
-    create_search_session,
-    create_search_query,
+from .feedback import FeedbackLearner, record_feedback, get_feedback_for_query, average_rating_for_query
+from .factories import create_search_session, create_search_query
+from .entities import (
+    SearchIntentHierarchy,
+    IntentContext,
+    PatternTemplate,
+    PatternVariation,
+    EntityType,
+    EntitySynonym,
 )
 
 __all__ = [
-    # Tracker
-    "SearchQueryTracker", "SearchSessionManager",
+    # ORM models
+    "SearchSession",
+    "SearchQuery",
+    "SearchResultClick",
+    "SearchAnalytics",
+    "SearchIntentHierarchy",
+    "IntentContext",
+    "PatternTemplate",
+    "PatternVariation",
+    "EntityType",
+    "EntitySynonym",
 
-    # Models
-    "SearchSession", "SearchQuery", "SearchResultClick",
-    "MLModel", "UserFeedback",
-    "SearchIntentHierarchy", "IntentContext", "PatternTemplate", "PatternVariation",
-    "EntityType", "EntitySynonym",
+    # Trackers
+    "SearchQueryTracker",
+    "SearchSessionManager",
 
     # ML
-    "IntentClassifierML", "FeedbackLearner",
-
-    # Feedback helpers
-    "record_feedback", "get_feedback_for_query", "average_rating_for_query",
+    "IntentClassifierML",
 
     # SpaCy pipeline
     "SpaCyEnhancedAggregateSearch",
 
+    # Feedback
+    "FeedbackLearner",
+    "record_feedback",
+    "get_feedback_for_query",
+    "average_rating_for_query",
+
     # Factories
-    "create_search_session", "create_search_query",
+    "create_search_session",
+    "create_search_query",
 ]
