@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String, Text, Boolean, Float, DateTime, ForeignKey, UniqueConstraint, JSON, text
+from typing import Dict, Optional, Any
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from modules.configuration.base import Base  # Adjust path as needed
