@@ -56,5 +56,5 @@ def download_tinyllama_model(target_dir):
 
 # 🔒 Safe entry point: only runs if this file is executed directly
 if __name__ == "__main__":
-    default_dir = r"C:\Users\10169062\Desktop\AU_IndusMaintdb\plugins\ai_modules\TinyLlama_1_1B"
+    default_dir = r"C:\Users\10169062\PycharmProjects\MDEV_EMTAC\plugins\ai_modules\TinyLlama_1_1B"
     download_tinyllama_model(default_dir)

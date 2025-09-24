@@ -9,8 +9,7 @@ class ResponseFormatter:
     """Utility class for formatting search responses."""
 
     @staticmethod
-    def format_search_results(result):
-        """Format search results into a user-friendly response."""
+    def format_search_results(result, request_id=None):
         try:
             if not result or not isinstance(result, dict):
                 return "I couldn't find relevant information for your query."
@@ -19,27 +18,31 @@ class ResponseFormatter:
                 error_msg = result.get('message', 'Search failed')
                 return f"Search error: {error_msg}"
 
-            # Handle AI-generated knowledge query responses (if unified hub adds these)
-            if 'answer' in result and result.get('method') in [
-                'ai_knowledge_synthesis_with_chunks',
-                'ai_knowledge_synthesis_direct'
-            ]:
-                ai_answer = result['answer']
-                if 'source_info' in result:
-                    source_info = result['source_info']
-                    if source_info.get('document_source') and source_info.get('chunk_similarity'):
-                        similarity = source_info['chunk_similarity']
-                        doc_source = source_info['document_source']
-                        ai_answer += f"\n\n*Source: {doc_source} (Similarity: {similarity:.1%})*"
-                    elif source_info.get('source_type') == 'ai_general_knowledge':
-                        ai_answer += f"\n\n*Source: AI General Knowledge*"
-                return ai_answer
-
             total_results = result.get('total_results', 0)
+
+            # --- NEW: conditional summarization ---
+            summarizer = get_summarizer_model()
+            if summarizer and total_results > 1:
+                # Concatenate snippets for summarization
+                snippets = []
+                if 'results' in result:
+                    for r in result['results'][:5]:
+                        text = r.get("description") or r.get("notes") or str(r)
+                        snippets.append(text)
+                text_blob = "\n".join(snippets)
+
+                if len(text_blob) > 300:  # threshold
+                    try:
+                        summary = summarizer.summarize(text_blob)
+                        info_id(f"[ResponseFormatter] Summarized {len(snippets)} results", request_id)
+                        return summary
+                    except Exception as e:
+                        warning_id(f"[ResponseFormatter] Summarization failed: {e}", request_id)
+
+            # --- existing logic follows ---
             if total_results == 0:
                 return "No results found for your query."
 
-            # Prefer unified result buckets when present
             if 'organized_results' in result:
                 return ResponseFormatter._format_organized_results(result['organized_results'], total_results)
             elif 'results_by_type' in result:

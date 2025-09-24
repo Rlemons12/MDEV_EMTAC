@@ -4,7 +4,7 @@ import sys
 import time
 import re
 import uuid
-from modules.emtacdb.AI_Steward.aist import AistManager
+from modules.emtac_ai.aist_manager import AistManager
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 

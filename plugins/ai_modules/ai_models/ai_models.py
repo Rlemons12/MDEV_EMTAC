@@ -1541,7 +1541,7 @@ class TinyLlamaModel(AIModel):  # NOW INHERITS FROM AIModel!
             # Use ModelsConfig to get configuration values from database
             config_model_path = ModelsConfig.get_config_value(
                 'ai', 'TINYLLAMA_MODEL_PATH',
-                r"C:\Users\10169062\Desktop\AU_IndusMaintdb\plugins\ai_modules\TinyLlama_1_1B"
+                r"C:\Users\10169062\PycharmProjects\MDEV_EMTAC\plugins\ai_modules\TinyLlama_1_1B"
             )
             config_timeout = int(ModelsConfig.get_config_value('ai', 'TINYLLAMA_TIMEOUT', '120'))
             config_max_tokens = int(ModelsConfig.get_config_value('ai', 'TINYLLAMA_MAX_TOKENS', '256'))
@@ -1560,7 +1560,7 @@ class TinyLlamaModel(AIModel):  # NOW INHERITS FROM AIModel!
             logger.error(f"Error loading TinyLlama configuration: {e}")
             # Fallback configuration
             return {
-                'model_path': model_path or r"C:\Users\10169062\Desktop\AU_IndusMaintdb\plugins\ai_modules\TinyLlama_1_1B",
+                'model_path': model_path or r"C:\Users\10169062\PycharmProjects\MDEV_EMTAC\plugins\ai_modules\TinyLlama_1_1B",
                 'timeout': 120,
                 'max_tokens': 256,
                 'enable_quantization': False,  # Safe default for CPU
@@ -1935,7 +1935,7 @@ def register_default_models_with_tinyllama_updated():
 
         # TinyLlama specific configuration
         {"model_type": "ai", "key": "TINYLLAMA_MODEL_PATH",
-         "value": r"C:\Users\10169062\Desktop\AU_IndusMaintdb\plugins\ai_modules\TinyLlama_1_1B"},
+         "value": r"C:\Users\10169062\PycharmProjects\MDEV_EMTAC\plugins\ai_modules\TinyLlama_1_1B"},
         {"model_type": "ai", "key": "TINYLLAMA_TIMEOUT", "value": "120"},
         {"model_type": "ai", "key": "TINYLLAMA_MAX_TOKENS", "value": "256"},
 
@@ -2407,7 +2407,7 @@ def diagnose_tinyllama():
         error_id("torch library not available", request_id)
 
     # Check model files
-    model_path = r"C:\Users\10169062\Desktop\AU_IndusMaintdb\plugins\ai_modules\TinyLlama_1_1B"
+    model_path = r"C:\Users\10169062\PycharmProjects\MDEV_EMTAC\plugins\ai_modules\TinyLlama_1_1B"
     config_path = os.path.join(model_path, "config.json")
 
     if os.path.exists(config_path):
@@ -2703,7 +2703,7 @@ def register_default_models():
 
         # TinyLlama specific configuration
         {"model_type": "ai", "key": "TINYLLAMA_MODEL_PATH",
-         "value": r"C:\Users\10169062\Desktop\AU_IndusMaintdb\plugins\ai_modules\TinyLlama_1_1B"},
+         "value": r"C:\Users\10169062\PycharmProjects\MDEV_EMTAC\plugins\ai_modules\TinyLlama_1_1B"},
         {"model_type": "ai", "key": "TINYLLAMA_TIMEOUT", "value": "120"},
         {"model_type": "ai", "key": "TINYLLAMA_MAX_TOKENS", "value": "256"}
     ]
@@ -2778,7 +2778,7 @@ def get_tinyllama_config():
     """Get TinyLlama-specific configuration values."""
     try:
         model_path = ModelsConfig.get_config_value('ai', 'TINYLLAMA_MODEL_PATH',
-                                                   r"C:\Users\10169062\Desktop\AU_IndusMaintdb\plugins\ai_modules\TinyLlama_1_1B")
+                                                   r"C:\Users\10169062\PycharmProjects\MDEV_EMTAC\plugins\ai_modules\TinyLlama_1_1B")
         timeout = int(ModelsConfig.get_config_value('ai', 'TINYLLAMA_TIMEOUT', '120'))
         max_tokens = int(ModelsConfig.get_config_value('ai', 'TINYLLAMA_MAX_TOKENS', '256'))
 
@@ -2790,7 +2790,7 @@ def get_tinyllama_config():
     except Exception as e:
         logger.error(f"Error getting TinyLlama config: {e}")
         return {
-            'model_path': r"C:\Users\10169062\Desktop\AU_IndusMaintdb\plugins\ai_modules\TinyLlama_1_1B",
+            'model_path': r"C:\Users\10169062\PycharmProjects\MDEV_EMTAC\plugins\ai_modules\TinyLlama_1_1B",
             'timeout': 120,
             'max_tokens': 256
         }

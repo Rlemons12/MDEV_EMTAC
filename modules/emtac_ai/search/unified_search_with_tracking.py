@@ -210,24 +210,5 @@ class UnifiedSearchWithTracking:
             return self.query_tracker.get_search_performance_report(days)
         return {"error": "Query tracker not available"}
 
-class SearchAnalytics(Base):
-    """
-    Analytics and performance tracking for search operations - FIXED to match actual database schema
-    """
-    __tablename__ = 'search_analytics'
 
-    id = Column(Integer, primary_key=True)
-    user_id = Column(String(100))  # FIXED: added this column
-    session_id = Column(String(100))
-    query_text = Column(Text)  # FIXED: was 'user_input'
-    detected_intent = Column(String(100))  # FIXED: was ForeignKey
-    intent_confidence = Column(Float)  # FIXED: was 'confidence_score'
-    search_method = Column(String(100))
-    execution_time_ms = Column(Integer)
-    result_count = Column(Integer)
-    success = Column(Boolean)  # FIXED: added this column
-    error_message = Column(Text)  # FIXED: added this column
-    user_agent = Column(Text)  # FIXED: added this column
-    ip_address = Column(String(45))  # FIXED: added this column (inet type maps to string)
-    created_at = Column(DateTime, default=datetime.utcnow)
 
