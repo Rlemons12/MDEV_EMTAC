@@ -92,73 +92,6 @@ except ImportError:
         pass
 
 
-# ===== ORIGINAL MODEL CLASSES (Enhanced) =====
-class SearchIntentHierarchy(Base):
-    __tablename__ = 'search_intent_hierarchy'
-    id = Column(Integer, primary_key=True)
-    parent_intent_id = Column(Integer, ForeignKey('search_intent.id'))
-    child_intent_id = Column(Integer, ForeignKey('search_intent.id'))
-    inheritance_type = Column(String(50))
-    priority_modifier = Column(Float, default=0.0)
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-
-class IntentContext(Base):
-    __tablename__ = 'intent_context'
-    id = Column(Integer, primary_key=True)
-    intent_id = Column(Integer, ForeignKey('search_intent.id'))
-    context_type = Column(String(50))
-    context_value = Column(String(200))
-    boost_factor = Column(Float, default=1.0)
-    is_required = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-
-class PatternTemplate(Base):
-    __tablename__ = 'pattern_template'
-    id = Column(Integer, primary_key=True)
-    name = Column(String(100), unique=True, nullable=False)
-    template_text = Column(Text, nullable=False)
-    parameter_types = Column(JSON)
-    usage_count = Column(Integer, default=0)
-    success_rate = Column(Float, default=0.0)
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-
-class PatternVariation(Base):
-    __tablename__ = 'pattern_variation'
-    id = Column(Integer, primary_key=True)
-    template_id = Column(Integer, ForeignKey('pattern_template.id'))
-    intent_id = Column(Integer, ForeignKey('search_intent.id'))
-    variation_text = Column(Text, nullable=False)
-    confidence_weight = Column(Float, default=1.0)
-    language_code = Column(String(5), default='en')
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-
-class EntityType(Base):
-    __tablename__ = 'entity_type'
-    id = Column(Integer, primary_key=True)
-    name = Column(String(100), unique=True, nullable=False)
-    description = Column(Text)
-    validation_regex = Column(Text)
-    normalization_rules = Column(JSON)
-    is_core_entity = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-
-class EntitySynonym(Base):
-    __tablename__ = 'entity_synonym'
-    id = Column(Integer, primary_key=True)
-    entity_type_id = Column(Integer, ForeignKey('entity_type.id'))
-    canonical_value = Column(String(200), nullable=False)
-    synonym_value = Column(String(200), nullable=False)
-    confidence_score = Column(Float, default=1.0)
-    source = Column(String(50))
-    usage_count = Column(Integer, default=0)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    __table_args__ = (UniqueConstraint('entity_type_id', 'synonym_value'),)
-
 
 class SearchSession(Base):
     """Track user search sessions for analytics."""
@@ -537,37 +470,6 @@ class UserFeedback(Base):
     rating = Column(Integer)  # 1-5
     created_at = Column(DateTime, default=datetime.utcnow)
 
-
-# ===== ORIGINAL HELPER CLASSES (Enhanced) =====
-class PatternTemplateGenerator:
-    """Generate pattern variations from templates automatically"""
-
-    def generate_variations(self, template: PatternTemplate) -> List[str]:
-        """
-        Convert template like "{action} {entity} {location}"
-        into variations like "find pump in area A"
-        """
-        variations = []
-        param_types = template.parameter_types or {}
-
-        # Generate all combinations
-        param_combinations = []
-        for param, values in param_types.items():
-            param_combinations.append([(param, value) for value in values])
-
-        if param_combinations:
-            for combo in itertools.product(*param_combinations):
-                variation = template.template_text
-                for param, value in combo:
-                    variation = variation.replace(f"{{{param}}}", value)
-                variations.append(variation)
-        else:
-            # If no parameter types defined, return original template
-            variations.append(template.template_text)
-
-        return variations
-
-
 class SearchSessionManager:
     """Track user search sessions for learning"""
 
@@ -747,356 +649,9 @@ class FeedbackLearner:
 
 
 # ===== DATABASE PATTERN INTEGRATION MIXIN =====
-class DatabasePatternIntegrationMixin:
-    """
-    NEW: Mixin to integrate database patterns into SpaCy NLP search.
-    Provides methods to load, cache, and use your database patterns.
-    """
-
-    def __init__(self):
-        self._database_patterns = {}
-        self._pattern_cache_timestamp = None
-        self._pattern_cache_ttl = 300  # 5 minutes
-        self._pattern_statistics = {}
-
-    def _load_database_patterns(self) -> Dict[str, List[Dict]]:
-        """FIXED: Load your regex patterns from the database with proper error handling."""
-        from decimal import Decimal
-
-        current_time = datetime.utcnow()
-
-        # Check cache validity
-        if (self._pattern_cache_timestamp and
-                (current_time - self._pattern_cache_timestamp).seconds < self._pattern_cache_ttl and
-                self._database_patterns):
-            logger.debug("Using cached database patterns")
-            return self._database_patterns
-
-        # FIXED: Check if session is available
-        if not self._session:
-            logger.warning("No database session available for loading patterns")
-            return {}
-
-        def safe_float(value):
-            """Safely convert Decimal or any numeric value to float."""
-            if value is None:
-                return 0.0
-            if isinstance(value, Decimal):
-                return float(value)
-            try:
-                return float(value)
-            except (ValueError, TypeError):
-                return 0.0
-
-        try:
-            # FIXED: Clean transaction state first
-            if self._session.in_transaction():
-                self._session.rollback()
-
-            # FIXED: Simpler query without ORDER BY issues
-            query = text("""
-                SELECT ip.intent_id, ip.pattern_text, ip.priority, ip.success_rate,
-                       ip.usage_count, ip.pattern_type, si.name as intent_name,
-                       si.description, si.search_method
-                FROM intent_pattern ip
-                JOIN search_intent si ON si.id = ip.intent_id
-                WHERE ip.is_active = true AND si.is_active = true
-                LIMIT 200
-            """)
-
-            results = self._session.execute(query).fetchall()
-
-            # Organize by intent name
-            patterns_by_intent = {}
-            total_patterns = 0
-
-            for row in results:
-                intent_name = row[6]  # intent name
-                pattern_text = row[1]  # pattern_text
-                priority = safe_float(row[2]) or 1.0  # priority - FIXED
-                success_rate = safe_float(row[3]) or 0.0  # success_rate - FIXED
-                usage_count = row[4] or 0  # usage_count
-                pattern_type = row[5] or 'regex'  # pattern_type
-                description = row[7]  # description
-                search_method = row[8]  # search_method
-
-                if intent_name not in patterns_by_intent:
-                    patterns_by_intent[intent_name] = {
-                        'patterns': [],
-                        'description': description,
-                        'search_method': search_method
-                    }
-
-                try:
-                    # Compile regex pattern
-                    compiled_pattern = re.compile(pattern_text, re.IGNORECASE)
-
-                    # FIXED: Now using safe float values
-                    confidence_weight = priority * max(success_rate, 0.1)
-
-                    patterns_by_intent[intent_name]['patterns'].append({
-                        'pattern': pattern_text,
-                        'priority': priority,
-                        'success_rate': success_rate,
-                        'usage_count': usage_count,
-                        'pattern_type': pattern_type,
-                        'compiled': compiled_pattern,
-                        'confidence_weight': confidence_weight  # FIXED
-                    })
-                    total_patterns += 1
-
-                except re.error as e:
-                    logger.warning(f"Invalid regex pattern '{pattern_text}': {e}")
-                    continue
-
-            # Cache the results
-            self._database_patterns = patterns_by_intent
-            self._pattern_cache_timestamp = current_time
-
-            logger.info(f" Loaded {total_patterns} database patterns for {len(patterns_by_intent)} intents")
-            return patterns_by_intent
-
-        except Exception as e:
-            logger.error(f" Error loading database patterns: {e}")
-            # Always rollback on error
-            if self._session:
-                try:
-                    self._session.rollback()
-                except:
-                    pass
-            return {}
-
-    def _classify_intent_with_database(self, user_input: str) -> Dict[str, Any]:
-        """ENHANCED: Use your database regex patterns for intent classification."""
-
-        if not self._database_patterns:
-            self._database_patterns = self._load_database_patterns()
-
-        best_match = {"intent": "UNKNOWN", "confidence": 0.0, "method": "database_patterns"}
-        all_matches = []
-
-        for intent_name, intent_data in self._database_patterns.items():
-            for pattern_info in intent_data['patterns']:
-                try:
-                    match = pattern_info['compiled'].search(user_input)
-                    if match:
-                        # Calculate confidence based on priority, success rate, and usage
-                        base_confidence = pattern_info['confidence_weight']
-
-                        # Boost confidence for frequently used successful patterns
-                        usage_boost = min(pattern_info['usage_count'] / 100.0, 0.3)  # Max 0.3 boost
-                        confidence = min(base_confidence + usage_boost, 1.0)
-
-                        match_info = {
-                            'intent': intent_name,
-                            'confidence': confidence,
-                            'matched_pattern': pattern_info['pattern'],
-                            'extracted_groups': match.groups(),
-                            'method': 'database_patterns',
-                            'priority': pattern_info['priority'],
-                            'success_rate': pattern_info['success_rate'],
-                            'usage_count': pattern_info['usage_count'],
-                            'search_method': intent_data.get('search_method')
-                        }
-
-                        all_matches.append(match_info)
-
-                        if confidence > best_match['confidence']:
-                            best_match = match_info
-
-                except Exception as e:
-                    logger.warning(f"Error matching pattern '{pattern_info['pattern']}': {e}")
-                    continue
-
-        # Add all matches for analysis
-        if all_matches:
-            best_match['all_database_matches'] = all_matches[:5]  # Top 5 matches
-
-        return best_match
-
-    def _extract_params_from_database_pattern(self, user_input: str, intent: str,
-                                              matched_pattern: str, extracted_groups: tuple) -> Dict[str, Any]:
-        """FIXED: Extract parameters using database pattern results with proper variable handling."""
-
-        params = {}
-        user_input_lower = user_input.lower()
-
-        if intent == "FIND_PART":
-            if extracted_groups:
-                # Get the most relevant extraction (usually the last non-empty group)
-                extracted = None
-                for group in reversed(extracted_groups):
-                    if group and group.strip():
-                        extracted = group.strip()
-                        break
-
-                if extracted:
-                    # Determine if this is a part number or description based on pattern
-                    if any(phrase in matched_pattern.lower() for phrase in
-                           ['part number for', 'number for', 'part.*for']):
-                        # This is a description request like "part number for BEARING ASSEMBLY"
-                        cleaned_description = re.sub(r'\s+', ' ', extracted.strip())
-                        params.update({
-                            "search_text": cleaned_description,
-                            "entity_type": "part",
-                            "fields": ['name', 'part_number', 'oem_mfg', 'model', 'notes'],
-                            "extraction_method": "database_pattern_description"
-                        })
-                        logger.debug(f" Database pattern extracted description: '{cleaned_description}'")
-
-                    else:
-                        # This should be a direct part number like "find part A115957"
-                        part_candidate = extracted.upper()  # FIXED: Proper variable definition
-
-                        # FIXED: Correct validation with proper closing parenthesis
-                        if (re.match(r'^[A-Za-z0-9\-\.]{3,}$', part_candidate) and
-                                part_candidate not in ['FOR', 'THE', 'A', 'AN', 'OF', 'IN', 'ON', 'AT', 'TO', 'NUMBER',
-                                                       'PART']):
-                            params.update({
-                                "part_number": part_candidate,
-                                "entity_type": "part",
-                                "extraction_method": "database_pattern_direct"
-                            })
-                            logger.debug(f" Database pattern extracted part number: '{part_candidate}'")
-                        else:
-                            # Fallback to description search
-                            params.update({
-                                "search_text": extracted,
-                                "entity_type": "part",
-                                "fields": ['name', 'part_number', 'oem_mfg', 'model', 'notes'],
-                                "extraction_method": "database_pattern_fallback"
-                            })
-
-        elif intent == "SHOW_IMAGES":
-            params["entity_type"] = "image"
-            if extracted_groups:
-                subject = extracted_groups[-1] if extracted_groups[-1] else extracted_groups[0]
-                if subject:
-                    params.update({
-                        "search_text": subject.strip(),
-                        "extraction_method": "database_pattern_image"
-                    })
-
-        elif intent == "LOCATION_SEARCH":
-            params["entity_type"] = "position"
-            if extracted_groups:
-                if len(extracted_groups) >= 2:
-                    location_type = extracted_groups[0].lower() if extracted_groups[0] else ""
-                    location_id = extracted_groups[1].upper() if extracted_groups[1] else ""
-
-                    if location_type in ['area', 'zone'] and location_id:
-                        params["area"] = location_id
-                    elif location_type == 'room' and location_id:
-                        params["location"] = location_id
-                elif len(extracted_groups) == 1 and extracted_groups[0]:
-                    location_value = extracted_groups[0].strip().upper()
-                    if re.match(r'^[A-Z0-9]{1,4}$', location_value):
-                        params["area"] = location_value
-
-                params["extraction_method"] = "database_pattern_location"
-
-        return params
-
-    def update_pattern_usage(self, intent_info: Dict[str, Any], search_result: Dict[str, Any]):
-        """ENHANCED: Update pattern usage statistics in your database."""
-
-        if (intent_info.get('method') == 'database_patterns' and
-                'matched_pattern' in intent_info and
-                self._session):
-
-            try:
-                success = search_result.get('status') == 'success'
-                result_count = search_result.get('count', 0)
-                matched_pattern = intent_info['matched_pattern']
-
-                # Calculate success boost based on result count
-                success_value = 1.0 if success and result_count > 0 else 0.0
-
-                # Update usage statistics
-                update_query = text("""
-                    UPDATE intent_pattern 
-                    SET usage_count = usage_count + 1,
-                        success_rate = CASE 
-                            WHEN usage_count = 0 THEN :success_value
-                            ELSE (success_rate * usage_count + :success_value) / (usage_count + 1)
-                        END,
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE pattern_text = :pattern AND is_active = true
-                """)
-
-                self._session.execute(update_query, {
-                    'success_value': success_value,
-                    'pattern': matched_pattern
-                })
-                self._session.commit()
-
-                logger.debug(
-                    f" Updated pattern usage: {matched_pattern} (success: {success}, results: {result_count})")
-
-                # Invalidate cache to reload updated statistics
-                self._pattern_cache_timestamp = None
-
-            except Exception as e:
-                logger.warning(f" Could not update pattern statistics: {e}")
-                if self._session:
-                    try:
-                        self._session.rollback()
-                    except:
-                        pass
-
-    def _load_entity_synonyms_fixed(self) -> Dict[str, Dict[str, str]]:
-        """FIXED: Load entity synonyms with proper transaction handling."""
-        if not self._session:
-            logger.warning("No database session available for loading synonyms")
-            return {}
-
-        try:
-            # CRITICAL FIX: Ensure clean transaction state
-            if self._session.in_transaction():
-                self._session.rollback()
-
-            # FIXED: Simple query without ORDER BY issues
-            query = text("""
-                SELECT es.synonym_value, es.canonical_value, es.confidence_score, et.name
-                FROM entity_synonym es
-                JOIN entity_type et ON et.id = es.entity_type_id
-                WHERE es.confidence_score > 0.5
-                LIMIT 200
-            """)
-
-            results = self._session.execute(query).fetchall()
-
-            synonyms = {}
-            for row in results:
-                synonym_value = row[0]
-                canonical_value = row[1]
-                confidence_score = row[2]
-                entity_type_name = row[3]
-
-                if entity_type_name not in synonyms:
-                    synonyms[entity_type_name] = {}
-
-                synonyms[entity_type_name][synonym_value.lower()] = {
-                    "canonical": canonical_value,
-                    "confidence": confidence_score
-                }
-
-            logger.debug(f" Loaded {len(results)} entity synonyms for {len(synonyms)} entity types")
-            return synonyms
-
-        except Exception as e:
-            logger.error(f" Error loading entity synonyms: {e}")
-            # Always rollback on error
-            if self._session:
-                try:
-                    self._session.rollback()
-                except:
-                    pass
-            return {}
-
 
 # ===== MAIN ENHANCED SPACY SEARCH CLASS =====
-class SpaCyEnhancedAggregateSearch(DatabasePatternIntegrationMixin):
+class SpaCyEnhancedAggregateSearch():
     """
     COMPLETE Enhanced NLP-enhanced aggregate search with database pattern integration.
 
@@ -2541,55 +2096,449 @@ def create_ml_enhanced_search_system(session, user_context=None):
 # Users can import either name
 SpaCyEnhancedAggregateSearchLegacy = SpaCyEnhancedAggregateSearch
 
-
-
-if __name__ == "__main__":
+# todo remove
+'''
+#=========TO BE REMOVED==================
+            
+class DatabasePatternIntegrationMixin:
     """
-    Example usage of the complete enhanced search system.
+    NEW: Mixin to integrate database patterns into SpaCy NLP search.
+    Provides methods to load, cache, and use your database patterns.
     """
 
-    print(" Complete Enhanced NLP Search System")
-    print("=" * 60)
+    def __init__(self):
+        self._database_patterns = {}
+        self._pattern_cache_timestamp = None
+        self._pattern_cache_ttl = 300  # 5 minutes
+        self._pattern_statistics = {}
 
-    print("""
- This is a COMPLETE replacement for nlp_search.py that includes:
+    def _load_database_patterns(self) -> Dict[str, List[Dict]]:
+        """FIXED: Load your regex patterns from the database with proper error handling."""
+        from decimal import Decimal
 
-ORIGINAL FUNCTIONALITY:
- All original SpaCy NLP features
- Intent classification and entity extraction  
- Pattern matching and synonym support
- Session management and ML capabilities
- Feedback learning and analytics
+        current_time = datetime.utcnow()
 
-ENHANCED FEATURES:
- Database pattern integration (155+ patterns)
- Automatic pattern learning and statistics
- Enhanced parameter extraction using proven regex
- Fixed synonym loading with transaction handling
- Performance monitoring and optimization
- Self-improving search intelligence
+        # Check cache validity
+        if (self._pattern_cache_timestamp and
+                (current_time - self._pattern_cache_timestamp).seconds < self._pattern_cache_ttl and
+                self._database_patterns):
+            logger.debug("Using cached database patterns")
+            return self._database_patterns
 
-USAGE:
-from modules.search.nlp_search import SpaCyEnhancedAggregateSearch
+        # FIXED: Check if session is available
+        if not self._session:
+            logger.warning("No database session available for loading patterns")
+            return {}
 
-# Standard usage (enhanced automatically)
-search = SpaCyEnhancedAggregateSearch(session=db_session)
-result = search.execute_nlp_aggregated_search("find part A115957")
+        def safe_float(value):
+            """Safely convert Decimal or any numeric value to float."""
+            if value is None:
+                return 0.0
+            if isinstance(value, Decimal):
+                return float(value)
+            try:
+                return float(value)
+            except (ValueError, TypeError):
+                return 0.0
 
-# Or use factory function
-search = create_enhanced_search_system(db_session)
-result = search.execute_nlp_aggregated_search("part number for bearing assembly")
+        try:
+            # FIXED: Clean transaction state first
+            if self._session.in_transaction():
+                self._session.rollback()
 
-# Enhanced ML version
-ml_search = create_ml_enhanced_search_system(db_session)
-result = ml_search.execute_nlp_aggregated_search_enhanced("show motor images")
+            # FIXED: Simpler query without ORDER BY issues
+            query = text("""
+                SELECT ip.intent_id, ip.pattern_text, ip.priority, ip.success_rate,
+                       ip.usage_count, ip.pattern_type, si.name as intent_name,
+                       si.description, si.search_method
+                FROM intent_pattern ip
+                JOIN search_intent si ON si.id = ip.intent_id
+                WHERE ip.is_active = true AND si.is_active = true
+                LIMIT 200
+            """)
 
-MONITORING:
-performance = search.get_pattern_performance_report()
-stats = search.get_nlp_statistics()
-optimizations = search.optimize_patterns()
-""")
+            results = self._session.execute(query).fetchall()
 
-    print("\n" + "=" * 60)
-    print(" Complete enhanced nlp_search.py ready!")
-    print(" Your 155+ database patterns are now active and learning!")
+            # Organize by intent name
+            patterns_by_intent = {}
+            total_patterns = 0
+
+            for row in results:
+                intent_name = row[6]  # intent name
+                pattern_text = row[1]  # pattern_text
+                priority = safe_float(row[2]) or 1.0  # priority - FIXED
+                success_rate = safe_float(row[3]) or 0.0  # success_rate - FIXED
+                usage_count = row[4] or 0  # usage_count
+                pattern_type = row[5] or 'regex'  # pattern_type
+                description = row[7]  # description
+                search_method = row[8]  # search_method
+
+                if intent_name not in patterns_by_intent:
+                    patterns_by_intent[intent_name] = {
+                        'patterns': [],
+                        'description': description,
+                        'search_method': search_method
+                    }
+
+                try:
+                    # Compile regex pattern
+                    compiled_pattern = re.compile(pattern_text, re.IGNORECASE)
+
+                    # FIXED: Now using safe float values
+                    confidence_weight = priority * max(success_rate, 0.1)
+
+                    patterns_by_intent[intent_name]['patterns'].append({
+                        'pattern': pattern_text,
+                        'priority': priority,
+                        'success_rate': success_rate,
+                        'usage_count': usage_count,
+                        'pattern_type': pattern_type,
+                        'compiled': compiled_pattern,
+                        'confidence_weight': confidence_weight  # FIXED
+                    })
+                    total_patterns += 1
+
+                except re.error as e:
+                    logger.warning(f"Invalid regex pattern '{pattern_text}': {e}")
+                    continue
+
+            # Cache the results
+            self._database_patterns = patterns_by_intent
+            self._pattern_cache_timestamp = current_time
+
+            logger.info(f" Loaded {total_patterns} database patterns for {len(patterns_by_intent)} intents")
+            return patterns_by_intent
+
+        except Exception as e:
+            logger.error(f" Error loading database patterns: {e}")
+            # Always rollback on error
+            if self._session:
+                try:
+                    self._session.rollback()
+                except:
+                    pass
+            return {}
+
+    def _classify_intent_with_database(self, user_input: str) -> Dict[str, Any]:
+        """ENHANCED: Use your database regex patterns for intent classification."""
+
+        if not self._database_patterns:
+            self._database_patterns = self._load_database_patterns()
+
+        best_match = {"intent": "UNKNOWN", "confidence": 0.0, "method": "database_patterns"}
+        all_matches = []
+
+        for intent_name, intent_data in self._database_patterns.items():
+            for pattern_info in intent_data['patterns']:
+                try:
+                    match = pattern_info['compiled'].search(user_input)
+                    if match:
+                        # Calculate confidence based on priority, success rate, and usage
+                        base_confidence = pattern_info['confidence_weight']
+
+                        # Boost confidence for frequently used successful patterns
+                        usage_boost = min(pattern_info['usage_count'] / 100.0, 0.3)  # Max 0.3 boost
+                        confidence = min(base_confidence + usage_boost, 1.0)
+
+                        match_info = {
+                            'intent': intent_name,
+                            'confidence': confidence,
+                            'matched_pattern': pattern_info['pattern'],
+                            'extracted_groups': match.groups(),
+                            'method': 'database_patterns',
+                            'priority': pattern_info['priority'],
+                            'success_rate': pattern_info['success_rate'],
+                            'usage_count': pattern_info['usage_count'],
+                            'search_method': intent_data.get('search_method')
+                        }
+
+                        all_matches.append(match_info)
+
+                        if confidence > best_match['confidence']:
+                            best_match = match_info
+
+                except Exception as e:
+                    logger.warning(f"Error matching pattern '{pattern_info['pattern']}': {e}")
+                    continue
+
+        # Add all matches for analysis
+        if all_matches:
+            best_match['all_database_matches'] = all_matches[:5]  # Top 5 matches
+
+        return best_match
+
+    def _extract_params_from_database_pattern(self, user_input: str, intent: str,
+                                              matched_pattern: str, extracted_groups: tuple) -> Dict[str, Any]:
+        """FIXED: Extract parameters using database pattern results with proper variable handling."""
+
+        params = {}
+        user_input_lower = user_input.lower()
+
+        if intent == "FIND_PART":
+            if extracted_groups:
+                # Get the most relevant extraction (usually the last non-empty group)
+                extracted = None
+                for group in reversed(extracted_groups):
+                    if group and group.strip():
+                        extracted = group.strip()
+                        break
+
+                if extracted:
+                    # Determine if this is a part number or description based on pattern
+                    if any(phrase in matched_pattern.lower() for phrase in
+                           ['part number for', 'number for', 'part.*for']):
+                        # This is a description request like "part number for BEARING ASSEMBLY"
+                        cleaned_description = re.sub(r'\s+', ' ', extracted.strip())
+                        params.update({
+                            "search_text": cleaned_description,
+                            "entity_type": "part",
+                            "fields": ['name', 'part_number', 'oem_mfg', 'model', 'notes'],
+                            "extraction_method": "database_pattern_description"
+                        })
+                        logger.debug(f" Database pattern extracted description: '{cleaned_description}'")
+
+                    else:
+                        # This should be a direct part number like "find part A115957"
+                        part_candidate = extracted.upper()  # FIXED: Proper variable definition
+
+                        # FIXED: Correct validation with proper closing parenthesis
+                        if (re.match(r'^[A-Za-z0-9\-\.]{3,}$', part_candidate) and
+                                part_candidate not in ['FOR', 'THE', 'A', 'AN', 'OF', 'IN', 'ON', 'AT', 'TO', 'NUMBER',
+                                                       'PART']):
+                            params.update({
+                                "part_number": part_candidate,
+                                "entity_type": "part",
+                                "extraction_method": "database_pattern_direct"
+                            })
+                            logger.debug(f" Database pattern extracted part number: '{part_candidate}'")
+                        else:
+                            # Fallback to description search
+                            params.update({
+                                "search_text": extracted,
+                                "entity_type": "part",
+                                "fields": ['name', 'part_number', 'oem_mfg', 'model', 'notes'],
+                                "extraction_method": "database_pattern_fallback"
+                            })
+
+        elif intent == "SHOW_IMAGES":
+            params["entity_type"] = "image"
+            if extracted_groups:
+                subject = extracted_groups[-1] if extracted_groups[-1] else extracted_groups[0]
+                if subject:
+                    params.update({
+                        "search_text": subject.strip(),
+                        "extraction_method": "database_pattern_image"
+                    })
+
+        elif intent == "LOCATION_SEARCH":
+            params["entity_type"] = "position"
+            if extracted_groups:
+                if len(extracted_groups) >= 2:
+                    location_type = extracted_groups[0].lower() if extracted_groups[0] else ""
+                    location_id = extracted_groups[1].upper() if extracted_groups[1] else ""
+
+                    if location_type in ['area', 'zone'] and location_id:
+                        params["area"] = location_id
+                    elif location_type == 'room' and location_id:
+                        params["location"] = location_id
+                elif len(extracted_groups) == 1 and extracted_groups[0]:
+                    location_value = extracted_groups[0].strip().upper()
+                    if re.match(r'^[A-Z0-9]{1,4}$', location_value):
+                        params["area"] = location_value
+
+                params["extraction_method"] = "database_pattern_location"
+
+        return params
+
+    def update_pattern_usage(self, intent_info: Dict[str, Any], search_result: Dict[str, Any]):
+        """ENHANCED: Update pattern usage statistics in your database."""
+
+        if (intent_info.get('method') == 'database_patterns' and
+                'matched_pattern' in intent_info and
+                self._session):
+
+            try:
+                success = search_result.get('status') == 'success'
+                result_count = search_result.get('count', 0)
+                matched_pattern = intent_info['matched_pattern']
+
+                # Calculate success boost based on result count
+                success_value = 1.0 if success and result_count > 0 else 0.0
+
+                # Update usage statistics
+                update_query = text("""
+                    UPDATE intent_pattern 
+                    SET usage_count = usage_count + 1,
+                        success_rate = CASE 
+                            WHEN usage_count = 0 THEN :success_value
+                            ELSE (success_rate * usage_count + :success_value) / (usage_count + 1)
+                        END,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE pattern_text = :pattern AND is_active = true
+                """)
+
+                self._session.execute(update_query, {
+                    'success_value': success_value,
+                    'pattern': matched_pattern
+                })
+                self._session.commit()
+
+                logger.debug(
+                    f" Updated pattern usage: {matched_pattern} (success: {success}, results: {result_count})")
+
+                # Invalidate cache to reload updated statistics
+                self._pattern_cache_timestamp = None
+
+            except Exception as e:
+                logger.warning(f" Could not update pattern statistics: {e}")
+                if self._session:
+                    try:
+                        self._session.rollback()
+                    except:
+                        pass
+
+    def _load_entity_synonyms_fixed(self) -> Dict[str, Dict[str, str]]:
+        """FIXED: Load entity synonyms with proper transaction handling."""
+        if not self._session:
+            logger.warning("No database session available for loading synonyms")
+            return {}
+
+        try:
+            # CRITICAL FIX: Ensure clean transaction state
+            if self._session.in_transaction():
+                self._session.rollback()
+
+            # FIXED: Simple query without ORDER BY issues
+            query = text("""
+                SELECT es.synonym_value, es.canonical_value, es.confidence_score, et.name
+                FROM entity_synonym es
+                JOIN entity_type et ON et.id = es.entity_type_id
+                WHERE es.confidence_score > 0.5
+                LIMIT 200
+            """)
+
+            results = self._session.execute(query).fetchall()
+
+            synonyms = {}
+            for row in results:
+                synonym_value = row[0]
+                canonical_value = row[1]
+                confidence_score = row[2]
+                entity_type_name = row[3]
+
+                if entity_type_name not in synonyms:
+                    synonyms[entity_type_name] = {}
+
+                synonyms[entity_type_name][synonym_value.lower()] = {
+                    "canonical": canonical_value,
+                    "confidence": confidence_score
+                }
+
+            logger.debug(f" Loaded {len(results)} entity synonyms for {len(synonyms)} entity types")
+            return synonyms
+
+        except Exception as e:
+            logger.error(f" Error loading entity synonyms: {e}")
+            # Always rollback on error
+            if self._session:
+                try:
+                    self._session.rollback()
+                except:
+                    pass
+            return {}
+
+class PatternTemplateGenerator:
+    """Generate pattern variations from templates automatically"""
+
+    def generate_variations(self, template: PatternTemplate) -> List[str]:
+        """
+        Convert template like "{action} {entity} {location}"
+        into variations like "find pump in area A"
+        """
+        variations = []
+        param_types = template.parameter_types or {}
+
+        # Generate all combinations
+        param_combinations = []
+        for param, values in param_types.items():
+            param_combinations.append([(param, value) for value in values])
+
+        if param_combinations:
+            for combo in itertools.product(*param_combinations):
+                variation = template.template_text
+                for param, value in combo:
+                    variation = variation.replace(f"{{{param}}}", value)
+                variations.append(variation)
+        else:
+            # If no parameter types defined, return original template
+            variations.append(template.template_text)
+
+        return variations
+  
+# todo rmove
+
+class SearchIntentHierarchy(Base):
+    __tablename__ = 'search_intent_hierarchy'
+    id = Column(Integer, primary_key=True)
+    parent_intent_id = Column(Integer, ForeignKey('search_intent.id'))
+    child_intent_id = Column(Integer, ForeignKey('search_intent.id'))
+    inheritance_type = Column(String(50))
+    priority_modifier = Column(Float, default=0.0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class IntentContext(Base):
+    __tablename__ = 'intent_context'
+    id = Column(Integer, primary_key=True)
+    intent_id = Column(Integer, ForeignKey('search_intent.id'))
+    context_type = Column(String(50))
+    context_value = Column(String(200))
+    boost_factor = Column(Float, default=1.0)
+    is_required = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class PatternTemplate(Base):
+    __tablename__ = 'pattern_template'
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), unique=True, nullable=False)
+    template_text = Column(Text, nullable=False)
+    parameter_types = Column(JSON)
+    usage_count = Column(Integer, default=0)
+    success_rate = Column(Float, default=0.0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class PatternVariation(Base):
+    __tablename__ = 'pattern_variation'
+    id = Column(Integer, primary_key=True)
+    template_id = Column(Integer, ForeignKey('pattern_template.id'))
+    intent_id = Column(Integer, ForeignKey('search_intent.id'))
+    variation_text = Column(Text, nullable=False)
+    confidence_weight = Column(Float, default=1.0)
+    language_code = Column(String(5), default='en')
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class EntityType(Base):
+    __tablename__ = 'entity_type'
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), unique=True, nullable=False)
+    description = Column(Text)
+    validation_regex = Column(Text)
+    normalization_rules = Column(JSON)
+    is_core_entity = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class EntitySynonym(Base):
+    __tablename__ = 'entity_synonym'
+    id = Column(Integer, primary_key=True)
+    entity_type_id = Column(Integer, ForeignKey('entity_type.id'))
+    canonical_value = Column(String(200), nullable=False)
+    synonym_value = Column(String(200), nullable=False)
+    confidence_score = Column(Float, default=1.0)
+    source = Column(String(50))
+    usage_count = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    __table_args__ = (UniqueConstraint('entity_type_id', 'synonym_value'),)      '''
