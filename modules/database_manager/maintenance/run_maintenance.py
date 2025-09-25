@@ -45,7 +45,8 @@ def run_maintenance_task(task, report_dir=None, export_report=True):
         return 1
 
     # Build the command
-    cmd = [python_exe, maintenance_script, task]
+    cmd = [python_exe, "-m", "modules.database_manager.maintenance.optimized_db_maintenance", task]
+
 
     # Add report options
     if report_dir:
@@ -104,7 +105,7 @@ Examples:
     # Add arguments with better descriptions
     parser.add_argument(
         '--task',
-        choices=['associate-images', 'associate-drawings', 'run-all'],
+        choices=['associate-images', 'associate-drawings', 'validate-embeddings','add-image-embeddings', 'run-all'],
         default='run-all',
         help='Maintenance task to run (default: run-all - runs everything!)'
     )
@@ -141,6 +142,8 @@ Examples:
     task_mapping = {
         'associate-images': 'associate-images-fast',
         'associate-drawings': 'associate-drawings-fast',
+        'validate-embeddings': 'validate-embeddings',
+        'add-image-embeddings': 'add-image-embeddings',
         'run-all': 'run-all-fast'
     }
 

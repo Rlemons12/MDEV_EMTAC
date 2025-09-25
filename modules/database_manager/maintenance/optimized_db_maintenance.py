@@ -9,6 +9,8 @@ import numpy as np
 from datetime import datetime
 from sqlalchemy import and_, text, func
 from collections import defaultdict
+# Add to imports at the top of optimized_db_maintenance.py
+from modules.emtacdb.emtacdb_fts import ImageEmbedding
 
 # Add the project root directory to the Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..')))
@@ -37,6 +39,111 @@ class OptimizedDatabaseMaintenance:
         self.request_id = get_request_id()
         self.db_config = DatabaseConfig()
         info_id("Initialized Optimized Database Maintenance", self.request_id)
+
+    def validate_image_embeddings_vectorized(self, export_report=True, report_dir=None):
+        """
+        Validate that all images have embeddings and all embeddings map to images.
+        Uses vectorized operations with pandas for performance.
+
+        Returns:
+            Dictionary with validation results and statistics
+        """
+        info_id("Starting optimized image-embedding validation", self.request_id)
+        start_time = time.time()
+
+        result = {
+            'stats': {
+                'total_images': 0,
+                'total_embeddings': 0,
+                'images_missing_embeddings': 0,
+                'orphan_embeddings': 0,
+                'duration_seconds': 0
+            },
+            'images_missing_embeddings': [],
+            'orphan_embeddings': []
+        }
+
+        try:
+            with self.db_config.main_session() as session:
+                # Load images
+                images_df = pd.read_sql(
+                    text("SELECT id, title, file_path FROM image ORDER BY id"),
+                    session.bind
+                )
+                # Load embeddings
+                embeddings_df = pd.read_sql(
+                    text("SELECT id, image_id FROM image_embedding ORDER BY id"),
+                    session.bind
+                )
+
+                result['stats']['total_images'] = len(images_df)
+                result['stats']['total_embeddings'] = len(embeddings_df)
+
+                # Find images missing embeddings
+                if not images_df.empty:
+                    emb_img_ids = set(embeddings_df['image_id'].dropna().tolist())
+                    missing = images_df[~images_df['id'].isin(emb_img_ids)]
+                    result['stats']['images_missing_embeddings'] = len(missing)
+                    result['images_missing_embeddings'] = missing.to_dict('records')
+
+                # Find orphan embeddings (embedding without valid image)
+                if not embeddings_df.empty:
+                    img_ids = set(images_df['id'].tolist())
+                    orphan = embeddings_df[~embeddings_df['image_id'].isin(img_ids)]
+                    result['stats']['orphan_embeddings'] = len(orphan)
+                    result['orphan_embeddings'] = orphan.to_dict('records')
+
+            # Duration
+            result['stats']['duration_seconds'] = time.time() - start_time
+            info_id(f"Image-embedding validation complete in {result['stats']['duration_seconds']:.2f}s", self.request_id)
+
+            # Export report
+            if export_report:
+                report_files = self.export_image_embedding_report_optimized(result, report_dir)
+                result['report_files'] = report_files
+
+            return result
+
+        except Exception as e:
+            error_id(f"Error in optimized image-embedding validation: {str(e)}", self.request_id, exc_info=True)
+            result['error'] = str(e)
+            return result
+
+
+    def export_image_embedding_report_optimized(self, result, report_dir=None):
+        """Export validation results for image embeddings."""
+        if not report_dir:
+            report_dir = DEFAULT_LOG_DIR
+        os.makedirs(report_dir, exist_ok=True)
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        report_files = {}
+
+        try:
+            # Summary
+            summary_file = os.path.join(report_dir, f"image_embedding_summary_{timestamp}.csv")
+            pd.DataFrame([result['stats']]).to_csv(summary_file, index=False)
+            report_files['summary'] = summary_file
+
+            # Missing embeddings
+            if result['images_missing_embeddings']:
+                missing_file = os.path.join(report_dir, f"images_missing_embeddings_{timestamp}.csv")
+                pd.DataFrame(result['images_missing_embeddings']).to_csv(missing_file, index=False)
+                report_files['missing'] = missing_file
+
+            # Orphan embeddings
+            if result['orphan_embeddings']:
+                orphan_file = os.path.join(report_dir, f"orphan_embeddings_{timestamp}.csv")
+                pd.DataFrame(result['orphan_embeddings']).to_csv(orphan_file, index=False)
+                report_files['orphan'] = orphan_file
+
+            info_id(f"Exported image embedding validation reports to {report_dir}", self.request_id)
+            return report_files
+
+        except Exception as e:
+            error_id(f"Error exporting image embedding report: {str(e)}", self.request_id)
+            return {}
+
 
     def associate_all_parts_with_images_vectorized(self, export_report=True, report_dir=None):
         """
@@ -539,6 +646,56 @@ def cli():
     """Optimized database maintenance utilities."""
     pass
 
+@cli.command()
+@click.option('--export-report/--no-export-report', default=False, hidden=True)
+@click.option('--report-dir', default=None, hidden=True)
+@click.option('--batch-size', default=100, help='Commit every N images')
+def add_image_embeddings(export_report, report_dir, batch_size):
+    """
+    Generate embeddings for all images that do not yet have them.
+    """
+    from modules.emtacdb.emtacdb_fts import Image, ImageEmbedding
+    from modules.configuration.config_env import DatabaseConfig
+    from plugins.ai_modules.ai_models import ModelsConfig
+    from modules.configuration.log_config import info_id, warning_id, error_id, get_request_id
+
+    rid = get_request_id()
+    db_config = DatabaseConfig()
+
+    try:
+        with db_config.get_main_session() as session:
+            model_handler = ModelsConfig.load_image_model()
+            if not model_handler:
+                error_id("No image embedding model configured!", rid)
+                return
+
+            # Find images with no embeddings
+            images = session.query(Image).outerjoin(ImageEmbedding).filter(ImageEmbedding.id == None).all()
+            total = len(images)
+            info_id(f"Found {total} images missing embeddings", rid)
+
+            processed, failed = 0, 0
+            for i, image in enumerate(images, start=1):
+                try:
+                    ok = image.generate_embedding(session, model_handler, request_id=rid)
+                    if ok:
+                        processed += 1
+                    else:
+                        failed += 1
+                except Exception as e:
+                    error_id(f"Failed to embed image {image.id}: {e}", rid)
+                    failed += 1
+
+                if i % batch_size == 0:
+                    session.commit()
+                    info_id(f"Committed {i}/{total} images", rid)
+
+            session.commit()
+            info_id(f"Embedding run finished: {processed} added, {failed} failed, out of {total}", rid)
+
+    except Exception as e:
+        error_id(f"Critical failure in add_image_embeddings: {e}", rid, exc_info=True)
+
 
 @cli.command()
 @click.option('--export-report/--no-export-report', default=True, help='Export detailed report to CSV')
@@ -664,6 +821,26 @@ def run_all_fast(export_report, report_dir):
             for report_type, file_path in result.get('report_files', {}).items():
                 if file_path and os.path.exists(file_path):
                     click.echo(f"- {report_type.capitalize()}: {file_path}")
+
+@cli.command()
+@click.option('--export-report/--no-export-report', default=True, help='Export embedding validation report to CSV')
+@click.option('--report-dir', default=None, help='Directory to save the report')
+def validate_embeddings(export_report, report_dir):
+    """Validate that all images have embeddings and embeddings map correctly."""
+    result = maintenance.validate_image_embeddings_vectorized(export_report, report_dir)
+
+    click.echo("\nOPTIMIZED Image-Embedding Validation Summary:")
+    click.echo(f"- Total images: {result['stats']['total_images']:,}")
+    click.echo(f"- Total embeddings: {result['stats']['total_embeddings']:,}")
+    click.echo(f"- Images missing embeddings: {result['stats']['images_missing_embeddings']:,}")
+    click.echo(f"- Orphan embeddings: {result['stats']['orphan_embeddings']:,}")
+    click.echo(f"- Duration: {result['stats']['duration_seconds']:.2f} seconds")
+
+    if export_report and 'error' not in result:
+        click.echo("\nReports exported to:")
+        for report_type, file_path in result.get('report_files', {}).items():
+            if file_path and os.path.exists(file_path):
+                click.echo(f"- {report_type.capitalize()}: {file_path}")
 
 
 if __name__ == '__main__':
