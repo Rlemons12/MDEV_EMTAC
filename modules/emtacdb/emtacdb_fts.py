@@ -57,6 +57,7 @@ from modules.emtacdb.utlity.system_manager import SystemResourceManager
 from plugins import generate_embedding, CLIPModelHandler
 from plugins.ai_modules import ModelsConfig
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import numpy as np
 
 # Configure mappers (must be called after all ORM classes are defined)
 configure_mappers()
@@ -2383,7 +2384,7 @@ class Image(Base):
 
     @classmethod
     @with_request_id
-    def _add_to_db_internal(cls, session, title, src, description, position_id=None, complete_document_id=None,
+    def _add_to_db_internal(cls, session, title, file_path, description, position_id=None, complete_document_id=None,
                             metadata=None, request_id=None):
         """
         Updated internal method with pgvector embedding support.
@@ -2404,18 +2405,18 @@ class Image(Base):
                 and_(cls.title == title, cls.description == description)
             ).first()
 
-            if existing_image is not None and existing_image.file_path == src:
+            if existing_image is not None and existing_image.file_path == file_path:
                 info_id(f"Image already exists: {title}", request_id)
                 return existing_image
 
             # Copy file to destination
-            _, ext = os.path.splitext(src)
+            _, ext = os.path.splitext(file_path)
             dest_name = f"{title}{ext}"
             dest_rel = os.path.join("DB_IMAGES", dest_name)
             dest_abs = os.path.join(DATABASE_DIR, "DB_IMAGES", dest_name)
             os.makedirs(os.path.dirname(dest_abs), exist_ok=True)
-            shutil.copy2(src, dest_abs)
-            debug_id(f"Copied '{src}' -> '{dest_abs}'", request_id)
+            shutil.copy2(file_path, dest_abs)
+            debug_id(f"Copied '{file_path}' -> '{dest_abs}'", request_id)
 
             # Create image record with enhanced metadata support
             img_metadata = metadata or {}
@@ -5028,7 +5029,7 @@ class Document(Base):
     @classmethod
     @with_request_id
     def create_fts_table(cls):
-        """Enhanced FTS table creation with image-chunk search support."""
+        """Enhanced FTS table creation with file_path + image-chunk search support."""
         db_config = DatabaseConfig()
 
         with db_config.main_session() as session:
@@ -5039,24 +5040,51 @@ class Document(Base):
                 session.execute(text("CREATE EXTENSION IF NOT EXISTS unaccent"))
                 session.commit()
 
-                # Create enhanced FTS table that includes chunk information
+                # Create enhanced FTS table that includes file_path
                 session.execute(text("""
-                    CREATE TABLE IF NOT EXISTS documents_fts (
-                        id SERIAL PRIMARY KEY,
-                        title TEXT NOT NULL,
-                        content TEXT,
-                        chunk_id INTEGER,  -- Links to document.id (chunk)
-                        complete_document_id INTEGER,  -- Links to complete_document.id
-                        has_images BOOLEAN DEFAULT FALSE,  -- Quick flag for chunks with images
-                        search_vector TSVECTOR,
-                        created_at TIMESTAMP DEFAULT NOW(),
-                        updated_at TIMESTAMP DEFAULT NOW(),
-                        UNIQUE(title)
-                    )
-                """))
+                                     CREATE TABLE IF NOT EXISTS documents_fts
+                                     (
+                                         id
+                                         SERIAL
+                                         PRIMARY
+                                         KEY,
+                                         title
+                                         TEXT
+                                         NOT
+                                         NULL,
+                                         content
+                                         TEXT,
+                                         file_path
+                                         TEXT,
+                                         chunk_id
+                                         INTEGER, -- Links to document.id (chunk)
+                                         complete_document_id
+                                         INTEGER, -- Links to complete_document.id
+                                         has_images
+                                         BOOLEAN
+                                         DEFAULT
+                                         FALSE,   -- Quick flag for chunks with images
+                                         search_vector
+                                         TSVECTOR,
+                                         created_at
+                                         TIMESTAMP
+                                         DEFAULT
+                                         NOW
+                                     (
+                                     ),
+                                         updated_at TIMESTAMP DEFAULT NOW
+                                     (
+                                     ),
+                                         UNIQUE
+                                     (
+                                         title,
+                                         file_path
+                                     )
+                                         )
+                                     """))
                 session.commit()
 
-                # Create indexes including image-related indexes
+                # Create indexes
                 index_statements = [
                     "CREATE INDEX IF NOT EXISTS idx_documents_fts_search_vector ON documents_fts USING gin(search_vector)",
                     "CREATE INDEX IF NOT EXISTS idx_documents_fts_title ON documents_fts(title)",
@@ -5064,51 +5092,64 @@ class Document(Base):
                     "CREATE INDEX IF NOT EXISTS idx_documents_fts_complete_doc_id ON documents_fts(complete_document_id)",
                     "CREATE INDEX IF NOT EXISTS idx_documents_fts_has_images ON documents_fts(has_images)",
                     "CREATE INDEX IF NOT EXISTS idx_documents_fts_title_gin ON documents_fts USING gin(title gin_trgm_ops)",
-                    "CREATE INDEX IF NOT EXISTS idx_documents_fts_content_gin ON documents_fts USING gin(content gin_trgm_ops)"
+                    "CREATE INDEX IF NOT EXISTS idx_documents_fts_content_gin ON documents_fts USING gin(content gin_trgm_ops)",
+                    "CREATE INDEX IF NOT EXISTS idx_documents_fts_filepath_gin ON documents_fts USING gin(file_path gin_trgm_ops)"
                 ]
 
                 for stmt in index_statements:
                     session.execute(text(stmt))
                     session.commit()
 
-                # Enhanced trigger function
+                # Trigger function includes file_path
                 session.execute(text("""
-                    CREATE OR REPLACE FUNCTION update_search_vector() RETURNS trigger AS $$
-                    BEGIN
-                        NEW.search_vector := to_tsvector('english', NEW.title || ' ' || COALESCE(NEW.content, ''));
-                        NEW.updated_at := NOW();
+                                     CREATE
+                                     OR REPLACE FUNCTION update_search_vector() RETURNS trigger AS $$
+                                     BEGIN
+                        NEW.search_vector
+                                     := to_tsvector(
+                            'english',
+                            COALESCE(NEW.title, '') || ' ' ||
+                            COALESCE(NEW.content, '') || ' ' ||
+                            COALESCE(NEW.file_path, '')
+                        );
+                        NEW.updated_at
+                                     := NOW();
 
                         -- Check if this chunk has associated images
-                        IF NEW.chunk_id IS NOT NULL THEN
-                            SELECT EXISTS(
-                                SELECT 1 FROM image_completed_document_association 
-                                WHERE document_id = NEW.chunk_id
-                            ) INTO NEW.has_images;
-                        END IF;
+                        IF
+                                     NEW.chunk_id IS NOT NULL THEN
+                                     SELECT EXISTS(SELECT 1
+                                                   FROM image_completed_document_association
+                                                   WHERE document_id = NEW.chunk_id)
+                                     INTO NEW.has_images;
+                                     END IF;
 
-                        RETURN NEW;
-                    END;
-                    $$ LANGUAGE plpgsql
-                """))
+                                     RETURN NEW;
+                                     END;
+                    $$
+                                     LANGUAGE plpgsql
+                                     """))
                 session.commit()
 
                 # Create trigger
                 session.execute(text("DROP TRIGGER IF EXISTS search_vector_update ON documents_fts"))
                 session.commit()
                 session.execute(text("""
-                    CREATE TRIGGER search_vector_update 
-                    BEFORE INSERT OR UPDATE ON documents_fts 
-                    FOR EACH ROW EXECUTE FUNCTION update_search_vector()
-                """))
+                                     CREATE TRIGGER search_vector_update
+                                         BEFORE INSERT OR
+                                     UPDATE ON documents_fts
+                                         FOR EACH ROW EXECUTE FUNCTION update_search_vector()
+                                     """))
                 session.commit()
 
-                print(" Enhanced PostgreSQL FTS table created with image-chunk support")
+                print("✅ Enhanced PostgreSQL FTS table created with file_path + image-chunk support")
                 return True
 
             except Exception as e:
                 session.rollback()
-                print(f" Failed to create enhanced FTS table: {e}")
+                print(f"❌ Failed to create enhanced FTS table: {e}")
                 return False
+
 
 class DocumentEmbedding(Base):
     """
