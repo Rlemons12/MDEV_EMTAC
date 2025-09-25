@@ -165,7 +165,7 @@ def upload_image(request_id=None):
 
                     # Let Image.add_to_db handle all the file copying and processing
                     # Pass the temporary file path as the source
-                    new_image = Image.add_to_db(
+                    new_image = Image._add_to_db_internal(
                         session=session,
                         title=clean_title,
                         file_path=temp_file_path,  # Pass the temp file path as source
