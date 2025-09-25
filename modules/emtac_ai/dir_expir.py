@@ -276,6 +276,20 @@ def main():
         info_id("Searching for empty directories...", request_id)
         if not find_empty_directories(root_dir, request_id):
             success = False
+
+        # 🔹 Print summary to console too
+        dirs, files, empty_dirs, size_bytes = calculate_summary(root_dir)
+        total_size = format_file_size(size_bytes)
+
+        print("\n📊 Summary")
+        print("=" * 80)
+        print("| Metric       | Value |")
+        print("|--------------|-------|")
+        print(f"| Directories  | {dirs} |")
+        print(f"| Files        | {files} |")
+        print(f"| Empty Dirs   | {empty_dirs} |")
+        print(f"| Total Size   | {total_size} |")
+
     finally:
         sys.stdout = old_stdout  # restore stdout
 
