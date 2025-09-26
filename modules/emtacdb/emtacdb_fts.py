@@ -13740,6 +13740,8 @@ class QandA(Base):
     comment = Column(String)
     rating = Column(String)
     timestamp = Column(String, nullable=False, index=True)
+    request_id = Column(String, index=True)
+    raw_response = Column(JSON)
 
     # Vector embeddings for semantic search
     question_embedding = Column(Vector(1536))
@@ -13835,22 +13837,20 @@ class QandA(Base):
         return {}
 
     @classmethod
-    def record_interaction(cls, user_id, question, answer, session, question_embedding=None, answer_embedding=None,
-                           processing_time_ms=None):
+    def record_interaction(
+            cls,
+            user_id,
+            question,
+            answer,
+            session,
+            question_embedding=None,
+            answer_embedding=None,
+            processing_time_ms=None,
+            request_id=None,  # NEW
+            raw_response=None  # NEW
+    ):
         """
-        Enhanced interaction recording with embeddings and metadata.
-
-        Args:
-            user_id: ID of the user
-            question: User's question
-            answer: System's answer
-            session: SQLAlchemy session
-            question_embedding: Optional question embedding
-            answer_embedding: Optional answer embedding
-            processing_time_ms: Optional processing time
-
-        Returns:
-            The created QandA record or None if there was an error
+        Enhanced interaction recording with embeddings, metadata, and request tracking.
         """
         try:
             timestamp = datetime.utcnow().isoformat()
@@ -13862,16 +13862,22 @@ class QandA(Base):
             )
 
             # Add embeddings if provided
-            if question_embedding:
+            if question_embedding is not None:
                 qa_record.question_embedding = question_embedding
-            if answer_embedding:
+            if answer_embedding is not None:
                 qa_record.answer_embedding = answer_embedding
-            if processing_time_ms:
+            if processing_time_ms is not None:
                 qa_record.processing_time_ms = processing_time_ms
+
+            # NEW: add request_id + raw_response
+            if request_id:
+                qa_record.request_id = request_id
+            if raw_response:
+                qa_record.raw_response = raw_response
 
             session.add(qa_record)
             session.commit()
-            logger.debug(f"Recorded interaction for user {user_id} with ID {qa_record.id}")
+            logger.debug(f"Recorded interaction {qa_record.id} for user {user_id} (req={request_id})")
             return qa_record
 
         except Exception as e:
