@@ -1,87 +1,12 @@
 {% extends "module_template_html/base_template_1_0_0_converted.html" %}
 
-{% block title %}Home | EMTAC Assistant{% endblock %}
+{% block title %}EMTAC Assistant{% endblock %}
 
 {% block content %}
-    {% include 'index_partial/index_partial_5.html' %}
+    {% include 'index_partial/index_partial_5_3_1_sidebar.html' %}
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="{{ url_for('static', filename='chatbot.js') }}"></script>
-<script src="{{ url_for('static', filename='chatbot_display_thumbnails.js') }}"></script>
-<script src="{{ url_for('static', filename='update_qanda_table.js') }}"></script>
-<script>
-    // Additional functionality from your original index.html
-    document.addEventListener("DOMContentLoaded", function () {
-        // Toggle buttons functionality (not sidebar related)
-        const toggleButtons = document.querySelectorAll(".toggle-button");
-        toggleButtons.forEach(button => {
-            button.onclick = function () {
-                this.classList.toggle("active");
-            };
-        });
-
-        // Submit question event listener backup
-        const submitQuestionBtn = document.getElementById("submit-question");
-        if (submitQuestionBtn) {
-            submitQuestionBtn.addEventListener("click", function () {
-                if (typeof submitQuestion === "function") {
-                    submitQuestion();
-                } else {
-                    console.error("submitQuestion function not found");
-                }
-            });
-        }
-    });
-
-    // Fallback submitQuestion function (in case the partial doesn't load properly)
-    if (typeof submitQuestion !== 'function') {
-        function submitQuestion() {
-            const userInput = document.getElementById('user_input').value;
-            const userId = document.getElementById('user_id').value;
-
-            if (!userInput.trim()) {
-                alert('Please enter a question');
-                return;
-            }
-
-            const answerElement = document.getElementById('answer');
-            if (answerElement) {
-                answerElement.innerHTML = 'Processing your question...';
-            }
-
-            fetch('/ask_question', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ user_input: userInput, user_id: userId })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (answerElement) {
-                    answerElement.innerHTML = data.answer || 'No answer found';
-                }
-
-                const thumbnailsSection = document.getElementById('thumbnails-section');
-                if (thumbnailsSection && data.thumbnails) {
-                    thumbnailsSection.innerHTML = '';
-                    data.thumbnails.forEach(thumb => {
-                        const img = document.createElement('img');
-                        img.src = thumb.url;
-                        img.alt = thumb.alt || 'Thumbnail';
-                        img.className = 'thumbnail';
-                        thumbnailsSection.appendChild(img);
-                    });
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                if (answerElement) {
-                    answerElement.innerHTML = 'Error processing your question. Please try again.';
-                }
-            });
-        }
-    }
-</script>
+    {# Removed duplicate submitQuestion and fallback scripts.
+       All logic is now self-contained in index_partial_5_3_1_sidebar.html. #}
 {% endblock %}
