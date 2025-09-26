@@ -5,9 +5,9 @@
       <div class="five331-sidebar-section">
         <h3>Quick Actions</h3>
         <div class="five331-quick-actions">
-          <button onclick="clearChat()">Clear Chat</button>
-          <button onclick="exportChat()">Export Chat</button>
-          <button onclick="showHelp()">Help</button>
+          <button id="clear-chat">Clear Chat</button>
+          <button id="export-chat">Export Chat</button>
+          <button id="show-help">Help</button>
         </div>
       </div>
       <div class="five331-sidebar-section">
@@ -44,7 +44,7 @@
             <input type="text" id="user_id" value="{{ employee_id }}" readonly style="display:none;">
             <select id="area" style="display:none;"></select>
             <textarea id="user_input" placeholder="Your Question" rows="2"></textarea>
-            <button id="submit-question" onclick="submitQuestion()">Ask</button>
+            <button id="submit-question">Ask</button>
           </div>
         </div>
       </section>
@@ -52,19 +52,27 @@
       <!-- Right side panels -->
       <section class="five331-panels">
         <div class="five331-panel">
-          <div class="five331-panel-head">Images</div>
+          <div class="five331-panel-head">
+            Images <button class="toggle-btn">Toggle</button>
+          </div>
           <div class="five331-panel-body" id="thumbnails-section"></div>
         </div>
         <div class="five331-panel">
-          <div class="five331-panel-head">Documents</div>
+          <div class="five331-panel-head">
+            Documents <button class="toggle-btn">Toggle</button>
+          </div>
           <div class="five331-panel-body" id="doc-links-section"></div>
         </div>
         <div class="five331-panel">
-          <div class="five331-panel-head">Drawings</div>
+          <div class="five331-panel-head">
+            Drawings <button class="toggle-btn">Toggle</button>
+          </div>
           <div class="five331-panel-body" id="drawing-section"></div>
         </div>
         <div class="five331-panel">
-          <div class="five331-panel-head">Parts</div>
+          <div class="five331-panel-head">
+            Parts <button class="toggle-btn">Toggle</button>
+          </div>
           <div class="five331-panel-body" id="parts-section"></div>
         </div>
       </section>
@@ -193,83 +201,47 @@
     padding: 8px 10px;
     font-weight: 700;
     color: #39FF14;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
   }
   .five331-panel-body {
     flex: 1;
     padding: 10px;
     overflow-y: auto;
+    display: flex;
+    flex-direction: column;
   }
 </style>
 
 <script>
-  function five331ToggleSidebar() {
-    document.getElementById("five331-sidebar").classList.toggle("five331-closed");
+document.addEventListener("DOMContentLoaded", function () {
+  const submitBtn = document.getElementById("submit-question");
+  if (submitBtn) {
+    submitBtn.addEventListener("click", function () {
+      if (typeof submitQuestion === "function") {
+        submitQuestion();
+      } else {
+        console.error("submitQuestion not found");
+      }
+    });
   }
 
-  document.addEventListener('DOMContentLoaded', function() {
-    // Submit question
-    window.submitQuestion = function() {
-      const userInput=document.getElementById('user_input').value;
-      const userId=document.getElementById('user_id').value;
-      if(!userInput.trim()){ alert('Please enter a question'); return; }
-
-      const answerElement=document.getElementById('answer');
-      if(answerElement){ answerElement.innerHTML='Processing your question...'; }
-
-      fetch('/chatbot/ask', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: userId, question: userInput })
-      })
-      .then(r=>r.json())
-      .then(data=>{
-        if(answerElement){ answerElement.innerHTML=data.answer||'No answer found'; }
-        if(data.thumbnails){
-          const sec=document.getElementById('thumbnails-section'); sec.innerHTML='';
-          data.thumbnails.forEach(t=>{
-            const img=document.createElement('img');
-            img.src=t.url; img.alt=t.alt||'Thumbnail'; img.className='thumbnail';
-            sec.appendChild(img);
-          });
+  const userInput = document.getElementById("user_input");
+  if (userInput) {
+    userInput.addEventListener("keydown", function(e) {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        if (typeof submitQuestion === "function") {
+          submitQuestion();
         }
-      })
-      .catch(err=>{
-        console.error('Error:',err);
-        if(answerElement){ answerElement.innerHTML='Error processing your question.'; }
-      });
+      }
+    });
+  }
+});
 
-      document.getElementById('user_input').value='';
-    };
-
-    // Quick actions
-    window.clearChat=function(){
-      document.getElementById('answer').innerHTML='Welcome to EMTAC Assistant! Ask me anything about maintenance and technical assistance.';
-      document.getElementById('thumbnails-section').innerHTML='';
-      document.getElementById('doc-links-section').innerHTML='';
-      document.getElementById('drawing-section').innerHTML='';
-      document.getElementById('parts-section').innerHTML='';
-    };
-    window.exportChat=function(){
-      const chatContent=document.getElementById('answer').innerText;
-      const blob=new Blob([chatContent],{type:'text/plain'});
-      const url=URL.createObjectURL(blob); const a=document.createElement('a');
-      a.href=url;a.download='emtac-chat-export.txt';a.click();URL.revokeObjectURL(url);
-    };
-    window.showHelp=function(){
-      document.getElementById('answer').innerHTML=`<strong>Help:</strong><br>• Ask questions<br>• Images, Docs, Drawings, Parts show in side panels<br>• Use Quick Actions for controls<br>• Provide feedback in sidebar`;
-    };
-
-    // Feedback
-    const btn=document.getElementById('submit_comment_rating');
-    if(btn){
-      btn.addEventListener('click',()=>{
-        const c=document.getElementById('user_comment').value;
-        const r=document.getElementById('rating').value;
-        if(!c.trim()){ alert('Please enter a comment'); return; }
-        alert(`Thanks for feedback! Rating:${r}/10 Comment:${c}`);
-        document.getElementById('user_comment').value='';
-        document.getElementById('rating').value='1';
-      });
-    }
-  });
+// Sidebar toggle
+function five331ToggleSidebar() {
+  document.getElementById("five331-sidebar").classList.toggle("five331-closed");
+}
 </script>

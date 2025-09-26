@@ -7,6 +7,7 @@
 {% endblock %}
 
 {% block extra_scripts %}
-    {# Removed duplicate submitQuestion and fallback scripts.
-       All logic is now self-contained in index_partial_5_3_1_sidebar.html. #}
+<script src="{{ url_for('static', filename='chatbot.js') }}"></script>
+<script src="{{ url_for('static', filename='chatbot_display_thumbnails.js') }}"></script>
+<script src="{{ url_for('static', filename='update_qanda_table.js') }}"></script>
 {% endblock %}
