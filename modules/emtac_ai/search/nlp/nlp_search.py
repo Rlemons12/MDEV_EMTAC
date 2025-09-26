@@ -156,6 +156,21 @@ class SearchQueryTracker:
         self._active_sessions = {}  # Cache for active sessions
 
     @with_request_id
+    def _try_load_ml_model(self):
+        """Try to load trained ML model"""
+        try:
+            active_model = self._session.query(MLModel).filter_by(
+                model_type='intent_classifier',
+                is_active=True
+            ).first()
+
+            if active_model and active_model.model_path:
+                self.ml_classifier.load_model(active_model.model_path)
+                logger.info("Loaded ML intent classifier")
+        except Exception as e:
+            logger.warning(f"Could not load ML model: {e}")
+
+
     def start_search_session(self, user_id: str, context_data: Dict = None) -> Optional[int]:
         """Start a new search session for a user."""
         try:
@@ -188,7 +203,7 @@ class SearchQueryTracker:
                     pass
             return None
 
-    @with_request_id
+
     def track_search_query(self, session_id: Optional[int], query_text: str,
                            detected_intent_id: Optional[int] = None,
                            intent_confidence: float = 0.0,
@@ -236,7 +251,7 @@ class SearchQueryTracker:
                     pass
             return None
 
-    @with_request_id
+
     def record_user_satisfaction(self, query_id: int, satisfaction_score: int) -> bool:
         """Record user satisfaction rating for a query (1-5 scale)."""
         try:
@@ -264,7 +279,7 @@ class SearchQueryTracker:
                     pass
             return False
 
-    @with_request_id
+
     def track_result_click(self, query_id: int, result_type: str, result_id: int,
                            click_position: int, action_taken: str = "view") -> bool:
         """Track when a user clicks on a search result."""
@@ -293,7 +308,7 @@ class SearchQueryTracker:
                     pass
             return False
 
-    @with_request_id
+
     def get_intent_id(self, intent_name: str) -> Optional[int]:
         """Get intent ID from intent name (integrates with your search_intent table)."""
         try:
@@ -311,7 +326,7 @@ class SearchQueryTracker:
             logger.warning(f"Failed to get intent ID for '{intent_name}': {e}")
             return None
 
-    @with_request_id
+
     def _update_session_stats(self, session_id: int, was_successful: bool):
         """Update session statistics."""
         try:
@@ -325,7 +340,7 @@ class SearchQueryTracker:
         except Exception as e:
             logger.warning(f"Failed to update session stats: {e}")
 
-    @with_request_id
+
     def end_search_session(self, session_id: int) -> bool:
         """End a search session."""
         try:
@@ -349,7 +364,7 @@ class SearchQueryTracker:
             logger.error(f" Failed to end search session {session_id}: {e}")
             return False
 
-    @with_request_id
+
     def get_search_performance_report(self, days: int = 7) -> Dict[str, Any]:
         """Generate comprehensive search performance report."""
         try:
@@ -476,6 +491,7 @@ class SearchSessionManager:
     def __init__(self, session):
         self.session = session
 
+
     def start_session(self, user_id: str, context: Dict) -> str:
         session_token = str(uuid4())
 
@@ -488,6 +504,7 @@ class SearchSessionManager:
         self.session.add(search_session)
         self.session.commit()
         return session_token
+
 
     def log_query(self, session_token: str, query: str, result: Dict):
         """Log individual queries for learning"""
@@ -518,6 +535,7 @@ class IntentClassifierML:
         if model_path:
             self.load_model(model_path)
 
+
     def load_model(self, model_path: str):
         """Load trained model from file"""
         try:
@@ -528,6 +546,7 @@ class IntentClassifierML:
             logger.info(f"Loaded ML model from {model_path}")
         except Exception as e:
             logger.error(f"Error loading model from {model_path}: {e}")
+
 
     def save_model(self, model_path: str):
         """Save trained model to file"""
@@ -541,6 +560,7 @@ class IntentClassifierML:
             logger.info(f"Saved ML model to {model_path}")
         except Exception as e:
             logger.error(f"Error saving model to {model_path}: {e}")
+
 
     def train_from_database(self, session):
         """Train model from SearchQuery historical data"""
@@ -574,6 +594,7 @@ class IntentClassifierML:
         except ImportError:
             logger.error("scikit-learn not available for ML training")
             return False
+
 
     def predict_intent(self, query: str) -> Tuple[str, float]:
         """Predict intent with confidence"""
@@ -728,6 +749,7 @@ class SpaCyEnhancedAggregateSearch():
         """ENHANCED: Load entity synonyms from the database (calls fixed version)."""
         return self._load_entity_synonyms_fixed()
 
+    @with_request_id
     def setup_domain_patterns(self):
         """Set up domain-specific patterns, enhanced with database integration."""
         if not self.nlp:
@@ -799,6 +821,7 @@ class SpaCyEnhancedAggregateSearch():
         except Exception as e:
             logger.error(f"Error setting up enhanced domain patterns: {e}")
 
+    @with_request_id
     def setup_intent_classification(self):
         """ENHANCED: Set up intent classification using your database patterns."""
         if not self.nlp:
@@ -837,6 +860,7 @@ class SpaCyEnhancedAggregateSearch():
         except Exception as e:
             logger.error(f"Error setting up enhanced intent classification: {e}")
 
+    @with_request_id
     def _regex_to_spacy_pattern(self, regex_pattern: str) -> Optional[List[Dict]]:
         """Convert simple regex patterns to spaCy patterns (basic conversion)."""
         try:
@@ -1643,6 +1667,7 @@ class SpaCyEnhancedAggregateSearch():
 
         return sum(scores) / len(scores) if scores else 0.0
 
+    @with_request_id
     def _add_to_analysis_cache(self, key: str, analysis: Dict[str, Any]):
         """Add analysis to enhanced cache with LRU behavior."""
         if len(self._analysis_cache) >= self._cache_max_size:
@@ -1650,6 +1675,7 @@ class SpaCyEnhancedAggregateSearch():
             del self._analysis_cache[oldest_key]
         self._analysis_cache[key] = analysis
 
+    @with_request_id
     def _get_suggestion_examples(self):
         """Get enhanced example phrases."""
         return [
@@ -1660,6 +1686,7 @@ class SpaCyEnhancedAggregateSearch():
             "find motor repair documentation"
         ]
 
+    @with_request_id
     def get_nlp_statistics(self):
         """Get enhanced NLP processing statistics."""
         stats = {
@@ -1849,6 +1876,7 @@ class SpaCyEnhancedAggregateSearch():
 
         return suggestions
 
+    @with_request_id
     def refresh_patterns(self) -> Dict[str, Any]:
         """Manually refresh database patterns cache."""
         try:
@@ -1870,6 +1898,7 @@ class SpaCyEnhancedAggregateSearch():
                 "timestamp": datetime.utcnow().isoformat()
             }
 
+    @with_request_id
     def reset_cache(self):
         """Reset enhanced analysis cache."""
         cache_size = len(self._analysis_cache)
@@ -1881,6 +1910,7 @@ class SpaCyEnhancedAggregateSearch():
             "cache_size_after": 0
         }
 
+    @with_request_id
     def close_session(self):
         """Close database session."""
         if hasattr(self, '_session') and self._session:
@@ -1923,6 +1953,7 @@ class EnhancedSpaCyAggregateSearch(SpaCyEnhancedAggregateSearch):
         if session:
             self._try_load_ml_model()
 
+    @with_request_id
     def _try_load_ml_model(self):
         """Try to load trained ML model"""
         try:
@@ -1942,6 +1973,8 @@ class EnhancedSpaCyAggregateSearch(SpaCyEnhancedAggregateSearch):
         """Enhanced search with session tracking and ML"""
 
         # Start session if needed
+        request_id = get_request_id()
+        debug_id("Starting operation with key params", request_id)
         if not session_token and self.session_manager:
             session_token = self.session_manager.start_session(
                 user_id=self.user_context.get('user_id', 'anonymous'),
@@ -1970,6 +2003,7 @@ class EnhancedSpaCyAggregateSearch(SpaCyEnhancedAggregateSearch):
 
         return result
 
+    @with_request_id
     def record_user_feedback(self, query_id: int, feedback_data: Dict):
         """Record user feedback for learning"""
         if self.feedback_learner:
@@ -1985,6 +2019,7 @@ class EnhancedSpaCyAggregateSearch(SpaCyEnhancedAggregateSearch):
                     query_id, feedback_data['clicked_results']
                 )
 
+    @with_request_id
     def auto_generate_patterns(self) -> List[str]:
         """Auto-generate new patterns from popular queries"""
         if not self.feedback_learner:
