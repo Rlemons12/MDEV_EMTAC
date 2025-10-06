@@ -144,47 +144,39 @@ def clear_request_id():
 
 # Replace your log_with_id function in log_config.py with this bulletproof version
 
-def log_with_id(level, message, request_id, *args, **kwargs):
-    """Log message with request ID, with bulletproof Unicode handling."""
+def log_with_id(level, message, request_id=None, *args, **kwargs):
+    """Log message with request ID, bulletproof against Unicode/console encoding issues."""
     try:
         if request_id:
             final = f"[REQ-{request_id}] {message}"
         else:
-            final = message
+            final = str(message)
 
-        # BULLETPROOF Unicode handling - convert everything to ASCII-safe representation
+        # Try to test if the console can handle this string
+        import sys, unicodedata
+        console_encoding = sys.stdout.encoding or "cp1252"
+
         try:
-            # First, try to encode to the console's encoding to see if it works
-            import sys
-            console_encoding = sys.stdout.encoding or 'cp1252'
-            final.encode(console_encoding)
-            # If we get here, the string is safe to log
+            final.encode(console_encoding, errors="strict")
         except (UnicodeEncodeError, AttributeError):
-            # String contains characters that can't be encoded - make it safe
-            import unicodedata
+            # Normalize to strip combining accents, etc.
+            normalized = unicodedata.normalize("NFD", final)
+            without_combining = "".join(
+                c for c in normalized if unicodedata.category(c) != "Mn"
+            )
 
-            # Method 1: Remove combining characters (like ̈)
-            normalized = unicodedata.normalize('NFD', final)
-            without_combining = ''.join(c for c in normalized if unicodedata.category(c) != 'Mn')
-
-            # Method 2: Replace remaining problematic characters
+            # Replace characters unsupported by Windows console encoding
             safe_chars = []
             for char in without_combining:
                 try:
-                    char.encode('cp1252')  # Test if char works in Windows console
+                    char.encode(console_encoding)
                     safe_chars.append(char)
                 except UnicodeEncodeError:
-                    # Replace with safe equivalent or description
-                    char_code = ord(char)
-                    if char_code < 256:
-                        safe_chars.append(char)  # Should be safe
-                    else:
-                        # Replace with Unicode code point
-                        safe_chars.append(f"U+{char_code:04X}")
+                    # Replace with hex codepoint marker
+                    safe_chars.append(f"U+{ord(char):04X}")
+            final = "".join(safe_chars)
 
-            final = ''.join(safe_chars)
-
-        # Try to log the safe message
+        # Dispatch to logger with safe text
         if level == logging.DEBUG:
             logger.debug(final, *args, **kwargs)
         elif level == logging.INFO:
@@ -195,17 +187,19 @@ def log_with_id(level, message, request_id, *args, **kwargs):
             logger.error(final, *args, **kwargs)
         elif level == logging.CRITICAL:
             logger.critical(final, *args, **kwargs)
+        else:
+            logger.log(level, final, *args, **kwargs)
 
     except Exception as e:
-        # Ultimate fallback - create the simplest possible log message
+        # Ultimate fallback: log a stripped ASCII-only message
+        fallback_msg = f"[REQ-{request_id or 'unknown'}] LOG_ENCODING_ERROR: {str(e)[:100]}"
+        ascii_only = fallback_msg.encode("ascii", "replace").decode("ascii")
         try:
-            simple_msg = f"[REQ-{request_id or 'unknown'}] LOG_ENCODING_ERROR: {str(e)[:100]}"
-            # Remove any remaining problematic characters
-            ascii_only = simple_msg.encode('ascii', 'replace').decode('ascii')
             logger.error(ascii_only)
-        except:
-            # Last resort - print to console
+        except Exception:
+            # Last resort: print to console
             print(f"CRITICAL LOGGING FAILURE - REQUEST: {request_id or 'unknown'}")
+
 
 # Convenience functions that match the logger interface
 def debug_id(message, request_id=None, *args, **kwargs):
