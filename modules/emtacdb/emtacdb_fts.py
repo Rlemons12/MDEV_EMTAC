@@ -8508,7 +8508,6 @@ class DrawingPartAssociation(Base):
             if not session_provided:
                 session.close()
 
-    
 class PartProblemAssociation(Base):
     __tablename__ = 'part_problem'
     id = Column(Integer, primary_key=True)
