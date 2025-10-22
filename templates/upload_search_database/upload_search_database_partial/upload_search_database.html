@@ -45,21 +45,21 @@
         {% include 'upload_image_form_partial.html' %}
 
     <div id="upload-document" class="form-container">
-        <h2>Upload Document</h2>
+    <h2>Upload Document</h2>
         <form action="/documents/add_document" method="post" enctype="multipart/form-data">
-            <label for="title" style="color: Yellow;">Document Title:</label>
-            <input type="text" name="title" id="title" placeholder="Document Title"><br>
-            <label for="areaDropdown" style="color: Yellow;">Area:</label>
-            <select name="area" id="areaDropdown"></select><br>
-            <label for="equipmentGroupDropdown" style="color: Yellow;">Equipment Group:</label>
-            <select name="equipment_group" id="equipmentGroupDropdown"></select><br>
-            <label for="modelDropdown" style="color: Yellow;">Model:</label>
-            <select name="model" id="modelDropdown"></select><br>
-            <label for="assetNumberDropdown" style="color: Yellow;">Asset Number:</label>
-            <select name="asset_number" id="assetNumberDropdown"></select><br>
-            <label for="locationDropdown" style="color: Yellow;">Location:</label>
-            <select name="location" id="locationDropdown"></select><br>
-            <input type="file" name="files" id="files" multiple><br>
+            <label for="document_title" style="color: Yellow;">Document Title:</label>
+            <input type="text" name="title" id="document_title" placeholder="Document Title"><br>
+            <label for="document_areaDropdown" style="color: Yellow;">Area:</label>
+            <select name="area" id="document_areaDropdown"></select><br>
+            <label for="document_equipmentGroupDropdown" style="color: Yellow;">Equipment Group:</label>
+            <select name="equipment_group" id="document_equipmentGroupDropdown"></select><br>
+            <label for="document_modelDropdown" style="color: Yellow;">Model:</label>
+            <select name="model" id="document_modelDropdown"></select><br>
+            <label for="document_assetNumberDropdown" style="color: Yellow;">Asset Number:</label>
+            <select name="asset_number" id="document_assetNumberDropdown"></select><br>
+            <label for="document_locationDropdown" style="color: Yellow;">Location:</label>
+            <select name="location" id="document_locationDropdown"></select><br>
+            <input type="file" name="files" id="document_files" multiple><br>
             <input type="submit" value="Upload Document">
         </form>
     </div>
@@ -205,6 +205,7 @@
 
     <!-- region TODO: Refactor JS into new folder static/js/upload_search_database -->
     <!-- Custom JavaScript files -->
+    <script src="{{ url_for('static', filename='js/upload_search_database/upload_document.js') }}"></script>
     <script src="{{ url_for('static', filename='js/batch_upload.js') }}"></script>
     <script src="{{ url_for('static', filename='js/upload_image.js') }}"></script>
     <script src="{{ url_for('static', filename='js/image_upload.js') }}"></script>
@@ -213,6 +214,7 @@
     <script src="{{ url_for('static', filename='js/image_search.js') }}"></script>
     <script src="{{ url_for('static', filename='js/powerpoint_search.js') }}"></script>
     <script src="{{ url_for('static', filename='js/image_compare.js') }}"></script>
+
     <!-- endregion -->
 
 

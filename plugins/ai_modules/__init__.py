@@ -6,10 +6,14 @@ from .ai_models import (
     store_embedding,
     OpenAIModel,
     Llama3Model,
-    AnthropicModel,  # Added this line
+    AnthropicModel,
     OpenAIEmbeddingModel,
     NoAIModel,
     NoEmbeddingModel,
+    GPT4AllModel,
+    GPT4AllEmbeddingModel,
+    TinyLlamaModel,
+    TinyLlamaEmbeddingModel,
     ModelsConfig
 )
 
@@ -20,9 +24,13 @@ __all__ = [
     'generate_embedding',
     'OpenAIModel',
     'Llama3Model',
-    'AnthropicModel',  # Added this line
+    'AnthropicModel',
     'OpenAIEmbeddingModel',
     'NoAIModel',
     'NoEmbeddingModel',
+    'GPT4AllModel',
+    'GPT4AllEmbeddingModel',
+    'TinyLlamaModel',
+    'TinyLlamaEmbeddingModel',
     'ModelsConfig'
 ]

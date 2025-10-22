@@ -4,8 +4,9 @@ from modules.configuration.log_config import get_request_id
 from flask import Blueprint, request, jsonify
 from modules.emtacdb.emtacdb_fts import Drawing
 from modules.configuration.config import DATABASE_URL
-from modules.configuration.log_config import logger, debug_id, error_id, info_id,log_timed_operation
+from modules.configuration.log_config import logger, debug_id, error_id, info_id, log_timed_operation
 from modules.configuration.config_env import DatabaseConfig
+
 # Create a blueprint for drawing routes
 drawing_routes = Blueprint('drawing_routes', __name__)
 
@@ -25,6 +26,7 @@ def search_drawings():
         drw_name (str): Drawing name to filter by
         drw_revision (str): Revision to filter by
         drw_spare_part_number (str): Spare part number to filter by
+        drw_type (str): Drawing type to filter by (e.g., 'Electrical', 'Mechanical')
         file_path (str): File path to filter by
         limit (int): Maximum number of results (default 100)
         include_part_images (bool): Whether to include associated part images (default false)
@@ -81,6 +83,26 @@ def search_drawings():
     drw_revision = request.args.get('drw_revision')
     drw_revision = drw_revision if drw_revision and drw_revision.strip() else None
 
+    # Handle drawing type parameter with validation
+    drw_type = request.args.get('drw_type')
+    drw_type = drw_type if drw_type and drw_type.strip() else None
+
+    # Validate drawing type if provided
+    if drw_type:
+        try:
+            available_types = Drawing.get_available_types()
+            if drw_type not in available_types:
+                error_id(f"Invalid drawing type: {drw_type}. Available types: {available_types}", request_id)
+                return jsonify({
+                    'error': 'Invalid drawing type',
+                    'message': f'Valid types are: {", ".join(available_types)}',
+                    'available_types': available_types
+                }), 400
+            debug_id(f"Drawing type: {drw_type}", request_id)
+        except Exception as e:
+            error_id(f"Error validating drawing type: {str(e)}", request_id)
+            # Continue without validation if there's an error getting available types
+
     # Special handling for spare part number parameter
     spare_part_param = request.args.get('drw_spare_part_number')
     spare_part_param = spare_part_param if spare_part_param and spare_part_param.strip() else None
@@ -111,6 +133,7 @@ def search_drawings():
         'drw_name': drw_name,
         'drw_revision': drw_revision,
         'drw_spare_part_number': drw_spare_part_number,
+        'drw_type': drw_type,
         'file_path': file_path
     }
     # Filter out None values for cleaner logging
@@ -158,6 +181,11 @@ def search_drawings():
                 debug_id(f"Using custom spare part search for: {drw_spare_part_number}", request_id)
                 # Create a query with custom SQL for more flexible spare part matching
                 query = session.query(Drawing)
+
+                # Apply drawing type filter if provided
+                if drw_type:
+                    query = query.filter(Drawing.drw_type == drw_type)
+                    debug_id(f"Applied drawing type filter: {drw_type}", request_id)
 
                 # Try various search patterns for spare part numbers
                 spare_part_patterns = [
@@ -209,6 +237,7 @@ def search_drawings():
                     drw_name=drw_name,
                     drw_revision=drw_revision,
                     drw_spare_part_number=drw_spare_part_number,
+                    drw_type=drw_type,  # Pass the drawing type parameter
                     file_path=file_path,
                     limit=limit,
                     request_id=request_id,
@@ -227,6 +256,7 @@ def search_drawings():
                     'drw_name': drawing.drw_name,
                     'drw_revision': drawing.drw_revision,
                     'drw_spare_part_number': drawing.drw_spare_part_number,
+                    'drw_type': drawing.drw_type,  # Include drawing type in response
                     'file_path': drawing.file_path
                 }
 
@@ -304,3 +334,132 @@ def search_drawings():
         if session:
             session.close()
             debug_id(f"Closed database session for search_drawings endpoint", request_id)
+
+
+@drawing_routes.route('/drawings/types', methods=['GET'])
+def get_drawing_types():
+    """
+    Get all available drawing types
+
+    Returns:
+        JSON response with list of available drawing types
+    """
+    request_id = get_request_id()
+    debug_id(f"Starting get_drawing_types endpoint request", request_id)
+
+    try:
+        available_types = Drawing.get_available_types()
+        info_id(f"get_drawing_types endpoint completed successfully", request_id)
+        return jsonify({
+            'available_types': available_types,
+            'count': len(available_types)
+        })
+    except Exception as e:
+        error_id(f"Error in get_drawing_types endpoint: {str(e)}", request_id, exc_info=True)
+        return jsonify({
+            'error': 'Internal server error',
+            'message': 'An error occurred while retrieving drawing types'
+        }), 500
+
+
+@drawing_routes.route('/drawings/search/by-type/<drawing_type>', methods=['GET'])
+def search_drawings_by_type(drawing_type):
+    """
+    Search drawings by specific type
+
+    Path Parameters:
+        drawing_type (str): The type of drawing to search for
+
+    Query Parameters:
+        limit (int): Maximum number of results (default 100)
+
+    Returns:
+        JSON response with list of drawings of the specified type
+    """
+    request_id = get_request_id()
+    debug_id(f"Starting search_drawings_by_type endpoint for type: {drawing_type}", request_id)
+
+    # Validate drawing type
+    try:
+        available_types = Drawing.get_available_types()
+        if drawing_type not in available_types:
+            error_id(f"Invalid drawing type: {drawing_type}", request_id)
+            return jsonify({
+                'error': 'Invalid drawing type',
+                'message': f'Valid types are: {", ".join(available_types)}',
+                'available_types': available_types
+            }), 400
+    except Exception as e:
+        error_id(f"Error validating drawing type: {str(e)}", request_id)
+        return jsonify({
+            'error': 'Internal server error',
+            'message': 'Error validating drawing type'
+        }), 500
+
+    # Get and validate limit
+    limit = 100
+    if 'limit' in request.args:
+        try:
+            limit = int(request.args.get('limit'))
+            if limit <= 0:
+                error_id(f"Invalid limit parameter: {limit}", request_id)
+                return jsonify({
+                    'error': 'Invalid limit parameter',
+                    'message': 'limit must be a positive integer'
+                }), 400
+        except ValueError:
+            error_id(f"Invalid limit parameter: {request.args.get('limit')}", request_id)
+            return jsonify({
+                'error': 'Invalid limit parameter',
+                'message': 'limit must be an integer'
+            }), 400
+
+    session = None
+    try:
+        # Get database session
+        db_config = DatabaseConfig()
+        session = db_config.get_main_session()
+
+        # Search for drawings by type
+        with log_timed_operation(f"search_drawings_by_type.{drawing_type}", request_id):
+            results = Drawing.search_by_type(
+                drawing_type=drawing_type,
+                request_id=request_id,
+                session=session
+            )
+
+            # Apply limit manually since search_by_type doesn't have limit parameter
+            if len(results) > limit:
+                results = results[:limit]
+
+        # Convert results to JSON format
+        drawings_data = []
+        for drawing in results:
+            drawings_data.append({
+                'id': drawing.id,
+                'drw_equipment_name': drawing.drw_equipment_name,
+                'drw_number': drawing.drw_number,
+                'drw_name': drawing.drw_name,
+                'drw_revision': drawing.drw_revision,
+                'drw_spare_part_number': drawing.drw_spare_part_number,
+                'drw_type': drawing.drw_type,
+                'file_path': drawing.file_path
+            })
+
+        info_id(f"search_drawings_by_type endpoint completed with {len(drawings_data)} results", request_id)
+        return jsonify({
+            'drawing_type': drawing_type,
+            'count': len(drawings_data),
+            'results': drawings_data
+        })
+
+    except Exception as e:
+        error_id(f"Error in search_drawings_by_type endpoint: {str(e)}", request_id, exc_info=True)
+        return jsonify({
+            'error': 'Internal server error',
+            'message': 'An error occurred while searching drawings'
+        }), 500
+    finally:
+        if session:
+            session.close()
+            debug_id(f"Closed database session for search_drawings_by_type endpoint", request_id)

@@ -4,280 +4,335 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy import create_engine, event, inspect
 from datetime import datetime
+import shutil
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from flask import Blueprint, request, jsonify, redirect, url_for, render_template
 from werkzeug.utils import secure_filename
-from modules.emtacdb.emtacdb_fts import (Session,ImagePositionAssociation)
-from modules.emtacdb.utlity.main_database.database import (create_position, add_image_to_db,
-                                                           create_image_position_association)
-import logging
-from plugins.ai_modules import  load_ai_model
-from modules.emtacdb.utlity.revision_database.auditlog import commit_audit_logs
+
+# Updated imports to align with load_image_folder.py patterns
+from modules.emtacdb.emtacdb_fts import (
+    Session, Image, Position, ImagePositionAssociation
+)
+from modules.configuration.log_config import (
+    logger, with_request_id, get_request_id, set_request_id,
+    info_id, debug_id, warning_id, error_id, log_timed_operation
+)
 from modules.configuration.config_env import DatabaseConfig
-from modules.configuration.config import DATABASE_DIR, DATABASE_URL,DATABASE_PATH_IMAGES_FOLDER
-from plugins.ai_modules import ModelsConfig
+from modules.configuration.config import DATABASE_DIR, DATABASE_URL, DATABASE_PATH_IMAGES_FOLDER, ALLOWED_EXTENSIONS
+from plugins.ai_modules.ai_models import ModelsConfig
+from modules.emtacdb.utlity.revision_database.auditlog import commit_audit_logs
+
+# Initialize database configuration
 db_config = DatabaseConfig()
-
-# Configure logging to write to a file with timestamps
-log_file = f'logs/{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.log'
-file_handler = logging.FileHandler(log_file)
-file_handler.setLevel(logging.INFO)
-file_handler.setFormatter(logging.Formatter('%(asctime)s - %(threadName)s - %(levelname)s - %(message)s'))
-
-# Get the root logger
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-logger.addHandler(file_handler)
-
-# Also add a stream handler for console output
-stream_handler = logging.StreamHandler()
-stream_handler.setLevel(logging.INFO)
-stream_handler.setFormatter(logging.Formatter('%(asctime)s - %(threadName)s - %(levelname)s - %(message)s'))
-logger.addHandler(stream_handler)
-
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-
-current_ai_model = ModelsConfig.load_config_from_db()
-
-# Constants
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
-MINIMUM_SIZE = (100, 100)  # Define the minimum width and height for the image
 
 # Create a blueprint for the image routes
 image_bp = Blueprint('image_bp', __name__)
 
+# Constants - aligned with load_image_folder.py
+MINIMUM_SIZE = (100, 100)  # Define the minimum width and height for the image
+
+
 # Helper Functions
 def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+    """Check if file extension is allowed - aligned with load_image_folder.py"""
+    if not filename or '.' not in filename:
+        return False
+    extension = filename.rsplit('.', 1)[1].lower()
+    return extension in [ext.lower() for ext in ALLOWED_EXTENSIONS]
+
+
+def clean_image_title(title, original_filename=None):
+    """Clean image title using the same logic as load_image_folder.py"""
+    import re
+
+    # Common image extensions to remove from title
+    COMMON_EXTENSIONS = [
+        '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.tif', '.webp',
+        '.svg', '.ico', '.heic', '.raw', '.cr2', '.nef', '.arw'
+    ]
+
+    if not title and original_filename:
+        title = os.path.splitext(original_filename)[0]
+
+    if not title:
+        return "image"
+
+    original_title = title
+
+    # Remove any image extensions embedded in the title
+    pattern = '|'.join([re.escape(ext) for ext in COMMON_EXTENSIONS])
+    regex = re.compile(f"({pattern})", re.IGNORECASE)
+
+    # Iteratively remove extensions until none are found
+    while True:
+        new_title = regex.sub('', title)
+        if new_title == title:
+            break
+        title = new_title
+
+    # Clean up any dots that might be left at the end and other cleanup
+    title = title.rstrip('.')
+    title = re.sub(r'[^\w\s-]', '', title).strip()
+
+    # If we've removed everything, use a default name
+    if not title:
+        title = "image"
+
+    return title
+
 
 # Route to serve the upload_search_database.html page
 @image_bp.route('/upload_search_database', methods=['GET'])
-def upload_image_page():
+@with_request_id
+def upload_image_page(request_id=None):
+    """Serve upload page with request ID tracking"""
     filename = request.args.get('filename', '')
+    info_id(f"Serving upload page for filename: {filename}", request_id)
     return render_template('upload_search_database/upload_search_database.html', filename=filename)
 
-# Route for uploading images
+
 @image_bp.route('/upload_image', methods=['GET', 'POST'])
-def upload_image():
+@with_request_id
+def upload_image(request_id=None):
+    """Main image upload route - aligned with Image.add_to_db file handling"""
     try:
-        # Obtain a session using the getter method
-        with db_config.get_main_session() as session:
-            # Inspect and log the available tables in the database
-            inspector = inspect(session.bind)
-            tables = inspector.get_table_names()
-            logger.info(f"Available tables in the database: {tables}")
+        if request.method == 'GET':
+            return render_template('upload.html')
 
-            if request.method == 'POST':
-                # Retrieve form data
-                title = request.form.get('title')
+        info_id("Processing image upload request", request_id)
+
+        # Use the same session management pattern as load_image_folder.py
+        with db_config.main_session() as session:
+            with log_timed_operation("upload_image_processing", request_id):
+                # Validate image file
                 image_file = request.files.get('image')
+                if not image_file or image_file.filename == '':
+                    error_id("No image file provided", request_id)
+                    return jsonify({'message': 'No image file provided'}), 400
 
-                if not image_file:
-                    logger.error("No image file part in the request")
-                    return jsonify({'message': 'No image file part in the request'}), 400
-
-                if image_file.filename == '':
-                    logger.error("No file selected for uploading")
-                    return jsonify({'message': 'No file selected for uploading'}), 400
-
-                # If no title is provided, use the filename (without extension) as the title
-                filename = secure_filename(image_file.filename)
-                if not title:
-                    title = os.path.splitext(filename)[0]
-
-                # Collect general metadata from the request
-                area = request.form.get('area', None)
-                equipment_group = request.form.get('equipment_group', None)
-                model = request.form.get('model', None)
-                asset_number = request.form.get('asset_number', None)
-                location = request.form.get('location', None)
-                site_location = request.form.get('site_location', None)
-                description = request.form.get('description', None)
-
-                # Log the received metadata
-                logger.info(f"Received metadata - Area: {area}, Equipment Group: {equipment_group}, Model: {model}, "
-                            f"Asset Number: {asset_number}, Location: {location}, Site Location: {site_location}, "
-                            f"Description: {description}")
-
-                # Helper function to safely convert form data to integers
-                def convert_to_int(value, field_name):
-                    try:
-                        return int(value) if value and value.isdigit() else None
-                    except ValueError:
-                        logger.warning(f"Invalid value for {field_name}: {value}")
-                        return None
-
-                # Convert metadata to integer IDs if possible
-                area_id = convert_to_int(area, 'area')
-                equipment_group_id = convert_to_int(equipment_group, 'equipment_group')
-                model_id = convert_to_int(model, 'model')
-                asset_number_id = convert_to_int(asset_number, 'asset_number')
-                location_id = convert_to_int(location, 'location')
-                site_location_id = convert_to_int(site_location, 'site_location')
-
-                logger.debug(f"Processed form data - area_id={area_id}, equipment_group_id={equipment_group_id}, "
-                             f"model_id={model_id}, asset_number_id={asset_number_id}, location_id={location_id}, "
-                             f"site_location_id={site_location_id}")
-
-                # Retrieve or create the position and get the ID
-                position_id = create_position(area_id, equipment_group_id, model_id, asset_number_id, location_id,
-                                              site_location_id, session)
-
-                if position_id:
-                    logger.info(f'Position ID: {position_id}')
-                else:
-                    logger.error('Failed to create or retrieve a position')
-                    # No need for session.rollback() because the context manager handles it
-                    return jsonify({'message': 'Failed to create or retrieve a position'}), 500
-
-                # Check if the uploaded file is allowed
                 if not allowed_file(image_file.filename):
-                    logger.error("Unsupported file format")
+                    error_id(f"Unsupported file format: {image_file.filename}", request_id)
                     return jsonify({'message': 'Unsupported file format'}), 400
 
-                # Save the uploaded file
-                file_path = os.path.join(DATABASE_PATH_IMAGES_FOLDER, filename)
-                image_file.save(file_path)
-                logger.info(f"Saved file to {file_path}")
+                # Get and clean title using the same logic as load_image_folder.py
+                title = request.form.get('title', '').strip()
+                filename = secure_filename(image_file.filename)
+                clean_title = clean_image_title(title, filename)
 
-                # Load the current AI model setting (if needed)
-                current_ai_model = ModelsConfig.load_config_from_db()
-                ai_model = load_ai_model(current_ai_model)
-                logger.info(f"Using AI model: {current_ai_model}")
+                info_id(f"Processing image with title: '{clean_title}'", request_id)
 
-                # Generate description if not provided
-                if not description:
-                    description = ai_model.generate_description(file_path)
-                    logger.info(f"Generated description: {description}")
+                # Collect metadata - same pattern as before but with better logging
+                area_id = _safe_convert_to_int(request.form.get('area'), 'area', request_id)
+                equipment_group_id = _safe_convert_to_int(request.form.get('equipment_group'), 'equipment_group',
+                                                          request_id)
+                model_id = _safe_convert_to_int(request.form.get('model'), 'model', request_id)
+                asset_number_id = _safe_convert_to_int(request.form.get('asset_number'), 'asset_number', request_id)
+                location_id = _safe_convert_to_int(request.form.get('location'), 'location', request_id)
+                site_location_id = _safe_convert_to_int(request.form.get('site_location'), 'site_location', request_id)
 
-                # Add the image metadata to the database
-                new_image_id = add_image_to_db(title, file_path, position_id, None, None, description)
+                debug_id(f"Metadata: area_id={area_id}, equipment_group_id={equipment_group_id}, "
+                         f"model_id={model_id}, asset_number_id={asset_number_id}, "
+                         f"location_id={location_id}, site_location_id={site_location_id}", request_id)
 
-                if new_image_id:
-                    logger.info(f"Added new image with ID: {new_image_id}")
-                else:
-                    logger.error("Failed to add the image to the database.")
-                    return jsonify({'message': 'Failed to add the image to the database'}), 500
+                # Create or get position using the same method as load_image_folder.py
+                position_id = Position.add_to_db(
+                    session=session,
+                    area_id=area_id,
+                    equipment_group_id=equipment_group_id,
+                    model_id=model_id,
+                    asset_number_id=asset_number_id,
+                    location_id=location_id,
+                    site_location_id=site_location_id
+                )
 
-                # Create the ImagePositionAssociation entry
+                if not position_id:
+                    error_id("Failed to create or retrieve position", request_id)
+                    return jsonify({'message': 'Failed to create or retrieve position'}), 500
+
+                info_id(f"Using position ID: {position_id}", request_id)
+
+                # Save file temporarily and let Image.add_to_db handle the final copying
+                temp_file_path = os.path.join(DATABASE_PATH_IMAGES_FOLDER, filename)
+                image_file.save(temp_file_path)
+                debug_id(f"Saved temporary file: {temp_file_path}", request_id)
+
                 try:
-                    association = create_image_position_association(new_image_id, position_id, session)
-                    logger.info(f"Created ImagePositionAssociation with ID: {association.id}")
-                except Exception as assoc_e:
-                    logger.error(f"Failed to create ImagePositionAssociation: {assoc_e}")
-                    return jsonify({'message': 'Failed to associate image with position'}), 500
+                    # Get description
+                    description = request.form.get('description', '').strip()
+                    if not description:
+                        description = 'Auto-imported image'
 
-                # Commit the session after all operations
-                session.commit()
-                logger.info("Committed all changes to the database.")
+                    # Let Image.add_to_db handle all the file copying and processing
+                    # Pass the temporary file path as the source
+                    new_image = Image._add_to_db_internal(
+                        session=session,
+                        title=clean_title,
+                        file_path=temp_file_path,  # Pass the temp file path as source
+                        description=description,
+                        position_id=position_id,
+                        request_id=request_id
+                    )
 
-                # Commit audit logs after the main operation
-                commit_audit_logs()
-                logger.info("Committed audit logs.")
+                    if not new_image:
+                        error_id("Failed to add image to database", request_id)
+                        return jsonify({'message': 'Failed to add image to database'}), 500
 
-                # Redirect to the upload success page
-                return redirect(url_for('image_bp.upload_image_page', filename=filename))
+                    if isinstance(new_image, int):
+                        info_id(f"Successfully created image with ID: {new_image}", request_id)
+                    else:
+                        info_id(f"Successfully created image with ID: {new_image.id}", request_id)
 
-        # If GET request, render the upload page
-        return render_template('upload.html')
+                    # Clean up temporary file if it still exists (Image.add_to_db should have copied it)
+                    if os.path.exists(temp_file_path):
+                        try:
+                            os.remove(temp_file_path)
+                            debug_id(f"Cleaned up temporary file: {temp_file_path}", request_id)
+                        except Exception as cleanup_e:
+                            warning_id(f"Could not clean up temp file: {cleanup_e}", request_id)
+
+                    # Commit audit logs using the same pattern
+                    try:
+                        commit_audit_logs()
+                        debug_id("Committed audit logs", request_id)
+                    except Exception as audit_e:
+                        warning_id(f"Failed to commit audit logs: {audit_e}", request_id)
+
+                    return redirect(url_for('image_bp.upload_image_page', filename=filename))
+
+                except Exception as e:
+                    # Clean up temp file if something goes wrong
+                    if os.path.exists(temp_file_path):
+                        try:
+                            os.remove(temp_file_path)
+                            debug_id(f"Cleaned up temp file after error: {temp_file_path}", request_id)
+                        except:
+                            pass
+                    raise
 
     except Exception as e:
-        logger.error(f"An error occurred in upload_image: {e}", exc_info=True)
-        # Attempt to commit audit logs even if an error occurs
+        error_id(f"Error in upload_image: {str(e)}", request_id, exc_info=True)
+
+        # Attempt to commit audit logs even on error
         try:
             commit_audit_logs()
-            logger.info("Committed audit logs despite the error.")
         except Exception as audit_e:
-            logger.error(f"Failed to commit audit logs after error: {audit_e}")
+            error_id(f"Failed to commit audit logs after error: {audit_e}", request_id)
+
         return jsonify({'message': 'An internal error occurred', 'error': str(e)}), 500
 
-# Route for adding images
+
 @image_bp.route('/add_image', methods=['POST'])
-def add_image():
-
+@with_request_id
+def add_image(request_id=None):
+    """Add image route - let Image.add_to_db handle file operations"""
     try:
-        with db_config.get_main_session() as session:
-            logger.info("Received a POST request to /images/add_image")
-            logger.info(f"Content-Type: {request.content_type}")
+        info_id("Processing add_image request", request_id)
 
-            # Collect and validate inputs from the form
-            title = request.form.get('title')
-            complete_document_id = request.form.get('complete_document_id')
-            completed_document_position_association_id = request.form.get('completed_document_position_association_id')
-            position_id = request.form.get('position_id')
+        with db_config.main_session() as session:
+            with log_timed_operation("add_image_processing", request_id):
+                # Validate inputs
+                title = request.form.get('title', '').strip()
+                complete_document_id = _safe_convert_to_int(
+                    request.form.get('complete_document_id'), 'complete_document_id', request_id
+                )
+                position_id = _safe_convert_to_int(
+                    request.form.get('position_id'), 'position_id', request_id
+                )
 
-            # Log the collected inputs
-            logger.info(f"Title: {title}")
-            logger.info(f"Complete Document ID: {complete_document_id}")
-            logger.info(f"Completed Document Position Association ID: {completed_document_position_association_id}")
-            logger.info(f"Position ID: {position_id}")
+                debug_id(f"Form data - title: {title}, complete_document_id: {complete_document_id}, "
+                         f"position_id: {position_id}", request_id)
 
-        # Check if an image file was provided in the request
-        if 'image' not in request.files:
-            logger.error("No image file part found in the request")
-            return jsonify({'message': 'No image file provided'}), 400
+                # Validate image file
+                if 'image' not in request.files:
+                    error_id("No image file in request", request_id)
+                    return jsonify({'message': 'No image file provided'}), 400
 
-        file = request.files['image']
-        if file.filename == '':
-            logger.error("No file selected for uploading")
-            return jsonify({'message': 'No selected file'}), 400
+                file = request.files['image']
+                if file.filename == '':
+                    error_id("No file selected", request_id)
+                    return jsonify({'message': 'No selected file'}), 400
 
-        # Validate and save the image file
-        if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
-            file_path = os.path.join(DATABASE_PATH_IMAGES_FOLDER, filename)
-            file.save(file_path)
-            logger.info(f"File saved successfully: {file_path}")
+                if not allowed_file(file.filename):
+                    error_id(f"Unsupported file type: {file.filename}", request_id)
+                    return jsonify({'message': 'Unsupported file type'}), 400
 
-            # Generate title from filename if not provided
-            if not title:
-                title = os.path.splitext(filename)[0].replace('_', '')
-                logger.info(f"No title provided, using filename as title: {title}")
+                # Process filename and title
+                filename = secure_filename(file.filename)
+                clean_title = clean_image_title(title, filename)
 
-            description = request.form.get('description', '')
-            if not description:
-                # Load AI model and generate description
-                logger.info("No description provided, generating using AI model")
-                current_ai_model = ModelsConfig.load_config_from_db()
-                ai_model = load_ai_model(current_ai_model)
-                description = ai_model.generate_description(file_path)
-                logger.info(f"Generated description: {description}")
+                info_id(f"Processing file: {filename} with title: '{clean_title}'", request_id)
 
-            logger.info(f'title: {title}')
-            logger.info(f'description: {description}')
-            logger.info(f'position_id: {position_id}')
-            logger.info(f'complete_document_id: {complete_document_id}')
-            logger.info(f'complete_document_position_association_id: {completed_document_position_association_id}')
+                # Save file temporarily - let Image.add_to_db handle the rest
+                temp_file_path = os.path.join(DATABASE_PATH_IMAGES_FOLDER, filename)
+                file.save(temp_file_path)
+                debug_id(f"Saved temporary file: {temp_file_path}", request_id)
 
-            # Pass the collected data to the add_image_to_db function
-            logger.info("Passing data to add_image_to_db function")
-            new_image_id = add_image_to_db(
-                title=title,
-                file_path=file_path,
-                position_id=position_id,
-                completed_document_position_association_id=completed_document_position_association_id,
-                complete_document_id=complete_document_id,
-                description=description
-            )
+                try:
+                    # Get or generate description
+                    description = request.form.get('description', '').strip()
+                    if not description:
+                        description = 'Auto-imported image'
+                        info_id("Using default description", request_id)
 
-            if new_image_id:
-                logger.info(f"Successfully added image with ID {new_image_id}")
-                return redirect(url_for('image_bp.upload_image_page', filename=filename))
-            else:
-                logger.error("Failed to add image to the database")
-                return jsonify({'message': 'Failed to add image to the database'}), 500
+                    # Let Image.add_to_db handle all file operations
+                    new_image = Image.add_to_db(
+                        session=session,
+                        title=clean_title,
+                        file_path=temp_file_path,  # Pass temp file as source
+                        description=description,
+                        position_id=position_id,
+                        complete_document_id=complete_document_id,
+                        request_id=request_id
+                    )
 
-        else:
-            logger.error("Unsupported file type")
-            return jsonify({'message': 'Unsupported file type'}), 400
+                    if not new_image:
+                        error_id("Failed to add image to database", request_id)
+                        return jsonify({'message': 'Failed to add image to database'}), 500
+
+                    info_id(f"Successfully created image with ID: {new_image.id}", request_id)
+
+                    # Clean up temporary file if it still exists
+                    if os.path.exists(temp_file_path):
+                        try:
+                            os.remove(temp_file_path)
+                            debug_id(f"Cleaned up temporary file: {temp_file_path}", request_id)
+                        except Exception as cleanup_e:
+                            warning_id(f"Could not clean up temp file: {cleanup_e}", request_id)
+
+                    # Commit audit logs
+                    try:
+                        commit_audit_logs()
+                        debug_id("Committed audit logs", request_id)
+                    except Exception as audit_e:
+                        warning_id(f"Failed to commit audit logs: {audit_e}", request_id)
+
+                    return redirect(url_for('image_bp.upload_image_page', filename=filename))
+
+                except Exception as e:
+                    # Clean up temp file if something goes wrong
+                    if os.path.exists(temp_file_path):
+                        try:
+                            os.remove(temp_file_path)
+                            debug_id(f"Cleaned up temp file after error: {temp_file_path}", request_id)
+                        except:
+                            pass
+                    raise
 
     except Exception as e:
-        logger.error(f"An internal error occurred in add_image: {e}", exc_info=True)
+        error_id(f"Error in add_image: {str(e)}", request_id, exc_info=True)
         return jsonify({'message': 'An internal error occurred', 'error': str(e)}), 500
-    finally:
-        session.close()
 
 
+# Helper function for safe integer conversion with logging
+def _safe_convert_to_int(value, field_name, request_id):
+    """Safely convert form data to integers with proper logging"""
+    try:
+        if value and str(value).strip():
+            result = int(value)
+            debug_id(f"Converted {field_name}: {value} -> {result}", request_id)
+            return result
+        return None
+    except (ValueError, TypeError) as e:
+        warning_id(f"Invalid value for {field_name}: {value} - {str(e)}", request_id)
+        return None

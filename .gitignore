@@ -6,6 +6,9 @@
 /maint_task/
 /logs/
 /modules/configuration/api_config.py
+/plugins/huggingface
+/plugins/ai_modules/gpt4all
+/plugins/ai_modules/TinyLlama_1_1B
 
 # Ignore everything in /Database/ except the specified folders
 /Database/*
@@ -28,6 +31,9 @@
 /Database/PDF_FILES/*
 /Database/PPT_FILES/*
 
+/modules/emtac_ai/models/
+
+
 # Ensure .gitkeep files are not ignored
 !/Database/db_backup/.gitkeep
 !/Database/DB_DOC/.gitkeep
@@ -47,7 +53,7 @@ __pycache__/
 .idea/*
 !.idea/codeStyles/
 !.idea/runConfigurations/
-
+.env
 app.log
 create_bill_of_material.log
 

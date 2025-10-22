@@ -1,227 +1,143 @@
-// Check if the browser supports SpeechRecognition
-var desiredVoiceName = "Microsoft Aria Online (Natural) - English (United States) (en-US)";
-var voiceSelect = document.getElementById('voice-selection');
-var availableVoices = [];
-var submissionTimeout;
-var timeoutDuration = 1750; // 1.75 seconds of inactivity
+// ===============================
+// Chatbot Frontend Script
+// ===============================
 
-// Helper function to select the desired voice
-function selectDesiredVoice() {
-    for (var i = 0; i < voiceSelect.options.length; i++) {
-        if (voiceSelect.options[i].textContent.includes(desiredVoiceName)) {
-            voiceSelect.selectedIndex = i;
-            break;
+// Global debounce timeout for submissions
+let submissionTimeout = null;
+
+// Text-to-speech state
+let isTextToSpeechEnabled = false;
+let voiceSelect;
+
+// ===============================
+// Voice Setup
+// ===============================
+function populateVoiceList() {
+    if (!('speechSynthesis' in window)) return;
+    if (!voiceSelect) {
+        voiceSelect = document.getElementById('voice-select');
+        if (!voiceSelect) {
+            console.warn("No #voice-select element found, skipping voice list population.");
+            return;
         }
     }
-}
 
-window.speechSynthesis.onvoiceschanged = function() {
-    availableVoices = window.speechSynthesis.getVoices();
-    populateVoiceList();
-    selectDesiredVoice(); // Call the function to select the desired voice
-};
+    const voices = window.speechSynthesis.getVoices();
+    voiceSelect.innerHTML = "";
 
-function populateVoiceList() {
-    voiceSelect.innerHTML = ''; // Clear existing options
-    availableVoices.forEach(voice => {
-        var option = document.createElement('option');
-        option.textContent = voice.name + ' (' + voice.lang + ')';
-        
-        option.setAttribute('data-name', voice.name);
+    voices.forEach((voice, i) => {
+        const option = document.createElement("option");
+        option.value = i;
+        option.textContent = `${voice.name} (${voice.lang})`;
         voiceSelect.appendChild(option);
     });
 }
 
-function speakText(text) {
-    var selectedVoiceName = voiceSelect.selectedOptions[0].getAttribute('data-name');
-    var selectedVoice = availableVoices.find(voice => voice.name === selectedVoiceName);
-
-    if ('speechSynthesis' in window && isTextToSpeechEnabled) { // Check if text-to-speech is enabled
-        // Stop speech recognition before speaking
-        if (isListening) {
-            speechRecognizer.stop();
-        }
-
-        var utterance = new SpeechSynthesisUtterance(text);
-        utterance.voice = selectedVoice;
-        utterance.pitch = 0.8; // Adjusted pitch
-        utterance.rate = 1.; // Adjusted rate
-        utterance.volume = 1; // Ensure this is within the range [0, 1]
-
-        utterance.onend = function() {
-            // Optionally restart speech recognition after speaking
-            if (isListening) {
-                speechRecognizer.start();
-            }
-        };
-
-        window.speechSynthesis.speak(utterance);
-    } else {
-        console.log("Your browser does not support text-to-speech or text-to-speech is disabled.");
-    }
+if ('speechSynthesis' in window) {
+    window.speechSynthesis.onvoiceschanged = populateVoiceList;
+    populateVoiceList();
 }
 
-// Boolean variable to track text-to-speech state
-var isTextToSpeechEnabled = false;
-
-// Function to toggle text-to-speech
+// ===============================
+// Text-to-Speech Functions
+// ===============================
 function toggleTextToSpeech() {
     isTextToSpeechEnabled = !isTextToSpeechEnabled;
-    var toggleButton = document.getElementById('toggle-text-to-speech'); // Updated ID
-    
-    if (isTextToSpeechEnabled) {
-        toggleButton.textContent = 'Disable Text-to-Speech';
-    } else {
-        toggleButton.textContent = 'Enable Text-to-Speech';
-    }
+    console.log("Text-to-Speech enabled:", isTextToSpeechEnabled);
 }
 
-// Event listener for the text-to-speech toggle button
-document.getElementById('toggle-text-to-speech').addEventListener('click', toggleTextToSpeech);
-
-// Function to stop text-to-speech when a keyword is detected
-function stopTextToSpeech() {
-    if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel(); // Stop any ongoing speech
+function speakText(text) {
+    if (!isTextToSpeechEnabled || !('speechSynthesis' in window)) return;
+    const utterance = new SpeechSynthesisUtterance(text);
+    if (voiceSelect && voiceSelect.value) {
+        const voices = window.speechSynthesis.getVoices();
+        const selectedVoice = voices[voiceSelect.value];
+        if (selectedVoice) utterance.voice = selectedVoice;
     }
+    window.speechSynthesis.speak(utterance);
 }
 
-// Event listener for the user input field
-document.getElementById('user_input').addEventListener('input', function(event) {
-    var userInput = event.target.value.toLowerCase(); // Convert input to lowercase for case-insensitivity
-
-    // Check if the user input contains the stop keyword
-    if (userInput.includes('stop talking please')) {
-        console.log("Stop keyword detected!"); // Debugging statement
-        stopTextToSpeech(); // Stop text-to-speech
-        // Optionally, you can clear the user input field or perform any other action here
-    } else {
-        console.log("User input:", userInput); // Debugging statement
-    }
-});
-
-
-
-if ('webkitSpeechRecognition' in window) {
-    var speechRecognizer = new webkitSpeechRecognition();
-    speechRecognizer.continuous = true;
-    speechRecognizer.interimResults = true;
-    speechRecognizer.lang = 'en-US';
-
-    var isListening = false;
-    var toggleVoiceButton = document.getElementById('toggle-voice');
-
-    function startVoiceRecognition() {
-        speechRecognizer.start();
-        toggleVoiceButton.textContent = 'Disable Voice Recognition';
-        isListening = true;
-    }
-
-    function stopVoiceRecognition() {
-        speechRecognizer.stop();
-        toggleVoiceButton.textContent = 'Enable Voice Recognition';
-        isListening = false;
-    }
-
-    toggleVoiceButton.addEventListener('click', function () {
-        if (isListening) {
-            stopVoiceRecognition();
-        } else {
-            startVoiceRecognition();
-        }
-    });
-
-	var accumulatedTranscript = ''; // Accumulate transcript across results
-	var isFinalized = false; // Track if the last result was finalized
-
-speechRecognizer.onresult = function (event) {
-    var finalTranscript = ''; // Storage for the final result transcript
-
-    for (var i = event.resultIndex; i < event.results.length; ++i) {
-        if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript + ' '; // Add final result to final transcript
-        }
-    }
-
-    // Update the UI with the final transcript
-    document.getElementById('user_input').value = finalTranscript.trim();
-
-    // Submit the question after a specified duration of inactivity
-    clearTimeout(submissionTimeout);
-    submissionTimeout = setTimeout(function() {
-        submitQuestion(); // Auto-submit the question
-    }, timeoutDuration);
-};
-
-
-
-
-    speechRecognizer.onerror = function (event) {
-        console.error('Speech recognition error', event);
-        stopVoiceRecognition();
-    };
-} else {
-    console.log("Your browser does not support Speech Recognition.");
-    document.getElementById('toggle-voice').style.display = 'none';
-}
-
-function clearThumbnails() {
-    const thumbnailsSection = document.getElementById("thumbnails-section");
-    thumbnailsSection.innerHTML = ""; // Clear existing thumbnails
-}
-
-function clearQuestion() {
-    document.getElementById('user_input').value = ''; // Clear question input
-    clearThumbnails(); // Clear thumbnails
-}
-
-
-
+// ===============================
+// Submit Question
+// ===============================
 function submitQuestion() {
     console.log("Submitting question...");
     clearTimeout(submissionTimeout);
-    var userId = document.getElementById('user_id').value;
-    var area = document.getElementById('area').value;
-    var userInput = document.getElementById('user_input').value;
 
-	// Clear thumbnails before submitting the question
-    clearThumbnails();
-	
-	// Clear question input and thumbnails before submitting
-    clearQuestion();
-	
-	
+    const userId = document.getElementById('user_id')?.value || "anonymous";
+    const area = document.getElementById('area')?.value || "";
+    const userInput = document.getElementById('user_input')?.value || "";
+
+    // Clear containers + reset input
+    clearAllContainers();
+    if (document.getElementById('user_input')) {
+        document.getElementById('user_input').value = '';
+    }
+
     fetch('/chatbot/ask', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: userId, area: area, question: userInput })
     })
-    .then(response => response.json())
-    .then(data => {
-        console.log("Received response from server:", data);
-        // Insert the response into the innerHTML of the answer element
-        document.getElementById('answer').innerHTML = data.answer;
+        .then(response => response.json())
+        .then(data => {
+            console.log("Received response from server:", data);
+            console.log("blocks received:", data.blocks);
 
-        // Display thumbnails if available
-        if (Array.isArray(data.answer) && data.answer.length > 0) {
-            displayThumbnails(data.answer);
-        }
+            const answerEl = document.getElementById('answer');
+            if (answerEl) answerEl.innerHTML = data.answer || "";
 
-        // After the response is inserted, modify all <a> tags to open in a new tab
-        var links = document.getElementById('answer').querySelectorAll('a');
-        links.forEach(function(link) {
-            link.target = "_blank"; // Make links open in a new tab
-            link.rel = "noopener noreferrer"; // Security enhancement
-        });
+            if (data.blocks) {
+                if (data.blocks["parts-container"]) renderParts(data.blocks["parts-container"]);
+                if (data.blocks["images-container"]) displayThumbnails(data.blocks["images-container"]);
+                if (data.blocks["documents-container"]) displayDocuments(data.blocks["documents-container"]);
+                if (data.blocks["drawings-container"]) displayDrawings(data.blocks["drawings-container"]);
+            }
 
-        // Speak the answer text if text-to-speech is enabled
-        if (isTextToSpeechEnabled) {
-            speakText(data.answer);
-        }
-    })
-    .catch(error => console.error('Error:', error));
+            if (answerEl) {
+                const links = answerEl.querySelectorAll('a');
+                links.forEach(link => {
+                    link.target = "_blank";
+                    link.rel = "noopener noreferrer";
+                });
+            }
+
+            if (isTextToSpeechEnabled) {
+                speakText(data.answer);
+            }
+        })
+        .catch(error => console.error('Error:', error));
 }
 
-document.getElementById('submit-question').addEventListener('click', submitQuestion);
+// ===============================
+// Clear All Containers
+// ===============================
+function clearAllContainers() {
+    const containers = ["parts-container", "thumbnails-section", "doc-links-section", "drawing-section"];
+    containers.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = "";
+    });
+}
+
+// ===============================
+// Event Bindings
+// ===============================
+document.addEventListener("DOMContentLoaded", () => {
+    const askBtn = document.getElementById("submit-question");
+    if (askBtn) askBtn.addEventListener("click", submitQuestion);
+
+    const inputEl = document.getElementById("user_input");
+    if (inputEl) {
+        inputEl.addEventListener("keypress", function (e) {
+            if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                submitQuestion();
+            }
+        });
+    }
+
+    const toggleBtn = document.getElementById("toggle-voice");
+    if (toggleBtn) toggleBtn.addEventListener("click", toggleTextToSpeech);
+    else console.log("No #toggle-voice button found, skipping voice binding.");
+});

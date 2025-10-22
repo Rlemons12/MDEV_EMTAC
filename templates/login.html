@@ -25,14 +25,13 @@
 
     /* 3. Background covers entire viewport */
     body {
-      font-family: Arial, sans-serif;
-      display: flex;
-      flex-direction: column;      /* banner + content stack */
-      justify-content: center;
-      align-items: center;
-      background: url('/background_images/EmtaC_lizard_wizard.jpeg')
-                  center/cover no-repeat;
-    }
+  font-family: Arial, sans-serif;
+  display: flex;
+  flex-direction: column;      /* banner + content stack */
+  justify-content: center;
+  align-items: center;
+  background: url('{{ url_for("static", filename="background_images/squartooth.png") }}') center/cover no-repeat;
+}
 
     /* 4. Fixed banner (text in rem for scalability) */
     .banner {
@@ -71,8 +70,8 @@
 
     /* 6. Login box: fluid width + max, padding in rem */
     .login-container {
-      width: 80vw;               /* 80% of viewport width */
-      max-width: 37.5rem;        /* 600px if 1rem=16px */
+      width: 50vw;               /* 80% of viewport width */
+      max-width: 32.5rem;        /* 600px if 1rem=16px */
       padding: 1.5rem;           /* ~24px */
       background: rgba(255,255,255,0.8);
       border-radius: 0.5rem;     /* ~8px */

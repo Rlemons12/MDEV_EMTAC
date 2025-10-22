@@ -11,6 +11,8 @@ import time
 import threading
 from flask import request, g, has_request_context
 import functools
+from typing import Optional
+from pathlib import Path
 # Determine the root directory based on whether the code is frozen (e.g., PyInstaller .exe)
 if getattr(sys, 'frozen', False):  # Running as an executable
     BASE_DIR = os.path.dirname(sys.executable)
@@ -29,6 +31,12 @@ log_directory = os.path.join(BASE_DIR, 'logs')
 log_backup_directory = os.path.join(BASE_DIR, 'log_backup')
 os.makedirs(log_directory, exist_ok=True)
 os.makedirs(log_backup_directory, exist_ok=True)
+# ensure the triaining log directory exists
+# --- Training logs mirror app log structure ---
+TRAINING_LOG_DIR = os.path.join(log_directory, 'training')
+TRAINING_LOG_BACKUP_DIR = os.path.join(log_backup_directory, 'training')
+os.makedirs(TRAINING_LOG_DIR, exist_ok=True)
+os.makedirs(TRAINING_LOG_BACKUP_DIR, exist_ok=True)
 
 # Create a RotatingFileHandler
 file_handler = RotatingFileHandler(
@@ -48,6 +56,14 @@ formatter = logging.Formatter(
 )
 file_handler.setFormatter(formatter)
 console_handler.setFormatter(formatter)
+
+# Force UTF-8 encoding for console output (add at top of log_config.py)
+if sys.platform.startswith('win'):
+    # Try to set console to UTF-8 on Windows
+    try:
+        os.system('chcp 65001 >nul')  # Set console to UTF-8
+    except:
+        pass
 
 # Add both handlers to the logger if they aren't already added
 if not logger.handlers:
@@ -125,34 +141,65 @@ def clear_request_id():
     if hasattr(_local, 'request_id'):
         delattr(_local, 'request_id')
 
-# Enhanced logging functions that automatically include request ID
-# These don't replace the standard logger methods, they're additional
-def log_with_id(level, message, *args, request_id=None, **kwargs):
-    """Log a message with an included request ID."""
-    # Determine the request ID
-    rid = request_id or get_request_id()
 
-    # First apply any %-format args to the message
+# Replace your log_with_id function in log_config.py with this bulletproof version
+
+def log_with_id(level, message, request_id=None, *args, **kwargs):
+    """Log message with request ID, bulletproof against Unicode/console encoding issues."""
     try:
-        msg = message % args if args else message
-    except Exception:
-        # Fallback if formatting fails
-        msg = message
+        if request_id:
+            final = f"[REQ-{request_id}] {message}"
+        else:
+            final = str(message)
 
-    # Prefix with the request ID
-    final = f"[REQ-{rid}] {msg}"
+        # Try to test if the console can handle this string
+        import sys, unicodedata
+        console_encoding = sys.stdout.encoding or "cp1252"
 
-    # Dispatch to the logger at the proper level
-    if level == logging.DEBUG:
-        logger.debug(final, **kwargs)
-    elif level == logging.INFO:
-        logger.info(final, **kwargs)
-    elif level == logging.WARNING:
-        logger.warning(final, **kwargs)
-    elif level == logging.ERROR:
-        logger.error(final, **kwargs)
-    elif level == logging.CRITICAL:
-        logger.critical(final, **kwargs)
+        try:
+            final.encode(console_encoding, errors="strict")
+        except (UnicodeEncodeError, AttributeError):
+            # Normalize to strip combining accents, etc.
+            normalized = unicodedata.normalize("NFD", final)
+            without_combining = "".join(
+                c for c in normalized if unicodedata.category(c) != "Mn"
+            )
+
+            # Replace characters unsupported by Windows console encoding
+            safe_chars = []
+            for char in without_combining:
+                try:
+                    char.encode(console_encoding)
+                    safe_chars.append(char)
+                except UnicodeEncodeError:
+                    # Replace with hex codepoint marker
+                    safe_chars.append(f"U+{ord(char):04X}")
+            final = "".join(safe_chars)
+
+        # Dispatch to logger with safe text
+        if level == logging.DEBUG:
+            logger.debug(final, *args, **kwargs)
+        elif level == logging.INFO:
+            logger.info(final, *args, **kwargs)
+        elif level == logging.WARNING:
+            logger.warning(final, *args, **kwargs)
+        elif level == logging.ERROR:
+            logger.error(final, *args, **kwargs)
+        elif level == logging.CRITICAL:
+            logger.critical(final, *args, **kwargs)
+        else:
+            logger.log(level, final, *args, **kwargs)
+
+    except Exception as e:
+        # Ultimate fallback: log a stripped ASCII-only message
+        fallback_msg = f"[REQ-{request_id or 'unknown'}] LOG_ENCODING_ERROR: {str(e)[:100]}"
+        ascii_only = fallback_msg.encode("ascii", "replace").decode("ascii")
+        try:
+            logger.error(ascii_only)
+        except Exception:
+            # Last resort: print to console
+            print(f"CRITICAL LOGGING FAILURE - REQUEST: {request_id or 'unknown'}")
+
 
 # Convenience functions that match the logger interface
 def debug_id(message, request_id=None, *args, **kwargs):
@@ -311,3 +358,132 @@ def initial_log_cleanup():
     compress_and_backup_logs(log_directory, log_backup_directory)
     delete_old_backups(log_backup_directory, retention_weeks=2)
     logger.info("Initial log cleanup completed.")
+
+def maintain_training_logs(retention_weeks: int = 2):
+    """
+    Mirror the app log maintenance for training logs:
+      - consolidate+compress logs older than 14 days into biweekly .gz backups
+      - delete backups older than `retention_weeks`
+    """
+    try:
+        logger.info("Starting training log cleanup...")
+        compress_and_backup_logs(TRAINING_LOG_DIR, TRAINING_LOG_BACKUP_DIR)
+        delete_old_backups(TRAINING_LOG_BACKUP_DIR, retention_weeks=retention_weeks)
+        logger.info("Training log cleanup complete.")
+    except Exception as e:
+        logger.exception(f"Training log maintenance failed: {e}")
+
+
+# ---------------------------------------------------
+# TrainingLogManager: per-run training logger + HF glue
+# ---------------------------------------------------
+
+class TrainingLogManager:
+    """
+    Dedicated training logger:
+    - Non-propagating (won’t pollute app logs)
+    - Writes to <run_dir>/training.log when run_dir is given, else BASE_DIR/logs/training/training.log
+    - Optional console mirror
+    - Context-manager closes handlers cleanly
+    - make_trainer_callback(): HF TrainerCallback to send metrics to this log
+    """
+    def __init__(
+        self,
+        run_dir: Optional[os.PathLike] = None,
+        run_name: Optional[str] = None,
+        to_console: bool = False,
+        level: int = logging.INFO,
+        rotate_mb: int = 10,
+        backups: int = 5,
+    ):
+        self.run_dir = Path(run_dir) if run_dir else None
+        self.run_name = run_name or (self.run_dir.name if self.run_dir else "global")
+        self.logger_name = f"ematac_train.{self.run_name}"
+        self.level = level
+        self.to_console = to_console
+        self.rotate_mb = rotate_mb
+        self.backups = backups
+
+        self._logger = logging.getLogger(self.logger_name)
+        self._logger.setLevel(level)
+        self._logger.propagate = False
+        self._adapter = None
+
+        self._attach_handlers()
+
+    @property
+    def logger(self) -> logging.LoggerAdapter:
+        return self._adapter
+
+    def _attach_handlers(self):
+        # Ensure global training dirs exist
+        os.makedirs(TRAINING_LOG_DIR, exist_ok=True)
+        os.makedirs(TRAINING_LOG_BACKUP_DIR, exist_ok=True)
+
+        # Choose target file
+        if self.run_dir:
+            # Per-run file next to model artifacts
+            log_path = self.run_dir / "training.log"
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+        else:
+            log_path = Path(TRAINING_LOG_DIR) / "training.log"
+
+        # Avoid duplicate handlers
+        def _same_file(h):
+            return isinstance(h, RotatingFileHandler) and getattr(h, "baseFilename", None) == os.path.abspath(str(log_path))
+
+        if not any(_same_file(h) for h in self._logger.handlers):
+            fh = RotatingFileHandler(str(log_path), maxBytes=self.rotate_mb * 1024 * 1024,
+                                     backupCount=self.backups, encoding="utf-8")
+            fh.setLevel(self.level)
+            fh.setFormatter(logging.Formatter(
+                "%(asctime)s - ematac_train - [%(run)s] %(levelname)s - %(filename)s:%(lineno)d - %(message)s"
+            ))
+            self._logger.addHandler(fh)
+
+        if self.to_console and not any(isinstance(h, logging.StreamHandler) for h in self._logger.handlers):
+            ch = logging.StreamHandler(sys.stdout)
+            ch.setLevel(self.level)
+            ch.setFormatter(logging.Formatter(
+                "%(asctime)s - ematac_train - [%(run)s] %(levelname)s - %(message)s"
+            ))
+            self._logger.addHandler(ch)
+
+        # Adapter injects [run] field so formatter can include it
+        self._adapter = logging.LoggerAdapter(self._logger, extra={"run": self.run_name})
+
+    def make_trainer_callback(self):
+        """Return a HF TrainerCallback that mirrors logs/eval metrics into this training logger."""
+        try:
+            from transformers import TrainerCallback
+        except Exception:
+            class _Noop: ...
+            return _Noop()
+
+        adapter = self._adapter
+
+        class _MetricsToLogger(TrainerCallback):
+            def on_log(self, args, state, control, logs=None, **kwargs):
+                if logs: adapter.info(f"HF_LOG: {logs}")
+            def on_evaluate(self, args, state, control, metrics=None, **kwargs):
+                if metrics: adapter.info(f"EVAL: {metrics}")
+            def on_train_end(self, args, state, control, **kwargs):
+                adapter.info("Training finished.")
+
+        return _MetricsToLogger()
+
+    def close(self):
+        """Flush/close handlers; useful for repeated runs / tests."""
+        for h in list(self._logger.handlers):
+            try:
+                h.flush()
+                h.close()
+            except Exception:
+                pass
+            self._logger.removeHandler(h)
+
+    def __enter__(self):
+        return self
+    def __exit__(self, exc_type, exc, tb):
+        self.close()
+

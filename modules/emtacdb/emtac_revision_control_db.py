@@ -19,13 +19,7 @@ RevisionControlBase = declarative_base()
 RevisionControlSession = scoped_session(sessionmaker(bind=revision_control_engine))  # Use distinct name
 revision_control_session = RevisionControlSession()
 
-# Check if the database file exists and initialize it
-if not os.path.exists(REVISION_CONTROL_DB_PATH):
-    logger.info(f"Database '{REVISION_CONTROL_DB_PATH}' does not exist. Creating new database.")
-    RevisionControlBase.metadata.create_all(revision_control_engine)
-    logger.info("New database created and tables initialized.")
-else:
-    logger.info(f"Database '{REVISION_CONTROL_DB_PATH}' already exists.")
+
 
 class VersionInfo(RevisionControlBase):
     __tablename__ = 'version_info'

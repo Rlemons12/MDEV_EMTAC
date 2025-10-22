@@ -4,47 +4,79 @@ from flask import Blueprint, jsonify, request
 from sqlalchemy.exc import SQLAlchemyError
 from modules.configuration.config_env import DatabaseConfig  # Adjust import based on your project structure
 from modules.emtacdb.emtacdb_fts import (Problem, Solution, Task, TaskSolutionAssociation, ProblemPositionAssociation)
-import logging
+from modules.configuration.log_config import with_request_id, logger
 
 
 # Initialize Database Config
 db_config = DatabaseConfig()
 
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
 
 # Define a new blueprint for solution-related routes
 pst_troubleshooting_solution_bp = Blueprint('pst_troubleshooting_solution_bp', __name__)
+
 
 @pst_troubleshooting_solution_bp.route('/get_solutions/<int:problem_id>', methods=['GET'])
 def get_solutions(problem_id):
     """
     Retrieve solutions related to the specified problem.
     """
-    print(f"get_solutions called with problem_id: {problem_id}")
-    session = db_config.get_main_session()
+    print(f"=== DEBUG: get_solutions called with problem_id: {problem_id} ===")
+    session = None
     try:
+        print("DEBUG: Getting database session...")
+        session = db_config.get_main_session()
+        print(f"DEBUG: Session obtained: {session}")
+
+        print(f"DEBUG: Querying Solution table for problem_id: {problem_id}")
         # Query the Solution table for solutions with the specified problem_id
         solutions = session.query(Solution).filter_by(problem_id=problem_id).all()
+        print(f"DEBUG: Found {len(solutions)} solutions")
 
         if not solutions:
-            # Return a message indicating there are no solutions yet
+            print("DEBUG: No solutions found, returning message")
             return jsonify({'message': 'No solutions added yet for this problem.'}), 200
 
+        print("DEBUG: Processing solutions data...")
         # Format the solutions data including id, name, and description
-        solutions_data = [{'id': solution.id, 'name': solution.name, 'description': solution.description} for solution
-                          in solutions]
+        solutions_data = []
+        for i, solution in enumerate(solutions):
+            print(f"DEBUG: Processing solution {i + 1}: ID={solution.id}, Name={solution.name}")
+            solution_dict = {
+                'id': solution.id,
+                'name': solution.name,
+                'description': solution.description
+            }
+            solutions_data.append(solution_dict)
 
+        print(f"DEBUG: Successfully processed {len(solutions_data)} solutions")
         return jsonify(solutions_data), 200
 
     except SQLAlchemyError as e:
+        print(f"DEBUG: SQLAlchemy error: {e}")
         logger.error(f"Database error fetching solutions: {e}")
         return jsonify({'error': 'An error occurred while fetching solutions.'}), 500
+    except AttributeError as e:
+        print(f"DEBUG: AttributeError (likely model issue): {e}")
+        logger.error(f"Model attribute error: {e}")
+        return jsonify({'error': f'Model error: {str(e)}'}), 500
+    except ImportError as e:
+        print(f"DEBUG: ImportError (likely import issue): {e}")
+        logger.error(f"Import error: {e}")
+        return jsonify({'error': f'Import error: {str(e)}'}), 500
     except Exception as e:
+        print(f"DEBUG: Unexpected error: {type(e).__name__}: {e}")
         logger.error(f"Unexpected error fetching solutions: {e}")
-        return jsonify({'error': 'An unexpected error occurred while fetching solutions.'}), 500
+        import traceback
+        print("DEBUG: Full traceback:")
+        traceback.print_exc()
+        return jsonify({'error': f'Unexpected error: {str(e)}'}), 500
     finally:
-        session.close()
+        if session:
+            try:
+                session.close()
+                print("DEBUG: Session closed successfully")
+            except Exception as e:
+                print(f"DEBUG: Error closing session: {e}")
 
 @pst_troubleshooting_solution_bp.route('/remove_solutions/', methods=['POST'])
 def remove_solutions():

@@ -282,7 +282,7 @@ function populateDeleteForm(manufacturerId) {
  */
 async function fetchManufacturers(page = 1) {
     try {
-        const response = await fetch(`/tool/tool_manufacturer?${new URLSearchParams({ page: page, per_page: 20 })}`, { // Correct endpoint
+        const response = await fetch(`/tool/get_tool_manufacturers?${new URLSearchParams({ page: page, per_page: 20 })}`, {
             method: 'GET',
             headers: {
                 'Accept': 'application/json',
@@ -291,23 +291,30 @@ async function fetchManufacturers(page = 1) {
             credentials: 'same-origin' // Include cookies
         });
 
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-            const data = await response.json();
-            console.log('Fetch Manufacturers Response:', data); // Debugging
-
-            if (response.ok && data.success) {
-                updateManufacturersTable(data.manufacturers);
-                updatePaginationControls(data.page, data.total_pages);
-            } else {
-                displayFeedbackMessage('danger', data.message || 'Failed to fetch manufacturers.');
+        if (!response.ok) {
+            if (response.status === 404) {
+                throw new Error('Manufacturer list endpoint not found. Please contact support.');
             }
-        } else {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
             throw new Error('Received non-JSON response');
+        }
+
+        const data = await response.json();
+        console.log('Fetch Manufacturers Response:', data); // Debugging
+
+        if (data.success) {
+            updateManufacturersTable(data.manufacturers);
+            updatePaginationControls(data.page, data.total_pages);
+        } else {
+            displayFeedbackMessage('danger', data.message || 'Failed to fetch manufacturers.');
         }
     } catch (error) {
         console.error('Error fetching manufacturers:', error);
-        displayFeedbackMessage('danger', 'An error occurred while fetching manufacturers. Please try again later.');
+        displayFeedbackMessage('danger', `An error occurred while fetching manufacturers: ${error.message}`);
     }
 }
 

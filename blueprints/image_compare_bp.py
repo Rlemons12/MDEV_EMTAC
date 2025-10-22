@@ -12,11 +12,9 @@ from modules.configuration.log_config import logger
 from modules.configuration.config_env import DatabaseConfig
 from plugins.ai_modules import ModelsConfig
 
-
 db_config = DatabaseConfig()
 
 image_compare_bp = Blueprint('image_compare_bp', __name__)
-
 
 # Instantiate the appropriate handler using the function from image_modules.py
 image_handler = ModelsConfig.load_image_model()
@@ -95,57 +93,56 @@ def upload_and_compare():
         logger.error('Failed to extract image embedding.')
         return jsonify({'error': 'Failed to process the uploaded image.'}), 500
 
-    logger.info('Starting comparison with stored images in the database.')
+    logger.info('Starting enhanced similarity search using the advanced search_images method.')
 
     try:
         # Use db_config.get_main_session() to get the session
         session = db_config.get_main_session()
-        stored_images = session.query(Image).join(ImageEmbedding).all()
-        logger.debug(f'Fetched {len(stored_images)} stored images from the database.')
 
-        similarities = []
-        for stored_image in stored_images:
-            stored_embedding = session.query(ImageEmbedding).filter_by(image_id=stored_image.id).first()
-            if stored_embedding:
-                stored_embedding_vector = np.frombuffer(stored_embedding.model_embedding, dtype=np.float32)
+        # Convert embedding to list format if needed
+        if hasattr(embedding, 'tolist'):
+            embedding_list = embedding.tolist()
+        elif isinstance(embedding, np.ndarray):
+            embedding_list = embedding.flatten().tolist()
+        else:
+            embedding_list = list(embedding)
 
-                similarity = float(
-                    np.dot(embedding, stored_embedding_vector) /
-                    (np.linalg.norm(embedding) * np.linalg.norm(stored_embedding_vector))
-                )
+        # ENHANCED: Use the sophisticated search_images method with pgvector
+        search_results = Image.search_images(
+            session=session,
+            similarity_query_embedding=embedding_list,
+            similarity_threshold=0.3,  # Lower threshold to get more results
+            embedding_model_name=type(image_handler).__name__,
+            use_hybrid_ranking=True,  # Use intelligent ranking
+            limit=10,  # Return top 10 matches
+        )
 
-                similarities.append({
-                    'id': stored_image.id,
-                    'title': stored_image.title,
-                    'description': stored_image.description,
-                    'file_path': os.path.basename(stored_image.file_path),
-                    'similarity': similarity
-                })
-                logger.debug(f'Computed similarity for image ID {stored_image.id}: {similarity:.4f}')
-            else:
-                logger.warning(f'Missing embedding for image ID {stored_image.id}.')
+        logger.info(f'Enhanced search found {len(search_results)} similar images.')
 
-        # Sort similarities
-        similarities.sort(key=lambda x: x['similarity'], reverse=True)
-        top_matches = similarities[:5]
-        logger.info(f'Top {len(top_matches)} matches selected.')
+        # Convert search results to the expected format for frontend
+        results = []
+        for result in search_results:
+            similarity_score = result.get('search_metadata', {}).get('similarity_score')
 
-        results = [
-            {
-                'id': match['id'],
-                'title': match['title'],
-                'description': match['description'],
-                'file_path': match['file_path'],
-                'similarity': match['similarity']
+            result_item = {
+                'id': result['id'],
+                'title': result['title'],
+                'description': result['description'],
+                'file_path': os.path.basename(result['file_path']),
+                'similarity': float(similarity_score) if similarity_score is not None else 0.0
             }
-            for match in top_matches
-        ]
+            results.append(result_item)
 
-        logger.info('Successfully processed and compared the image.')
+            # Log the result with similarity score
+            similarity_str = f"{similarity_score:.4f}" if similarity_score is not None else "N/A"
+            logger.debug(f'Enhanced result: ID={result["id"]}, similarity={similarity_str}, '
+                         f'paths={result.get("search_metadata", {}).get("search_paths", [])}')
+
+        logger.info('Successfully processed and compared the image using enhanced search.')
         return jsonify({'image_similarity_search': results})
 
     except Exception as e:
-        logger.exception(f'An error occurred during the comparison process: {e}')
+        logger.exception(f'An error occurred during the enhanced comparison process: {e}')
         return jsonify({'error': 'An error occurred during the comparison process.'}), 500
     finally:
         session.close()
@@ -189,5 +186,3 @@ def serve_image(session, image_id):
     except Exception as e:
         logger.exception("Unhandled error while serving the image:")
         return "Internal Server Error", 500
-
-
